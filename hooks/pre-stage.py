@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+pre-stage hook — gates stage execution.
+
+Checks:
+  1. All upstream stages are approved or edited (not pending/draft/stale).
+  2. Recomputes upstream artifact hashes; marks drift as 'edited'.
+  3. If any upstream is 'edited', prints implicit-reapproval prompt.
+"""
+
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
+
+from pathlib import Path
+from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, artifact_path, STAGE_NAMES
+from hashing import hash_artifact_body
+from frontmatter import update_status
+from telemetry import log
+
+
+def main():
+    # Determine which stage is being run from the environment variable set by the skill
+    stage_id = os.environ.get("PM_OS_STAGE")
+    if not stage_id:
+        # Cannot gate without knowing the stage — allow through
+        sys.exit(0)
+
+    try:
+        project_root = resolve_project()
+    except FileNotFoundError as e:
+        print(f"[pre-stage] ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    meta = load_meta(project_root)
+    upstream_ids = upstream_stage_ids(stage_id)
+
+    # --- Step 1: recompute hashes and detect drift ---
+    edited_stages = []
+    for uid in upstream_ids:
+        stage_meta = get_stage(meta, uid)
+        apath = artifact_path(project_root, uid)
+
+        if stage_meta["status"] == "approved" and apath.exists():
+            current_hash = hash_artifact_body(str(apath))
+            if current_hash != stage_meta.get("content_hash"):
+                # Drift detected — mark as edited
+                stage_meta["status"] = "edited"
+                update_status(str(apath), "edited")
+                log("stage_edited_post_approval", project_root, uid, {
+                    "old_hash": stage_meta.get("content_hash"),
+                    "new_hash": current_hash,
+                    "detected_via": "pre_stage_hook",
+                })
+                stage_meta["content_hash"] = current_hash
+                save_meta(meta, project_root)
+
+    # --- Step 2: gate check ---
+    blocking = []
+    edited = []
+    for uid in upstream_ids:
+        stage_meta = get_stage(meta, uid)
+        status = stage_meta["status"]
+        if status in ("pending", "draft", "stale"):
+            blocking.append((uid, STAGE_NAMES[uid], status))
+        elif status == "edited":
+            edited.append((uid, STAGE_NAMES[uid]))
+
+    if blocking:
+        print("\n[pre-stage] ERROR: Cannot run stage — upstream stages are not approved:\n", file=sys.stderr)
+        for uid, name, status in blocking:
+            print(f"  Stage {uid} ({name}): {status}", file=sys.stderr)
+        print("\nApprove or regenerate blocking stages before proceeding.", file=sys.stderr)
+        sys.exit(1)
+
+    # --- Step 3: implicit reapproval prompt for edited upstreams ---
+    if edited:
+        print("\n[pre-stage] WARNING: Upstream stage(s) were edited after approval:\n")
+        for uid, name in edited:
+            stage_meta = get_stage(meta, uid)
+            apath = artifact_path(project_root, uid)
+            current_hash = hash_artifact_body(str(apath)) if apath.exists() else "?"
+            print(f"  Stage {uid} ({name})")
+            print(f"    Approved hash: {stage_meta.get('content_hash', '?')}")
+            print(f"    Current hash:  {current_hash}")
+
+        print(f"""
+Options:
+  [1] Continue — generate stage {stage_id} using current upstream content
+      (this implicitly re-approves edited stages)
+  [2] Re-approve edited stages explicitly first (recommended for significant edits)
+  [3] Cancel
+""")
+        choice = input("Choice [1/2/3]: ").strip()
+
+        if choice == "1":
+            for uid, name in edited:
+                stage_meta = get_stage(meta, uid)
+                apath = artifact_path(project_root, uid)
+                current_hash = hash_artifact_body(str(apath)) if apath.exists() else stage_meta.get("content_hash")
+                old_hash = stage_meta.get("content_hash")
+                stage_meta["status"] = "approved"
+                stage_meta["content_hash"] = current_hash
+                update_status(str(apath), "approved", content_hash=current_hash)
+                log("implicit_reapproval", project_root, uid, {
+                    "stage": uid,
+                    "old_hash": old_hash,
+                    "new_hash": current_hash,
+                })
+            save_meta(meta, project_root)
+            print("[pre-stage] Implicit re-approval logged. Proceeding.")
+        elif choice == "2":
+            print("[pre-stage] Halted. Run /pm-approve for each edited stage, then retry.")
+            sys.exit(1)
+        else:
+            print("[pre-stage] Cancelled.")
+            sys.exit(1)
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

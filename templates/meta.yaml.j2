@@ -1,0 +1,17 @@
+schema_version: 1
+project_slug: {{ project_slug }}
+project_name: {{ project_name }}
+created_at: {{ created_at }}
+created_by: {{ created_by }}
+genai_flag: {{ genai_flag }}
+pm_os_version: {{ pm_os_version }}
+stages:
+{% for stage in stages %}
+  - id: "{{ stage.id }}"
+    name: {{ stage.name }}
+    status: pending
+    approved_at: null
+    content_hash: null
+    upstream_hashes_at_approval: {}
+    regeneration_count: 0
+{% endfor %}
