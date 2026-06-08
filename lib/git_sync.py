@@ -1,8 +1,9 @@
-import os
 import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+
+from config import load_config
 
 
 CACHE_DIR = Path.home() / ".pm-os-feedback-cache"
@@ -10,8 +11,13 @@ CACHE_DIR = Path.home() / ".pm-os-feedback-cache"
 
 def push_feedback_repo(project_root: Path) -> None:
     """Copy local telemetry/feedback JSONL to the feedback repo, commit, and push."""
-    feedback_repo_url = os.environ.get("PM_OS_FEEDBACK_REPO", "")
-    pm = os.environ.get("PM_OS_USER", "unknown")
+    try:
+        cfg = load_config()
+        feedback_repo_url = cfg.get("feedback_repo", "")
+        pm = cfg.get("pm_user", "unknown")
+    except Exception:
+        print("[git_sync] Config not available — skipping push.")
+        return
 
     import yaml
     with open(project_root / ".meta.yaml", "r") as f:
@@ -19,7 +25,7 @@ def push_feedback_repo(project_root: Path) -> None:
     project_slug = meta["project_slug"]
 
     if not feedback_repo_url:
-        print("[git_sync] PM_OS_FEEDBACK_REPO not set — skipping push.")
+        print("[git_sync] feedback_repo not configured — skipping push.")
         return
 
     _ensure_repo(feedback_repo_url)
@@ -53,8 +59,9 @@ def _ensure_repo(url: str) -> None:
     if (CACHE_DIR / ".git").exists():
         _git(["fetch", "--quiet"], cwd=CACHE_DIR)
     else:
-        CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
-        _git(["clone", url, str(CACHE_DIR)])
+        parent = CACHE_DIR.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        _git(["clone", url, str(CACHE_DIR)], cwd=parent)
 
 
 def _git(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess:

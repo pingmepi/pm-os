@@ -1,17 +1,20 @@
 import json
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from hashing import hash_event
+from config import load_config
 
 
 def log(event_type: str, project_root: Path, stage, payload: dict) -> None:
     """Append a hash-chained telemetry event to project telemetry.jsonl."""
     telemetry_path = project_root / "telemetry.jsonl"
 
-    pm = os.environ.get("PM_OS_USER", "unknown")
+    try:
+        pm = load_config()["pm_user"]
+    except Exception:
+        pm = "unknown"
     meta_path = project_root / ".meta.yaml"
 
     import yaml

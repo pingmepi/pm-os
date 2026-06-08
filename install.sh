@@ -57,33 +57,19 @@ for skill_dir in "$INSTALL_DIR"/skills/*/; do
   cp -r "$skill_dir" "$dest"
 done
 
+# --- Make scripts executable ---
+if [ -d "$INSTALL_DIR/scripts" ]; then
+  chmod +x "$INSTALL_DIR"/scripts/*.py
+fi
+
 # --- Sync hooks ---
 echo "Installing hooks..."
 for hook in "$INSTALL_DIR"/hooks/*.py; do
   cp "$hook" "$HOOKS_DIR/"
 done
 
-# --- PM_OS_USER setup ---
-if [ -z "${PM_OS_USER:-}" ]; then
-  read -rp "Enter your PM identifier (e.g. 'karan'): " PM_ID
-  RCFILE="$HOME/.zshrc"
-  [ -f "$HOME/.bashrc" ] && RCFILE="$HOME/.bashrc"
-  echo "export PM_OS_USER=\"$PM_ID\"" >> "$RCFILE"
-  export PM_OS_USER="$PM_ID"
-  echo "PM_OS_USER set to '$PM_ID' in $RCFILE"
-fi
-
-# --- Feedback repo setup ---
-if [ -z "${PM_OS_FEEDBACK_REPO:-}" ]; then
-  read -rp "Enter pm-os-feedback repo URL (SSH or HTTPS, or leave blank to skip): " FEEDBACK_URL
-  if [ -n "$FEEDBACK_URL" ]; then
-    RCFILE="$HOME/.zshrc"
-    [ -f "$HOME/.bashrc" ] && RCFILE="$HOME/.bashrc"
-    echo "export PM_OS_FEEDBACK_REPO=\"$FEEDBACK_URL\"" >> "$RCFILE"
-    export PM_OS_FEEDBACK_REPO="$FEEDBACK_URL"
-    echo "PM_OS_FEEDBACK_REPO configured."
-  fi
-fi
+# --- Configure PM-OS (writes ~/.pm-os/config.yaml, does NOT touch ~/.zshrc) ---
+python3 "$INSTALL_DIR/scripts/pm_os_install.py"
 
 echo ""
 echo "=== PM-OS installation complete ==="
