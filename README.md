@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PM-OS
 
 Product Manager Operating System — a Claude Code skill suite that takes a business statement and runs it through a 7-stage product definition pipeline.
@@ -35,3 +36,6 @@ curl -fsSL https://raw.githubusercontent.com/pingmepi/pm-os/main/install.sh | ba
 - Python 3.11+
 - `PM_OS_USER` environment variable set to your PM identifier
 - `PM_OS_FEEDBACK_REPO` environment variable set to the feedback repo URL
+=======
+# pm-os
+>>>>>>> origin/main
