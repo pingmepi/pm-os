@@ -117,7 +117,7 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — increment `regeneration_count` for stage 01.
+4. **Update `.meta.yaml`** — for stage 01, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
 5. **Log `stage_generated` event:**
    ```bash
