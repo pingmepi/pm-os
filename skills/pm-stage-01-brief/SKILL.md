@@ -3,7 +3,6 @@ name: pm-stage-01-brief
 description: Generate the Product Brief for stage 01 from the business statement.
 reads: ["00-business-statement.md"]
 writes: "01-brief.md"
-genai_branch: false
 prompt_version: 0.1.0
 ---
 
@@ -119,7 +118,7 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '01', {
        'generated_hash': '<hash>',
-       'model': 'claude-sonnet-4-6',
+       'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
    })
    "
