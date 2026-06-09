@@ -28,7 +28,11 @@ def main():
 
     print(f"Project: {meta['project_slug']}")
     genai = "yes" if meta.get("genai_flag") else "no"
-    print(f"Created: {meta['created_at']}  GenAI: {genai}  PM-OS version: {meta['pm_os_version']}")
+    vpath = Path.home() / ".pm-os" / "VERSION"
+    installed = vpath.read_text().strip() if vpath.exists() else "unknown"
+    created_with = meta.get("pm_os_version", "unknown")
+    version_str = installed if created_with == installed else f"{installed} (project created with {created_with})"
+    print(f"Created: {meta['created_at']}  GenAI: {genai}  PM-OS version: {version_str}")
     print()
     print("Stages:")
 
