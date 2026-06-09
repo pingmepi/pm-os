@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 05 Prototype Brief"
+  short_description: "Draft the stage-05 prototype brief artifact"
+  default_prompt: "Use $pm-stage-05-prototype-brief to draft a prototype brief from my approved design spec."

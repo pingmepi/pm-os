@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 02 Scope"
+  short_description: "Draft the stage-02 MVP scope artifact"
+  default_prompt: "Use $pm-stage-02-scope to draft a tight MVP scope from my approved brief."

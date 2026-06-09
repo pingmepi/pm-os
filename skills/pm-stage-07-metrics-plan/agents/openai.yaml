@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 07 Metrics Plan"
+  short_description: "Draft the stage-07 metrics plan artifact"
+  default_prompt: "Use $pm-stage-07-metrics-plan to draft a metrics plan from my approved PRD."
