@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 08 TRD"
+  short_description: "Draft the optional stage-08 technical requirements document"
+  default_prompt: "Use $pm-stage-08-trd to draft a technical requirements document from my approved product pipeline."

@@ -13,6 +13,7 @@ STAGE_LABELS = {
     "01": "Brief", "02": "Scope", "03": "PRD",
     "04": "Design Spec", "05": "Prototype Brief",
     "06": "QA Plan", "07": "Metrics Plan",
+    "08": "TRD",
 }
 
 
@@ -52,16 +53,17 @@ def main():
             detail = "  awaiting approval"
 
         notes_str = ""
-        apath = artifact_path(root, s["id"])
-        if apath.exists():
-            try:
+        try:
+            apath = artifact_path(root, s["id"])
+            if apath.exists():
                 fm, _ = read_frontmatter(str(apath))
                 gn = fm.get("generation_notes") or []
                 if gn:
                     notes_str = f"  · {len(gn)} note{'s' if len(gn) != 1 else ''}"
-            except Exception:
-                pass
-        print(f"  {s['id']} {label} [{status}]{detail}{notes_str}")
+        except Exception:
+            pass
+        opt = "  (optional)" if s.get("optional") else ""
+        print(f"  {s['id']} {label} [{status}]{detail}{notes_str}{opt}")
 
     tpath = root / "telemetry.jsonl"
     events = []

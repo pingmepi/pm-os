@@ -37,9 +37,10 @@ STAGE_NAMES = {
     "05": "prototype-brief",
     "06": "qa-plan",
     "07": "metrics-plan",
+    "08": "trd",
 }
 
-STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07"]
+STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07", "08"]
 
 
 def artifact_path(project_root: Path, stage_id: str) -> Path:
