@@ -272,7 +272,6 @@ name: pm-stage-NN-<name>
 description: <one-line>
 reads: [<list of upstream artifact filenames>]
 writes: <output filename>
-genai_branch: true | false
 prompt_version: <semver>
 ---
 
@@ -284,7 +283,7 @@ prompt_version: <semver>
 
 # Output specification
 <exact markdown structure with required sections>
-<if genai_branch=true: additional sections that activate when project's genai_flag=true>
+<if the stage has GenAI-specific requirements: condition them on the project's genai_flag>
 
 # Quality bar
 <what good looks like, what to avoid, common failure modes>
@@ -292,6 +291,12 @@ prompt_version: <semver>
 # Self-check before writing
 <3-5 checks the model runs on its own draft before emitting>
 ```
+
+GenAI architecture: PM-OS uses one `SKILL.md` per stage. Do not create separate GenAI and non-GenAI skill files, and do not encode branch capability in frontmatter. Every generative stage reads `genai_flag` from `.meta.yaml`; the skill body states exactly how output changes when `genai_flag=true` or `genai_flag=false`.
+
+Cross-runtime interface: each stage directory also ships an `agents/openai.yaml` describing how the stage is surfaced in OpenAI/Codex-style runtimes. It carries an `interface:` block with `display_name`, `short_description`, and `default_prompt` (the `default_prompt` invokes the stage via `$<skill-name>`). Every stage directory includes one.
+
+Model selection: skill-level `model:` frontmatter is advisory — Claude Code runs skills inline on the current session model and does not switch models per skill. Stages that require a specific model (03 PRD and 06 QA Plan use Opus) declare it in `model:` and include a "Model requirement" pre-flight block that reads the running session model and, if it is wrong, prompts the PM to switch (`/model opus`) and re-invoke before generating. There is no env var a hook can read for the active model, so this check lives in the skill body and is advisory, not runtime-enforced.
 
 ### 7.1 `pm-os-install`
 
@@ -422,7 +427,7 @@ Output sections: In scope, Out of scope, Constraints, Assumptions, Dependencies,
 
 ### Stage 03 — PRD (use Opus)
 Output sections: Overview, Goals and non-goals, User stories with acceptance criteria, Functional requirements, Non-functional requirements, Edge cases, Risks.
-**GenAI branch:** add sections — Model selection rationale, Prompt/agent architecture, Tool/function inventory, Context window strategy, Fallback behavior, Output validation strategy.
+**When `genai_flag=true`:** add sections — Model selection rationale, Prompt/agent architecture, Tool/function inventory, Context window strategy, Fallback behavior, Output validation strategy.
 
 ### Stage 04 — Design Spec
 Output sections: Information architecture, Key user flows (narrative), Design principles, Component inventory, Typography, Color tokens, Spacing tokens, Iconography, Accessibility notes.
@@ -434,11 +439,11 @@ Output sections: What to prototype, Fidelity level, Screens to include, Interact
 
 ### Stage 06 — QA Plan (use Opus)
 Output sections: Test strategy, Functional test cases, Non-functional tests, Edge cases, Acceptance criteria.
-**GenAI branch:** add sections — Eval dataset spec, Golden set construction, LLM-as-judge rubric, Hallucination test plan, Latency/cost SLOs, Red-team scenarios, Prompt regression suite.
+**When `genai_flag=true`:** add sections — Eval dataset spec, Golden set construction, LLM-as-judge rubric, Hallucination test plan, Latency/cost SLOs, Red-team scenarios, Prompt regression suite.
 
 ### Stage 07 — Metrics Plan
 Output sections: North star metric, Input metrics, Output metrics, Guardrail metrics, Instrumentation plan, Dashboard sketch, Review cadence.
-**GenAI branch:** add sections — Quality metrics (accuracy, faithfulness), Cost per invocation, Token usage, Model performance drift detection.
+**When `genai_flag=true`:** add sections — Quality metrics (accuracy, faithfulness), Cost per invocation, Token usage, Model performance drift detection.
 
 ---
 
@@ -538,7 +543,7 @@ Build in this order. Do not skip ahead.
 ### Phase 2 — Remaining stages (target: 3 days)
 Build stages 02, 07, 06, 04, 05, 03 in that order (easiest to hardest). For each:
 1. Write SKILL.md with minimal prompt per section 8 guidelines.
-2. Verify GenAI branch activation works for stages 03, 06, 07.
+2. Verify `genai_flag` activation works for stages 03, 06, 07.
 3. Run end-to-end on a throwaway project.
 
 For stages 04 and 05: also implement `html_render.py` and the Jinja templates. HTML companions are basic Tailwind, single-file, no JS framework.
@@ -577,9 +582,9 @@ Karan runs 2-3 real projects through the system. Captures feedback aggressively.
 - **Language:** Python 3.11+ for all `lib/` and hooks. No other runtime.
 - **Dependencies:** keep minimal. Allowed: `pyyaml`, `jinja2`, `sentence-transformers`, `python-Levenshtein`, `gitpython` (or shell out to `git`). Avoid heavy frameworks.
 - **Claude model selection:**
-  - Default: Sonnet (latest available)
+  - Default: the current session model (Sonnet latest unless the PM switches)
   - Opus for stages 03 (PRD) and 06 (QA Plan)
-  - Configurable in skill frontmatter, not hardcoded
+  - Skills run inline on the session model; `model:` frontmatter is advisory, not runtime-enforced. Opus stages prompt the PM to `/model opus` and re-invoke (see §7).
 - **Embeddings model:** `sentence-transformers/all-MiniLM-L6-v2` — small, local, no API cost.
 - **Timestamps:** ISO 8601 UTC throughout.
 - **UUIDs:** uuid4.
@@ -632,7 +637,7 @@ The build is complete (Phase 1-3) when:
 - [ ] Telemetry events are hash-chained and tamper-evident.
 - [ ] All telemetry and feedback pushes to `pm-os-feedback` repo succeed.
 - [ ] `pm-status` correctly reports project state.
-- [ ] GenAI flag triggers correct branching in stages 03, 06, 07.
+- [ ] `genai_flag` triggers correct conditional output in stages 03, 06, 07.
 - [ ] Session-end hook flushes telemetry on Claude Code exit.
 
 ---
