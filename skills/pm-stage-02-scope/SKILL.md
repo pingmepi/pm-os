@@ -30,6 +30,15 @@ Read these inputs in order:
 
 When sources differ, prefer the approved brief over the original business statement, but preserve any concrete constraint from the business statement that still materially affects MVP scope.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this scope — for example, excluding a feature, dropping a target segment, or fixing a constraint or dependency.
+
+- If no `--note` arguments are present, generate normally.
+- Apply notes **forward only**: they shape this scope and everything downstream. Do not edit `01-brief.md` or other upstream artifacts in this stage.
+- If a note conflicts with a decision inherited from the brief (e.g. it drops a target user the brief named), still apply it here and make the tension explicit in the relevant section (e.g. Out of Scope), noting that the brief still reflects the older decision.
+- Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -124,6 +133,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
@@ -140,6 +150,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```

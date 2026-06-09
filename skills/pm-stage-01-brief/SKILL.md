@@ -29,6 +29,14 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
 Also read `.meta.yaml` to get: `project_slug`, `genai_flag`, `pm_os_version`.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this brief — for example, sharpening the target user, fixing a constraint, or excluding a direction.
+
+- If no `--note` arguments are present, generate normally.
+- Apply each note when writing the brief. If a note narrows or excludes something, reflect it in the relevant section (e.g. Out of Scope) so the intent is visible.
+- Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -104,6 +112,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
@@ -120,6 +129,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```

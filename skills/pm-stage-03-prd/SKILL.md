@@ -50,6 +50,15 @@ Read these inputs in order:
 
 When sources differ, resolve contradictions in this order: scope, then brief, then business statement. Do not re-open decisions already made in scope unless they are explicitly listed as open questions.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this PRD — for example, excluding a requirement, deferring an edge case, or constraining an approach.
+
+- If no `--note` arguments are present, generate normally.
+- Apply notes **forward only**: they shape this PRD and downstream stages. Do not edit `01-brief.md` or `02-scope.md` in this stage.
+- The PRD must stay inside the scoped MVP boundary. If a note would expand beyond `02-scope.md`, do not silently expand — apply only the narrowing parts, and flag any expansion as something that belongs in scope first.
+- Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -171,6 +180,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
@@ -187,6 +197,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
