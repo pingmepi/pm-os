@@ -35,6 +35,7 @@ When sources differ, prefer the approved brief over the original business statem
 The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this scope — for example, excluding a feature, dropping a target segment, or fixing a constraint or dependency.
 
 - If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `02-scope.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
 - Apply notes **forward only** by default: they shape this scope and everything downstream.
 
 **Upstream-conflict check.** Before generating, test each note against the approved brief (`01-brief.md`). A note *conflicts* when it reverses or removes a decision the brief states as a core element — most importantly the target user / target segments, the success hypothesis, or an explicit commitment. Narrowing within scope's own mandate (e.g. deferring a feature to a later phase) is **not** a conflict.

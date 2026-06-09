@@ -55,6 +55,7 @@ When sources differ, resolve contradictions in this order: scope, then brief, th
 The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this PRD — for example, excluding a requirement, deferring an edge case, or constraining an approach.
 
 - If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `03-prd.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
 - Apply notes **forward only** by default: they shape this PRD and downstream stages.
 
 **Upstream-conflict check.** Before generating, test each note against the approved scope (`02-scope.md`) and brief (`01-brief.md`). A note *conflicts* when it reverses or removes a decision an upstream artifact states as binding — for the scope: the MVP boundary, in-scope commitments, or constraints; for the brief: the target user / segments or success hypothesis. Because the PRD must stay inside the scoped MVP boundary, a note that would *expand* beyond scope is always a conflict against `02-scope.md`.

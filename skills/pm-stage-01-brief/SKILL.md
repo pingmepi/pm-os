@@ -34,6 +34,7 @@ Also read `.meta.yaml` to get: `project_slug`, `genai_flag`, `pm_os_version`.
 The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this brief — for example, sharpening the target user, fixing a constraint, or excluding a direction.
 
 - If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `01-brief.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
 - Apply each note when writing the brief. If a note narrows or excludes something, reflect it in the relevant section (e.g. Out of Scope) so the intent is visible.
 - Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
 
