@@ -2,12 +2,14 @@
 """PM-OS updater. Tracks origin/main and reports version."""
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
+CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")))
 TARGET_BRANCH = "main"
 
 
@@ -76,6 +78,42 @@ def print_version() -> None:
         print(f"✓ PM-OS version: {version_path.read_text().strip()}")
 
 
+def sync_to_claude() -> None:
+    """Copy skills and hooks from the PM-OS checkout into Claude Code's directories.
+
+    Claude Code loads skills and hooks from CLAUDE_DIR as copies (not symlinks), so a
+    git update of PM_OS_DIR is not visible to Claude Code until the files are re-synced
+    here. Mirrors the sync step in install.sh.
+    """
+    skills_src = PM_OS_DIR / "skills"
+    hooks_src = PM_OS_DIR / "hooks"
+
+    if skills_src.is_dir():
+        skills_dest = CLAUDE_DIR / "skills"
+        skills_dest.mkdir(parents=True, exist_ok=True)
+        for skill_dir in sorted(p for p in skills_src.iterdir() if p.is_dir()):
+            target = skills_dest / skill_dir.name
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(skill_dir, target)
+
+    if hooks_src.is_dir():
+        hooks_dest = CLAUDE_DIR / "hooks"
+        hooks_dest.mkdir(parents=True, exist_ok=True)
+        for hook in sorted(hooks_src.glob("*.py")):
+            shutil.copy2(hook, hooks_dest / hook.name)
+
+    print(f"✓ Synced skills and hooks to {CLAUDE_DIR}")
+
+
+def finish_update() -> None:
+    sync_to_claude()
+    print_version()
+    print()
+    print("Restart your Claude Code session for updated skills and hooks to load.")
+    print("Then run /pm-os-verify to confirm installation health.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Update PM-OS from origin/main.")
     parser.add_argument(
@@ -111,18 +149,14 @@ def main():
 
         if ahead == 0 and behind == 0:
             print(f"✓ Already up to date with origin/{TARGET_BRANCH}")
-            print_version()
-            print()
-            print("Update complete. Run /pm-os-verify to confirm installation health.")
+            finish_update()
             return
 
         if ahead == 0 and behind > 0:
             result = run_git(["merge", "--ff-only", f"origin/{TARGET_BRANCH}"])
             output = result.stdout.strip() or f"Fast-forwarded to origin/{TARGET_BRANCH}"
             print(f"✓ {output}")
-            print_version()
-            print()
-            print("Update complete. Run /pm-os-verify to confirm installation health.")
+            finish_update()
             return
 
         if not args.reset_main:
@@ -141,9 +175,7 @@ def main():
 
         run_git(["reset", "--hard", f"origin/{TARGET_BRANCH}"])
         print(f"✓ Reset local {TARGET_BRANCH} to origin/{TARGET_BRANCH}")
-        print_version()
-        print()
-        print("Update complete. Run /pm-os-verify to confirm installation health.")
+        finish_update()
     except RuntimeError as exc:
         print(f"Error updating PM-OS:\n{exc}")
         sys.exit(1)
