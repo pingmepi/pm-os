@@ -181,7 +181,7 @@ genai_flag: true | false
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_edited_post_approval | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_edited_post_approval | stage_edited_via_note | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -192,9 +192,10 @@ Hash chain provides tamper-evidence. Append-only by convention.
 **Event-specific payloads:**
 
 - `stage_started`: `{}`
-- `stage_generated`: `{ generated_hash, model, prompt_version }`
+- `stage_generated`: `{ generated_hash, model, prompt_version, notes }`
 - `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }`
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "post_tool_use_hook" }`
+- `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
 - `implicit_reapproval`: `{ stage, old_hash, new_hash }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
@@ -297,6 +298,8 @@ GenAI architecture: PM-OS uses one `SKILL.md` per stage. Do not create separate 
 Cross-runtime interface: each stage directory also ships an `agents/openai.yaml` describing how the stage is surfaced in OpenAI/Codex-style runtimes. It carries an `interface:` block with `display_name`, `short_description`, and `default_prompt` (the `default_prompt` invokes the stage via `$<skill-name>`). Every stage directory includes one.
 
 Model selection: skill-level `model:` frontmatter is advisory — Claude Code runs skills inline on the current session model and does not switch models per skill. Stages that require a specific model (03 PRD and 06 QA Plan use Opus) declare it in `model:` and include a "Model requirement" pre-flight block that reads the running session model and, if it is wrong, prompts the PM to switch (`/model opus`) and re-invoke before generating. There is no env var a hook can read for the active model, so this check lives in the skill body and is advisory, not runtime-enforced.
+
+Steering notes: generative stages accept repeatable `--note "<text>"` arguments (read from `$ARGUMENTS`) that steer a generation — e.g. excluding a feature or dropping a target segment. Notes apply **forward only** by default: they shape the current artifact and downstream stages, and are recorded verbatim in the artifact's `generation_notes` frontmatter (excluded from the body-only `content_hash`), in `.history`, and in the `stage_generated` telemetry payload. When a note contradicts a binding decision in an upstream artifact (e.g. a stage-02 note drops a target user the brief named), the stage stops and offers the PM three choices: (1) reconcile into the upstream artifact — edits it, appends the note to its `generation_notes`, logs `stage_edited_via_note`, and lets the existing pre-stage hash-drift cascade mark downstream stages stale for re-approval; (2) apply forward only and let the documents diverge; or (3) cancel. The system never silently rewrites an upstream artifact.
 
 ### 7.1 `pm-os-install`
 

@@ -35,9 +35,27 @@ When sources differ, prefer the approved brief over the original business statem
 The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this scope — for example, excluding a feature, dropping a target segment, or fixing a constraint or dependency.
 
 - If no `--note` arguments are present, generate normally.
-- Apply notes **forward only**: they shape this scope and everything downstream. Do not edit `01-brief.md` or other upstream artifacts in this stage.
-- If a note conflicts with a decision inherited from the brief (e.g. it drops a target user the brief named), still apply it here and make the tension explicit in the relevant section (e.g. Out of Scope), noting that the brief still reflects the older decision.
-- Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+- Apply notes **forward only** by default: they shape this scope and everything downstream.
+
+**Upstream-conflict check.** Before generating, test each note against the approved brief (`01-brief.md`). A note *conflicts* when it reverses or removes a decision the brief states as a core element — most importantly the target user / target segments, the success hypothesis, or an explicit commitment. Narrowing within scope's own mandate (e.g. deferring a feature to a later phase) is **not** a conflict.
+
+For each conflicting note, stop before writing and ask the PM how to reconcile, showing the specific clash:
+
+```
+⚠ This note drops "<thing>", but 01-brief.md still lists it under <section>.
+  [1] Update 01-brief.md too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [2] Apply from this stage forward only — the brief is left as-is and the documents will diverge
+  [3] Cancel — make no changes
+```
+
+Handle the choice:
+- **[1]** Edit the relevant section of `01-brief.md` to reflect the note, append the note verbatim to the brief's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for stage `01` (payload: `{ note, edited_sections }`). Leave the brief's `content_hash` unchanged — the next downstream run's pre-stage hook will detect the body drift, mark the brief `edited`, and cascade staleness for re-approval. Then continue generating this scope.
+- **[2]** Proceed forward-only: apply the note here and make the divergence explicit in the relevant section (e.g. Out of Scope), noting that the brief still reflects the older decision.
+- **[3]** Abort without writing any artifact or telemetry.
+
+If a note does not conflict, apply it silently and proceed.
+
+- Record every note used verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
 
 # Log stage started
 
