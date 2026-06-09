@@ -6,7 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
-from project import resolve_project, load_meta
+from project import resolve_project, load_meta, artifact_path
+from frontmatter import read as read_frontmatter
 
 STAGE_LABELS = {
     "01": "Brief", "02": "Scope", "03": "PRD",
@@ -49,7 +50,18 @@ def main():
             detail = "  upstream changed"
         elif status == "draft":
             detail = "  awaiting approval"
-        print(f"  {s['id']} {label} [{status}]{detail}")
+
+        notes_str = ""
+        apath = artifact_path(root, s["id"])
+        if apath.exists():
+            try:
+                fm, _ = read_frontmatter(str(apath))
+                gn = fm.get("generation_notes") or []
+                if gn:
+                    notes_str = f"  · {len(gn)} note{'s' if len(gn) != 1 else ''}"
+            except Exception:
+                pass
+        print(f"  {s['id']} {label} [{status}]{detail}{notes_str}")
 
     tpath = root / "telemetry.jsonl"
     events = []

@@ -29,6 +29,15 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
 Also read `.meta.yaml` to get: `project_slug`, `genai_flag`, `pm_os_version`.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this brief — for example, sharpening the target user, fixing a constraint, or excluding a direction.
+
+- If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `01-brief.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
+- Apply each note when writing the brief. If a note narrows or excludes something, reflect it in the relevant section (e.g. Out of Scope) so the intent is visible.
+- Record every note verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -104,11 +113,12 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — increment `regeneration_count` for stage 01.
+4. **Update `.meta.yaml`** — for stage 01, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
 5. **Log `stage_generated` event:**
    ```bash
@@ -120,6 +130,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```

@@ -50,6 +50,34 @@ Read these inputs in order:
 
 When sources differ, resolve contradictions in this order: scope, then brief, then business statement. Do not re-open decisions already made in scope unless they are explicitly listed as open questions.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this PRD — for example, excluding a requirement, deferring an edge case, or constraining an approach.
+
+- If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `03-prd.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
+- Apply notes **forward only** by default: they shape this PRD and downstream stages.
+
+**Upstream-conflict check.** Before generating, test each note against the approved scope (`02-scope.md`) and brief (`01-brief.md`). A note *conflicts* when it reverses or removes a decision an upstream artifact states as binding — for the scope: the MVP boundary, in-scope commitments, or constraints; for the brief: the target user / segments or success hypothesis. Because the PRD must stay inside the scoped MVP boundary, a note that would *expand* beyond scope is always a conflict against `02-scope.md`.
+
+For each conflicting note, stop before writing and ask the PM how to reconcile, naming the upstream artifact it hits:
+
+```
+⚠ This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
+  [1] Update <NN-upstream.md> too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [2] Apply from this stage forward only — the upstream artifact is left as-is and the documents will diverge
+  [3] Cancel — make no changes
+```
+
+Handle the choice:
+- **[1]** Edit the relevant section of the named upstream artifact (`02-scope.md` or `01-brief.md`) to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects the drift, marks it `edited`, and cascades staleness for re-approval on the next downstream run. Then continue generating this PRD.
+- **[2]** Proceed forward-only: apply only the narrowing parts of the note and surface any divergence (e.g. in Goals/Non-Goals or Risks), noting the upstream artifact still reflects the older decision. Never silently expand beyond scope.
+- **[3]** Abort without writing any artifact or telemetry.
+
+If a note does not conflict, apply it silently and proceed.
+
+- Record every note used verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -171,11 +199,12 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — increment `regeneration_count` for stage 03.
+4. **Update `.meta.yaml`** — for stage 03, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
 5. **Log `stage_generated` event:**
    ```bash
@@ -187,6 +216,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```

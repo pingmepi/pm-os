@@ -30,6 +30,34 @@ Read these inputs in order:
 
 When sources differ, prefer the approved brief over the original business statement, but preserve any concrete constraint from the business statement that still materially affects MVP scope.
 
+# Steering notes
+
+The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for this scope — for example, excluding a feature, dropping a target segment, or fixing a constraint or dependency.
+
+- If no `--note` arguments are present, generate normally.
+- **Carry-forward on regeneration.** If `02-scope.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
+- Apply notes **forward only** by default: they shape this scope and everything downstream.
+
+**Upstream-conflict check.** Before generating, test each note against the approved brief (`01-brief.md`). A note *conflicts* when it reverses or removes a decision the brief states as a core element — most importantly the target user / target segments, the success hypothesis, or an explicit commitment. Narrowing within scope's own mandate (e.g. deferring a feature to a later phase) is **not** a conflict.
+
+For each conflicting note, stop before writing and ask the PM how to reconcile, showing the specific clash:
+
+```
+⚠ This note drops "<thing>", but 01-brief.md still lists it under <section>.
+  [1] Update 01-brief.md too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [2] Apply from this stage forward only — the brief is left as-is and the documents will diverge
+  [3] Cancel — make no changes
+```
+
+Handle the choice:
+- **[1]** Edit the relevant section of `01-brief.md` to reflect the note, append the note verbatim to the brief's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for stage `01` (payload: `{ note, edited_sections }`). Leave the brief's `content_hash` unchanged — the next downstream run's pre-stage hook will detect the body drift, mark the brief `edited`, and cascade staleness for re-approval. Then continue generating this scope.
+- **[2]** Proceed forward-only: apply the note here and make the divergence explicit in the relevant section (e.g. Out of Scope), noting that the brief still reflects the older decision.
+- **[3]** Abort without writing any artifact or telemetry.
+
+If a note does not conflict, apply it silently and proceed.
+
+- Record every note used verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
+
 # Log stage started
 
 ```bash
@@ -124,11 +152,12 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — increment `regeneration_count` for stage 02.
+4. **Update `.meta.yaml`** — for stage 02, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
 5. **Log `stage_generated` event:**
    ```bash
@@ -140,6 +169,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
        'prompt_version': '0.1.0',
+       'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
