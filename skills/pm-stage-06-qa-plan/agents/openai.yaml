@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 06 QA Plan"
+  short_description: "Draft the stage-06 QA plan artifact"
+  default_prompt: "Use $pm-stage-06-qa-plan to draft a QA plan from my approved PRD."

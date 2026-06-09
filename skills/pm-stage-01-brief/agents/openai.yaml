@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 01 Brief"
+  short_description: "Draft the stage-01 product brief artifact"
+  default_prompt: "Use $pm-stage-01-brief to draft a product brief from my business statement."
