@@ -58,6 +58,7 @@ pm-os/
     pm-stage-05-prototype-brief/SKILL.md
     pm-stage-06-qa-plan/SKILL.md
     pm-stage-07-metrics-plan/SKILL.md
+    pm-stage-08-trd/SKILL.md
   lib/
     hashing.py                     # SHA-256 of artifact content excluding status
     frontmatter.py                 # YAML frontmatter read/write
@@ -113,6 +114,7 @@ For single-user MVP, `<pm-identifier>` = `karan`. Folder structure exists from d
     05-prototype-mockup.html       # generated on approval of 05
     06-qa-plan.md
     07-metrics-plan.md
+    08-trd.md                      # optional technical capstone
     telemetry.jsonl                # local, append-only, hash-chained
     feedback.jsonl                 # local, append-only
     .history/
@@ -401,6 +403,7 @@ Stages:
   05 Prototype Brief    [pending]
   06 QA Plan            [pending]
   07 Metrics Plan       [pending]
+  08 TRD                [pending]  (optional)
 
 Recent events:
   <last 5 telemetry events, human-formatted>
@@ -447,6 +450,11 @@ Output sections: Test strategy, Functional test cases, Non-functional tests, Edg
 ### Stage 07 — Metrics Plan
 Output sections: North star metric, Input metrics, Output metrics, Guardrail metrics, Instrumentation plan, Dashboard sketch, Review cadence.
 **When `genai_flag=true`:** add sections — Quality metrics (accuracy, faithfulness), Cost per invocation, Token usage, Model performance drift detection.
+
+### Stage 08 — TRD (optional, use Opus)
+Optional technical capstone. Always scaffolded (`optional: true` in `.meta.yaml`) but only runnable once stages 01–07 are approved; it reads the full pipeline and details how the product is built. Owned conceptually by engineering, not the PM. Separation of concerns: the PRD says **what/why**, the TRD says **how**.
+Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, Open technical questions.
+**When `genai_flag=true`:** add sections — Model serving & selection, Prompt/agent architecture (implementation), Tool/function implementation, Context & retrieval engineering, Evaluation & guardrail implementation, Inference cost & latency engineering. (The PRD keeps its product-level GenAI sections; the TRD goes deeper into implementation.)
 
 ---
 
