@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-post-approve hook — runs after pm-approve completes.
+post-approve hook - runs after pm-approve completes.
 
-1. Push telemetry + feedback JSONL to feedback repo.
-2. Cascade staleness: downstream approved stages → stale.
+1. Render companion HTML for stages 04 and 05.
+2. Cascade staleness: downstream approved stages -> stale.
+3. Push telemetry + feedback JSONL to feedback repo.
 """
 
 import sys
@@ -13,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from project import resolve_project, load_meta, save_meta, get_stage, artifact_path, STAGE_ORDER, STAGE_NAMES
 from frontmatter import update_status
+from html_render import render_design_spec, render_prototype_mockup
 from telemetry import log
 from git_sync import push_feedback_repo
 
@@ -30,13 +32,27 @@ def main():
 
     meta = load_meta(project_root)
 
+    # --- Render companion HTML for stages with generated previews ---
+    try:
+        if stage_id == "04":
+            output_path = render_design_spec(project_root)
+            print(f"[post-approve] Rendered companion HTML: {output_path.name}")
+        elif stage_id == "05":
+            output_path = render_prototype_mockup(project_root)
+            print(f"[post-approve] Rendered companion HTML: {output_path.name}")
+    except Exception as e:
+        print(f"[post-approve] WARNING: Could not render companion HTML: {e}", file=sys.stderr)
+
     # --- Cascade staleness to downstream approved stages ---
     stage_idx = STAGE_ORDER.index(stage_id)
     downstream_ids = STAGE_ORDER[stage_idx + 1:]
 
     stale_logged = []
     for did in downstream_ids:
-        ds_meta = get_stage(meta, did)
+        try:
+            ds_meta = get_stage(meta, did)
+        except KeyError:
+            continue
         if ds_meta["status"] == "approved":
             ds_meta["status"] = "stale"
             apath = artifact_path(project_root, did)
