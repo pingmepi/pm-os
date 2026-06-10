@@ -101,10 +101,13 @@ def main():
 
     meta_reloaded = load_meta(project_root)
     stage_idx = STAGE_ORDER.index(stage_id)
-    downstream_stale = [
-        did for did in STAGE_ORDER[stage_idx + 1:]
-        if get_stage(meta_reloaded, did)["status"] == "stale"
-    ]
+    downstream_stale = []
+    for did in STAGE_ORDER[stage_idx + 1:]:
+        try:
+            if get_stage(meta_reloaded, did)["status"] == "stale":
+                downstream_stale.append(did)
+        except KeyError:
+            continue
 
     print(f"Stage {stage_id} approved.")
     print(f"Content hash: {content_hash}")

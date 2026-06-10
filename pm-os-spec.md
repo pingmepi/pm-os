@@ -441,7 +441,7 @@ Output sections: Information architecture, Key user flows (narrative), Design pr
 
 ### Stage 05 — Prototype Brief
 Output sections: What to prototype, Fidelity level, Screens to include, Interactions to demonstrate, Questions the prototype should answer, Non-goals for prototype.
-**Companion HTML:** mockup of described screens, Tailwind, static.
+**Companion HTML:** lo-fi static prototype rendered from both the approved design spec and prototype brief.
 
 ### Stage 06 — QA Plan (use Opus)
 Output sections: Test strategy, Functional test cases, Non-functional tests, Edge cases, Acceptance criteria.

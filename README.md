@@ -18,6 +18,8 @@ PM-OS guides a product idea through a seven-stage pipeline:
 
 Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit approval. Later stages use the approved upstream artifacts as their source of truth.
 
+Approving the design spec and prototype brief also creates HTML companions: a design-spec preview for stage 04 and a lo-fi static prototype for stage 05.
+
 ## Design Goals
 
 - Keep Markdown as the source of truth for every product artifact.
@@ -84,6 +86,10 @@ A generated PM-OS project stores its artifacts locally, typically under a projec
 01-brief.md
 02-scope.md
 03-prd.md
+04-design-spec.md
+04-design-spec.html
+05-prototype-brief.md
+05-prototype-mockup.html
 ...
 telemetry.jsonl
 feedback.jsonl

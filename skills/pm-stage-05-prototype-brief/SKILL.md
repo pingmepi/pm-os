@@ -74,7 +74,7 @@ log('stage_started', Path('.'), '05', {})
 
 # Output specification
 
-Write a Prototype Brief with exactly these sections. This skill writes Markdown only; any HTML mockup companion is generated separately after approval when the hook/template path supports it.
+Write a Prototype Brief with exactly these sections. This skill writes Markdown only. After approval, the post-approve hook renders `05-prototype-mockup.html` as a lo-fi static HTML prototype from both `04-design-spec.md` and this brief.
 
 GenAI handling:
 - If `genai_flag=false`, write a conventional prototype brief focused on product flows, screens, states, interactions, and validation questions.
@@ -95,6 +95,8 @@ GenAI handling:
 
 <List the screens, modals, panels, empty states, and error states needed for the prototype.>
 
+For each screen, include enough layout and state detail for the renderer to create a lo-fi HTML wireframe: screen purpose, primary content area, controls, empty/error/loading states, and what the user should notice first.
+
 ## Interactions to Demonstrate
 
 <List the interactions, transitions, decisions, state changes, and input/output behavior the prototype should make tangible.>
@@ -113,6 +115,7 @@ GenAI handling:
 - Prototype the smallest slice that can answer the highest-risk product and design questions.
 - Anchor screens and interactions to the approved design spec and PRD.
 - Include enough states to make the prototype useful, but avoid turning it into full product delivery.
+- Write screen and interaction bullets as renderer-friendly inputs. Prefer concrete screen names, component names, and state labels over abstract descriptions.
 - Make non-goals explicit so reviewers do not mistake omissions for forgotten requirements.
 - If `genai_flag=true`, include AI-specific states only if they are necessary to validate the intended experience.
 - If `genai_flag=false`, avoid AI-shaped prototype assumptions.
