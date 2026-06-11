@@ -1,7 +1,7 @@
 ---
 name: pm-new
 description: Scaffold a new PM-OS project from a business statement.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_new.py "$@"

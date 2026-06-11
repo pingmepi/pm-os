@@ -1,7 +1,7 @@
 ---
 name: pm-os-install
 description: Install or reconfigure PM-OS on this machine.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_os_install.py "$@"

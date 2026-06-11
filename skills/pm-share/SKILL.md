@@ -1,7 +1,7 @@
 ---
 name: pm-share
 description: Export approved PM-OS stage artifacts to a shareable text format.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_share.py "$@"

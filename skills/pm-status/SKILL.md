@@ -1,7 +1,7 @@
 ---
 name: pm-status
 description: Display the current state of a PM-OS project — stage statuses, recent events, and feedback count.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_status.py "$@"

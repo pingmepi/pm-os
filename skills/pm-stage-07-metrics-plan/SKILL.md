@@ -199,10 +199,13 @@ After generating, do the following in order:
    ```text
    Stage 07 draft written to 07-metrics-plan.md
 
-   Review the metrics plan, edit if needed, then:
-     /pm-approve 07              - approve and complete the pipeline
-     /pm-stage-07-metrics-plan   - regenerate from scratch
-     /pm-feedback 07             - capture notes
+   Review the metrics plan, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 07              - approve and complete the pipeline
+     Codex:  $pm-approve 07              - approve and complete the pipeline
+     Claude: /pm-stage-07-metrics-plan   - regenerate from scratch
+     Codex:  $pm-stage-07-metrics-plan   - regenerate from scratch
+     Claude: /pm-feedback 07             - capture notes
+     Codex:  $pm-feedback 07             - capture notes
    ```
 
 # Quality bar

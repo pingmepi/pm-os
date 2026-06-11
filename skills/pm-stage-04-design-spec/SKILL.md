@@ -186,10 +186,13 @@ After generating, do the following in order:
    ```text
    Stage 04 draft written to 04-design-spec.md
 
-   Review the design spec, edit if needed, then:
-     /pm-approve 04              - approve and proceed
-     /pm-stage-04-design-spec    - regenerate from scratch
-     /pm-feedback 04             - capture notes
+   Review the design spec, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 04              - approve and proceed
+     Codex:  $pm-approve 04              - approve and proceed
+     Claude: /pm-stage-04-design-spec    - regenerate from scratch
+     Codex:  $pm-stage-04-design-spec    - regenerate from scratch
+     Claude: /pm-feedback 04             - capture notes
+     Codex:  $pm-feedback 04             - capture notes
    ```
 
 # Quality bar
