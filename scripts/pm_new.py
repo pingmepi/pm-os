@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -9,6 +10,15 @@ sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
 import yaml
 from config import load_config
+
+
+def parse_bool(value):
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "genai"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "non-genai", "no-genai"}:
+        return False
+    return None
 
 
 def main():
@@ -32,12 +42,22 @@ def main():
         print(f"Error: project '{args.slug}' already exists at {project_root}")
         sys.exit(1)
 
-    if args.genai is None:
-        try:
-            resp = input("Is this a GenAI/agentic product? [y/n]: ").strip().lower()
-            genai_flag = resp.startswith("y")
-        except EOFError:
-            genai_flag = False
+    env_genai = os.environ.get("PM_OS_GENAI_FLAG")
+    if args.genai is None and env_genai is not None:
+        parsed = parse_bool(env_genai)
+        if parsed is None:
+            print("Error: PM_OS_GENAI_FLAG must be one of yes/no, true/false, or 1/0.")
+            sys.exit(1)
+        genai_flag = parsed
+    elif args.genai is None:
+        if not sys.stdin.isatty():
+            print("Error: GenAI decision required in non-interactive mode. Pass --genai or --no-genai.")
+            sys.exit(1)
+        resp = input("Is this a GenAI/agentic product? [y/n]: ").strip().lower()
+        if resp not in {"y", "yes", "n", "no"}:
+            print("Error: answer must be y or n.")
+            sys.exit(1)
+        genai_flag = resp.startswith("y")
     else:
         genai_flag = args.genai
 
@@ -109,7 +129,9 @@ def main():
 
     print(f"Project '{args.slug}' created at {project_root}/")
     print(f"GenAI flag: {'yes' if genai_flag else 'no'}")
-    print(f"Next step: cd {project_root} && run /pm-stage-01-brief")
+    print(f"Next step: cd {project_root}")
+    print("  Claude: /pm-stage-01-brief")
+    print("  Codex:  $pm-stage-01-brief")
 
 
 if __name__ == "__main__":

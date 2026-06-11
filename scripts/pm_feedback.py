@@ -16,6 +16,8 @@ def main():
     parser.add_argument("stage_id", help="Two-digit stage number (e.g. '01')")
     parser.add_argument("--rating", type=int, choices=range(1, 6), metavar="1-5", help="Quality rating")
     parser.add_argument("--note", type=str, help="Feedback text")
+    parser.add_argument("--skip-rating", action="store_true", help="Do not prompt for a rating")
+    parser.add_argument("--skip-note", action="store_true", help="Do not prompt for notes")
     args = parser.parse_args()
 
     stage_id = args.stage_id.zfill(2)
@@ -38,16 +40,22 @@ def main():
     rating = args.rating
     note = args.note
 
-    if rating is None:
+    if rating is None and not args.skip_rating:
+        if not sys.stdin.isatty():
+            print("Error: rating required in non-interactive mode. Pass --rating 1-5 or --skip-rating.")
+            sys.exit(1)
         try:
             rating_str = input(f"Rating for stage {stage_id} (1-5, Enter to skip): ").strip()
             if rating_str:
                 r = int(rating_str)
                 rating = r if 1 <= r <= 5 else None
-        except (ValueError, EOFError):
+        except ValueError:
             rating = None
 
-    if note is None:
+    if note is None and not args.skip_note:
+        if not sys.stdin.isatty():
+            print("Error: note required in non-interactive mode. Pass --note \"...\" or --skip-note.")
+            sys.exit(1)
         try:
             note = input("Notes (Enter to skip): ").strip() or None
         except EOFError:

@@ -20,6 +20,41 @@ from frontmatter import update_status
 from telemetry import log
 
 
+def read_edited_choice(stage_id: str) -> str:
+    env_choice = os.environ.get("PM_OS_EDITED_UPSTREAM_CHOICE", "").strip().lower()
+    choices = {
+        "1": "1",
+        "continue": "1",
+        "implicit-reapproval": "1",
+        "implicit_reapproval": "1",
+        "2": "2",
+        "reapprove": "2",
+        "explicit-reapproval": "2",
+        "explicit_reapproval": "2",
+        "3": "3",
+        "cancel": "3",
+    }
+    if env_choice:
+        if env_choice not in choices:
+            print(
+                "[pre-stage] ERROR: PM_OS_EDITED_UPSTREAM_CHOICE must be "
+                "continue, reapprove, or cancel.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return choices[env_choice]
+    if not sys.stdin.isatty():
+        print(
+            "[pre-stage] ERROR: edited upstream stages require an explicit choice "
+            "in non-interactive mode.\n"
+            f"Set PM_OS_EDITED_UPSTREAM_CHOICE=continue to generate stage {stage_id} "
+            "with implicit re-approval, or reapprove edited stages first.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return input("Choice [1/2/3]: ").strip()
+
+
 def main():
     # Determine which stage is being run from the environment variable set by the skill
     stage_id = os.environ.get("PM_OS_STAGE")
@@ -92,7 +127,7 @@ Options:
   [2] Re-approve edited stages explicitly first (recommended for significant edits)
   [3] Cancel
 """)
-        choice = input("Choice [1/2/3]: ").strip()
+        choice = read_edited_choice(stage_id)
 
         if choice == "1":
             for uid, name in edited:
@@ -111,7 +146,9 @@ Options:
             save_meta(meta, project_root)
             print("[pre-stage] Implicit re-approval logged. Proceeding.")
         elif choice == "2":
-            print("[pre-stage] Halted. Run /pm-approve for each edited stage, then retry.")
+            print("[pre-stage] Halted. Re-approve each edited stage, then retry.")
+            print("[pre-stage] Claude: /pm-approve <stage>")
+            print("[pre-stage] Codex:  $pm-approve <stage>")
             sys.exit(1)
         else:
             print("[pre-stage] Cancelled.")

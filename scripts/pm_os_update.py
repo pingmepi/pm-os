@@ -10,7 +10,20 @@ from pathlib import Path
 
 PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
 CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")))
+CODEX_SKILLS_DIR = Path(os.environ.get("CODEX_SKILLS_DIR", str(Path.home() / ".agents" / "skills")))
 TARGET_BRANCH = "main"
+VALID_RUNTIMES = {"claude", "codex", "all"}
+
+
+def runtime_help() -> str:
+    return "Runtime skill target to sync after update. Required."
+
+
+def print_runtime_required() -> None:
+    print("Error: missing required --runtime argument.")
+    print("Choose the runtime to sync:")
+    print("  python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude")
+    print("  python3 ~/.pm-os/scripts/pm_os_update.py --runtime codex")
 
 
 def run_git(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
@@ -78,18 +91,9 @@ def print_version() -> None:
         print(f"✓ PM-OS version: {version_path.read_text().strip()}")
 
 
-def sync_to_claude() -> None:
-    """Copy skills and hooks from the PM-OS checkout into Claude Code's directories.
-
-    Claude Code loads skills and hooks from CLAUDE_DIR as copies (not symlinks), so a
-    git update of PM_OS_DIR is not visible to Claude Code until the files are re-synced
-    here. Mirrors the sync step in install.sh.
-    """
+def sync_skills(skills_dest: Path) -> None:
     skills_src = PM_OS_DIR / "skills"
-    hooks_src = PM_OS_DIR / "hooks"
-
     if skills_src.is_dir():
-        skills_dest = CLAUDE_DIR / "skills"
         skills_dest.mkdir(parents=True, exist_ok=True)
         for skill_dir in sorted(p for p in skills_src.iterdir() if p.is_dir()):
             target = skills_dest / skill_dir.name
@@ -97,21 +101,55 @@ def sync_to_claude() -> None:
                 shutil.rmtree(target)
             shutil.copytree(skill_dir, target)
 
+
+def sync_hooks(hooks_dest: Path) -> None:
+    hooks_src = PM_OS_DIR / "hooks"
     if hooks_src.is_dir():
-        hooks_dest = CLAUDE_DIR / "hooks"
         hooks_dest.mkdir(parents=True, exist_ok=True)
         for hook in sorted(hooks_src.glob("*.py")):
             shutil.copy2(hook, hooks_dest / hook.name)
 
+
+def sync_to_claude() -> None:
+    """Copy skills and hooks from the PM-OS checkout into Claude Code's directories."""
+    sync_skills(CLAUDE_DIR / "skills")
+    sync_hooks(CLAUDE_DIR / "hooks")
     print(f"✓ Synced skills and hooks to {CLAUDE_DIR}")
 
 
-def finish_update() -> None:
-    sync_to_claude()
+def sync_to_codex() -> None:
+    """Copy skills from the PM-OS checkout into Codex's user-level skill directory."""
+    sync_skills(CODEX_SKILLS_DIR)
+    print(f"✓ Synced skills to {CODEX_SKILLS_DIR}")
+
+
+def sync_runtime(runtime: str) -> None:
+    if runtime == "claude":
+        sync_to_claude()
+    elif runtime == "codex":
+        sync_to_codex()
+    elif runtime == "all":
+        sync_to_claude()
+        sync_to_codex()
+    else:
+        raise RuntimeError(f"Unsupported runtime '{runtime}'. Expected claude, codex, or all.")
+
+
+def print_restart_guidance(runtime: str) -> None:
+    if runtime == "claude":
+        print("Restart your Claude Code session for updated skills and hooks to load.")
+    elif runtime == "codex":
+        print("Restart Codex or refresh /skills for updated skills to load.")
+    else:
+        print("Restart Claude Code and Codex, or refresh /skills, for updated skills to load.")
+    print("Then run the PM-OS verifier for your runtime, if installed, to confirm installation health.")
+
+
+def finish_update(runtime: str) -> None:
+    sync_runtime(runtime)
     print_version()
     print()
-    print("Restart your Claude Code session for updated skills and hooks to load.")
-    print("Then run /pm-os-verify to confirm installation health.")
+    print_restart_guidance(runtime)
 
 
 def main():
@@ -121,13 +159,27 @@ def main():
         action="store_true",
         help="Hard reset the local PM-OS checkout to origin/main if it has diverged.",
     )
+    parser.add_argument(
+        "--runtime",
+        choices=sorted(VALID_RUNTIMES),
+        help=runtime_help(),
+    )
     args = parser.parse_args()
+    if args.runtime is None:
+        print_runtime_required()
+        sys.exit(2)
+    if args.runtime not in VALID_RUNTIMES:
+        print(f"Error: runtime must be one of {', '.join(sorted(VALID_RUNTIMES))}.")
+        sys.exit(1)
 
     print("PM-OS Update")
     print("============")
+    print(f"Runtime: {args.runtime}")
 
     if not PM_OS_DIR.exists():
-        print("Error: PM-OS not installed. Run /pm-os-install first.")
+        print("Error: PM-OS not installed. Install PM-OS first.")
+        print("  Claude: /pm-os-install")
+        print("  Codex:  $pm-os-install")
         sys.exit(1)
 
     git_dir = PM_OS_DIR / ".git"
@@ -149,14 +201,14 @@ def main():
 
         if ahead == 0 and behind == 0:
             print(f"✓ Already up to date with origin/{TARGET_BRANCH}")
-            finish_update()
+            finish_update(args.runtime)
             return
 
         if ahead == 0 and behind > 0:
             result = run_git(["merge", "--ff-only", f"origin/{TARGET_BRANCH}"])
             output = result.stdout.strip() or f"Fast-forwarded to origin/{TARGET_BRANCH}"
             print(f"✓ {output}")
-            finish_update()
+            finish_update(args.runtime)
             return
 
         if not args.reset_main:
@@ -175,7 +227,7 @@ def main():
 
         run_git(["reset", "--hard", f"origin/{TARGET_BRANCH}"])
         print(f"✓ Reset local {TARGET_BRANCH} to origin/{TARGET_BRANCH}")
-        finish_update()
+        finish_update(args.runtime)
     except RuntimeError as exc:
         print(f"Error updating PM-OS:\n{exc}")
         sys.exit(1)
