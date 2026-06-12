@@ -4,13 +4,68 @@ set -euo pipefail
 PM_OS_REPO="https://github.com/pingmepi/pm-os.git"
 INSTALL_DIR="$HOME/.pm-os"
 PROJECTS_DIR="$HOME/pm-projects"
-SKILLS_DIR="$HOME/.claude/skills"
-HOOKS_DIR="$HOME/.claude/hooks"
+RUNTIME=""
+
+usage() {
+  echo "Usage: ./install.sh --runtime claude|codex"
+  echo ""
+  echo "Choose the agent runtime to install skills for:"
+  echo "  ./install.sh --runtime claude"
+  echo "  ./install.sh --runtime codex"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --runtime)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --runtime requires claude or codex"
+        exit 1
+      fi
+      RUNTIME="$2"
+      shift 2
+      ;;
+    --runtime=*)
+      RUNTIME="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument '$1'"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$RUNTIME" ]]; then
+  echo "ERROR: missing required --runtime argument."
+  usage
+  exit 1
+fi
+
+case "$RUNTIME" in
+  claude)
+    SKILLS_DIR="$HOME/.claude/skills"
+    HOOKS_DIR="$HOME/.claude/hooks"
+    ;;
+  codex)
+    SKILLS_DIR="$HOME/.agents/skills"
+    HOOKS_DIR=""
+    ;;
+  *)
+    echo "ERROR: runtime must be 'claude' or 'codex' (got '$RUNTIME')"
+    exit 1
+    ;;
+esac
 
 echo "=== PM-OS Installer ==="
+echo "Runtime: $RUNTIME"
 
 # --- Check Claude Code ---
-if ! command -v claude &>/dev/null; then
+if [[ "$RUNTIME" == "claude" ]] && ! command -v claude &>/dev/null; then
   echo "ERROR: Claude Code not found. Install it first: https://claude.ai/code"
   exit 1
 fi
@@ -46,7 +101,9 @@ fi
 # --- Set up directories ---
 mkdir -p "$PROJECTS_DIR"
 mkdir -p "$SKILLS_DIR"
-mkdir -p "$HOOKS_DIR"
+if [[ -n "$HOOKS_DIR" ]]; then
+  mkdir -p "$HOOKS_DIR"
+fi
 
 # --- Sync skills ---
 echo "Installing skills..."
@@ -63,10 +120,14 @@ if [ -d "$INSTALL_DIR/scripts" ]; then
 fi
 
 # --- Sync hooks ---
-echo "Installing hooks..."
-for hook in "$INSTALL_DIR"/hooks/*.py; do
-  cp "$hook" "$HOOKS_DIR/"
-done
+if [[ "$RUNTIME" == "claude" ]]; then
+  echo "Installing hooks..."
+  for hook in "$INSTALL_DIR"/hooks/*.py; do
+    cp "$hook" "$HOOKS_DIR/"
+  done
+else
+  echo "Skipping Claude hooks for Codex runtime."
+fi
 
 # --- Configure PM-OS (writes ~/.pm-os/config.yaml, does NOT touch ~/.zshrc) ---
 python3 "$INSTALL_DIR/scripts/pm_os_install.py"
@@ -76,6 +137,12 @@ echo "=== PM-OS installation complete ==="
 echo "Version: $(cat "$INSTALL_DIR/VERSION")"
 echo ""
 echo "Next steps:"
-echo "  1. Restart your Claude Code session for skills to load."
-echo "  2. cd ~/pm-projects"
-echo "  3. /pm-new <your-project-slug> \"<your business statement>\""
+if [[ "$RUNTIME" == "claude" ]]; then
+  echo "  1. Restart your Claude Code session for skills to load."
+  echo "  2. cd ~/pm-projects"
+  echo "  3. /pm-new <your-project-slug> \"<your business statement>\""
+else
+  echo "  1. Restart Codex or refresh /skills for skills to load."
+  echo "  2. cd ~/pm-projects"
+  echo "  3. Use /skills or invoke: \$pm-new <your-project-slug> \"<your business statement>\""
+fi

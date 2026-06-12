@@ -2,192 +2,304 @@
 
 **Status:** Draft / proposal — not yet implemented.
 **Author:** Karan (with Claude Code)
-**Date:** 2026-06-10
-**Scope:** Make PM-OS runnable under OpenAI Codex and Gemini CLI in addition to Claude Code, without forking the prompt content or the deterministic core.
+**Date:** 2026-06-11
+**Scope:** Keep PM-OS fully compatible with Claude Code and OpenAI Codex without forking the skill content or the deterministic Python core.
 
-> **Revision note (2026-06-10):** An earlier draft of this plan assumed only Claude Code had a skill-discovery system and that Codex/Gemini would need prompt-flattening or TOML translation. That was wrong. As of 2026, **Codex, Gemini CLI, and Claude Code have all converged on the Anthropic-style Agent Skills format** — a `SKILL.md` with `name`/`description` frontmatter in a skill directory, plus optional `scripts/`. Codex's skill spec even includes an optional `agents/openai.yaml`, which PM-OS already ships in every stage. The real work is therefore much smaller than first estimated: install targets and a few Claude-only idioms, **not** format translation. Sources are listed in §10.
-
----
-
-## 1. The convergence that makes this easy
-
-PM-OS already ships in the de-facto cross-runtime skill format. Each stage directory is:
-
-```
-skills/<stage>/
-├── SKILL.md            (name + description frontmatter + body)   ← required by all three runtimes
-├── agents/openai.yaml  (display_name, short_description, default_prompt)  ← Codex skill spec
-```
-
-That is **exactly** the structure Codex and Gemini CLI expect. The only required frontmatter on all three runtimes is `name` + `description`, both of which every PM-OS `SKILL.md` already has. PM-OS's extra frontmatter (`reads`, `writes`, `prompt_version`, `model`) is non-standard but should be ignored by runtimes that only read `name`/`description` (to be confirmed — see §5, Step 0).
-
-### Skill format and location per runtime
-
-| | Claude Code | OpenAI Codex | Gemini CLI |
-|---|---|---|---|
-| **Skill unit** | `SKILL.md` dir | `SKILL.md` dir | `SKILL.md` dir |
-| **Required frontmatter** | name, description | name, description | name, description |
-| **Scripts** | `scripts/` | `scripts/` | `scripts/` |
-| **Interface descriptor** | — | `agents/openai.yaml` (optional) | — |
-| **User install path** | `~/.claude/skills/` | `~/.codex/skills/` *or* `~/.agents/skills/` | `~/.gemini/skills/` *or* `~/.agents/skills/` |
-| **Repo install path** | `.claude/skills/` | `.agents/skills/` | `.gemini/skills/` *or* `.agents/skills/` |
-| **Invocation** | `/skill-name` | `/skills` picker, `$name` mention | `/skill-name`, `$name` |
-| **Custom prompts** | n/a | **deprecated → use skills** | n/a |
-
-**Key opportunity:** Both Codex and Gemini CLI honor a shared **`~/.agents/skills/`** alias. A single install to that path may cover both runtimes at once — to be verified in Step 0.
-
-### Hooks per runtime — also broadly compatible
-
-All three now have real lifecycle-hook systems with similar shapes (command hooks, JSON on stdin/stdout):
-
-| | Claude Code | Codex | Gemini CLI |
-|---|---|---|---|
-| **Config** | `settings.json` hooks | `~/.codex/hooks.json` or `[hooks]` in `config.toml` | `hooks/hooks.json` in an extension |
-| **Events** | SessionStart, PreToolUse, PostToolUse, Stop, … | SessionStart, PreToolUse, PermissionRequest, PostToolUse, PreCompact/PostCompact, UserPromptSubmit, SubagentStart/Stop, Stop | hook events via extension `hooks.json` |
-| **I/O** | JSON stdin → JSON stdout | JSON stdin → JSON stdout (`continue`, `stopReason`, `systemMessage`) | intercept/customize via hooks |
-
-**Important:** PM-OS does **not** currently use any runtime's native lifecycle hooks. Its `pre-stage.py` / `post-approve.py` are invoked **explicitly from the skill body** (`python3 ~/.pm-os/hooks/pre-stage.py` with `PM_OS_STAGE` set). That explicit pattern already works on every runtime that can run shell — so native hook wiring is an **optional enhancement**, not a prerequisite.
+> **Revision note (2026-06-11):** This document treats Claude Code and Codex as peer supported runtimes. The prior draft was right that PM-OS already uses the correct skill shape, but it understated several Codex blockers and used the wrong Codex install path in a few places. The work is still much smaller than a prompt-port, but it is broader than "add AGENTS.md and de-interactive `pre-stage.py`." All proposed changes below should preserve Claude behavior while removing provider-specific assumptions from shared config and skill metadata.
 
 ---
 
-## 2. Target runtimes and verdicts
+## 1. Runtime parity principle
+
+Claude Code and OpenAI Codex are peer PM-OS runtimes:
+
+- existing install and update flows must continue to work for Claude users
+- install and update flows must work for Codex users without requiring Claude
+- existing skill content remains the source of truth
+- shared config and shared skill metadata must stay provider-neutral
+
+That means the implementation rule for this plan is:
+
+- prefer runtime-neutral wording where possible
+- where behavior truly differs, add runtime-aware paths rather than replacing the Claude path
+- do not regress the current Claude UX while making Codex first-class
+
+---
+
+## 2. What already aligns with Codex
+
+PM-OS already ships in Codex's native skill format:
+
+```text
+skills/<skill-name>/
+├── SKILL.md
+└── agents/openai.yaml   # optional Codex descriptor, already present on stage skills
+```
+
+That matches the Codex skill model:
+
+- A skill is a directory containing `SKILL.md` plus optional `scripts/`, `references/`, `assets/`, and `agents/`.
+- `SKILL.md` requires `name` and `description`.
+- `agents/openai.yaml` is optional, not a translation target.
+
+This means PM-OS does **not** need:
+
+- prompt flattening into deprecated custom prompts
+- TOML command translation
+- a parallel Codex-only skill tree
+
+The current explicit-hook pattern is also portable enough for Codex:
+
+- PM-OS invokes `~/.pm-os/hooks/pre-stage.py` directly from skill instructions.
+- Codex hooks exist, but PM-OS does not need them for baseline correctness.
+- Native Codex hooks are therefore an enhancement, not a prerequisite.
+
+---
+
+## 3. Runtime verdict
 
 | Runtime | Verdict | Reason |
 |---|---|---|
-| **Claude Code** | ✅ Works today | Native skill suite. Baseline. |
-| **OpenAI Codex** | ✅ Near-compatible | Same skill format (incl. `agents/openai.yaml`). Needs an install path + real `AGENTS.md` + de-interactive hook + model-block rewording. **No format translation.** |
-| **Gemini CLI** | ✅ Near-compatible | Same skill format; `gemini skills install` from a local dir or git. Shares the `~/.agents/skills/` alias with Codex. Same small fixes as Codex. |
-| **Gemini AI Studio** | ❌ Out of scope | Web playground — no filesystem, shell, git, or skill system. PM-OS is local-first by definition; its stateful guarantees cannot run here. **Target Gemini CLI instead.** |
+| **Claude Code** | ✅ Works today | Current baseline and must remain so. |
+| **OpenAI Codex** | ⚠️ Not yet smooth | Skill format is compatible, but install/discovery, stdin assumptions, Claude-specific guidance, and updater/config behavior still need additive support. |
+
+For this pass, Codex is the only new target. Gemini can be revisited later once the Claude + Codex path is implemented and verified.
 
 ---
 
-## 3. Gap inventory (what actually blocks non-Claude runtimes)
+## 4. What blocks Codex today
 
-Reduced from the original draft, because the skill format is shared:
+These are the concrete gaps in the current repo.
 
-1. **`AGENTS.md` is a stub.** It holds only claude-mem context, not PM-OS workflow instructions. Codex and Gemini CLI both read `AGENTS.md` as a primary instruction file (Codex walks root→leaf). Highest-leverage single fix.
-2. **No install path for Codex/Gemini.** `install.sh` hard-requires the `claude` binary and copies only to `~/.claude/skills/` + `~/.claude/hooks/`. Needs per-runtime (or `~/.agents/skills/`) targets.
-3. **Unverified frontmatter tolerance.** PM-OS `SKILL.md` carries non-standard fields (`reads`, `writes`, `prompt_version`, `model`). Must confirm Codex/Gemini ignore them rather than erroring.
-4. **Interactive `input()` in `hooks/pre-stage.py`** (the implicit-reapproval prompt). Non-interactive Codex/Gemini runs will hang or hit EOF. Needs a TTY check + env/flag fallback.
-5. **`/model opus` advisory blocks** (stages 03 PRD, 06 QA Plan) are Claude-only syntax. Codex/Gemini select models via config/flags. Needs runtime-neutral rewording.
-6. **Telemetry `model` field** is phrased "the model id you are currently running as" (Claude-framed). Make it runtime-agnostic so Codex/Gemini populate it correctly.
+1. **`AGENTS.md` is effectively empty for Codex.**  
+   The root [AGENTS.md](AGENTS.md) contains only the claude-mem wrapper. Codex reads `AGENTS.md` before work and walks from project root to cwd, so PM-OS is currently missing its main repository-level instruction surface in Codex.
 
-Removed from the original draft (no longer real gaps): "flatten skills to `~/.codex/prompts/`" (custom prompts are deprecated; skills are the path) and "translate to `.gemini/commands/*.toml`" (Gemini CLI uses the same `SKILL.md` skill format).
+2. **The prior plan used the wrong Codex skill install target.**  
+   The Codex docs describe repo-local `.agents/skills/` and user-level `~/.agents/skills/` discovery. The earlier draft referred to `~/.codex/skills/`, which should not be treated as canonical unless verified separately.
+
+3. **Codex-facing invocation guidance is still Claude-shaped.**  
+   PM-OS docs and script output repeatedly tell the user to run slash commands such as `/pm-stage-01-brief` and `/pm-approve 01`. In Codex, the reliable skill entrypoints are the `/skills` picker and `$skill-name` mentions. The plan must update validation steps and user-facing copy accordingly.
+
+4. **Interactive stdin is a repo-wide issue, not just a `pre-stage.py` issue.**  
+   `input()` currently appears in:
+   - `hooks/pre-stage.py`
+   - `scripts/pm_new.py`
+   - `scripts/pm_os_install.py`
+   - `scripts/pm_feedback.py`
+   - `lib/config.py`
+
+   Codex can run interactively, but "as smooth as Claude" requires these flows to behave predictably in non-interactive and automation-oriented sessions too. Today some of them hang, and some silently fall back to defaults.
+
+5. **Installer and updater logic are hard-coded to Claude paths and messaging.**  
+   `install.sh` only installs to `~/.claude/skills/` and `~/.claude/hooks/`, requires the `claude` binary, and prints Claude-specific next steps. `scripts/pm_os_update.py` only re-syncs Claude directories and prints Claude restart instructions.
+
+6. **Config defaults and model metadata are provider-specific.**  
+   Older config wrote `default_stage_model: claude-sonnet-4-6` and `opus_stages`, which makes a shared PM-OS install assume Claude model names. Shared config should instead store runtime-neutral model tiers.
+
+7. **Claude-only model-switch instructions exist in more places than the prior plan captured.**  
+   The earlier draft mentioned stages 03 and 06, but stage 08 also contains the same `/model opus` advisory block. If stage 08 remains supported, it must be included in the cleanup.
+
+8. **Skill frontmatter tolerance should still be verified.**  
+   PM-OS `SKILL.md` files include non-standard frontmatter keys such as `reads`, `writes`, `prompt_version`, and `model_tier`. Codex likely ignores unknown keys, but support should not be declared until that is verified in a real install.
+
+9. **Codex may prefer skill-local `scripts/`, while PM-OS uses a shared top-level `scripts/` directory.**  
+   Codex documents `scripts/` as an optional folder inside the skill directory, but PM-OS currently calls shared scripts from outside individual skill folders. That may still work if paths are referenced correctly, but it should be treated as a compatibility question to verify, not an assumption. The intended solution is **not** duplicating script logic. If Codex needs a more self-contained skill layout, use thin wrappers or symlinks from each skill directory back to the shared implementation.
 
 ---
 
-## 4. Proposed design: one source, copy to runtime paths
+## 5. Target cross-runtime design
 
-Keep `skills/*/SKILL.md`, `lib/`, `scripts/`, `hooks/`, and `templates/` as the **single source of truth**. The installer **copies the same skill directories** to whichever runtime path is requested — no per-runtime content transformation.
+Keep the existing PM-OS repository structure as the single source of truth:
 
+```text
+skills/*/SKILL.md
+skills/*/agents/openai.yaml
+hooks/*.py
+scripts/*.py
+lib/*.py
+templates/*
 ```
-skills/<stage>/  (single source, already in cross-runtime format)
 
-install.sh --runtime claude  → copy skill dirs → ~/.claude/skills/
-install.sh --runtime codex   → copy skill dirs → ~/.codex/skills/   (or ~/.agents/skills/)
-install.sh --runtime gemini  → copy skill dirs → ~/.gemini/skills/  (or ~/.agents/skills/)
-install.sh --runtime agents  → copy skill dirs → ~/.agents/skills/  (covers Codex + Gemini at once, if verified)
-```
+Adopt these runtime behaviors:
 
-- **AGENTS.md** = the shared, runtime-neutral system instruction (pipeline overview, local-first state model, approval discipline, stage-invocation table). Claude Code ignores it harmlessly; Codex and Gemini CLI consume it.
-- **Python core / hooks / templates** continue to live at the runtime-neutral `~/.pm-os/` and are invoked by absolute path from the prompts — already works, no per-runtime change.
-- **Native lifecycle hooks** (Claude `settings.json`, Codex `hooks.json`, Gemini extension `hooks/hooks.json`) are an optional later enhancement; the explicit-invocation pattern is the portable baseline.
+- **Repository instructions:** write a real root `AGENTS.md` that explains the PM-OS workflow, state model, approval discipline, and both Claude/Codex invocation expectations.
+- **Claude install path:** keep Claude installs targeting `~/.claude/skills/` and the existing Claude hooks location.
+- **Codex install path:** add installation into `~/.agents/skills/` for user-level Codex discovery.
+- **Optional repo-local development path:** support `.agents/skills/` inside the repo for local testing if useful.
+- **Skill invocation guidance:** document Claude usage with existing slash commands, and Codex usage via `/skills` and `$pm-...` mentions.
+- **Portable helpers:** keep the Python core in `~/.pm-os/` and make all helper scripts safe when stdin is unavailable.
+- **Single script implementation:** keep the shared top-level `scripts/` directory as the source of truth. If Codex needs skill-local script packaging for better portability, add thin wrappers or symlinked `scripts/` directories inside skills rather than duplicating implementation.
 
----
-
-## 5. Implementation steps (proposed — not yet executed)
-
-Independently shippable; ordered by leverage.
-
-### Step 0 — Verify format tolerance (spike, ~1–2 hrs)
-- Install one stage skill unchanged into `~/.codex/skills/` and `~/.gemini/skills/` (or `~/.agents/skills/`). Confirm: (a) the runtime discovers it, (b) the extra frontmatter fields don't cause errors, (c) `$pm-stage-01-brief` / `/skills` invocation works, (d) the explicitly-invoked Python hook runs.
-- **Output:** a go/no-go on "copy unchanged" vs "needs a frontmatter shim." De-risks every later step.
-
-### Step 1 — Write a real `AGENTS.md`
-- **Files:** `AGENTS.md` (replace stub).
-- **Content:** 7-stage pipeline overview, local-first state model (`.meta.yaml`, artifact files, `.history/`, telemetry/feedback JSONL), approval-gate discipline, and a stage-invocation table (`$pm-stage-NN-...`). Runtime-neutral wording.
-- **Benefit:** improves Codex + Gemini CLI behavior immediately, before installer work lands.
-
-### Step 2 — De-interactive `hooks/pre-stage.py`
-- **Files:** `hooks/pre-stage.py`.
-- **Change:** detect non-TTY (`sys.stdin.isatty()`); when non-interactive, honor `PM_OS_REAPPROVE=continue|halt` (default `halt` for safety) instead of `input()`. Keep current interactive behavior when a TTY is present.
-- **Benefit:** unblocks non-interactive runs on all runtimes; no change under Claude Code.
-
-### Step 3 — Neutralize model-selection idioms
-- **Files:** `skills/pm-stage-03-prd/SKILL.md`, `skills/pm-stage-06-qa-plan/SKILL.md`, and the telemetry `model` instruction across all stage skills.
-- **Change:** reword the "Model requirement" pre-flight from `/model opus` to runtime-neutral guidance ("this stage benefits from a top-tier model; select your runtime's strongest model before generating"). Make the telemetry `model` field read generically ("the model id of the current runtime/session").
-- **Benefit:** prompts stop emitting Claude-only commands elsewhere.
-
-### Step 4 — Add per-runtime install targets
-- **Files:** `install.sh` (add `--runtime {claude|codex|gemini|agents}`, default `claude`); optionally a small `scripts/sync_runtime.py` for path resolution.
-- **Change:**
-  - Resolve the destination skill dir per runtime (table in §4); copy skill dirs unchanged (pending Step 0).
-  - Drop the hard `claude`-binary requirement when a non-Claude target is selected; check for `codex` / `gemini` instead.
-  - All targets still install the Python core/hooks/templates to `~/.pm-os/` and write `~/.pm-os/config.yaml`.
-  - For Gemini, optionally support `gemini skills install <repo-or-path>` as an alternative install route.
-- **Benefit:** real, installable cross-runtime support.
-
-### Step 5 — (Optional) Wire native lifecycle hooks
-- **Files:** runtime hook configs (Claude `settings.json`, Codex `~/.codex/hooks.json`, Gemini extension `hooks/hooks.json`).
-- **Change:** expose `pre-stage` as a `UserPromptSubmit`/`PreToolUse`-style gate and `post-approve` as a `Stop`/`PostToolUse` step, reading PM-OS state from the JSON stdin payload. Only worth doing after Steps 0–4 prove the explicit pattern; this is UX polish, not correctness.
-- **Benefit:** tighter, more "native" feel per runtime.
-
-### Step 6 — Verify end-to-end + document
-- **Files:** `README.md` (add a "Runtimes" section), `pm-os-spec.md` (reconcile §300 cross-runtime notes with the implemented adapter).
-- **Change:** run `/pm-new` → `/pm-stage-01-brief` → `/pm-approve 01` under Codex and Gemini CLI; capture drift. Document per-runtime install commands and known limits.
-- **Benefit:** turns "should work" into "verified," and records the install UX.
+Native Codex lifecycle hooks remain optional. Baseline PM-OS compatibility should come from explicit shell invocation inside each skill, not from Codex hook configuration.
 
 ---
 
-## 6. Explicit non-goals
+## 6. Implementation steps
 
-- **Gemini AI Studio** support (wrong product category — §2).
-- **Mandatory native lifecycle hooks.** The explicit-invocation pattern is the portable baseline; native hooks are Step 5 polish only.
-- **A unified MCP server.** All three runtimes support MCP, but PM-OS's local-file model doesn't need it. Out of scope absent a remote/multi-machine requirement.
-- **Prompt content forking.** Single source of truth (`SKILL.md`) is a hard constraint; the installer copies, it does not transform content.
+### Step 0 — Verify unchanged skill discovery in Codex
+
+- Install one PM-OS skill unchanged into `~/.agents/skills/`.
+- Confirm Codex discovers it in `/skills`.
+- Confirm Codex can invoke it via `$skill-name`.
+- Confirm the existing `agents/openai.yaml` is accepted.
+- Confirm extra `SKILL.md` frontmatter keys are ignored rather than rejected.
+- Confirm an explicit shell call such as `python3 ~/.pm-os/hooks/pre-stage.py` runs successfully from a skill.
+- Confirm whether Codex is happy with PM-OS skills referencing shared scripts outside the individual skill directory.
+
+**Output:** go/no-go on "copy unchanged" as the Codex install model, including whether external shared-script references are acceptable as-is.
+
+### Step 1 — Replace the root `AGENTS.md` stub with real PM-OS guidance
+
+**Files:** `AGENTS.md`
+
+Add repo instructions that preserve Claude as the baseline while teaching Codex how to behave:
+
+- 7-stage pipeline overview
+- local-first project state (`.meta.yaml`, artifacts, `.history/`, telemetry, feedback)
+- approval and regeneration rules
+- expectations for running helper scripts from inside a PM-OS project
+- Claude invocation guidance: existing PM-OS slash commands remain valid in Claude
+- Codex skill invocation guidance: use `/skills` or `$pm-...`
+- explicit note that PM-OS shell commands may write local files and should be allowed when the user requested PM-OS work
+
+This is the highest-leverage single improvement for Codex behavior.
+
+### Step 2 — Remove stdin dependence from helper flows
+
+**Files:** `hooks/pre-stage.py`, `scripts/pm_new.py`, `scripts/pm_os_install.py`, `scripts/pm_feedback.py`, `lib/config.py`
+
+Changes:
+
+- Detect non-TTY sessions before calling `input()`.
+- Add explicit flags and/or env vars for decisions that currently require prompts.
+- Default to safe failure where silent fallback would be dangerous.
+- Avoid quietly forcing `genai_flag=false` on EOF in `pm_new.py`.
+- Keep the interactive UX intact when a TTY is available.
+
+This step matters more than hooks alone because Codex users will hit project creation, install/reconfigure, and feedback capture too.
+
+### Step 3 — Make wording runtime-aware without breaking Claude
+
+**Files:** at minimum:
+
+- `skills/pm-stage-03-prd/SKILL.md`
+- `skills/pm-stage-06-qa-plan/SKILL.md`
+- `skills/pm-stage-08-trd/SKILL.md`
+- any skill or script output that tells the user to run `/pm-*` or `/model opus`
+
+Changes:
+
+- Replace `/model opus` instructions with wording that still helps Claude users but is not wrong in Codex.
+- Reword "the model you are currently running as" to "the current session model id" or equivalent.
+- Update user-facing next-step strings so Claude users still see Claude-friendly guidance and Codex users are not told to use Claude-only command forms.
+
+The goal is not to erase Claude support; it is to remove text that is wrong in Codex while keeping Claude guidance intact.
+
+### Step 4 — Add Codex-aware install and sync targets without regressing Claude
+
+**Files:** `install.sh`, `scripts/pm_os_update.py`, possibly a shared sync helper
+
+Changes:
+
+- Add a runtime selector, at least `claude` and `codex`.
+- Keep the current Claude install/update path working as it does today.
+- For Codex, install skills to `~/.agents/skills/`.
+- Do not require the `claude` binary when the selected runtime is Codex.
+- Keep installing the runtime-neutral PM-OS core to `~/.pm-os/`.
+- Add Codex-aware re-sync logic to `pm_os_update.py` alongside the existing Claude sync logic.
+- Print runtime-specific post-install instructions.
+- If Step 0 shows Codex wants a more self-contained skill layout, install skill-local wrappers or symlinked `scripts/` directories that point at the shared top-level implementation. Do not duplicate business logic across skills.
+
+Without this step, Codex support remains manual and brittle even if the skills themselves are compatible.
+
+### Step 5 — Make config/runtime metadata additive
+
+**Files:** `scripts/pm_os_install.py`, `lib/config.py`, any docs that describe default model policy
+
+Changes:
+
+- Remove concrete provider model ids from shared config and shared skill frontmatter.
+- Store runtime-neutral policy metadata:
+  - `default_model_tier: standard`
+  - `deep_reasoning_stages: ["03", "06", "08"]`
+- Keep stage 03/06/08 "deep-reasoning model tier required" semantics without making shared config assume any provider.
+- Keep Claude pathways working through runtime-specific instructions only: Claude users map `deep-reasoning` to Opus or the strongest available reasoning model; Codex users map it to a high/deep reasoning model.
+
+### Step 6 — Verify end-to-end in Codex and document the exact UX
+
+**Files:** `README.md`, `pm-os-spec.md`, this plan if needed
+
+Validation flow should use Codex-native invocation, for example:
+
+1. Install skills into `~/.agents/skills/`
+2. Start Codex in a PM-OS workspace
+3. Invoke `pm-new` through `/skills` or `$pm-new`
+4. Generate stage 01 via `/skills` or `$pm-stage-01-brief`
+5. Approve stage 01 using the Codex-supported PM-OS entrypoint
+6. Confirm helper scripts, writes, and approval gates behave correctly
+
+Document:
+
+- that Claude and Codex are both supported runtimes
+- supported install path
+- supported invocation patterns
+- known limitations
+- whether Codex hooks were needed or not
+
+### Step 7 — Optional native Codex hook integration
+
+**Files:** `~/.codex/hooks.json` examples or documented `config.toml` snippets
+
+Only consider this after Steps 0–6 work. If implemented, use it for polish:
+
+- session reminders
+- extra safety messaging
+- workflow nudges
+
+Do **not** make Codex hooks a baseline dependency for PM-OS.
 
 ---
 
-## 7. Effort and risk (revised down)
+## 7. Suggested landing order
 
-- **Estimated effort:** ~0.5–1 day for Steps 0–4 (was ~1–1.5 days). Step 0 spike + Step 1 (AGENTS.md) + Step 2 (hook) are hours each; Step 4 (installer) is the largest piece but is mostly path resolution + copy, not translation. Step 5 is optional and additive.
-- **Primary risk:** Codex/Gemini reject or mis-handle PM-OS's non-standard frontmatter. **Mitigation:** Step 0 spike validates this before any broader work; if rejected, add a thin install-time frontmatter filter (strip to `name`/`description` for non-Claude targets) rather than forking content.
-- **Secondary risk:** runtimes interpret prompt instructions differently (argument parsing, file-write conventions). **Mitigation:** Step 6 end-to-end verification per runtime before declaring support.
+1. Step 0 — verify Codex skill discovery and frontmatter tolerance
+2. Step 1 — write real `AGENTS.md`
+3. Step 2 — remove stdin dependence from helper flows
+4. Step 3 — clean up Claude-only wording
+5. Step 4 — ship Codex install/sync support
+6. Step 5 — neutralize config/runtime metadata
+7. Step 6 — verify end-to-end and document
+8. Step 7 — optional hooks polish
 
----
-
-## 8. Suggested sequencing for approval
-
-Independent; recommend landing incrementally:
-
-0. Format-tolerance spike (Step 0) — de-risks everything; do first.
-1. `AGENTS.md` (Step 1) — standalone, immediate benefit.
-2. `pre-stage.py` de-interactive (Step 2) — small, safe, unblocks automation.
-3. Model-idiom neutralization (Step 3) — prompt-only edits.
-4. Installer runtime targets (Step 4) — the core feature.
-5. (Optional) Native hooks (Step 5) — polish.
-6. Verification + docs (Step 6) — closes the loop.
-
-Awaiting approval before implementing any of the above.
+This order front-loads the pieces that most affect whether Codex feels reliable and predictable while keeping Claude stable.
 
 ---
 
-## 9. Open questions to resolve during Step 0
+## 8. Non-goals for this pass
 
-- Does Claude Code also read `~/.agents/skills/`? If so, a single `--runtime agents` install could cover all three.
-- Do Codex/Gemini error on, or silently ignore, the extra `SKILL.md` frontmatter (`reads`, `writes`, `prompt_version`, `model`)?
-- Does the `$pm-stage-NN-...` mention syntax in `agents/openai.yaml`'s `default_prompt` resolve identically on Codex and Gemini?
-- Is `~/.codex/skills/` or `~/.agents/skills/` the canonical Codex user path? (Docs reference both — confirm precedence.)
+- Gemini CLI support
+- Gemini AI Studio support
+- a mandatory Codex hooks integration
+- prompt forking or skill duplication
+- replacing the local-file PM-OS architecture with MCP or a service backend
 
 ---
 
-## 10. Sources (verified 2026-06-10)
+## 9. Open questions to answer during implementation
+
+- Does Codex accept the current PM-OS `SKILL.md` frontmatter unchanged?
+- Does `agents/openai.yaml` add meaningful UX for PM-OS skills in Codex, or is it merely tolerated?
+- Should Codex support rely only on user-level `~/.agents/skills/`, or should repo-local `.agents/skills/` be part of the documented dev workflow too?
+- Are direct references from a skill to shared parent-level scripts fully reliable in Codex, or should PM-OS install wrappers/symlinks inside each skill directory?
+- What is the right non-interactive behavior for `pm_new.py` when `--genai/--no-genai` is omitted?
+- Should PM-OS add runtime-specific examples for additional model providers, while keeping config provider-neutral?
+- Which guidance should remain explicitly runtime-specific because it only applies to one runtime?
+
+---
+
+## 10. Sources (verified 2026-06-11)
 
 - Codex — Agent Skills: https://developers.openai.com/codex/skills
-- Codex — Hooks: https://developers.openai.com/codex/hooks
-- Codex — Custom Prompts (deprecated → skills): https://developers.openai.com/codex/custom-prompts
 - Codex — AGENTS.md: https://developers.openai.com/codex/guides/agents-md
+- Codex — Hooks: https://developers.openai.com/codex/hooks
 - Codex — Configuration Reference: https://developers.openai.com/codex/config-reference
-- Gemini CLI — Agent Skills: https://geminicli.com/docs/cli/skills/
-- Gemini CLI — Creating Skills: https://geminicli.com/docs/cli/creating-skills/
-- Gemini CLI — Extension reference (hooks): https://geminicli.com/docs/extensions/reference/

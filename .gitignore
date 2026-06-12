@@ -41,5 +41,3 @@ pip-wheel-metadata/
 *.log
 *.tmp
 
-# Local handoff notes
-AGENTS.md

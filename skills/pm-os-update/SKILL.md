@@ -1,7 +1,7 @@
 ---
 name: pm-os-update
 description: Update PM-OS to the latest version from the remote repository.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_os_update.py "$@"

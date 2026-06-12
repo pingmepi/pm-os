@@ -4,7 +4,7 @@ description: Generate the Product Requirements Document for stage 03 from the ap
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md"]
 writes: "03-prd.md"
 prompt_version: 0.1.0
-model: claude-opus-4-8
+model_tier: deep-reasoning
 ---
 
 # Role and goal
@@ -15,19 +15,20 @@ This stage should be handled with deeper reasoning than the brief or scope stage
 
 # Model requirement
 
-This stage is configured to run on Opus for reasoning depth. Before doing anything else — including the pre-stage gate — check the model you are currently running as:
+This stage is configured to run on the `deep-reasoning` model tier. Before doing anything else — including the pre-stage gate — check whether the current session model id is appropriate for deep reasoning:
 
-- If you are on an Opus model (e.g. `claude-opus-4-8`), continue.
-- If you are not on Opus, stop immediately. Do not run the pre-stage gate and do not generate anything. Print exactly:
+- If the current session is using a deep-reasoning model for its runtime, continue.
+- If it is not, stop immediately. Do not run the pre-stage gate and do not generate anything. Print exactly:
 
   ```
-  Stage 03 (PRD) is configured to run on Opus for reasoning depth.
-  You are currently on a non-Opus model.
+  Stage 03 (PRD) is configured for the deep-reasoning model tier.
+  The current session model does not appear to match that tier.
 
-  Run /model opus, then re-invoke /pm-stage-03-prd.
+  Claude: switch to Opus or the strongest available reasoning model, then re-invoke /pm-stage-03-prd.
+  Codex: switch to a high/deep reasoning model, then invoke $pm-stage-03-prd.
   ```
 
-This check is advisory: it reads your own session model, since no hook can know the active model. The frontmatter `model:` value records the required model.
+This check is advisory: it reads your own session model, since no hook can know the active model. The frontmatter `model_tier:` value records the required model tier.
 
 # Pre-flight
 
@@ -225,10 +226,13 @@ After generating, do the following in order:
    ```
    Stage 03 draft written to 03-prd.md
 
-   Review the PRD, edit if needed, then:
-     /pm-approve 03       — approve and proceed
-     /pm-stage-03-prd     — regenerate from scratch
-     /pm-feedback 03      — capture notes
+   Review the PRD, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 03       — approve and proceed
+     Codex:  $pm-approve 03       — approve and proceed
+     Claude: /pm-stage-03-prd     — regenerate from scratch
+     Codex:  $pm-stage-03-prd     — regenerate from scratch
+     Claude: /pm-feedback 03      — capture notes
+     Codex:  $pm-feedback 03      — capture notes
    ```
 
 # Quality bar

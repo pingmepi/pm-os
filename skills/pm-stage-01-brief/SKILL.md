@@ -139,10 +139,13 @@ After generating, do the following in order:
    ```
    Stage 01 draft written to 01-brief.md
 
-   Review the brief, edit if needed, then:
-     /pm-approve 01       — approve and proceed
-     /pm-stage-01-brief   — regenerate from scratch
-     /pm-feedback 01      — capture notes
+   Review the brief, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 01       — approve and proceed
+     Codex:  $pm-approve 01       — approve and proceed
+     Claude: /pm-stage-01-brief   — regenerate from scratch
+     Codex:  $pm-stage-01-brief   — regenerate from scratch
+     Claude: /pm-feedback 01      — capture notes
+     Codex:  $pm-feedback 01      — capture notes
    ```
 
 # Quality bar

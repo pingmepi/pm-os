@@ -18,6 +18,10 @@ from frontmatter import update_status, read as fm_read
 from telemetry import log
 
 
+def stage_command(stage_id: str) -> str:
+    return f"pm-stage-{stage_id}-{STAGE_NAMES[stage_id]}"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Approve a PM-OS stage artifact.")
     parser.add_argument("stage_id", help="Two-digit stage number (e.g. '01')")
@@ -36,7 +40,10 @@ def main():
 
     apath = artifact_path(project_root, stage_id)
     if not apath.exists():
-        print(f"Stage {stage_id} has not been generated yet. Run /pm-stage-{stage_id}-{STAGE_NAMES[stage_id]} first.")
+        cmd = stage_command(stage_id)
+        print(f"Stage {stage_id} has not been generated yet. Generate it first:")
+        print(f"  Claude: /{cmd}")
+        print(f"  Codex:  ${cmd}")
         sys.exit(1)
 
     fm, body = fm_read(str(apath))
@@ -47,7 +54,10 @@ def main():
         sys.exit(0)
 
     if current_status == "pending":
-        print(f"Stage {stage_id} has not been generated yet. Run /pm-stage-{stage_id}-{STAGE_NAMES[stage_id]} first.")
+        cmd = stage_command(stage_id)
+        print(f"Stage {stage_id} has not been generated yet. Generate it first:")
+        print(f"  Claude: /{cmd}")
+        print(f"  Codex:  ${cmd}")
         sys.exit(1)
 
     content_hash = hash_artifact_body(str(apath))
@@ -115,7 +125,9 @@ def main():
         print(f"Downstream stages now stale: {', '.join(downstream_stale)}")
     else:
         print("Downstream stages: none stale")
-    print(f"Run /pm-feedback {stage_id} to capture notes on this stage.")
+    print("Capture notes on this stage:")
+    print(f"  Claude: /pm-feedback {stage_id}")
+    print(f"  Codex:  $pm-feedback {stage_id}")
 
 
 if __name__ == "__main__":

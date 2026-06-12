@@ -1,10 +1,14 @@
 import os
+import sys
 from pathlib import Path
 
 import yaml
 
 CONFIG_PATH = Path.home() / ".pm-os" / "config.yaml"
 REQUIRED_KEYS = ["pm_user", "feedback_repo", "projects_dir"]
+DEFAULT_FEEDBACK_REPO = "https://github.com/pingmepi/pm-os-feedback.git"
+DEFAULT_MODEL_TIER = "standard"
+DEEP_REASONING_STAGES = ["03", "06", "08"]
 
 _config_cache = None
 
@@ -28,6 +32,7 @@ def load_config() -> dict:
             f"Run: python3 ~/.pm-os/scripts/pm_os_install.py --reconfigure"
         )
 
+    _apply_model_policy_defaults(config)
     _config_cache = config
     return _config_cache
 
@@ -47,16 +52,23 @@ def _migrate_from_env() -> dict:
         "pm_user": pm_user or "unknown",
         "projects_dir": str(Path.home() / "pm-projects"),
         "pm_os_version": _read_version(),
-        "default_stage_model": "claude-sonnet-4-6",
-        "opus_stages": ["03", "06"],
+        "default_model_tier": DEFAULT_MODEL_TIER,
+        "deep_reasoning_stages": DEEP_REASONING_STAGES,
     }
 
     if not feedback_repo:
-        print("[pm-os] Migration: feedback_repo not set. Enter it now.")
-        try:
-            feedback_repo = input("Feedback repo URL (HTTPS): ").strip()
-        except EOFError:
-            feedback_repo = ""
+        if not sys.stdin.isatty():
+            feedback_repo = DEFAULT_FEEDBACK_REPO
+            print(f"[pm-os] Migration: feedback_repo using default {DEFAULT_FEEDBACK_REPO}")
+        else:
+            print("[pm-os] Migration: feedback_repo not set. Enter it now.")
+            feedback_repo = input(f"Feedback repo URL (HTTPS) [{DEFAULT_FEEDBACK_REPO}]: ").strip()
+            feedback_repo = feedback_repo or DEFAULT_FEEDBACK_REPO
+    if not feedback_repo:
+        raise RuntimeError(
+            "PM-OS config migration cancelled: feedback_repo is required.\n"
+            "Run: python3 ~/.pm-os/scripts/pm_os_install.py --reconfigure"
+        )
 
     config["feedback_repo"] = feedback_repo
 
@@ -64,6 +76,11 @@ def _migrate_from_env() -> dict:
     _write_config_atomic(config)
     print(f"[pm-os] Migrated config written to {CONFIG_PATH}")
     return config
+
+
+def _apply_model_policy_defaults(config: dict) -> None:
+    config.setdefault("default_model_tier", DEFAULT_MODEL_TIER)
+    config.setdefault("deep_reasoning_stages", DEEP_REASONING_STAGES)
 
 
 def _write_config_atomic(config: dict) -> None:

@@ -2,7 +2,7 @@
 
 PM-OS is a local-first Product Manager Operating System for turning a short business statement into structured product definition artifacts with human review at every stage.
 
-It is built as a Claude Code skill suite plus small Python helpers. There is no web app or backend service: project state lives in Markdown, YAML, and JSONL files on the user's machine.
+It is built as an agent skill suite for Claude Code and OpenAI Codex, plus small Python helpers. There is no web app or backend service: project state lives in Markdown, YAML, and JSONL files on the user's machine.
 
 ## What It Produces
 
@@ -31,7 +31,7 @@ Approving the design spec and prototype brief also creates HTML companions: a de
 ## Repository Layout
 
 ```text
-skills/      Claude Code skills for project commands and stage generation
+skills/      Agent skills for project commands and stage generation
 scripts/     Python command wrappers for mechanical operations
 lib/         Shared helpers for project state, hashing, config, and telemetry
 hooks/       Stage gates and approval hooks
@@ -43,37 +43,49 @@ templates/   Markdown/YAML templates used by generated artifacts
 Install or configure PM-OS:
 
 ```bash
-./install.sh
+./install.sh --runtime claude
+./install.sh --runtime codex
 ```
+
+The `--runtime` argument is required so PM-OS installs skills into the correct
+agent directory.
 
 Create a project:
 
 ```text
-/pm-new <project-slug> "<business statement>"
+Claude: /pm-new <project-slug> "<business statement>"
+Codex:  $pm-new <project-slug> "<business statement>"
 ```
 
 Generate and approve stages:
 
 ```text
-/pm-stage-01-brief
-/pm-approve 01
+Claude: /pm-stage-01-brief
+Codex:  $pm-stage-01-brief
+Claude: /pm-approve 01
+Codex:  $pm-approve 01
 
-/pm-stage-02-scope
-/pm-approve 02
+Claude: /pm-stage-02-scope
+Codex:  $pm-stage-02-scope
+Claude: /pm-approve 02
+Codex:  $pm-approve 02
 
-/pm-stage-03-prd
+Claude: /pm-stage-03-prd
+Codex:  $pm-stage-03-prd
 ```
 
 Inspect project state:
 
 ```text
-/pm-status
+Claude: /pm-status
+Codex:  $pm-status
 ```
 
 Capture feedback on a stage:
 
 ```text
-/pm-feedback 03
+Claude: /pm-feedback 03
+Codex:  $pm-feedback 03
 ```
 
 ## Project Data
@@ -102,12 +114,29 @@ The `.meta.yaml` file tracks stage status, approvals, project configuration, and
 
 PM-OS is intended for sanitized product-planning inputs. Do not put confidential customer data, PHI, PII, secrets, credentials, or proprietary material into prompts or artifacts unless your environment and policies explicitly allow it.
 
-This README intentionally avoids internal names, private repository details, deployment targets, and user-specific configuration.
+By default, PM-OS is configured to push local telemetry and feedback artifacts to `https://github.com/pingmepi/pm-os-feedback.git`. Override this during setup if your team needs a private or organization-specific feedback repository.
 
 ## Requirements
 
-- Claude Code with local skill support
+- Claude Code or OpenAI Codex with local skill support
 - Python 3.11+
 - `pyyaml`
 
 Configuration is managed by the PM-OS installer and stored locally in the PM-OS config file.
+
+Claude installs skills into `~/.claude/skills/` and hooks into `~/.claude/hooks/`.
+Codex installs skills into `~/.agents/skills/`; native Codex hooks are not required
+for baseline PM-OS behavior.
+
+Model policy is runtime-neutral. PM-OS stores `default_model_tier: standard` and
+`deep_reasoning_stages: ["03", "06", "08"]` in local config instead of concrete
+provider model ids. Claude users should run deep-reasoning stages on Opus or the
+strongest available reasoning model. Codex users should run those stages on a
+high/deep reasoning model.
+
+Update an existing install for a specific runtime:
+
+```bash
+python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude
+python3 ~/.pm-os/scripts/pm_os_update.py --runtime codex
+```

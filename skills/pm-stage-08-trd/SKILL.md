@@ -4,7 +4,7 @@ description: Generate the Technical Requirements Document for stage 08 from the 
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md"]
 writes: "08-trd.md"
 prompt_version: 0.1.0
-model: claude-opus-4-8
+model_tier: deep-reasoning
 ---
 
 # Role and goal
@@ -15,19 +15,20 @@ This stage demands deep reasoning. Favor precision, internal consistency, and ex
 
 # Model requirement
 
-This stage is configured to run on Opus for reasoning depth. Before doing anything else — including the pre-stage gate — check the model you are currently running as:
+This stage is configured to run on the `deep-reasoning` model tier. Before doing anything else — including the pre-stage gate — check whether the current session model id is appropriate for deep reasoning:
 
-- If you are on an Opus model (e.g. `claude-opus-4-8`), continue.
-- If you are not on Opus, stop immediately. Do not run the pre-stage gate and do not generate anything. Print exactly:
+- If the current session is using a deep-reasoning model for its runtime, continue.
+- If it is not, stop immediately. Do not run the pre-stage gate and do not generate anything. Print exactly:
 
   ```
-  Stage 08 (TRD) is configured to run on Opus for reasoning depth.
-  You are currently on a non-Opus model.
+  Stage 08 (TRD) is configured for the deep-reasoning model tier.
+  The current session model does not appear to match that tier.
 
-  Run /model opus, then re-invoke /pm-stage-08-trd.
+  Claude: switch to Opus or the strongest available reasoning model, then re-invoke /pm-stage-08-trd.
+  Codex: switch to a high/deep reasoning model, then invoke $pm-stage-08-trd.
   ```
 
-This check is advisory: it reads your own session model, since no hook can know the active model. The frontmatter `model:` value records the required model.
+This check is advisory: it reads your own session model, since no hook can know the active model. The frontmatter `model_tier:` value records the required model tier.
 
 # Pre-flight
 
@@ -250,10 +251,13 @@ After generating, do the following in order:
    ```
    Stage 08 (TRD) draft written to 08-trd.md
 
-   Review the TRD, edit if needed, then:
-     /pm-approve 08       — approve
-     /pm-stage-08-trd     — regenerate from scratch
-     /pm-feedback 08      — capture notes
+   Review the TRD, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 08       — approve
+     Codex:  $pm-approve 08       — approve
+     Claude: /pm-stage-08-trd     — regenerate from scratch
+     Codex:  $pm-stage-08-trd     — regenerate from scratch
+     Claude: /pm-feedback 08      — capture notes
+     Codex:  $pm-feedback 08      — capture notes
    ```
 
 # Quality bar

@@ -178,10 +178,13 @@ After generating, do the following in order:
    ```
    Stage 02 draft written to 02-scope.md
 
-   Review the scope, edit if needed, then:
-     /pm-approve 02       — approve and proceed
-     /pm-stage-02-scope   — regenerate from scratch
-     /pm-feedback 02      — capture notes
+   Review the scope, edit if needed, then use the entrypoint for your runtime:
+     Claude: /pm-approve 02       — approve and proceed
+     Codex:  $pm-approve 02       — approve and proceed
+     Claude: /pm-stage-02-scope   — regenerate from scratch
+     Codex:  $pm-stage-02-scope   — regenerate from scratch
+     Claude: /pm-feedback 02      — capture notes
+     Codex:  $pm-feedback 02      — capture notes
    ```
 
 # Quality bar

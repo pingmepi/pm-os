@@ -299,7 +299,7 @@ GenAI architecture: PM-OS uses one `SKILL.md` per stage. Do not create separate 
 
 Cross-runtime interface: each stage directory also ships an `agents/openai.yaml` describing how the stage is surfaced in OpenAI/Codex-style runtimes. It carries an `interface:` block with `display_name`, `short_description`, and `default_prompt` (the `default_prompt` invokes the stage via `$<skill-name>`). Every stage directory includes one.
 
-Model selection: skill-level `model:` frontmatter is advisory — Claude Code runs skills inline on the current session model and does not switch models per skill. Stages that require a specific model (03 PRD and 06 QA Plan use Opus) declare it in `model:` and include a "Model requirement" pre-flight block that reads the running session model and, if it is wrong, prompts the PM to switch (`/model opus`) and re-invoke before generating. There is no env var a hook can read for the active model, so this check lives in the skill body and is advisory, not runtime-enforced.
+Model selection: shared skill metadata uses runtime-neutral model tiers, not provider model ids. Skills that need extra reasoning declare `model_tier: deep-reasoning`; utility skills may declare `model_tier: utility`. Stages 03 (PRD), 06 (QA Plan), and 08 (TRD) require the `deep-reasoning` tier and include a "Model requirement" pre-flight block that reads the current session model id and asks the PM to switch if needed. Claude users map `deep-reasoning` to Opus or the strongest available reasoning model; Codex users map it to a high/deep reasoning model. There is no env var a hook can read for the active model, so this check lives in the skill body and is advisory, not runtime-enforced.
 
 Steering notes: generative stages accept repeatable `--note "<text>"` arguments (read from `$ARGUMENTS`) that steer a generation — e.g. excluding a feature or dropping a target segment. Notes apply **forward only** by default: they shape the current artifact and downstream stages, and are recorded verbatim in the artifact's `generation_notes` frontmatter (excluded from the body-only `content_hash`), in `.history`, and in the `stage_generated` telemetry payload. When a note contradicts a binding decision in an upstream artifact (e.g. a stage-02 note drops a target user the brief named), the stage stops and offers the PM three choices: (1) reconcile into the upstream artifact — edits it, appends the note to its `generation_notes`, logs `stage_edited_via_note`, and lets the existing pre-stage hash-drift cascade mark downstream stages stale for re-approval; (2) apply forward only and let the documents diverge; or (3) cancel. The system never silently rewrites an upstream artifact.
 
@@ -592,10 +592,11 @@ Karan runs 2-3 real projects through the system. Captures feedback aggressively.
 
 - **Language:** Python 3.11+ for all `lib/` and hooks. No other runtime.
 - **Dependencies:** keep minimal. Allowed: `pyyaml`, `jinja2`, `sentence-transformers`, `python-Levenshtein`, `gitpython` (or shell out to `git`). Avoid heavy frameworks.
-- **Claude model selection:**
-  - Default: the current session model (Sonnet latest unless the PM switches)
-  - Opus for stages 03 (PRD) and 06 (QA Plan)
-  - Skills run inline on the session model; `model:` frontmatter is advisory, not runtime-enforced. Opus stages prompt the PM to `/model opus` and re-invoke (see §7).
+- **Model selection:**
+  - Shared config stores `default_model_tier: standard`.
+  - Shared config stores `deep_reasoning_stages: ["03", "06", "08"]`.
+  - Skills run inline on the current session model; `model_tier:` frontmatter is advisory, not runtime-enforced.
+  - Deep-reasoning stages prompt the PM to switch to the runtime's strongest appropriate reasoning model and re-invoke (see §7).
 - **Embeddings model:** `sentence-transformers/all-MiniLM-L6-v2` — small, local, no API cost.
 - **Timestamps:** ISO 8601 UTC throughout.
 - **UUIDs:** uuid4.

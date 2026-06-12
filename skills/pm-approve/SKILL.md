@@ -1,7 +1,7 @@
 ---
 name: pm-approve
 description: Approve the current draft for a given stage, compute content hash, update state, and cascade staleness.
-model: claude-haiku-4-5-20251001
+model_tier: utility
 ---
 
 Run: python3 ~/.pm-os/scripts/pm_approve.py "$@"
