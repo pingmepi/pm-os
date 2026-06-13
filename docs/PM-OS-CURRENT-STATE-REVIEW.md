@@ -1,0 +1,515 @@
+# PM-OS Current State Review and Roadmap
+
+**Date:** 2026-06-12
+**Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
+**Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
+
+---
+
+## 1. Product Aim
+
+PM-OS should reduce end-to-end Product Development Life Cycle (PDLC) time from idea to shipped learning by helping the PM and cross-functional team maintain one coherent thread across:
+
+- intake and discovery
+- product definition
+- design and solution planning
+- development handoff and development-phase support
+- QA planning, QA execution support, and bug triage
+- release readiness
+- feedback, learnings, and iteration
+
+PM-OS is not the final decision-maker and is not the executor.
+
+- The **PM decides**: scope, trade-offs, approvals, priority, release calls, and whether to proceed.
+- PM-OS **suggests, prepares, validates, maps, and coordinates**.
+- Developers and QAs **execute** development and testing.
+- PM-OS supports dev/QA phases by connecting requirements, QA scenarios, codebase state, bugs, tickets, PRs, and release decisions.
+
+The long-term product should be a cohesive lifecycle intelligence layer that consumes artifacts from where work actually happens: Markdown docs, PRDs, repos, Jira/Linear tickets, QA bugs, PRs, design files, release notes, analytics, support feedback, and stakeholder conversations.
+
+It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or future agents are execution surfaces. PM-OS owns the lifecycle model, artifacts, approvals, traceability, and orchestration rules.
+
+---
+
+## 2. Current State Summary
+
+The current codebase is a strong **local-first product-definition MVP**.
+
+It can scaffold a project from a business statement, generate staged product artifacts, require human approval between stages, track status/hashes in local files, record telemetry/feedback, and export approved artifacts.
+
+It is not yet the full PDLC operating system described above.
+
+### Implemented Today
+
+| Area | Status | Evidence |
+|---|---:|---|
+| Local project scaffold | Implemented | `scripts/pm_new.py` creates `~/pm-projects/<slug>`, `.meta.yaml`, `00-business-statement.md`, `.history/`, telemetry, feedback |
+| Linear stage pipeline | Implemented | Stages 01-08 exist in `skills/` and `lib/project.py` defines stage order |
+| Human approval gates | Implemented | `scripts/pm_approve.py`, `hooks/pre-stage.py`, `hooks/post-approve.py` |
+| Artifact status model | Implemented | `pending`, `draft`, `approved`, `edited`, `stale` in `.meta.yaml` and frontmatter |
+| Hash-based drift detection | Implemented | `hooks/pre-stage.py` recomputes upstream hashes and marks edits |
+| Downstream staleness cascade | Implemented | `hooks/post-approve.py` marks approved downstream stages stale |
+| Telemetry | Implemented | `lib/telemetry.py` appends hash-chained JSONL events |
+| Feedback capture | Implemented, basic | `scripts/pm_feedback.py` writes simple feedback JSONL entries |
+| Share/export | Implemented, basic | `scripts/pm_share.py` exports approved/edited artifacts |
+| GenAI-specific sections | Implemented in prompts | `genai_flag` exists and stage prompts branch on it |
+| Optional TRD | Implemented | `pm-stage-08-trd` exists and is marked optional in metadata |
+| HTML companions | Implemented | post-approval renders stage 04 and 05 HTML companions |
+| Cross-runtime install (Claude + Codex) | Implemented | `install.sh --runtime claude\|codex` routes Codex skills to `~/.agents/skills`, skips Claude hooks on Codex |
+| Runtime-neutral skill interface | Implemented | each stage skill ships `agents/openai.yaml` alongside `SKILL.md` |
+
+### Planned but Not Implemented
+
+| Area | Status | Source |
+|---|---:|---|
+| Gemini runtime support | Planned | `pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
+| Runtime-parity gates on Codex | Missing | hooks are Claude-only; approval gate / hash-drift / staleness cascade do not run under Codex |
+| Real runtime-neutral `AGENTS.md` | Missing | current `AGENTS.md` is a polluted `claude-mem` stub, not an agents file |
+| Runtime-neutral model wording | Implemented | stages 03/06/08 now use advisory `model_tier: deep-reasoning` guidance instead of `/model opus` |
+| Existing-product/enhancement mode | Planned | `pm-os-modes-and-handoff-plan.md` |
+| Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` |
+| Mid-pipeline artifact ingest | Planned | `pm-os-ingest-plan.md` |
+| Import existing scope/PRD | Planned | `pm-os-ingest-plan.md` |
+| Jira/Linear handoff | Planned | `pm-os-modes-and-handoff-plan.md` |
+| Figma/design-system integration | Planned later | `pm-os-modes-and-handoff-plan.md` |
+| QA bug analysis against codebase | Missing | part of expanded ask |
+| Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
+| Release readiness workflow | Missing | part of expanded ask |
+| Feedback artifact ingestion | Missing | part of expanded ask |
+| External artifact graph | Missing | part of expanded ask |
+
+---
+
+## 3. Fit Against the Expanded Ask
+
+### Where PM-OS Fits Well Today
+
+The current architecture already has several foundations that should survive:
+
+- **PM approval remains explicit.** The state machine already prevents autonomous downstream progression.
+- **Artifacts are portable.** Markdown/YAML/JSONL are a good neutral base.
+- **The pipeline is artifact-driven.** Downstream stages care about approved files and hashes, not session state.
+- **Hash/staleness machinery is valuable.** This is the beginning of lifecycle traceability.
+- **Skill-based workflow is a good portable wrapper.** The same idea can work across Claude/Codex if runtime-specific assumptions are removed.
+
+### Where It Falls Short
+
+The current product is still centered on generating documents from a one-line business statement.
+
+Major gaps:
+
+1. **Scope mismatch:** README and spec still describe a seven-stage product-definition pipeline, while the ask is full PDLC from idea through dev, QA, release, and feedback.
+2. **Rigid entry point:** PM-OS starts from `pm-new <slug> "<statement>"`; it cannot yet start from a PRD, repo, Jira bug, QA report, or existing ticket.
+3. **Linear dependency model:** stages are hard-coded as 01-08; no explicit lifecycle graph for optional/nonlinear paths.
+4. **No context sufficiency/recommendation layer:** PM-OS gates upstream approvals, but it does not assess whether the provided inputs are enough for the requested work and recommend next options to the PM.
+5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned.
+6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
+7. **No dev/QA execution support:** PM-OS can draft a QA plan and TRD, but cannot yet analyze a QA bug, map it to requirements/code, classify it, and suggest a developer fix plan.
+8. **Runtime agnosticism is nearly complete:** Claude + Codex install and skill interfaces are shipped. What remains is parity, not plumbing — the approval/hash/staleness gates run only as Claude hooks (not under Codex), model guidance is advisory rather than enforceable, and `AGENTS.md` is a stray stub.
+
+---
+
+## 4. How Much Needs to Change
+
+This is **not a full rewrite**.
+
+The deterministic core can remain:
+
+- local project state
+- artifact files
+- frontmatter
+- status machine
+- approval commands
+- hashing
+- stale cascade
+- telemetry/feedback append logs
+- stage skills
+
+But the product needs a **significant expansion around the core**.
+
+Approximate change profile:
+
+| Layer | Change level | Notes |
+|---|---:|---|
+| Current artifact/status core | Low to medium | Extend statuses/metadata, avoid breaking current projects |
+| Stage prompts 01-08 | Medium | Add modes, external context, lifecycle trace IDs |
+| Installer/runtime support | Medium | Needed for true Claude/Codex agnosticism |
+| Intake/orchestration | High | New layer: classify ask, identify available artifacts, recommend path, request PM approval |
+| Artifact ingest | Medium | Mostly additive because current gate is artifact-driven |
+| Brownfield/codebase awareness | High | New stage/tooling, code snapshot tracking, drift checks |
+| External integrations | High | Jira/Linear/GitHub/Figma/etc. require connectors, auth, provenance, sync rules |
+| Dev/QA support | High | Requires traceability graph across requirements, tests, bugs, code, PRs |
+| Release/feedback loop | High | New workflows and external artifact consumers |
+
+Best framing: the current PM-OS is the **product-definition kernel**. The target product is a **PDLC context graph and recommendation layer** wrapped around that kernel.
+
+---
+
+## 5. Target Product Scope
+
+### Core Capabilities
+
+PM-OS should eventually support:
+
+1. **Flexible intake**
+   - Start from a business statement, PRD, scope, repo, ticket, bug, feedback item, design file, or partial artifact set.
+   - Classify the work as new product, existing product change, greenfield, brownfield, bug fix, feature enhancement, release readiness, or feedback iteration.
+
+2. **PM-led recommendations**
+   - PM-OS suggests the next best PDLC action and explains why.
+   - PM-OS does not autonomously decide or proceed across meaningful gates.
+   - PM approves whether to generate, ingest, backfill, hand off, triage, defer, or stop.
+
+3. **Artifact and decision traceability**
+   - Maintain links from product intent to requirements, design decisions, dev tickets, QA scenarios, bugs, fixes, releases, and feedback.
+   - Preserve provenance: which source artifact produced which PM-OS artifact or recommendation.
+
+4. **External artifact consumption**
+   - Consume Jira/Linear tickets, GitHub PRs/issues, codebase snapshots, QA results, design files, release notes, analytics, and feedback.
+   - Store references and summaries, not necessarily copies of everything.
+
+5. **Dev-phase support**
+   - Produce dev-ready handoff packets.
+   - Map implementation questions back to approved requirements.
+   - Detect likely scope drift or requirement ambiguity.
+   - Suggest developer action plans when issues arise.
+
+6. **QA-phase support**
+   - Produce QA scenarios and acceptance checks.
+   - Map bugs to requirements, QA scenarios, code areas, tickets, and PRs.
+   - Classify QA findings as implementation bug, unclear requirement, product gap, test mismatch, regression, or out-of-scope request.
+   - Recommend next action and whether PM clarification is needed.
+
+7. **Release and feedback loop**
+   - Assess release readiness against QA, acceptance criteria, metrics instrumentation, known bugs, rollout risks, and open decisions.
+   - Ingest post-launch feedback and outcomes.
+   - Recommend iteration paths and artifact/ticket updates.
+
+---
+
+## 6. Lifecycle Checks
+
+These are the checks PM-OS should enforce or recommend at each lifecycle phase.
+
+| Phase | PM-OS check | Output |
+|---|---|---|
+| Intake | What is the user asking? What artifacts are present? Is this new/existing, greenfield/brownfield, feature/bug/release/feedback? | Intake summary and recommended path |
+| Discovery | Is the problem, target user, urgency, and success hypothesis clear enough? | Brief or missing-info prompt |
+| Scope | Is MVP boundary explicit? Are exclusions, assumptions, dependencies, and risks clear? | Scope artifact and approval prompt |
+| PRD | Are requirements testable, scoped, prioritized, and traceable to goals? | PRD with acceptance criteria |
+| Design | Do flows, states, UX behavior, accessibility, and design constraints match the PRD? | Design spec/prototype brief |
+| Dev readiness | Can devs execute without guessing product intent? Are tickets/tasks traceable to requirements? | Dev handoff packet or Jira/Linear tickets |
+| Development support | Does implementation work still map to approved requirements? Are dev questions product decisions or technical choices? | Clarification recommendation, scope drift warning, or updated handoff |
+| QA planning | Do QA scenarios cover requirements, edge cases, regressions, and release blockers? | QA plan and test scenario set |
+| QA bug triage | Which requirement/test scenario does the bug relate to? Is it product gap, implementation bug, unclear requirement, test mismatch, regression, or out-of-scope? | Bug analysis and suggested dev plan |
+| Release readiness | Are must-pass tests complete? Are blockers known? Are metrics/release notes/rollout and rollback plans ready? | Release readiness report |
+| Feedback | What did users/data/support reveal? Does this require doc, ticket, scope, or roadmap changes? | Feedback analysis and iteration recommendation |
+
+---
+
+## 7. Phased Implementation Plan
+
+### Phase 0: Align the Product Contract
+
+Goal: make the repo describe the same product we now want to build.
+
+Work:
+
+- Update README/spec language from "doc generator" to "PM-led PDLC operating layer."
+- Reconcile seven-stage versus optional stage 08 wording.
+- Add the decision authority model: PM decides, PM-OS recommends, dev/QA execute.
+- Define lifecycle phases and terms: new product, existing product, greenfield, brownfield, artifact ingest, handoff, bug triage, release readiness, feedback loop.
+
+Checks:
+
+- README, spec, SOP, and this review use the same scope.
+- No claim says PM-OS autonomously decides or replaces dev/QA execution.
+
+Dependencies:
+
+- PM approval of the product aim and boundaries.
+
+Blockers:
+
+- Need final naming for "PDLC operating layer" versus "lifecycle intelligence layer" if branding matters.
+
+### Phase 1: Runtime Agnosticism (finish the job)
+
+Status: the plumbing is already shipped. `install.sh --runtime claude|codex` routes Codex skills to `~/.agents/skills` and skips Claude hooks; every stage skill carries an `agents/openai.yaml` interface. This phase is now about **runtime parity**, not building cross-runtime support from scratch. Do not regress what exists.
+
+Remaining work (three finish-items):
+
+1. **Close the gate-parity gap.** The approval gate, hash-drift check, and staleness cascade run only as Claude hooks and are skipped under Codex. Port the gate logic so it is enforced regardless of runtime — either inline it into the stage skill prompts (so the skill self-enforces) or expose a runtime-neutral gate entrypoint the skills call. This is the one substantive item.
+2. **Replace `AGENTS.md`.** The current file is an auto-generated `claude-mem` stub, not a runtime-neutral agents file. Write a real one and gitignore whatever regenerates the stub.
+3. **Make `hooks/pre-stage.py` non-interactive-safe.** It currently blocks on `input()` (line ~95), which hangs unattended runs.
+
+Checks:
+
+- `pm-new -> stage 01 -> approve 01` works in both Claude and Codex, and the **gate behaves identically in both** (blocks on unapproved upstream, marks drift, cascades staleness).
+- No stage prompt names a Claude-specific model command.
+- Non-interactive runs do not hang on `input()`.
+- A fresh Codex install contains a real `AGENTS.md`, not the stub.
+
+Dependencies:
+
+- Local Codex environment to verify gate parity.
+
+Blockers:
+
+- Gate logic currently lives only in Claude hooks; needs a runtime-neutral home before Codex reaches parity.
+
+### Phase 2: Flexible Intake and Artifact Ingest
+
+Goal: PM can start from partial existing context instead of a one-line statement only.
+
+Work:
+
+- Add `/pm-import`.
+- Ingest existing scope/PRD as approved canonical artifacts.
+- Preserve raw sources in `.history/`.
+- Add `stage_imported` telemetry.
+- Add visible imported marker in status.
+- Backfill missing upstream artifacts through PM review, not silent generation.
+
+Checks:
+
+- Import PRD into stage 03 and run stage 04 without weakening upstream gates.
+- Source provenance is visible.
+- Imported artifacts do not pollute stage approval metrics.
+
+Dependencies:
+
+- Markdown import first.
+- DOCX/PDF conversion can follow.
+
+Blockers:
+
+- Need decide normalization versus verbatim default.
+- Need decide whether imported stages use status `approved` plus metadata marker, or a new status.
+
+### Phase 3: Product Mode and Brownfield Understanding
+
+Goal: support new product development and existing product modification from the same install.
+
+Work:
+
+- Add `project_type: new_product | enhancement`.
+- Add `codebase_path` and `codebase_ref`.
+- Add enhancement-only `pm-stage-00-understand`.
+- Generate and approve `00-codebase-understanding.md`.
+- Add codebase drift signal to status.
+- Add enhancement-aware conditional blocks in stages 01-08.
+
+Checks:
+
+- `pm-new --mode enhancement --codebase <path>` creates a valid project.
+- Stage 01 is blocked until codebase understanding is approved.
+- Enhancement-mode PRD/design/QA are written as deltas against current product behavior.
+- New-product mode remains unchanged.
+
+Dependencies:
+
+- Runtime-agnostic install ideally completed first.
+- Need read-only codebase exploration pattern.
+
+Blockers:
+
+- Need choose local-path-only versus git URL for codebase source.
+- Need define minimum structure for codebase understanding.
+
+**Sequencing principle for Phases 4–6.** Every phase ships a **connector-free, local-first version first**; each external integration is a separate, opt-in, **read-before-write, dry-run -> confirm** unit. This keeps the per-PM, local, file-based flavour intact and stops the hardest/riskiest pieces (live code analysis, tracker writes) from blocking the simple, high-value ones. The `a` sub-phases need zero integrations and ship real PDLC coverage on their own; the `b` sub-phases are independently shippable and skippable.
+
+### Phase 3.5: Traceability Spine (foundational — do this before Phase 4)
+
+Goal: give requirements and QA scenarios machine-stable IDs and local links, so everything downstream can reference them. No integrations.
+
+Work:
+
+- Add stable IDs to requirements (`REQ-…`) in the PRD and to QA scenarios (`TC-…`) in the QA plan.
+- Add a local link record connecting `REQ` <-> `TC` (and later bug/ticket/code refs).
+- Keep it in the existing flat-file flavour (see Section 8) — no new hidden directories.
+
+Checks:
+
+- Each requirement and QA scenario has a stable ID that survives regeneration.
+- PM-OS can resolve "which scenarios cover requirement REQ-X" locally.
+
+Blockers:
+
+- Current PRD/QA artifacts are prose; IDs must be introduced without breaking existing projects (needs `schema_version`).
+
+### Phase 4: Handoff and External Work Artifacts
+
+Goal: connect approved product intent to the systems dev/QA actually use — value first, connectors second.
+
+**Phase 4a — Local handoff packet (zero integrations).**
+
+- Generate a dev-ready handoff doc from approved PRD/TRD/QA using the Phase 3.5 stable IDs.
+- Pure local Markdown; no auth, no network. This is most of Phase 4's value with none of the connector risk.
+
+Checks:
+- Handoff packet lists each requirement with its acceptance criteria and covering `TC` IDs.
+- Generated entirely offline from approved artifacts.
+
+**Phase 4b — One tracker, export-only (opt-in, dry-run -> confirm -> create).**
+
+- Pick the single tracker the PM actually uses (Linear *or* Jira, not both).
+- Export tickets in dry-run -> PM confirm -> create flow; read ticket IDs back into local state.
+- GitHub/GitLab PR/commit refs and Figma source links are **separate, later, read-only "reference capture" units** — not bundled here.
+
+Checks:
+- Tickets map to requirements and acceptance criteria via stable IDs.
+- PM confirms before any external object is created or updated.
+- Only references/IDs/summaries are stored locally — never bulk copies of external data.
+
+Dependencies:
+- Phase 3.5 stable IDs.
+- Local CLI/token access for the one chosen tracker.
+
+Blockers:
+- Need connector/auth policy (tokens from env/local config; see Section 8 and Risks).
+
+### Phase 5: QA Bug Triage and Dev Fix Guidance
+
+Goal: support the dev/QA phase without replacing devs or QAs. Split the reliable part from the error-prone part so the latter cannot taint the former.
+
+**Phase 5a — Bug intake + classification (no code analysis).**
+
+- Manual/Markdown bug intake.
+- Link bug to QA scenario, acceptance criteria, requirement, and (if present) ticket via stable IDs.
+- Classify bug type: implementation bug, product gap, unclear requirement, test mismatch, regression, out-of-scope request.
+- Recommend next action; flag when PM clarification is needed.
+- Deterministic-ish, genuinely useful, needs no repo access.
+
+Checks:
+- Given a QA bug tied to a `TC`, PM-OS produces a traceable triage report locally.
+- PM-OS flags product-decision bugs instead of pretending they are pure dev fixes.
+
+**Phase 5b — Code-area suggestion (the hard, error-prone part — quarantined).**
+
+- Repo snapshot + recent-changes heuristic -> candidate files -> suggested fix plan and tests.
+- Explicit opt-in; always cites evidence; never auto-acts; output is clearly labelled "suggestion."
+- Isolated from 5a so its uncertainty cannot contaminate 5a's reliable triage output.
+
+Checks:
+- Developer can execute the suggested plan directly, while still owning implementation and verification.
+- Every suggested code area cites the evidence it was derived from.
+
+Dependencies:
+- Phase 3.5 stable IDs; Phase 5a triage record.
+- Codebase understanding and codebase refs (Phase 3); read-only repo access.
+
+Blockers:
+- No codebase mapping capability implemented yet.
+
+### Phase 6: Release Readiness and Feedback Loop
+
+Goal: close the lifecycle after development and QA — local rollups first.
+
+**Phase 6a — Release-readiness report (local rollup).**
+
+- Aggregate already-local state: QA status, open bugs (from 5a), acceptance-criteria coverage, metrics-plan instrumentation, known blockers, rollout/rollback note, unresolved PM decisions.
+- No new integration.
+
+Checks:
+- PM-OS produces a release-readiness report grounded in approved artifacts and local bug/triage state.
+- PM approves any change to scope, requirements, or roadmap.
+
+**Phase 6b — Feedback intake + iteration recommendation (local).**
+
+- Manual/Markdown feedback intake.
+- Classify feedback; link to requirements, bugs, releases, and backlog candidates via stable IDs.
+- Recommend iteration actions to the PM.
+- Analytics/support connectors are optional add-ons later, using the same read-only, opt-in pattern as Phase 4b.
+
+Checks:
+- Feedback items are classified and linked to product decisions or backlog candidates locally.
+- PM approves any resulting scope/requirement/roadmap change.
+
+Dependencies:
+- Phase 3.5 stable IDs; Phase 5a bug records.
+
+Blockers:
+- No release artifact model yet (introduced in 6a).
+
+---
+
+## 8. Proposed Data Model Additions
+
+**Preserve the existing flavour.** PM-OS runs per-PM on the PM's own machine: state is flat files at the project root (`.meta.yaml`, `.history/`, `telemetry.jsonl`, `feedback.jsonl`, numbered `NN-*.md` artifacts). The additions below keep that convention — **no new hidden `.pm-os/` subdirectory**, no server, no shared service. Small structured state folds into `.meta.yaml`; append-logs sit beside the existing ones at the root; larger structured records become sibling dotfiles.
+
+**Add a `schema_version` first.** Every new field must land without breaking existing projects, so introduce a version marker that migrations key off:
+
+```yaml
+schema_version: 2          # existing projects default to 1 and migrate on next command
+project_type: new_product | enhancement
+codebase:
+  path: <absolute-path-or-null>
+  ref: <git-sha-or-null>
+lifecycle:
+  current_phase: intake | discovery | design | dev | qa | release | feedback
+  recommended_next_actions: []
+```
+
+`schema_version`, `project_type`, `codebase`, and `lifecycle` live in `.meta.yaml` (small, frequently read).
+
+Larger structured records, as flat files at the project root — matching the existing naming convention, **not** under a new directory:
+
+- `.sources.yaml` — external artifact registry (dotfile, like `.meta.yaml`). Each entry:
+  ```yaml
+  - id: src_...
+    type: prd | scope | repo | jira_ticket | jira_bug | github_pr | figma | feedback
+    uri: <path-or-url>
+    captured_at: <iso8601>
+    summary_hash: <sha256-or-null>
+  ```
+- `.traceability.yaml` — requirement/test/ticket/bug/code links keyed by the Phase 3.5 stable IDs (`REQ-…`, `TC-…`).
+- `recommendations.jsonl` — PM-OS suggestions and PM decisions (append-log, beside `telemetry.jsonl`).
+- `imports.jsonl` — ingest provenance (append-log, beside `feedback.jsonl`).
+
+Principles:
+
+- Store enough canonical state to preserve decisions and traceability, but **reference** external systems — store IDs, URIs, and summaries locally, never bulk copies of external data.
+- Connectors read credentials from env / local config; secrets are never written into project files or telemetry.
+- All state stays local to the PM's machine, file-based and human-gated — the same model PM-OS has today.
+
+---
+
+## 9. Key Risks
+
+| Risk | Why it matters | Mitigation |
+|---|---|---|
+| PM-OS becomes another competing source of truth | Teams already use Jira, GitHub, Figma, docs | Reference and consume external artifacts; do not copy blindly |
+| Too much automation undermines PM authority | The ask explicitly keeps decisions with the PM | Recommendation-first UX with approval gates |
+| Linear stages do not match real PDLC | Teams enter from PRDs, bugs, repos, tickets | Add intake and artifact graph around the stage pipeline |
+| External integrations create data/security exposure | Tickets/repos/design files may contain sensitive data | Connector policy, provenance, user confirmation, sanitization guidance |
+| Bug/code analysis produces false confidence | Code mapping can be wrong | Classify as suggestions, cite evidence, require dev execution/verification |
+| Cross-runtime support drifts | Claude/Codex skill behavior differs | One source of truth, adapter/install tests per runtime |
+| Telemetry schema gets polluted | Imported/external artifacts differ from generated drafts | Separate event types: imported, linked, triaged, recommended, decided |
+
+---
+
+## 10. Immediate Next Steps
+
+Recommended order:
+
+1. Approve the product aim and scope in this document.
+2. Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.
+3. Finish runtime parity (Phase 1): runtime-neutral gate enforcement on Codex, neutral model wording, real `AGENTS.md`, non-interactive `input()` fix. Do not regress the shipped Claude/Codex install.
+4. Add `schema_version` and the migration path so existing projects survive new fields.
+5. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational for everything after.
+6. Implement artifact ingest for existing scope/PRD (Phase 2).
+7. Implement enhancement mode and codebase understanding (Phase 3).
+8. Ship local handoff packet (4a), then one opt-in tracker export (4b).
+9. Ship bug intake + classification (5a), then quarantined code-area suggestion (5b).
+10. Ship local release-readiness report (6a), then feedback intake (6b).
+
+---
+
+## 11. Current Verdict
+
+PM-OS today is a useful and coherent **stage-gated product-definition tool**.
+
+It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, and PM-visible review points.
+
+To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase can be the kernel, but the next major work is not simply "add more stages." The larger move is to add flexible intake, external artifact ingestion, brownfield/codebase awareness, traceability links, dev/QA support workflows, release readiness, and feedback loops while preserving PM authority and human execution.

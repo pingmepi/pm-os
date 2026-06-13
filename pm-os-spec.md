@@ -1,16 +1,20 @@
 # PM-OS — Build Specification
 
 **Owner:** Karan (PM, Indegene)
-**Purpose:** Build a Product Manager Operating System that takes a business statement as input and runs it through a 7-stage product definition pipeline, generating draft artifacts at each stage with human-in-the-loop approval gates.
-**Target executor:** Claude Code, working from this spec.
+**Purpose:** Build the product-definition kernel of a PM-led PDLC operating layer. v1 takes a business statement through a gated artifact pipeline (brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan → optional TRD) with explicit PM approval at every stage. Later phases extend this kernel into dev handoff, QA bug triage, release readiness, and feedback ingestion.
+**Target executor:** Claude Code and OpenAI Codex, working from this spec.
 
 ---
 
 ## 1. Context and intent
 
-PM-OS is an internal tool that expedites PM work at Indegene. It is not a replacement for the dev team. PMs use it to go from a one-line business statement to a full set of product definition artifacts: brief, scope, PRD, design spec, prototype, QA plan, metrics plan.
+PM-OS is an internal tool that expedites PM work at Indegene across the full PDLC. It is not a replacement for the dev team, design team, or QA — it is a recommendation and coordination layer that keeps one coherent thread from idea to ship.
 
-The system is built as a set of Claude Code skills with shared libraries and hooks. There is no frontend. There is no backend service. Everything runs locally on each PM's machine, with shared state via two GitHub repos.
+**Decision authority:** The PM decides scope, trade-offs, approvals, priority, and release calls. PM-OS suggests, prepares, and validates. Developers and QAs execute. No lifecycle phase progresses without explicit PM approval.
+
+**v1 scope (this spec):** The product-definition kernel. PMs go from a one-line business statement to a full set of approved product artifacts: brief, scope, PRD, design spec, prototype brief, QA plan, metrics plan, and an optional TRD. This kernel is the foundation; later phases add dev handoff, QA bug triage, release readiness, and feedback ingestion without replacing it.
+
+The system is built as an agent skill suite for Claude Code and OpenAI Codex, with shared Python libraries and hooks. There is no frontend. There is no backend service. Everything runs locally on each PM's machine, with shared state via two GitHub repos.
 
 **Build target:** single-user MVP (Karan only) for the first iteration. Architecture must be ready to distribute to other PMs without rewrite — only configuration and onboarding.
 
@@ -299,7 +303,7 @@ GenAI architecture: PM-OS uses one `SKILL.md` per stage. Do not create separate 
 
 Cross-runtime interface: each stage directory also ships an `agents/openai.yaml` describing how the stage is surfaced in OpenAI/Codex-style runtimes. It carries an `interface:` block with `display_name`, `short_description`, and `default_prompt` (the `default_prompt` invokes the stage via `$<skill-name>`). Every stage directory includes one.
 
-Model selection: shared skill metadata uses runtime-neutral model tiers, not provider model ids. Skills that need extra reasoning declare `model_tier: deep-reasoning`; utility skills may declare `model_tier: utility`. Stages 03 (PRD), 06 (QA Plan), and 08 (TRD) require the `deep-reasoning` tier and include a "Model requirement" pre-flight block that reads the current session model id and asks the PM to switch if needed. Claude users map `deep-reasoning` to Opus or the strongest available reasoning model; Codex users map it to a high/deep reasoning model. There is no env var a hook can read for the active model, so this check lives in the skill body and is advisory, not runtime-enforced.
+Model selection: shared skill metadata uses runtime-neutral model tiers, not provider model ids. Skills that need extra reasoning declare `model_tier: deep-reasoning`; utility skills may declare `model_tier: utility`. Stages 03 (PRD), 06 (QA Plan), and 08 (TRD) recommend the `deep-reasoning` tier and include a "Model guidance" block. The guidance tells the runtime to continue when the current model appears suitable, continue with a note when the model is unknown, and pause only when the current model is clearly lightweight or low-reasoning. Claude users map `deep-reasoning` to Opus or the strongest available reasoning model; Codex users map it to a high/deep reasoning model. There is no env var a hook can read for the active model, so this guidance lives in the skill body and is advisory, not runtime-enforced.
 
 Steering notes: generative stages accept repeatable `--note "<text>"` arguments (read from `$ARGUMENTS`) that steer a generation — e.g. excluding a feature or dropping a target segment. Notes apply **forward only** by default: they shape the current artifact and downstream stages, and are recorded verbatim in the artifact's `generation_notes` frontmatter (excluded from the body-only `content_hash`), in `.history`, and in the `stage_generated` telemetry payload. When a note contradicts a binding decision in an upstream artifact (e.g. a stage-02 note drops a target user the brief named), the stage stops and offers the PM three choices: (1) reconcile into the upstream artifact — edits it, appends the note to its `generation_notes`, logs `stage_edited_via_note`, and lets the existing pre-stage hash-drift cascade mark downstream stages stale for re-approval; (2) apply forward only and let the documents diverge; or (3) cancel. The system never silently rewrites an upstream artifact.
 

@@ -5,13 +5,24 @@ PM_OS_REPO="https://github.com/pingmepi/pm-os.git"
 INSTALL_DIR="$HOME/.pm-os"
 PROJECTS_DIR="$HOME/pm-projects"
 RUNTIME=""
+PM_USER=""
+FEEDBACK_REPO=""
+CONFIG_PROJECTS_DIR=""
+RECONFIGURE=false
 
 usage() {
-  echo "Usage: ./install.sh --runtime claude|codex"
+  echo "Usage: ./install.sh --runtime claude|codex [--pm-user <id>] [--feedback-repo <url>] [--projects-dir <path>]"
   echo ""
   echo "Choose the agent runtime to install skills for:"
-  echo "  ./install.sh --runtime claude"
-  echo "  ./install.sh --runtime codex"
+  echo "  ./install.sh --runtime claude --pm-user karan --feedback-repo https://github.com/org/pm-os-feedback.git"
+  echo "  ./install.sh --runtime codex  --pm-user karan --feedback-repo https://github.com/org/pm-os-feedback.git"
+  echo ""
+  echo "Options:"
+  echo "  --runtime claude|codex      Agent runtime to install skills for"
+  echo "  --pm-user <id>              PM/team member identifier used in telemetry paths"
+  echo "  --feedback-repo <url>       Feedback/telemetry repository URL"
+  echo "  --projects-dir <path>       Local PM-OS projects directory"
+  echo "  --reconfigure               Prompt for and rewrite existing local config"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -26,6 +37,48 @@ while [[ $# -gt 0 ]]; do
       ;;
     --runtime=*)
       RUNTIME="${1#*=}"
+      shift
+      ;;
+    --pm-user)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --pm-user requires a value"
+        exit 1
+      fi
+      PM_USER="$2"
+      shift 2
+      ;;
+    --pm-user=*)
+      PM_USER="${1#*=}"
+      shift
+      ;;
+    --feedback-repo)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --feedback-repo requires a value"
+        exit 1
+      fi
+      FEEDBACK_REPO="$2"
+      shift 2
+      ;;
+    --feedback-repo=*)
+      FEEDBACK_REPO="${1#*=}"
+      shift
+      ;;
+    --projects-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --projects-dir requires a value"
+        exit 1
+      fi
+      CONFIG_PROJECTS_DIR="$2"
+      PROJECTS_DIR="$2"
+      shift 2
+      ;;
+    --projects-dir=*)
+      CONFIG_PROJECTS_DIR="${1#*=}"
+      PROJECTS_DIR="$CONFIG_PROJECTS_DIR"
+      shift
+      ;;
+    --reconfigure)
+      RECONFIGURE=true
       shift
       ;;
     -h|--help)
@@ -130,7 +183,20 @@ else
 fi
 
 # --- Configure PM-OS (writes ~/.pm-os/config.yaml, does NOT touch ~/.zshrc) ---
-python3 "$INSTALL_DIR/scripts/pm_os_install.py"
+CONFIG_ARGS=()
+if [[ "$RECONFIGURE" == "true" ]]; then
+  CONFIG_ARGS+=("--reconfigure")
+fi
+if [[ -n "$PM_USER" ]]; then
+  CONFIG_ARGS+=("--pm-user" "$PM_USER")
+fi
+if [[ -n "$FEEDBACK_REPO" ]]; then
+  CONFIG_ARGS+=("--feedback-repo" "$FEEDBACK_REPO")
+fi
+if [[ -n "$CONFIG_PROJECTS_DIR" ]]; then
+  CONFIG_ARGS+=("--projects-dir" "$CONFIG_PROJECTS_DIR")
+fi
+python3 "$INSTALL_DIR/scripts/pm_os_install.py" "${CONFIG_ARGS[@]}"
 
 echo ""
 echo "=== PM-OS installation complete ==="

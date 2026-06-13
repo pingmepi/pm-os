@@ -33,8 +33,10 @@ def choose_value(label, current, provided, env_name, *, reconfigure=False, defau
         flag = label.replace("_", "-")
         print(f"✗ {label} required in non-interactive mode. Pass --{flag} or set {env_name}.")
         return ""
-    prompt_default = current or default or "enter value"
-    return input(f"{label} [{prompt_default}]: ").strip() or prompt_default
+    prompt_default = current or default
+    if prompt_default:
+        return input(f"{label} [{prompt_default}]: ").strip() or prompt_default
+    return input(f"{label}: ").strip()
 
 
 def main():

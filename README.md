@@ -1,12 +1,22 @@
 # PM-OS
 
-PM-OS is a local-first Product Manager Operating System for turning a short business statement into structured product definition artifacts with human review at every stage.
+PM-OS is a local-first, PM-led PDLC operating layer. It maintains one coherent thread from idea to ship — intake, product definition, design, dev handoff, QA, release readiness, and feedback — with the PM in control at every decision point.
 
 It is built as an agent skill suite for Claude Code and OpenAI Codex, plus small Python helpers. There is no web app or backend service: project state lives in Markdown, YAML, and JSONL files on the user's machine.
 
-## What It Produces
+## Decision Authority
 
-PM-OS guides a product idea through a seven-stage pipeline:
+PM-OS is not the final decision-maker and is not an executor.
+
+- **The PM decides:** scope, trade-offs, approvals, priority, and release calls.
+- **PM-OS suggests, prepares, and validates:** it drafts artifacts, checks upstream consistency, recommends next actions, and coordinates lifecycle state.
+- **Developers and QAs execute:** implementation and testing remain with the team.
+
+No stage progresses without explicit PM approval.
+
+## What PM-OS Does
+
+**Current scope (v1):** PM-OS covers the product-definition phase — a gated pipeline from business statement to approved product artifacts:
 
 1. Product brief
 2. Scope
@@ -15,18 +25,20 @@ PM-OS guides a product idea through a seven-stage pipeline:
 5. Prototype brief
 6. QA plan
 7. Metrics plan
+8. TRD *(optional technical capstone)*
 
-Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit approval. Later stages use the approved upstream artifacts as their source of truth.
+Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit PM approval. Later stages use the approved upstream artifacts as their source of truth. Approving the design spec and prototype brief also creates HTML companions: a design-spec preview for stage 04 and a lo-fi static prototype for stage 05.
 
-Approving the design spec and prototype brief also creates HTML companions: a design-spec preview for stage 04 and a lo-fi static prototype for stage 05.
+**Planned phases:** dev-phase support and dev handoff, QA bug triage, release readiness, and feedback ingestion will be added in later phases without replacing the product-definition pipeline.
 
 ## Design Goals
 
 - Keep Markdown as the source of truth for every product artifact.
-- Keep the product manager in control at each stage boundary.
+- Keep the PM in control at every decision point — PM-OS recommends, PM approves.
 - Make generated artifacts reproducible, reviewable, and easy to edit.
-- Track stage state, approvals, and generated hashes locally.
+- Track stage state, approvals, and artifact hashes locally; detect and surface upstream drift.
 - Support both GenAI and non-GenAI products from the same stage skills, driven by the project's `genai_flag`.
+- Run on each PM's own machine: no shared service, no backend, no central database.
 
 ## Repository Layout
 
