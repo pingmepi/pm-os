@@ -10,14 +10,17 @@ project creation, gates, approvals, telemetry, and sharing.
   concrete provider model id into shared PM-OS config, shared skill frontmatter,
   or generated artifacts.
 - In Claude, invoke PM-OS skills with slash commands such as `/pm-new`,
-  `/pm-stage-01-brief`, `/pm-approve 01`, `/pm-status`, and `/pm-feedback 03`.
+  `/pm-stage-01-brief`, `/pm-approve 01`, `/pm-status`, `/pm-feedback 03`, and
+  `/pm-os-verify`.
 - In Codex, invoke PM-OS skills through the `/skills` picker or by mentioning the
   skill name directly, for example `$pm-new`, `$pm-stage-01-brief`,
-  `$pm-approve`, `$pm-status`, and `$pm-feedback`.
+  `$pm-approve`, `$pm-status`, `$pm-feedback`, and `$pm-os-verify`.
 - Codex user-level skills belong in `~/.agents/skills/`. Repo-local development
   skills may live in `.agents/skills/`.
-- Claude skills install into `~/.claude/skills/`; Claude hooks install into
-  `~/.claude/hooks/`.
+- Claude skills install into `~/.claude/skills/`; the installer also copies hooks
+  into `~/.claude/hooks/`. The gates **execute from `~/.pm-os/hooks/`** on both
+  runtimes (via skill commands and `pm-approve`), so the `~/.claude/hooks/` copy
+  is not on the execution path and Codex skipping it does not reduce coverage.
 - The install and update commands require an explicit runtime argument:
   `--runtime claude` or `--runtime codex`.
 - Native Codex hooks are optional. Baseline correctness comes from the explicit
