@@ -189,6 +189,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | Project status | `/pm-status` | `$pm-status` |
 | Capture feedback | `/pm-feedback 0N` | `$pm-feedback 0N` |
 | Share approved set | `/pm-share` | `$pm-share` |
+| Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
 **Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional).
 `*` = deep-reasoning stage; run on the strongest available reasoning model and review carefully.

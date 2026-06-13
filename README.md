@@ -100,6 +100,13 @@ Claude: /pm-feedback 03
 Codex:  $pm-feedback 03
 ```
 
+Verify the installation is healthy (config, shared lib, gate hooks, installed skills, gate self-test):
+
+```text
+Claude: /pm-os-verify
+Codex:  $pm-os-verify
+```
+
 ## Project Data
 
 A generated PM-OS project stores its artifacts locally, typically under a project directory containing:
@@ -136,9 +143,15 @@ By default, PM-OS is configured to push local telemetry and feedback artifacts t
 
 Configuration is managed by the PM-OS installer and stored locally in the PM-OS config file.
 
-Claude installs skills into `~/.claude/skills/` and hooks into `~/.claude/hooks/`.
-Codex installs skills into `~/.agents/skills/`; native Codex hooks are not required
-for baseline PM-OS behavior.
+Claude installs skills into `~/.claude/skills/` and copies hooks into
+`~/.claude/hooks/`. Codex installs skills into `~/.agents/skills/`.
+
+The gate hooks **execute from `~/.pm-os/hooks/`** on both runtimes — `pre-stage.py`
+is run by inline commands inside each stage skill, and `post-approve.py` is run by
+`pm-approve`. The `~/.claude/hooks/` copy is not on that execution path (it is
+reserved for any future native-hook registration), so Codex skipping it does not
+reduce gate coverage. Approval, hash-drift, and staleness behavior are identical
+across runtimes; `pm-os-verify` confirms this with a gate self-test.
 
 Model policy is runtime-neutral. PM-OS stores `default_model_tier: standard` and
 `deep_reasoning_stages: ["03", "06", "08"]` in local config instead of concrete

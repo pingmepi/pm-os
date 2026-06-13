@@ -13,7 +13,7 @@ The agent (Claude Code or Codex) is the generation engine: stage `SKILL.md` file
 Editing files here does **not** change the running tool. There are two layers:
 
 1. **This repo** → cloned/checked out to `~/.pm-os` (the canonical install: `lib/`, `scripts/`, `hooks/`, `skills/`).
-2. `~/.pm-os` → **synced out** to the runtime's discovery dirs: skills to `~/.claude/skills` (or `~/.agents/skills` for Codex), hooks to `~/.claude/hooks`.
+2. `~/.pm-os` → **synced out** to the runtime's discovery dirs: skills to `~/.claude/skills` (or `~/.agents/skills` for Codex). The installer also copies hooks to `~/.claude/hooks`, but **nothing executes them from there** — the gates always run from `~/.pm-os/hooks` (see Gate flow). That copy is vestigial/reserved for future native-hook registration; don't mistake the Codex skip for a parity gap.
 
 Consequences when developing:
 - `scripts/*.py` import `lib` via a hardcoded `~/.pm-os/lib` path (`sys.path.insert(0, Path.home()/".pm-os"/"lib")`). The gate hooks are executed from `~/.pm-os/hooks` (the skill calls `python3 ~/.pm-os/hooks/pre-stage.py`; `pm_approve.py` invokes `~/.pm-os/hooks/post-approve.py`). So **your edits in this working copy are inert until they reach `~/.pm-os`.**
@@ -30,14 +30,19 @@ Consequences when developing:
 # Update an existing install + re-sync skills/hooks to the runtime
 python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude   # or codex, or all
 python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude --reset-main  # realign diverged checkout
+
+# Verify an install (config, lib imports, gate hooks, installed skills, gate self-test)
+python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude   # or codex, or all (default)
 ```
+
+`pm_os_verify.py` is the fastest way to confirm a change didn't break the install: it runs the real `pre-stage.py` gate in a throwaway project and asserts it blocks an unapproved upstream and allows the first stage. Run it after touching `lib/`, `hooks/`, or the installer (against `~/.pm-os`, so sync your changes there first).
 
 Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): `pyyaml`, `jinja2`, `gitpython`. Python 3.11+.
 
 PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, Codex uses `$pm-*`:
 `/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`.
 
-**There is no test suite, linter, or build step in this repo** (no `pytest`, `pyproject.toml`, `Makefile`, or CI beyond `.github/workflows/version-bump.yml`). Verify changes by running the skill/script flow against a scratch project under `~/pm-projects/`.
+**There is no unit-test suite, linter, or build step in this repo** (no `pytest`, `pyproject.toml`, `Makefile`, or CI beyond `.github/workflows/version-bump.yml`). The closest thing to a smoke test is `pm_os_verify.py` (above); beyond that, verify by running the skill/script flow against a scratch project under `~/pm-projects/`.
 
 ## Architecture
 

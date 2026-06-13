@@ -57,15 +57,17 @@ It is not yet the full PDLC operating system described above.
 | HTML companions | Implemented | post-approval renders stage 04 and 05 HTML companions |
 | Cross-runtime install (Claude + Codex) | Implemented | `install.sh --runtime claude\|codex` routes Codex skills to `~/.agents/skills`, skips Claude hooks on Codex |
 | Runtime-neutral skill interface | Implemented | each stage skill ships `agents/openai.yaml` alongside `SKILL.md` |
+| Gate parity across runtimes | Implemented | gates run via skill bash (`python3 ~/.pm-os/hooks/pre-stage.py`) + `pm_approve.py` subprocess, not native hooks — identical on Claude and Codex (verified) |
+| Runtime-neutral `AGENTS.md` | Implemented | full agents file; `claude-mem` stub removed |
+| Runtime-neutral model wording | Implemented | stages 03/06/08 use advisory deep-reasoning guidance instead of `/model opus` |
+| Non-interactive gate safety | Implemented | `pre-stage.py` has `isatty()` branch + `PM_OS_EDITED_UPSTREAM_CHOICE`; never hangs unattended |
+| Install verifier | Implemented | `scripts/pm_os_verify.py` + `pm-os-verify` skill: install-integrity checks + deterministic gate self-test, per runtime |
 
 ### Planned but Not Implemented
 
 | Area | Status | Source |
 |---|---:|---|
 | Gemini runtime support | Planned | `pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Runtime-parity gates on Codex | Missing | hooks are Claude-only; approval gate / hash-drift / staleness cascade do not run under Codex |
-| Real runtime-neutral `AGENTS.md` | Missing | current `AGENTS.md` is a polluted `claude-mem` stub, not an agents file |
-| Runtime-neutral model wording | Implemented | stages 03/06/08 now use advisory `model_tier: deep-reasoning` guidance instead of `/model opus` |
 | Existing-product/enhancement mode | Planned | `pm-os-modes-and-handoff-plan.md` |
 | Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` |
 | Mid-pipeline artifact ingest | Planned | `pm-os-ingest-plan.md` |
@@ -105,7 +107,7 @@ Major gaps:
 5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned.
 6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
 7. **No dev/QA execution support:** PM-OS can draft a QA plan and TRD, but cannot yet analyze a QA bug, map it to requirements/code, classify it, and suggest a developer fix plan.
-8. **Runtime agnosticism is nearly complete:** Claude + Codex install and skill interfaces are shipped. What remains is parity, not plumbing — the approval/hash/staleness gates run only as Claude hooks (not under Codex), model guidance is advisory rather than enforceable, and `AGENTS.md` is a stray stub.
+8. **Runtime agnosticism is complete (Claude + Codex).** Install, skill interfaces, advisory model guidance, a real `AGENTS.md`, non-interactive-safe gates, and an install verifier are all shipped. Gate parity was confirmed: the gates run from `~/.pm-os/hooks` via skill bash and `pm_approve.py`, not native Claude hooks, so they behave identically on both runtimes. (Gemini remains a later runtime target.)
 
 ---
 
@@ -233,30 +235,21 @@ Blockers:
 
 - Need final naming for "PDLC operating layer" versus "lifecycle intelligence layer" if branding matters.
 
-### Phase 1: Runtime Agnosticism (finish the job)
+### Phase 1: Runtime Agnosticism — COMPLETE
 
-Status: the plumbing is already shipped. `install.sh --runtime claude|codex` routes Codex skills to `~/.agents/skills` and skips Claude hooks; every stage skill carries an `agents/openai.yaml` interface. This phase is now about **runtime parity**, not building cross-runtime support from scratch. Do not regress what exists.
+When this phase was scoped it listed a gate-parity gap as the substantive item. Investigation showed that premise was **incorrect**: the gates were never Claude-native hooks. They run from `~/.pm-os/hooks` — `pre-stage.py` is invoked by inline bash in every stage `SKILL.md`, and `post-approve.py` is invoked by `pm_approve.py` via subprocess. Both paths are plain shell/Python the agent runs identically on Claude and Codex. There is no `settings.json` registering native hooks anywhere. The `~/.claude/hooks` copy that `install.sh` writes is **not on the execution path** (reserved for any future native-hook registration); skipping it on Codex is harmless.
 
-Remaining work (three finish-items):
+What shipped to close the phase:
 
-1. **Close the gate-parity gap.** The approval gate, hash-drift check, and staleness cascade run only as Claude hooks and are skipped under Codex. Port the gate logic so it is enforced regardless of runtime — either inline it into the stage skill prompts (so the skill self-enforces) or expose a runtime-neutral gate entrypoint the skills call. This is the one substantive item.
-2. **Replace `AGENTS.md`.** The current file is an auto-generated `claude-mem` stub, not a runtime-neutral agents file. Write a real one and gitignore whatever regenerates the stub.
-3. **Make `hooks/pre-stage.py` non-interactive-safe.** It currently blocks on `input()` (line ~95), which hangs unattended runs.
+1. **Gate parity — verified, not just argued.** A deterministic self-test runs `pre-stage.py` exactly as the skills do, in a throwaway project, asserting it blocks an unapproved upstream and allows the first stage. Identical behavior on both runtimes.
+2. **Runtime-neutral model guidance.** Stages 03/06/08 give advisory deep-reasoning guidance; no `/model opus` hard-stop.
+3. **Real `AGENTS.md`.** Full runtime-neutral agents file; the `claude-mem` stub was removed.
+4. **Non-interactive gate safety.** `pre-stage.py` already had an `isatty()` branch plus `PM_OS_EDITED_UPSTREAM_CHOICE`; it errors with guidance instead of hanging. Covered by the verifier's timeout-guarded self-test.
+5. **Install verifier.** `scripts/pm_os_verify.py` + the `pm-os-verify` skill check config, shared-lib imports, gate hooks, installed skills per runtime, and run the gate self-test. This is the verifier `pm_os_update.py` already pointed users to.
 
-Checks:
+Remaining under "runtime": only **Gemini** support, deferred to a later phase.
 
-- `pm-new -> stage 01 -> approve 01` works in both Claude and Codex, and the **gate behaves identically in both** (blocks on unapproved upstream, marks drift, cascades staleness).
-- No stage prompt names a Claude-specific model command.
-- Non-interactive runs do not hang on `input()`.
-- A fresh Codex install contains a real `AGENTS.md`, not the stub.
-
-Dependencies:
-
-- Local Codex environment to verify gate parity.
-
-Blockers:
-
-- Gate logic currently lives only in Claude hooks; needs a runtime-neutral home before Codex reaches parity.
+Docs corrected in this phase: README / CLAUDE.md / AGENTS.md now make `~/.pm-os/hooks` the unambiguous execution path so the `~/.claude/hooks` copy is not mistaken for a parity gap.
 
 ### Phase 2: Flexible Intake and Artifact Ingest
 
@@ -493,9 +486,9 @@ Principles:
 
 Recommended order:
 
-1. Approve the product aim and scope in this document.
-2. Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.
-3. Finish runtime parity (Phase 1): runtime-neutral gate enforcement on Codex, neutral model wording, real `AGENTS.md`, non-interactive `input()` fix. Do not regress the shipped Claude/Codex install.
+1. ~~Approve the product aim and scope in this document.~~ (done)
+2. ~~Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.~~ (done — Phase 0)
+3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
 4. Add `schema_version` and the migration path so existing projects survive new fields.
 5. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational for everything after.
 6. Implement artifact ingest for existing scope/PRD (Phase 2).
