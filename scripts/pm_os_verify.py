@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""PM-OS install verifier.
+
+Confirms a PM-OS installation is healthy for a given runtime and that the
+deterministic gate logic runs in the current Python environment. This is the
+verifier referenced by pm_os_update.py ("run the PM-OS verifier for your
+runtime, if installed").
+
+Runtime-agnostic: the same checks run under Claude and Codex. The gate is
+exercised through the exact `python3 ~/.pm-os/hooks/pre-stage.py` invocation
+the stage skills use, so a pass here proves parity, not just file presence.
+"""
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
+LIB_DIR = PM_OS_DIR / "lib"
+HOOKS_DIR = PM_OS_DIR / "hooks"
+CLAUDE_SKILLS_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "skills"
+CODEX_SKILLS_DIR = Path(os.environ.get("CODEX_SKILLS_DIR", str(Path.home() / ".agents" / "skills")))
+
+REQUIRED_LIB_MODULES = ["project", "hashing", "frontmatter", "telemetry", "config"]
+REQUIRED_HOOKS = ["pre-stage.py", "post-approve.py"]
+
+
+class Result:
+    def __init__(self):
+        self.checks = []  # (ok: bool, label: str, detail: str)
+
+    def add(self, ok, label, detail=""):
+        self.checks.append((ok, label, detail))
+        mark = "✓" if ok else "✗"
+        line = f"  {mark} {label}"
+        if detail:
+            line += f"\n      {detail}"
+        print(line)
+
+    @property
+    def ok(self):
+        return all(c[0] for c in self.checks)
+
+
+def check_install_dir(r: Result):
+    r.add(PM_OS_DIR.is_dir(), f"PM-OS install present ({PM_OS_DIR})",
+          "" if PM_OS_DIR.is_dir() else "Run the installer first.")
+
+
+def check_version(r: Result):
+    vpath = PM_OS_DIR / "VERSION"
+    if vpath.exists():
+        r.add(True, f"VERSION readable ({vpath.read_text().strip()})")
+    else:
+        r.add(False, "VERSION readable", f"Missing {vpath}")
+
+
+def check_lib(r: Result):
+    if not LIB_DIR.is_dir():
+        r.add(False, "Installed lib present", f"Missing {LIB_DIR}")
+        return
+    sys.path.insert(0, str(LIB_DIR))
+    missing = []
+    for mod in REQUIRED_LIB_MODULES:
+        try:
+            __import__(mod)
+        except Exception as e:  # noqa: BLE001 — surface any import failure
+            missing.append(f"{mod} ({e.__class__.__name__})")
+    r.add(not missing, "Shared lib imports",
+          "" if not missing else "Failed: " + ", ".join(missing))
+
+
+def check_hooks(r: Result):
+    missing = [h for h in REQUIRED_HOOKS if not (HOOKS_DIR / h).exists()]
+    r.add(not missing, f"Gate hooks present ({HOOKS_DIR})",
+          "" if not missing else "Missing: " + ", ".join(missing))
+
+
+def check_config(r: Result):
+    try:
+        from config import load_config  # imported from installed lib
+        cfg = load_config()
+        keys = ["pm_user", "feedback_repo", "projects_dir"]
+        missing = [k for k in keys if not cfg.get(k)]
+        r.add(not missing, "Config valid (~/.pm-os/config.yaml)",
+              "" if not missing else "Missing keys: " + ", ".join(missing))
+    except Exception as e:  # noqa: BLE001
+        r.add(False, "Config valid (~/.pm-os/config.yaml)", str(e).splitlines()[0])
+
+
+def check_skills(r: Result, runtime: str):
+    src = PM_OS_DIR / "skills"
+    if not src.is_dir():
+        r.add(False, "Source skills present", f"Missing {src}")
+        return
+    expected = {p.name for p in src.iterdir() if p.is_dir()}
+    targets = []
+    if runtime in ("claude", "all"):
+        targets.append(("claude", CLAUDE_SKILLS_DIR))
+    if runtime in ("codex", "all"):
+        targets.append(("codex", CODEX_SKILLS_DIR))
+    for name, sdir in targets:
+        if not sdir.is_dir():
+            r.add(False, f"{name} skills installed ({sdir})", "Directory missing — run the installer.")
+            continue
+        installed = {p.name for p in sdir.iterdir() if p.is_dir()}
+        missing = sorted(expected - installed)
+        r.add(not missing, f"{name} skills installed ({len(expected & installed)}/{len(expected)})",
+              "" if not missing else "Missing: " + ", ".join(missing))
+
+
+def check_gate_selftest(r: Result):
+    """Run pre-stage.py exactly as skills do, in a throwaway project.
+
+    Proves the gate (a) blocks when upstream is unapproved, (b) allows the
+    first stage, and (c) does not hang on non-interactive stdin.
+    """
+    pre_stage = HOOKS_DIR / "pre-stage.py"
+    if not pre_stage.exists():
+        r.add(False, "Gate self-test", "pre-stage.py not found")
+        return
+
+    meta = (
+        "schema_version: 1\n"
+        "project_slug: pm-os-verify-selftest\n"
+        "project_name: PM-OS Verify Self-Test\n"
+        "genai_flag: false\n"
+        'pm_os_version: "0"\n'
+        "stages:\n"
+        '  - id: "01"\n    name: brief\n    status: pending\n'
+        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n"
+        '  - id: "02"\n    name: scope\n    status: pending\n'
+        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n"
+    )
+
+    def run_gate(stage, cwd):
+        env = os.environ.copy()
+        env["PM_OS_STAGE"] = stage
+        return subprocess.run(
+            ["python3", str(pre_stage)],
+            cwd=cwd, env=env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=30,
+        ).returncode
+
+    with tempfile.TemporaryDirectory(prefix="pmos-verify-") as tmp:
+        (Path(tmp) / ".meta.yaml").write_text(meta)
+        try:
+            blocked = run_gate("02", tmp)   # upstream 01 pending -> must block
+            allowed = run_gate("01", tmp)   # no upstream -> must pass
+        except subprocess.TimeoutExpired:
+            r.add(False, "Gate self-test", "pre-stage.py hung (non-interactive timeout)")
+            return
+
+    ok = blocked != 0 and allowed == 0
+    detail = "" if ok else f"expected block!=0/allow==0, got block={blocked}, allow={allowed}"
+    r.add(ok, "Gate self-test (blocks unapproved upstream, allows first stage)", detail)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Verify a PM-OS installation.")
+    parser.add_argument("--runtime", choices=["claude", "codex", "all"], default="all",
+                        help="Which runtime's installed skills to check (default: all).")
+    args = parser.parse_args()
+
+    print("PM-OS Verify")
+    print("============")
+    print(f"Runtime: {args.runtime}\n")
+
+    r = Result()
+    check_install_dir(r)
+    if not PM_OS_DIR.is_dir():
+        print("\nFAIL: PM-OS is not installed.")
+        sys.exit(1)
+    check_version(r)
+    check_lib(r)
+    check_hooks(r)
+    check_config(r)
+    check_skills(r, args.runtime)
+    check_gate_selftest(r)
+
+    print()
+    if r.ok:
+        print("PASS: PM-OS install is healthy.")
+        sys.exit(0)
+    failed = sum(1 for c in r.checks if not c[0])
+    print(f"FAIL: {failed} check(s) failed. See above.")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
