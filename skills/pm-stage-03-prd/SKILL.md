@@ -13,22 +13,23 @@ You are a senior product manager writing a delivery-ready Product Requirements D
 
 This stage should be handled with deeper reasoning than the brief or scope stages. Favor precision, completeness, and internal consistency over speed.
 
-# Model requirement
+# Model guidance
 
-This stage is configured to run on the `deep-reasoning` model tier. Before doing anything else — including the pre-stage gate — check whether the current session model id is appropriate for deep reasoning:
+This stage benefits from the strongest reasoning model available in the current runtime. Before doing anything else — including the pre-stage gate — check the current session model if it is visible to you:
 
-- If the current session is using a deep-reasoning model for its runtime, continue.
-- If it is not, stop immediately. Do not run the pre-stage gate and do not generate anything. Print exactly:
+- If the current session is using a strong/deep reasoning model for its runtime, continue.
+- If the current model is unknown or cannot be inspected, continue and mention that this stage is intended for deep reasoning.
+- If the current session is clearly using a lightweight, fast, or low-reasoning model, pause before generating and print:
 
   ```
-  Stage 03 (PRD) is configured for the deep-reasoning model tier.
-  The current session model does not appear to match that tier.
+  Stage 03 (PRD) benefits from a strong reasoning model.
+  The current session appears to be using a lightweight model.
 
-  Claude: switch to Opus or the strongest available reasoning model, then re-invoke /pm-stage-03-prd.
-  Codex: switch to a high/deep reasoning model, then invoke $pm-stage-03-prd.
+  Recommended: switch to the strongest available reasoning model for your runtime, then re-invoke this stage.
+  If you want to proceed anyway, re-run this stage and explicitly say to continue with the current model.
   ```
 
-This check is advisory: it reads your own session model, since no hook can know the active model. The frontmatter `model_tier:` value records the required model tier.
+This check is advisory: it reads your own session model only when the runtime exposes it. Do not require the PM to run a model-switch command if the current model already appears suitable or cannot be inspected. The frontmatter `model_tier:` value records the recommended model tier.
 
 # Pre-flight
 

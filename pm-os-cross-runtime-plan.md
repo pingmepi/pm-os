@@ -96,8 +96,8 @@ These are the concrete gaps in the current repo.
 6. **Config defaults and model metadata are provider-specific.**  
    Older config wrote `default_stage_model: claude-sonnet-4-6` and `opus_stages`, which makes a shared PM-OS install assume Claude model names. Shared config should instead store runtime-neutral model tiers.
 
-7. **Claude-only model-switch instructions exist in more places than the prior plan captured.**  
-   The earlier draft mentioned stages 03 and 06, but stage 08 also contains the same `/model opus` advisory block. If stage 08 remains supported, it must be included in the cleanup.
+7. **Claude-only model-switch instructions existed in more places than the prior plan captured.**  
+   The earlier draft mentioned stages 03 and 06, but stage 08 also contained the same `/model opus` advisory block. This has since been cleaned up: stages 03, 06, and 08 now use runtime-neutral advisory `model_tier: deep-reasoning` guidance.
 
 8. **Skill frontmatter tolerance should still be verified.**  
    PM-OS `SKILL.md` files include non-standard frontmatter keys such as `reads`, `writes`, `prompt_version`, and `model_tier`. Codex likely ignores unknown keys, but support should not be declared until that is verified in a real install.
@@ -180,16 +180,18 @@ This step matters more than hooks alone because Codex users will hit project cre
 
 ### Step 3 — Make wording runtime-aware without breaking Claude
 
-**Files:** at minimum:
+**Status:** Implemented for model guidance in stages 03, 06, and 08. Keep this checklist for future prompt copy that introduces runtime-specific commands.
+
+**Files:** covered:
 
 - `skills/pm-stage-03-prd/SKILL.md`
 - `skills/pm-stage-06-qa-plan/SKILL.md`
 - `skills/pm-stage-08-trd/SKILL.md`
-- any skill or script output that tells the user to run `/pm-*` or `/model opus`
+- any skill or script output that tells the user to run `/pm-*` or a runtime-specific model command
 
 Changes:
 
-- Replace `/model opus` instructions with wording that still helps Claude users but is not wrong in Codex.
+- Replace runtime-specific model-switch instructions with wording that still helps Claude users but is not wrong in Codex.
 - Reword "the model you are currently running as" to "the current session model id" or equivalent.
 - Update user-facing next-step strings so Claude users still see Claude-friendly guidance and Codex users are not told to use Claude-only command forms.
 

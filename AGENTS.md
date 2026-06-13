@@ -100,12 +100,3 @@ technical requirements document without reopening product decisions.
 - Keep runtime-specific guidance valid for both Claude and Codex. Runtime
   parity is the goal; provider-specific details belong only in runtime-specific
   install paths, invocation examples, or model-tier mapping instructions.
-
-
-<claude-mem-context>
-# Memory Context
-
-# [pm-os] recent context, 2026-06-11 2:56pm GMT+5:30
-
-No previous sessions found.
-</claude-mem-context>
