@@ -50,6 +50,9 @@ hooks/       Stage gates and approval hooks
 templates/   Markdown/YAML templates used by generated artifacts
 ```
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the as-built system diagrams (component
+wiring, stage state machine, and the generate→approve sequence).
+
 ## Basic Usage
 
 Install or configure PM-OS:
