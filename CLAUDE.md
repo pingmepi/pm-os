@@ -53,7 +53,7 @@ Stages are fixed and linear, defined in `lib/project.py` (`STAGE_ORDER`, `STAGE_
 Stage state lives in **both** `.meta.yaml` (`stages[]` list) **and** each artifact's YAML frontmatter, and the code keeps them in lockstep (`pm_approve.py`, the hooks). When changing state logic, update both. `content_hash` is computed over the **body only** (everything after the closing `---`) so frontmatter edits never trigger false drift — see `lib/hashing.hash_artifact_body`.
 
 ### Gate flow (where approval is enforced)
-1. Before generating, a stage `SKILL.md` runs `PM_OS_STAGE=<NN> python3 ~/.pm-os/hooks/pre-stage.py`. The gate (`hooks/pre-stage.py`) blocks if any upstream stage is `pending/draft/stale`, re-hashes upstream artifacts to catch post-approval edits (marking them `edited`), and prompts for implicit re-approval if upstreams were edited.
+1. Before generating, a stage `SKILL.md` runs `PM_OS_STAGE=<NN> python3 ~/.pm-os/hooks/pre-stage.py`. The gate (`hooks/pre-stage.py`) blocks if any upstream stage is `pending/draft/stale`, re-hashes upstream artifacts to catch post-approval edits (marking them `edited`), and prompts for implicit re-approval if upstreams were edited. On implicit re-approval it cascades `stale` to downstream approved stages (including intermediate ones), mirroring `post-approve.py`.
 2. `scripts/pm_approve.py` validates status, writes the approval (frontmatter + meta + `stage_approved` telemetry), then shells out to `hooks/post-approve.py` with `PM_OS_STAGE` set.
 3. `hooks/post-approve.py` renders HTML companions for stages 04/05 (`lib/html_render.py`), cascades `stale` to downstream approved stages, and pushes telemetry/feedback via `lib/git_sync.py`.
 

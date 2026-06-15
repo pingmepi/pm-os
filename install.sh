@@ -206,11 +206,11 @@ echo "Next steps:"
 if [[ "$RUNTIME" == "claude" ]]; then
   echo "  1. Restart your Claude Code session for skills to load."
   echo "  2. Verify the install: /pm-os-verify  (or: python3 $INSTALL_DIR/scripts/pm_os_verify.py --runtime claude)"
-  echo "  3. cd ~/pm-projects"
-  echo "  4. /pm-new <your-project-slug> \"<your business statement>\""
+  echo "  3. cd $PROJECTS_DIR"
+  echo "  4. /pm-new <your-project-slug> \"<your business statement>\" --genai|--no-genai"
 else
   echo "  1. Restart Codex or refresh /skills for skills to load."
   echo "  2. Verify the install: \$pm-os-verify  (or: python3 $INSTALL_DIR/scripts/pm_os_verify.py --runtime codex)"
-  echo "  3. cd ~/pm-projects"
-  echo "  4. Use /skills or invoke: \$pm-new <your-project-slug> \"<your business statement>\""
+  echo "  3. cd $PROJECTS_DIR"
+  echo "  4. Use /skills or invoke: \$pm-new <your-project-slug> \"<your business statement>\" --genai|--no-genai"
 fi

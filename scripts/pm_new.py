@@ -35,7 +35,13 @@ def main():
         print(f"Error: slug '{args.slug}' must be kebab-case (lowercase letters, numbers, hyphens; start with letter/digit)")
         sys.exit(1)
 
-    projects_dir = Path.home() / "pm-projects"
+    try:
+        cfg = load_config()
+    except Exception as e:
+        print(f"Warning: could not load config ({e}) — using defaults")
+        cfg = {}
+
+    projects_dir = Path(cfg.get("projects_dir") or (Path.home() / "pm-projects")).expanduser()
     project_root = projects_dir / args.slug
 
     if project_root.exists():
@@ -64,11 +70,7 @@ def main():
     version_path = Path.home() / ".pm-os" / "VERSION"
     pm_os_version = version_path.read_text().strip() if version_path.exists() else "0.1.0"
 
-    try:
-        pm = load_config()["pm_user"]
-    except Exception as e:
-        print(f"Warning: could not load config ({e}) — using 'unknown'")
-        pm = "unknown"
+    pm = cfg.get("pm_user", "unknown")
 
     ts = datetime.now(timezone.utc).isoformat()
 
