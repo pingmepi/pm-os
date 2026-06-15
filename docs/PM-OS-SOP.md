@@ -103,11 +103,13 @@ The `--runtime` argument is required so skills install into the correct agent di
 
 ### 4.2 Start a project
 ```text
-Claude: /pm-new <project-slug> "<business statement>"
-Codex:  $pm-new <project-slug> "<business statement>"
+Claude: /pm-new <project-slug> "<business statement>" --genai|--no-genai
+Codex:  $pm-new <project-slug> "<business statement>" --genai|--no-genai
 ```
 - Keep the slug short and stable; it's used in paths and history.
 - Write the business statement in plain language. **Sanitize it first** (§7).
+- Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
+- The project is created under the `projects_dir` from your config (default `~/pm-projects`).
 - This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections.
 
 ### 4.3 Generate → review → approve, one stage at a time
@@ -130,6 +132,7 @@ Then 02, 03, … 07. The optional TRD (08) comes after 01–07 are approved.
 Claude: /pm-status               Codex: $pm-status
 Claude: /pm-feedback 03          Codex: $pm-feedback 03
 ```
+- `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
 - Run `pm-status` before resuming work to see which stages are drafted vs. approved.
 - Capture feedback while it's fresh — it's recorded locally in `feedback.jsonl` and feeds future improvement.
 

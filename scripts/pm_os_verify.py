@@ -96,11 +96,24 @@ def check_skills(r: Result, runtime: str):
         r.add(False, "Source skills present", f"Missing {src}")
         return
     expected = {p.name for p in src.iterdir() if p.is_dir()}
-    targets = []
+    candidates = []
     if runtime in ("claude", "all"):
-        targets.append(("claude", CLAUDE_SKILLS_DIR))
+        candidates.append(("claude", CLAUDE_SKILLS_DIR))
     if runtime in ("codex", "all"):
-        targets.append(("codex", CODEX_SKILLS_DIR))
+        candidates.append(("codex", CODEX_SKILLS_DIR))
+
+    if runtime == "all":
+        # A normal install targets a single runtime, so only check runtimes that
+        # are actually installed; an absent dir means "not installed", not "broken".
+        targets = [(name, sdir) for name, sdir in candidates if sdir.is_dir()]
+        if not targets:
+            r.add(False, "Skills installed",
+                  "No runtime skills directory found — run the installer.")
+            return
+    else:
+        # An explicitly requested runtime must be present.
+        targets = candidates
+
     for name, sdir in targets:
         if not sdir.is_dir():
             r.add(False, f"{name} skills installed ({sdir})", "Directory missing — run the installer.")
@@ -162,7 +175,8 @@ def check_gate_selftest(r: Result):
 def main():
     parser = argparse.ArgumentParser(description="Verify a PM-OS installation.")
     parser.add_argument("--runtime", choices=["claude", "codex", "all"], default="all",
-                        help="Which runtime's installed skills to check (default: all).")
+                        help="Which runtime's installed skills to check. "
+                             "'all' checks every installed runtime and skips absent ones (default).")
     args = parser.parse_args()
 
     print("PM-OS Verify")

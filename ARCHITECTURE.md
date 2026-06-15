@@ -141,7 +141,7 @@ flowchart TD
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count. |
 | `skills/pm-feedback` → `scripts/pm_feedback.py` | Appends a rating/tags/free-text entry to `feedback.jsonl`; logs `feedback_submitted`. |
 | `skills/pm-share` → `scripts/pm_share.py` | Exports approved artifacts to a shareable text bundle. |
-| `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift; runs the implicit-reapproval prompt. |
+| `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift; runs the implicit-reapproval prompt, cascading `stale` to downstream approved stages on implicit reapproval. |
 | `hooks/post-approve.py` | Renders HTML companions for stages 04/05, cascades `stale` to downstream approved stages, pushes telemetry/feedback via `git_sync`. |
 | `lib/project.py` | `resolve_project()` walks up from CWD to the nearest `.meta.yaml`; stage order/name tables; `upstream_stage_ids()`. |
 | `lib/hashing.py` | `hash_artifact_body()` (SHA-256 over body only, LF-normalized) and `hash_event()` (chain link). |
@@ -165,7 +165,7 @@ stateDiagram-v2
     pending --> draft: run /pm-stage-NN
     draft --> approved: /pm-approve NN
     approved --> edited: body edited after approval<br/>(hash drift, pre-stage hook)
-    approved --> stale: upstream re-approved<br/>(post-approve cascade)
+    approved --> stale: upstream re-approved<br/>(post-approve or implicit-reapproval cascade)
     edited --> approved: /pm-approve NN<br/>or implicit reapproval
     stale --> draft: re-run /pm-stage-NN
     stale --> approved: /pm-approve NN (attest still valid)

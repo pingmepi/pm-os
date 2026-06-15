@@ -68,9 +68,14 @@ agent directory.
 Create a project:
 
 ```text
-Claude: /pm-new <project-slug> "<business statement>"
-Codex:  $pm-new <project-slug> "<business statement>"
+Claude: /pm-new <project-slug> "<business statement>" --genai|--no-genai
+Codex:  $pm-new <project-slug> "<business statement>" --genai|--no-genai
 ```
+
+`pm-new` needs to know whether this is a GenAI/agentic product. In an
+interactive shell it prompts; when run non-interactively (the usual case inside
+an agent) pass `--genai` or `--no-genai` (or set `PM_OS_GENAI_FLAG`). Projects
+are created under the `projects_dir` from your config (default `~/pm-projects`).
 
 Generate and approve stages:
 
@@ -102,6 +107,10 @@ Capture feedback on a stage:
 Claude: /pm-feedback 03
 Codex:  $pm-feedback 03
 ```
+
+`pm-feedback` prompts for a rating and a note interactively. Run
+non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"`
+(or `--skip-note`), otherwise it will stop and ask you to supply them.
 
 Verify the installation is healthy (config, shared lib, gate hooks, installed skills, gate self-test):
 

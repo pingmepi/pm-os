@@ -6,6 +6,8 @@ Checks:
   1. All upstream stages are approved or edited (not pending/draft/stale).
   2. Recomputes upstream artifact hashes; marks drift as 'edited'.
   3. If any upstream is 'edited', prints implicit-reapproval prompt.
+  4. On implicit re-approval, cascades staleness to downstream approved stages
+     (including intermediate ones) so they get re-approved against new content.
 """
 
 import sys
@@ -14,7 +16,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from pathlib import Path
-from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, artifact_path, STAGE_NAMES
+from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, artifact_path, STAGE_NAMES, STAGE_ORDER
 from hashing import hash_artifact_body
 from frontmatter import update_status
 from telemetry import log
@@ -53,6 +55,39 @@ def read_edited_choice(stage_id: str) -> str:
         )
         sys.exit(1)
     return input("Choice [1/2/3]: ").strip()
+
+
+def cascade_stale_for_edited(meta, project_root, edited_ids):
+    """Mark downstream approved stages stale after an upstream is re-approved.
+
+    An edited upstream that gets (implicitly) re-approved has new body content, so
+    every approved stage built on top of it is now stale — including intermediate
+    stages between the edited one and the stage being generated. Stages in
+    ``edited_ids`` are skipped: they were just reconciled to current content.
+    Mirrors the cascade in post-approve.py for the explicit-reapproval path.
+    """
+    if not edited_ids:
+        return []
+    earliest_idx = min(STAGE_ORDER.index(uid) for uid in edited_ids)
+    stale_logged = []
+    for did in STAGE_ORDER[earliest_idx + 1:]:
+        if did in edited_ids:
+            continue
+        try:
+            ds_meta = get_stage(meta, did)
+        except KeyError:
+            continue
+        if ds_meta["status"] == "approved":
+            ds_meta["status"] = "stale"
+            apath = artifact_path(project_root, did)
+            if apath.exists():
+                update_status(str(apath), "stale")
+            log("stage_marked_stale", project_root, did, {
+                "reason": "upstream_edited_reapproved",
+                "triggering_upstream_stages": sorted(edited_ids),
+            })
+            stale_logged.append(did)
+    return stale_logged
 
 
 def main():
@@ -123,7 +158,7 @@ def main():
         print(f"""
 Options:
   [1] Continue — generate stage {stage_id} using current upstream content
-      (this implicitly re-approves edited stages)
+      (implicitly re-approves edited stages and marks downstream approved stages stale)
   [2] Re-approve edited stages explicitly first (recommended for significant edits)
   [3] Cancel
 """)
@@ -143,8 +178,13 @@ Options:
                     "old_hash": old_hash,
                     "new_hash": current_hash,
                 })
+            stale_logged = cascade_stale_for_edited(
+                meta, project_root, {uid for uid, _ in edited})
             save_meta(meta, project_root)
             print("[pre-stage] Implicit re-approval logged. Proceeding.")
+            if stale_logged:
+                print("[pre-stage] Marked downstream stages stale: "
+                      + ", ".join(stale_logged))
         elif choice == "2":
             print("[pre-stage] Halted. Re-approve each edited stage, then retry.")
             print("[pre-stage] Claude: /pm-approve <stage>")
