@@ -1,6 +1,6 @@
 # PM-OS Architecture
 
-This document describes the **as-built** architecture of PM-OS on the `dev` branch. Where the build spec (`pm-os-spec.md`) and the running code differ, this document follows the code — see [Spec vs. implemented](#spec-vs-implemented) at the end.
+This document describes the **as-built** architecture of PM-OS on the `main` branch. Where the build spec (`docs/spec/pm-os-spec.md`) and the running code differ, this document follows the code — see [Spec vs. implemented](#spec-vs-implemented) at the end.
 
 PM-OS is a **local-first, PM-led product-definition layer** delivered as an **agent skill suite** — not an app. There is no frontend and no backend service. A PM drives a product idea through a fixed, gated pipeline of stages; each stage emits a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files on the PM's machine.
 
@@ -230,9 +230,9 @@ Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/op
 
 ## Spec vs. implemented
 
-`pm-os-spec.md` is partly aspirational. The `dev` code is **leaner** than the spec in these ways — trust the code:
+`docs/spec/pm-os-spec.md` is partly aspirational. The `main` code is **leaner** than the spec in these ways — trust the code:
 
-| Spec describes | Status on `dev` |
+| Spec describes | Status on `main` |
 |----------------|-----------------|
 | `lib/edit_distance.py`, `lib/embeddings.py` | **Not built.** Distance metrics in `stage_approved` telemetry are emitted as `None`. |
 | `hooks/post-tool-use.py` | **Not built.** Out-of-band edits are detected lazily by `pre-stage.py` on the next stage run, not on every tool use. |
@@ -240,4 +240,4 @@ Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/op
 | Full MCP `pm-share` integration | `pm_share.py` exports a text bundle; no live connector. |
 | `sentence-transformers` dependency | Not installed. Runtime deps are `pyyaml`, `jinja2`, `gitpython` only. |
 
-Everything else in this document reflects code that exists and runs on `dev`.
+Everything else in this document reflects code that exists and runs on `main`.

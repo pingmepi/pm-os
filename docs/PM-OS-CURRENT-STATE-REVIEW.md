@@ -68,13 +68,13 @@ It is not yet the full PDLC operating system described above.
 
 | Area | Status | Source |
 |---|---:|---|
-| Gemini runtime support | Planned | `pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Existing-product/enhancement mode | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Mid-pipeline artifact ingest | Planned | `pm-os-ingest-plan.md` |
-| Import existing scope/PRD | Planned | `pm-os-ingest-plan.md` |
-| Jira/Linear handoff | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Figma/design-system integration | Planned later | `pm-os-modes-and-handoff-plan.md` |
+| Gemini runtime support | Planned | `plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
+| Existing-product/enhancement mode | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
+| Codebase understanding stage | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
+| Mid-pipeline artifact ingest | Planned | `plans/pm-os-ingest-plan.md` |
+| Import existing scope/PRD | Planned | `plans/pm-os-ingest-plan.md` |
+| Jira/Linear handoff | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
+| Figma/design-system integration | Planned later | `plans/pm-os-modes-and-handoff-plan.md` |
 | QA bug analysis against codebase | Missing | part of expanded ask |
 | Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
 | Release readiness workflow | Missing | part of expanded ask |

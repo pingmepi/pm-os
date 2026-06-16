@@ -229,7 +229,7 @@ Changes:
 
 ### Step 6 — Verify end-to-end in Codex and document the exact UX
 
-**Files:** `README.md`, `pm-os-spec.md`, this plan if needed
+**Files:** `README.md`, `../spec/pm-os-spec.md`, this plan if needed
 
 Validation flow should use Codex-native invocation, for example:
 
