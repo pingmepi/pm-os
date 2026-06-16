@@ -1,6 +1,6 @@
 # PM-OS Modes & Engineering Handoff Plan
 
-**Status:** Draft / proposal — not yet implemented.
+**Status:** 🔲 **Not implemented** (verified against the codebase 2026-06-17 — no `pm-stage-00-understand` skill, no `project_type` or `codebase` fields in `.meta.yaml`, no MCP handoff). Tracked as **Phase 3** (enhancement mode / codebase understanding) and **Phase 4** (engineering handoff) in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7.
 **Author:** Karan (with Claude Code)
 **Date:** 2026-06-10
 **Scope:** Extend PM-OS from new-product-development-only to also support existing-product enhancements from a single install, and lay out a later-phase engineering-handoff capability (Figma / Jira / Linear via MCP).

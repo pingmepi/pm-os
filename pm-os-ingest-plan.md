@@ -1,6 +1,6 @@
 # PM-OS Artifact Ingest & Mid-Pipeline Entry Plan
 
-**Status:** Draft / proposal — not yet implemented.
+**Status:** 🔲 **Not implemented** (verified against the codebase 2026-06-17 — no `pm-import` command, no `stage_imported` telemetry, no import path in `scripts/`/`skills/`). Tracked as **Phase 2** in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7; per §12 below, its first increment (I0) has no dependencies. (Note: the review's §7 numbering and its §10 "immediate next steps" disagree on whether ingest or the traceability spine comes first — see the roadmap reconciliation notes.)
 **Author:** Karan (with Claude Code)
 **Date:** 2026-06-12
 **Scope:** Let a PM plug *already-authored* artifacts (e.g. an existing scope and PRD) into a PM-OS project and continue the pipeline from that point, instead of regenerating every stage from scratch.

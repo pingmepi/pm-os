@@ -1,6 +1,6 @@
 # PM-OS Cross-Runtime Compatibility Plan
 
-**Status:** Draft / proposal — not yet implemented.
+**Status:** ✅ **Largely implemented (v0.4.4–0.4.6).** Claude + Codex runtime parity shipped: `install.sh --runtime claude|codex`, per-skill `agents/openai.yaml`, runtime-neutral `AGENTS.md` and model guidance, non-interactive-safe gates, and the `pm-os-verify` install verifier. **Only Gemini support remains** (deferred to a later phase). Verified against the codebase 2026-06-17.
 **Author:** Karan (with Claude Code)
 **Date:** 2026-06-11
 **Scope:** Keep PM-OS fully compatible with Claude Code and OpenAI Codex without forking the skill content or the deterministic Python core.
@@ -279,8 +279,7 @@ This order front-loads the pieces that most affect whether Codex feels reliable 
 
 ## 8. Non-goals for this pass
 
-- Gemini CLI support
-- Gemini AI Studio support
+- Gemini CLI / AI Studio support — **deferred to a later pass, not abandoned.** Gemini remains a planned runtime target (see `docs/PM-OS-CURRENT-STATE-REVIEW.md`); it is out of scope only for *this* Claude + Codex pass.
 - a mandatory Codex hooks integration
 - prompt forking or skill duplication
 - replacing the local-file PM-OS architecture with MCP or a service backend
