@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -38,9 +39,21 @@ STAGE_NAMES = {
     "06": "qa-plan",
     "07": "metrics-plan",
     "08": "trd",
+    "09": "roadmap",
 }
 
-STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07", "08"]
+STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07", "08", "09"]
+
+CORE_STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07"]
+
+STAGE_DEPENDENCIES = {
+    "08": CORE_STAGE_ORDER,
+    "09": CORE_STAGE_ORDER,
+}
+
+STAGE_OPTIONAL_DEPENDENCIES = {
+    "09": ["08"],
+}
 
 
 def artifact_path(project_root: Path, stage_id: str) -> Path:
@@ -55,6 +68,24 @@ def get_stage(meta: dict, stage_id: str) -> dict:
     raise KeyError(f"Stage {stage_id} not found in meta")
 
 
-def upstream_stage_ids(stage_id: str) -> list[str]:
-    idx = STAGE_ORDER.index(stage_id)
-    return STAGE_ORDER[:idx]
+def upstream_stage_ids(stage_id: str, meta: Optional[dict] = None) -> list[str]:
+    if stage_id in STAGE_DEPENDENCIES:
+        upstream = list(STAGE_DEPENDENCIES[stage_id])
+    else:
+        idx = STAGE_ORDER.index(stage_id)
+        upstream = STAGE_ORDER[:idx]
+
+    if meta is not None:
+        for optional_stage_id in STAGE_OPTIONAL_DEPENDENCIES.get(stage_id, []):
+            try:
+                optional_stage = get_stage(meta, optional_stage_id)
+            except KeyError:
+                continue
+            if optional_stage.get("status") == "approved" and optional_stage_id not in upstream:
+                upstream.append(optional_stage_id)
+
+    return upstream
+
+
+def downstream_stage_ids(stage_id: str, meta: Optional[dict] = None) -> list[str]:
+    return [sid for sid in STAGE_ORDER if stage_id in upstream_stage_ids(sid, meta)]

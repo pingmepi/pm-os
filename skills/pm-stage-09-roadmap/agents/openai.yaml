@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stage 09 Roadmap"
+  short_description: "Draft the optional post-MVP product roadmap"
+  default_prompt: "Use $pm-stage-09-roadmap to draft a product roadmap from my approved MVP pipeline."

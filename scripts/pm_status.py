@@ -13,7 +13,7 @@ STAGE_LABELS = {
     "01": "Brief", "02": "Scope", "03": "PRD",
     "04": "Design Spec", "05": "Prototype Brief",
     "06": "QA Plan", "07": "Metrics Plan",
-    "08": "TRD",
+    "08": "TRD", "09": "Roadmap",
 }
 
 

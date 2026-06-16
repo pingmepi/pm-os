@@ -16,7 +16,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from pathlib import Path
-from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, artifact_path, STAGE_NAMES, STAGE_ORDER
+from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES
 from hashing import hash_artifact_body
 from frontmatter import update_status
 from telemetry import log
@@ -68,9 +68,13 @@ def cascade_stale_for_edited(meta, project_root, edited_ids):
     """
     if not edited_ids:
         return []
-    earliest_idx = min(STAGE_ORDER.index(uid) for uid in edited_ids)
+    downstream_ids = sorted({
+        did
+        for uid in edited_ids
+        for did in downstream_stage_ids(uid, meta)
+    })
     stale_logged = []
-    for did in STAGE_ORDER[earliest_idx + 1:]:
+    for did in downstream_ids:
         if did in edited_ids:
             continue
         try:
@@ -104,7 +108,7 @@ def main():
         sys.exit(1)
 
     meta = load_meta(project_root)
-    upstream_ids = upstream_stage_ids(stage_id)
+    upstream_ids = upstream_stage_ids(stage_id, meta)
 
     # --- Step 1: recompute hashes and detect drift ---
     edited_stages = []

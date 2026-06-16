@@ -98,13 +98,13 @@ def main():
         ("01", "brief"), ("02", "scope"), ("03", "prd"),
         ("04", "design-spec"), ("05", "prototype-brief"),
         ("06", "qa-plan"), ("07", "metrics-plan"),
-        ("08", "trd"),
+        ("08", "trd"), ("09", "roadmap"),
     ]:
         stages.append({
             "id": sid, "name": name, "status": "pending",
             "approved_at": None, "content_hash": None,
             "upstream_hashes_at_approval": {}, "regeneration_count": 0,
-            "optional": sid == "08",
+            "optional": sid in {"08", "09"},
         })
 
     meta = {
