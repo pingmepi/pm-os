@@ -3,7 +3,7 @@ name: pm-stage-08-trd
 description: Generate the Technical Requirements Document for stage 08 from the full approved product pipeline.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md"]
 writes: "08-trd.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 model_tier: deep-reasoning
 ---
 
@@ -115,6 +115,10 @@ Write a Technical Requirements Document with these base sections.
 
 <Core entities, their key fields, relationships, and where/how they are stored. Note retention, ownership, and any privacy-relevant data.>
 
+## Data Governance & Compliance Implementation
+
+<How the PRD's Data & Governance requirements are actually enforced in the build: the access-control/authorization model, encryption in transit and at rest, audit logging, data retention and deletion mechanisms, data lineage, and the mapping from each control to the regulatory obligation it satisfies (e.g. HIPAA, GDPR). Trace each control back to a specific Data & Governance requirement in the PRD. If `genai_flag=true`, state explicitly what data is sent to third-party model providers, whether it may contain sensitive data (PII/PHI), and that provider's data-handling/retention terms. If the PRD declares no sensitive data, state how the build keeps it that way.>
+
 ## API / Interface Contracts
 
 <The interfaces between components and to the outside: endpoints or function signatures, request/response shapes, error semantics, auth.>
@@ -192,6 +196,7 @@ The TRD is the technical home: go deeper here than the PRD did. For GenAI produc
 - "Trade-offs & Alternatives Considered" must show real alternatives and reasoning, not a single foregone choice.
 - Map the highest-value PRD user stories to Key Technical Flows so coverage is visible.
 - Non-Functional Implementation must reference the specific PRD NFR target each choice satisfies.
+- Data Governance & Compliance Implementation must trace each control back to a Data & Governance requirement in the PRD and name where sensitive data flows — including to any third-party model provider.
 - For GenAI products, the extra sections must be operational and buildable, not generic AI commentary.
 - For non-GenAI products, do not introduce model/prompt/agent/retrieval concerns.
 
@@ -242,7 +247,7 @@ After generating, do the following in order:
    log('stage_generated', Path('.'), '08', {
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
@@ -266,6 +271,7 @@ After generating, do the following in order:
 - The TRD must implement the approved scope and PRD without expanding or re-scoping them.
 - Architecture and Data Model must be concrete enough for an engineer to begin implementation.
 - Non-Functional Implementation must tie each choice to a specific PRD NFR target.
+- Data Governance & Compliance Implementation must specify concrete controls (access, encryption, audit, retention/deletion) tied to PRD governance requirements, and for GenAI must state what data leaves to third-party model providers.
 - Trade-offs & Alternatives Considered must contain genuine alternatives and reasoning.
 - Technical Risks must be engineering-specific and paired with mitigations, not truisms.
 - If `genai_flag=true`, the GenAI sections must specify a buildable architecture and validation approach, going deeper than the PRD.
@@ -276,7 +282,8 @@ After generating, do the following in order:
 1. Does every major technical choice trace to a requirement in scope, PRD, QA, or metrics?
 2. Could an engineer start building from the Architecture, Data Model, and API contracts without re-deriving the product?
 3. Does Non-Functional Implementation reference the specific NFR targets it satisfies?
-4. Do the Trade-offs show real alternatives, not a single foregone conclusion?
-5. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
-6. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
-7. If `genai_flag=false`, is the TRD complete without any AI-specific content?
+4. Does Data Governance & Compliance Implementation enforce every PRD Data & Governance requirement with a concrete control, and (for GenAI) state what data leaves to third-party providers?
+5. Do the Trade-offs show real alternatives, not a single foregone conclusion?
+6. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
+7. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
+8. If `genai_flag=false`, is the TRD complete without any AI-specific content?
