@@ -2,9 +2,10 @@
 
 **Owner:** Karan
 **Target executor:** Claude Code
+**Status:** ✅ **Completed and shipped** (verified against the codebase 2026-06-17). All four phases landed: Phase A — mechanical skills refactored to script wrappers (`scripts/`); Phase B — `config.yaml` migration + config-driven install flow (`lib/config.py`, `install.sh`); Phase C — gate hooks (`hooks/pre-stage.py`, `hooks/post-approve.py`); Phase D — install verifier (`scripts/pm_os_verify.py` + the `pm-os-verify` skill). Retained as a historical record; this is the doc destined for `docs/archive/`.
 **Context:** PM-OS first-run dogfooding surfaced 12 issues across install correctness, missing components, performance, and UX. This document specifies a single fix pass that resolves all of them in coordinated order.
 
-**Read first:** the original `pm-os-spec.md` and `pm-os-feedback-spec.md`. This document assumes familiarity with both. References to "the spec" mean `pm-os-spec.md` unless stated otherwise.
+**Read first:** the original `pm-os-spec.md`. (Note: `pm-os-feedback-spec.md` is referenced here and elsewhere but does **not** exist in this repo — treat that reference as historical.) This document assumes familiarity with the spec. References to "the spec" mean `pm-os-spec.md` unless stated otherwise.
 
 ---
 

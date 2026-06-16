@@ -46,6 +46,12 @@ Stage 08, `08-trd.md`, is an optional technical capstone generated after stages
 01-07 are approved. It translates the approved product definition into a
 technical requirements document without reopening product decisions.
 
+Stage 09, `09-roadmap.md`, is an optional product roadmap capstone generated
+after stages 01-07 are approved. It scopes the path from MVP to a deliverable
+product and later horizons without expanding the MVP. If stage 08 is approved,
+stage 09 uses the TRD as technical delivery context; otherwise it runs from the
+approved product pipeline alone.
+
 ## Project State
 
 - PM-OS projects are plain local directories, usually under the configured

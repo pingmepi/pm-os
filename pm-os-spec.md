@@ -1,7 +1,8 @@
 # PM-OS — Build Specification
 
 **Owner:** Karan (PM, Indegene)
-**Purpose:** Build the product-definition kernel of a PM-led PDLC operating layer. v1 takes a business statement through a gated artifact pipeline (brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan → optional TRD) with explicit PM approval at every stage. Later phases extend this kernel into dev handoff, QA bug triage, release readiness, and feedback ingestion.
+**Status:** ✅ **Kernel implemented as of v0.4.8** — stages 01–08, approval gates (`hooks/pre-stage.py`, `hooks/post-approve.py`), the status/hash state machine, config, telemetry/feedback logs, HTML companions, and cross-runtime install (Claude + Codex) are all live. ⚠️ Parts of this spec are **aspirational and were never built** — e.g. `lib/edit_distance.py` and `lib/embeddings.py` (confirmed absent 2026-06-17). When this spec and the code disagree, trust the code and `ARCHITECTURE.md`.
+**Purpose:** Build the product-definition kernel of a PM-led PDLC operating layer. v1 takes a business statement through a gated artifact pipeline (brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan, plus optional TRD and roadmap capstones) with explicit PM approval at every stage. Later phases extend this kernel into dev handoff, QA bug triage, release readiness, and feedback ingestion.
 **Target executor:** Claude Code and OpenAI Codex, working from this spec.
 
 ---
@@ -611,7 +612,9 @@ Karan runs 2-3 real projects through the system. Captures feedback aggressively.
 
 ## 13. Out of scope for v1
 
-Do not build these. If a design decision seems to require one, flag and stop.
+> ⚠️ **Superseded for later phases.** This list defined the boundary of the *original v1 kernel*. The canonical roadmap is now `docs/PM-OS-CURRENT-STATE-REVIEW.md`, which deliberately brings several of these items **back into scope** in later phases — notably engineering handoff and MCP integrations beyond `pm-share` (Jira/Linear/Figma, Phase 4), and data-governance/compliance content (now required in PRD/QA/TRD as of v0.4.8). Treat the items below as out of scope **only for the v1 kernel**; where this list and the Current State Review disagree, the review wins.
+
+Do not build these in the v1 kernel. If a design decision seems to require one, flag and stop.
 
 - Frontend / web UI
 - Backend service / API

@@ -44,7 +44,7 @@ It is not yet the full PDLC operating system described above.
 | Area | Status | Evidence |
 |---|---:|---|
 | Local project scaffold | Implemented | `scripts/pm_new.py` creates `~/pm-projects/<slug>`, `.meta.yaml`, `00-business-statement.md`, `.history/`, telemetry, feedback |
-| Linear stage pipeline | Implemented | Stages 01-08 exist in `skills/` and `lib/project.py` defines stage order |
+| Linear stage pipeline | Implemented | Stages 01-09 exist in `skills/`; `lib/project.py` defines order — core MVP is 01-07, with optional 08 (TRD) and 09 (roadmap) capstones |
 | Human approval gates | Implemented | `scripts/pm_approve.py`, `hooks/pre-stage.py`, `hooks/post-approve.py` |
 | Artifact status model | Implemented | `pending`, `draft`, `approved`, `edited`, `stale` in `.meta.yaml` and frontmatter |
 | Hash-based drift detection | Implemented | `hooks/pre-stage.py` recomputes upstream hashes and marks edits |
@@ -54,6 +54,7 @@ It is not yet the full PDLC operating system described above.
 | Share/export | Implemented, basic | `scripts/pm_share.py` exports approved/edited artifacts |
 | GenAI-specific sections | Implemented in prompts | `genai_flag` exists and stage prompts branch on it |
 | Optional TRD | Implemented | `pm-stage-08-trd` exists and is marked optional in metadata |
+| Optional Roadmap | Implemented | `pm-stage-09-roadmap` — optional product-strategy capstone that runs after the 01-07 MVP pipeline; depends on the core stages and uses the TRD (08) as delivery context if approved |
 | HTML companions | Implemented | post-approval renders stage 04 and 05 HTML companions |
 | Cross-runtime install (Claude + Codex) | Implemented | `install.sh --runtime claude\|codex` routes Codex skills to `~/.agents/skills`, skips Claude hooks on Codex |
 | Runtime-neutral skill interface | Implemented | each stage skill ships `agents/openai.yaml` alongside `SKILL.md` |
@@ -102,7 +103,7 @@ Major gaps:
 
 1. **Scope mismatch:** README and spec still describe a seven-stage product-definition pipeline, while the ask is full PDLC from idea through dev, QA, release, and feedback.
 2. **Rigid entry point:** PM-OS starts from `pm-new <slug> "<statement>"`; it cannot yet start from a PRD, repo, Jira bug, QA report, or existing ticket.
-3. **Linear dependency model:** stages are hard-coded as 01-08; no explicit lifecycle graph for optional/nonlinear paths.
+3. **Linear dependency model:** stages are hard-coded as 01-09 (core 01-07 + optional 08/09 capstones); no explicit lifecycle graph for optional/nonlinear paths.
 4. **No context sufficiency/recommendation layer:** PM-OS gates upstream approvals, but it does not assess whether the provided inputs are enough for the requested work and recommend next options to the PM.
 5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned.
 6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
@@ -134,7 +135,7 @@ Approximate change profile:
 | Layer | Change level | Notes |
 |---|---:|---|
 | Current artifact/status core | Low to medium | Extend statuses/metadata, avoid breaking current projects |
-| Stage prompts 01-08 | Medium | Add modes, external context, lifecycle trace IDs |
+| Stage prompts 01-09 | Medium | Add modes, external context, lifecycle trace IDs |
 | Installer/runtime support | Medium | Needed for true Claude/Codex agnosticism |
 | Intake/orchestration | High | New layer: classify ask, identify available artifacts, recommend path, request PM approval |
 | Artifact ingest | Medium | Mostly additive because current gate is artifact-driven |
@@ -291,7 +292,7 @@ Work:
 - Add enhancement-only `pm-stage-00-understand`.
 - Generate and approve `00-codebase-understanding.md`.
 - Add codebase drift signal to status.
-- Add enhancement-aware conditional blocks in stages 01-08.
+- Add enhancement-aware conditional blocks in stages 01-09.
 
 Checks:
 
@@ -490,9 +491,9 @@ Recommended order:
 2. ~~Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.~~ (done — Phase 0)
 3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
 4. Add `schema_version` and the migration path so existing projects survive new fields.
-5. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational for everything after.
-6. Implement artifact ingest for existing scope/PRD (Phase 2).
-7. Implement enhancement mode and codebase understanding (Phase 3).
+5. Implement artifact ingest for existing scope/PRD (Phase 2). **Ingest comes first** — its first increment (I0) has no dependencies, and it delivers standalone value (start from an existing PRD) without waiting on the traceability spine.
+6. Implement enhancement mode and codebase understanding (Phase 3).
+7. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
 8. Ship local handoff packet (4a), then one opt-in tracker export (4b).
 9. Ship bug intake + classification (5a), then quarantined code-area suggestion (5b).
 10. Ship local release-readiness report (6a), then feedback intake (6b).

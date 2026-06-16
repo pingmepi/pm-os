@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What PM-OS is
 
-A local-first, PM-led PDLC operating layer, built as an **agent skill suite** (not an app). There is no frontend and no backend service. A PM drives a product idea through a gated pipeline of stages; each stage produces a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files (`.meta.yaml`, Markdown, JSONL) on the PM's machine. v1 covers product definition (stages 01–08); dev handoff / QA triage / release / feedback are planned later phases (see `docs/PM-OS-CURRENT-STATE-REVIEW.md`).
+A local-first, PM-led PDLC operating layer, built as an **agent skill suite** (not an app). There is no frontend and no backend service. A PM drives a product idea through a gated pipeline of stages; each stage produces a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files (`.meta.yaml`, Markdown, JSONL) on the PM's machine. v1 covers product definition (stages 01–07 plus optional 08/09 capstones); dev handoff / QA triage / release / feedback are planned later phases (see `docs/PM-OS-CURRENT-STATE-REVIEW.md`).
 
 The agent (Claude Code or Codex) is the generation engine: stage `SKILL.md` files contain the prompt + the inline bash the agent runs. Python in `scripts/`, `lib/`, and `hooks/` only handles mechanical state (scaffold, hash, approve, gate, telemetry). Decision authority stays with the PM — nothing progresses autonomously.
 
@@ -47,7 +47,7 @@ PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, 
 ## Architecture
 
 ### Stage pipeline and the state machine
-Stages are fixed and linear, defined in `lib/project.py` (`STAGE_ORDER`, `STAGE_NAMES`): 01 brief → 02 scope → 03 prd → 04 design-spec → 05 prototype-brief → 06 qa-plan → 07 metrics-plan → 08 trd (optional). Each stage has a status: `pending → draft → approved`, plus two off-path states: `edited` (artifact body changed after approval — detected by hash drift) and `stale` (an upstream stage was re-approved).
+Stages are fixed, defined in `lib/project.py` (`STAGE_ORDER`, `STAGE_NAMES`): 01 brief → 02 scope → 03 prd → 04 design-spec → 05 prototype-brief → 06 qa-plan → 07 metrics-plan, followed by optional 08 trd and optional 09 roadmap capstones. Stage 08 and 09 both depend on the approved core pipeline; stage 09 also uses stage 08 when the TRD is approved. Each stage has a status: `pending → draft → approved`, plus two off-path states: `edited` (artifact body changed after approval — detected by hash drift) and `stale` (an upstream stage was re-approved).
 
 ### Two synchronized sources of truth
 Stage state lives in **both** `.meta.yaml` (`stages[]` list) **and** each artifact's YAML frontmatter, and the code keeps them in lockstep (`pm_approve.py`, the hooks). When changing state logic, update both. `content_hash` is computed over the **body only** (everything after the closing `---`) so frontmatter edits never trigger false drift — see `lib/hashing.hash_artifact_body`.

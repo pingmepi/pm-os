@@ -10,7 +10,7 @@
 
 PM-OS is a PM-led PDLC operating layer. It maintains one coherent thread from idea to ship — intake, product definition, design, dev handoff, QA, release readiness, and feedback — with the PM in control at every decision point.
 
-**v1 scope:** PM-OS currently covers the product-definition phase — a gated pipeline from business statement to a reviewed chain of product artifacts: brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan, with an optional technical capstone (TRD). Each stage is a Markdown file that a human reviews and explicitly approves before the next stage is generated. Approved upstream artifacts are the binding source of truth for everything downstream.
+**v1 scope:** PM-OS currently covers the product-definition phase — a gated pipeline from business statement to a reviewed chain of product artifacts: brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan, with optional technical (TRD) and product roadmap capstones. Each stage is a Markdown file that a human reviews and explicitly approves before the next stage is generated. Approved upstream artifacts are the binding source of truth for everything downstream.
 
 This SOP defines **how, when, and where** to use PM-OS, the best-fit use cases, and the pitfalls to avoid. It is about *process discipline*, not the tool's internals.
 
@@ -80,6 +80,7 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 | 06 | QA plan *(deep-reasoning)* | PM + QA | QA lead |
 | 07 | Metrics plan | PM + data | Data/analytics owner |
 | 08 | TRD *(optional, deep-reasoning)* | Eng + PM | Eng lead / architect |
+| 09 | Roadmap *(optional)* | PM + leadership | PM |
 
 - **Driver** runs the generate command, edits the draft, and requests review.
 - **Reviewer** reads the draft and gives the go/no-go. Approval should follow review, not precede it.
@@ -134,7 +135,7 @@ Claude: /pm-stage-01-brief        Codex: $pm-stage-01-brief
    (read the draft, edit if needed, have the reviewer look)
 Claude: /pm-approve 01            Codex: $pm-approve 01
 ```
-Then 02, 03, … 07. The optional TRD (08) comes after 01–07 are approved.
+Then 02, 03, … 07. Optional capstones come after 01-07 are approved: TRD (08) for technical requirements, and Roadmap (09) for the path from MVP to deliverable product. If TRD is approved before Roadmap, stage 09 uses it as technical delivery context.
 
 **The core discipline (recommended default — relax only with eyes open):**
 1. **Never generate a downstream stage from an unapproved upstream stage.** The gate exists to stop drift. If a pre-stage gate exits non-zero, stop and read the error; do not write the artifact anyway.
@@ -168,6 +169,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 - **Regulated or data-sensitive products.** The PRD carries a required **Data & Governance** section (data, sensitivity, retention, access, compliance regime); the TRD's **Data Governance & Compliance Implementation** specifies the enforcing controls, and the QA plan verifies them — so PHI/PII handling and audit/retention obligations are defined before build, not after.
 - **Onboarding a new PM to a domain.** The staged pipeline is a teaching scaffold: it makes the *shape* of a complete product definition visible.
 - **Pre-build technical alignment.** The optional TRD (08) translates the approved product definition into technical requirements without re-litigating product decisions.
+- **Post-MVP product planning.** The optional Roadmap (09) scopes the path from MVP to a deliverable product and later horizons, using the TRD as technical context when it exists.
 
 ---
 
@@ -210,7 +212,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | Share approved set | `/pm-share` | `$pm-share` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
-**Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional).
+**Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap, optional; uses approved TRD when available).
 `*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully.
 
 **The one rule to remember:** *generate, review, approve — in order, one stage at a time, on sanitized inputs.*

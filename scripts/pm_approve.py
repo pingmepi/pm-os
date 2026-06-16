@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 from config import load_config
 from project import (
     resolve_project, load_meta, save_meta, get_stage,
-    artifact_path, upstream_stage_ids, STAGE_NAMES, STAGE_ORDER,
+    artifact_path, upstream_stage_ids, downstream_stage_ids, STAGE_NAMES,
 )
 from hashing import hash_artifact_body
 from frontmatter import update_status, read as fm_read
@@ -74,7 +74,7 @@ def main():
 
     meta = load_meta(project_root)
     stage_meta = get_stage(meta, stage_id)
-    upstream = {uid: get_stage(meta, uid)["content_hash"] for uid in upstream_stage_ids(stage_id)}
+    upstream = {uid: get_stage(meta, uid)["content_hash"] for uid in upstream_stage_ids(stage_id, meta)}
     stage_meta["status"] = "approved"
     stage_meta["approved_at"] = ts
     stage_meta["content_hash"] = content_hash
@@ -110,9 +110,8 @@ def main():
             print(f"Warning: post-approve hook exited with code {result.returncode}")
 
     meta_reloaded = load_meta(project_root)
-    stage_idx = STAGE_ORDER.index(stage_id)
     downstream_stale = []
-    for did in STAGE_ORDER[stage_idx + 1:]:
+    for did in downstream_stage_ids(stage_id, meta_reloaded):
         try:
             if get_stage(meta_reloaded, did)["status"] == "stale":
                 downstream_stale.append(did)

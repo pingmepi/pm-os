@@ -26,8 +26,11 @@ No stage progresses without explicit PM approval.
 6. QA plan
 7. Metrics plan
 8. TRD *(optional technical capstone)*
+9. Roadmap *(optional product capstone)*
 
 Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit PM approval. Later stages use the approved upstream artifacts as their source of truth. Approving the design spec and prototype brief also creates HTML companions: a design-spec preview for stage 04 and a lo-fi static prototype for stage 05.
+
+The optional roadmap scopes the path from MVP to a deliverable product and future horizons. It can run after stages 01-07 are approved; if an approved TRD exists, the roadmap uses it as technical delivery context.
 
 **Planned phases:** dev-phase support and dev handoff, QA bug triage, release readiness, and feedback ingestion will be added in later phases without replacing the product-definition pipeline.
 

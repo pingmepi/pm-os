@@ -13,6 +13,8 @@ You are a senior product manager writing a delivery-ready Product Requirements D
 
 This stage should be handled with deeper reasoning than the brief or scope stages. Favor precision, completeness, and internal consistency over speed.
 
+The PRD should elaborate the approved MVP scope, not become a full-product roadmap or technical design. Every major requirement should trace back to the stage 02 in-scope items, MVP boundary, constraints, or the stage 01 success hypothesis.
+
 # Model guidance
 
 This stage benefits from the strongest reasoning model available in the current runtime. Before doing anything else — including the pre-stage gate — check the current session model if it is visible to you:
@@ -48,7 +50,7 @@ Read these inputs in order:
 1. **`00-business-statement.md`** — read the body (after frontmatter). Use it as the original source for the business problem and urgency.
 2. **`01-brief.md`** — read the body (after frontmatter). Treat this as the source of truth for problem framing, target user, why now, and success hypothesis.
 3. **`02-scope.md`** — read the body (after frontmatter). Treat this as the source of truth for MVP boundary, inclusions, exclusions, constraints, assumptions, dependencies, and open questions.
-4. **`.meta.yaml`** — read `project_slug`, `genai_flag`, and `pm_os_version`.
+4. **`.meta.yaml`** — read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 When sources differ, resolve contradictions in this order: scope, then brief, then business statement. Do not re-open decisions already made in scope unless they are explicitly listed as open questions.
 
@@ -66,13 +68,13 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 ```
 ⚠ This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
-  [1] Update <NN-upstream.md> too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update <NN-upstream.md> too — keeps documents consistent; requires re-approval before PRD generation (recommended)
   [2] Apply from this stage forward only — the upstream artifact is left as-is and the documents will diverge
   [3] Cancel — make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of the named upstream artifact (`02-scope.md` or `01-brief.md`) to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects the drift, marks it `edited`, and cascades staleness for re-approval on the next downstream run. Then continue generating this PRD.
+- **[1]** Edit the relevant section of the named upstream artifact (`02-scope.md` or `01-brief.md`) to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `03-prd.md` and tell the PM to approve the edited upstream stage before rerunning stage `03`.
 - **[2]** Proceed forward-only: apply only the narrowing parts of the note and surface any divergence (e.g. in Goals/Non-Goals or Risks), noting the upstream artifact still reflects the older decision. Never silently expand beyond scope.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -108,15 +110,15 @@ Write a Product Requirements Document with these base sections.
 
 ## User Stories with Acceptance Criteria
 
-<List the core user stories in priority order. For each story, include clear acceptance criteria that can be validated by QA without guesswork.>
+<List the core user stories in priority order. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item, and clear acceptance criteria that can be validated by QA without guesswork.>
 
 ## Functional Requirements
 
-<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories.>
+<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as FR-001, state observable behavior, and map each major requirement to a user story or scope item.>
 
 ## Non-Functional Requirements
 
-<Describe performance, reliability, security, privacy, accessibility, auditability, maintainability, and operational expectations that matter for this MVP.>
+<Describe performance, reliability, security, privacy, accessibility, auditability, maintainability, and operational expectations that matter for this MVP. Use measurable thresholds or concrete checks where possible; omit irrelevant boilerplate.>
 
 ## Data & Governance
 
@@ -136,11 +138,11 @@ If `genai_flag=true`, append these additional sections after `## Risks`:
 ```markdown
 ## Model Selection Rationale
 
-<Explain which model characteristics matter for this product and why they fit the use case.>
+<Explain which model characteristics matter for this product and why they fit the use case. Stay at the product requirement level unless the approved scope names a specific provider or model.>
 
 ## Prompt/Agent Architecture
 
-<Describe the high-level prompting pattern, orchestration flow, agent steps, or decision logic required.>
+<Describe the high-level prompting pattern, orchestration flow, agent steps, or decision logic required from a product behavior perspective. Leave implementation architecture details for the TRD unless required by scope.>
 
 ## Tool/Function Inventory
 
@@ -166,34 +168,39 @@ For the non-GenAI path, the PRD must still be complete using only the base secti
 # Writing guidance
 
 - Treat scope as binding. The PRD should elaborate the scoped MVP, not quietly expand it.
+- Every major requirement should trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
+- If a stage 02 open question blocks a concrete requirement, surface that dependency rather than inventing a decision. If it does not block generation, state the conservative assumption used.
 - User stories should cover the highest-value flows first and should map cleanly to functional requirements.
 - Acceptance criteria must be specific and testable. Avoid vague wording like "works well" or "is intuitive."
 - Functional requirements should state observable system behavior, not implementation guesses unless a constraint makes them necessary.
-- Non-functional requirements should only include concerns that are relevant to this product and its context.
+- Non-functional requirements should only include concerns that are relevant to this product and its context, with measurable thresholds where possible.
 - Risks should be decision-relevant. Prefer risks that affect feasibility, adoption, compliance, data quality, or delivery confidence.
-- If the product is GenAI-enabled, make the extra sections operational and product-specific rather than generic AI boilerplate.
+- If the product is GenAI-enabled, make the extra sections operational and product-specific rather than generic AI boilerplate; avoid selecting concrete providers or implementation architecture unless the approved scope requires it.
 - If the product is not GenAI-enabled, make the base PRD strong enough to stand on its own and avoid AI-shaped filler.
 
 # Write outputs
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```
-   .history/03-prd.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `03-prd.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/03-prd.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `03-prd.md`** with frontmatter:
+3. **Save to history:**
+   ```
+   .history/03-prd.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `03-prd.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 03-prd
@@ -210,9 +217,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — for stage 03, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+5. **Update `.meta.yaml`** — for stage 03, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -220,14 +227,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '03', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'deep-reasoning',
        'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```
    Stage 03 draft written to 03-prd.md
 
@@ -243,21 +250,25 @@ After generating, do the following in order:
 # Quality bar
 
 - The PRD must stay inside the stage-02 MVP boundary.
+- Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
-- User Stories with Acceptance Criteria must be testable and cover the critical flows needed for launch.
-- Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product.
-- Non-Functional Requirements must be relevant, not generic template filler.
+- User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch.
+- Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and should use stable IDs.
+- Non-Functional Requirements must be relevant, not generic template filler, and should include measurable thresholds where possible.
 - Data & Governance must name concrete data and its sensitivity, ownership, retention, access rules, and any applicable compliance regime — or explicitly state that no sensitive data is handled. It must not defer these to implementation.
+- Scope open questions must either be carried forward as requirement blockers or resolved with a clearly stated conservative assumption.
 - Edge Cases and Risks must surface meaningful failure modes and delivery concerns rather than obvious truisms.
-- If `genai_flag=true`, the GenAI sections must describe an actual product architecture and validation approach, not abstract AI commentary.
+- If `genai_flag=true`, the GenAI sections must describe actual product behavior, validation, failure handling, and human review needs, not abstract AI commentary.
 - If `genai_flag=false`, the PRD must use only the base sections and must not include AI-specific requirements or terminology unless explicitly required by the approved scope.
 
 # Self-check before writing
 
 1. Does every major requirement trace back to the approved scope and success hypothesis?
 2. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
-3. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
-4. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
-5. Are edge cases and risks concrete enough to shape design or delivery decisions?
-6. If `genai_flag=true`, do the additional sections specify operational choices rather than generic AI best practices?
-7. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
+3. Do functional requirements use stable IDs and describe observable behavior?
+4. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
+5. Were scope open questions handled as blockers or explicit assumptions?
+6. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
+7. Are edge cases and risks concrete enough to shape design or delivery decisions?
+8. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
+9. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?

@@ -12,7 +12,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-from project import resolve_project, load_meta, save_meta, get_stage, artifact_path, STAGE_ORDER, STAGE_NAMES
+from project import resolve_project, load_meta, save_meta, get_stage, artifact_path, downstream_stage_ids
 from frontmatter import update_status
 from html_render import render_design_spec, render_prototype_mockup
 from telemetry import log
@@ -44,8 +44,7 @@ def main():
         print(f"[post-approve] WARNING: Could not render companion HTML: {e}", file=sys.stderr)
 
     # --- Cascade staleness to downstream approved stages ---
-    stage_idx = STAGE_ORDER.index(stage_id)
-    downstream_ids = STAGE_ORDER[stage_idx + 1:]
+    downstream_ids = downstream_stage_ids(stage_id, meta)
 
     stale_logged = []
     for did in downstream_ids:

@@ -10,6 +10,8 @@ prompt_version: 0.1.0
 
 You are a senior product manager and product analytics lead writing a Metrics Plan for the MVP. You read the approved upstream artifacts and define how success, adoption, quality, risk, and operational health should be measured after launch. This is stage 07 of 7 - it turns the product definition into an instrumentation and review plan.
 
+The metrics plan should be actionable after launch, not just a taxonomy. Each important metric should define what it measures, how it is calculated, where it comes from, who owns it, how often it is reviewed, and what decision it informs.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -31,7 +33,7 @@ Read these inputs in order:
 5. **`04-design-spec.md`** - read the body (after frontmatter) for flows, screens, components, and interaction points that need instrumentation.
 6. **`05-prototype-brief.md`** - read the body (after frontmatter) for validation questions and prototype focus.
 7. **`06-qa-plan.md`** - read the body (after frontmatter) for acceptance criteria, release risks, and quality coverage.
-8. **`.meta.yaml`** - read `project_slug`, `genai_flag`, and `pm_os_version`.
+8. **`.meta.yaml`** - read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 When sources differ, resolve contradictions in this order: brief success hypothesis, PRD goals, scope boundary, QA acceptance criteria, design/prototype details, then business statement.
 
@@ -49,13 +51,13 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 ```text
 This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
-  [1] Update <NN-upstream.md> too - keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update <NN-upstream.md> too - keeps documents consistent; requires re-approval before metrics-plan generation (recommended)
   [2] Apply in metrics only - the upstream artifact is left as-is and the metrics plan will document the divergence
   [3] Cancel - make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects drift on the next downstream run. Then continue generating this metrics plan.
+- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `07-metrics-plan.md` and tell the PM to approve the edited upstream stage before rerunning stage `07`.
 - **[2]** Proceed metrics-only: apply the note where possible and call out the divergence in Instrumentation Plan or Review Cadence.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -83,23 +85,23 @@ Write a Metrics Plan with these base sections.
 
 ## North Star Metric
 
-<Define the primary success metric, why it reflects the success hypothesis, how it is calculated, and what movement would indicate progress.>
+<Define the primary success metric, why it reflects the stage 01 success hypothesis and stage 03 goals, how it is calculated, the event/source used, owner, segment, review cadence, baseline/target if known, and what movement would indicate progress. If no baseline exists, define the launch-period baseline plan.>
 
 ## Input Metrics
 
-<List leading indicators and user/product actions that should drive the north star metric.>
+<List leading indicators and user/product actions that should drive the north star metric. For each metric, include definition, formula, event/source, owner, segment, cadence, baseline/target if known, and the decision it informs.>
 
 ## Output Metrics
 
-<List outcome measures that show product, business, workflow, or user-value impact.>
+<List outcome measures that show product, business, workflow, or user-value impact. Trace each output metric to PRD goals, success hypothesis, QA acceptance criteria, prototype questions, or known risks.>
 
 ## Guardrail Metrics
 
-<List metrics that detect negative tradeoffs, risk, misuse, quality regressions, or operational harm.>
+<List metrics that detect negative tradeoffs, risk, misuse, quality regressions, data/governance issues, or operational harm. Include threshold or trigger guidance where possible.>
 
 ## Instrumentation Plan
 
-<Describe events, properties, data sources, owners, and implementation notes needed to capture the metrics.>
+<Describe events, properties, data sources, owners, privacy/governance notes, and implementation notes needed to capture the metrics. Prefer concrete event names and required properties, plus how instrumentation should be validated.>
 
 ## Dashboard Sketch
 
@@ -107,7 +109,7 @@ Write a Metrics Plan with these base sections.
 
 ## Review Cadence
 
-<Define who reviews metrics, how often, what decisions are made, and what thresholds trigger action.>
+<Define who reviews metrics, how often, what decisions are made, and what thresholds trigger action. Include decision rules such as continue, iterate, rollback, expand, investigate, or stop.>
 ```
 
 If `genai_flag=true`, append these additional sections after `## Review Cadence`:
@@ -115,19 +117,19 @@ If `genai_flag=true`, append these additional sections after `## Review Cadence`
 ```markdown
 ## Quality Metrics
 
-<Define AI quality measures such as accuracy, faithfulness, usefulness, correction rate, human acceptance rate, and safety/policy outcomes.>
+<Define AI quality measures such as accuracy, faithfulness, usefulness, correction rate, human acceptance rate, and safety/policy outcomes. Include thresholds, owners, review cadence, and escalation triggers.>
 
 ## Cost per Invocation
 
-<Define how model/API cost should be measured, attributed, monitored, and bounded.>
+<Define how model/API cost should be measured, attributed, monitored, bounded, and reviewed. Include target/limit, owner, and escalation trigger.>
 
 ## Token Usage
 
-<Define token usage measures, segmentation, limits, and signals that indicate context or prompt inefficiency.>
+<Define token usage measures, segmentation, limits, and signals that indicate context or prompt inefficiency. Include owner and expected action when limits are exceeded.>
 
 ## Model Performance Drift Detection
 
-<Describe how quality, latency, cost, and behavior drift should be detected over time.>
+<Describe how quality, latency, cost, and behavior drift should be detected over time, what threshold triggers investigation, and who owns follow-up.>
 ```
 
 If `genai_flag=false`, do not include the GenAI sections. The metrics plan must still be complete using only the base sections.
@@ -137,31 +139,36 @@ If `genai_flag=false`, do not include the GenAI sections. The metrics plan must 
 - Anchor the North Star Metric to the stage-01 Success Hypothesis.
 - Keep metrics measurable and instrumentable. Avoid vague metrics that cannot be collected.
 - Separate leading indicators, outcome metrics, and guardrails clearly.
+- Each metric should include definition, formula, event/source, owner, segment, review cadence, baseline/target if known, and the decision it informs.
+- Trace metrics to PRD goals, QA acceptance criteria, prototype validation questions, risks, or Data & Governance concerns where relevant.
 - Include enough event/property detail for engineering or analytics to implement instrumentation.
 - Make review cadence decision-oriented, not ceremonial.
-- If `genai_flag=true`, include AI quality, cost, token, and drift metrics that reflect the approved PRD and QA plan.
+- If `genai_flag=true`, include AI quality, cost, token, latency, drift, correction/acceptance, safety, and escalation metrics that reflect the approved PRD and QA plan.
 - If `genai_flag=false`, avoid AI-specific metrics or terminology unless explicitly required by upstream artifacts.
 
 # Write outputs
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```text
-   .history/07-metrics-plan.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `07-metrics-plan.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/07-metrics-plan.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `07-metrics-plan.md`** with frontmatter:
+3. **Save to history:**
+   ```text
+   .history/07-metrics-plan.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `07-metrics-plan.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 07-metrics-plan
@@ -178,9 +185,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** - for stage 07, set `status: draft` and `content_hash: null`, and increment `regeneration_count`.
+5. **Update `.meta.yaml`** - for stage 07, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -188,14 +195,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '07', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'standard',
        'prompt_version': '0.1.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```text
    Stage 07 draft written to 07-metrics-plan.md
 
@@ -211,17 +218,20 @@ After generating, do the following in order:
 # Quality bar
 
 - North Star Metric must be measurable and tied to the success hypothesis.
-- Input, Output, and Guardrail Metrics must be distinct and useful for decision-making.
-- Instrumentation Plan must include concrete event/property guidance.
+- Each metric must be measurable, owned, instrumentable, and tied to a decision.
+- Input, Output, and Guardrail Metrics must be distinct, traceable to upstream goals/risks where relevant, and useful for decision-making.
+- Instrumentation Plan must include concrete event/property guidance, source systems, owners, privacy notes, and validation method.
 - Dashboard Sketch must describe usable views, segments, and alerts.
-- Review Cadence must say who reviews what, when, and what actions follow.
-- If `genai_flag=true`, AI quality/cost/token/drift metrics must be practical and traceable to PRD or QA concerns.
+- Review Cadence must say who reviews what, when, what thresholds trigger action, and whether the action is continue, iterate, rollback, expand, investigate, or stop.
+- If `genai_flag=true`, AI quality/cost/token/latency/drift metrics must be practical, owned, thresholded, and traceable to PRD or QA concerns.
 - If `genai_flag=false`, the metrics plan must not include unnecessary AI-specific measurement.
 
 # Self-check before writing
 
 1. Does the North Star Metric reflect the success hypothesis rather than an easy vanity metric?
-2. Are all metrics observable or instrumentable?
-3. Are guardrails strong enough to catch harmful tradeoffs?
-4. Would engineering or analytics know what to instrument first?
-5. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+2. Does every major metric include definition, formula, event/source, owner, segment, cadence, baseline/target if known, and decision use?
+3. Are all metrics observable or instrumentable?
+4. Are guardrails strong enough to catch harmful tradeoffs?
+5. Would engineering or analytics know what to instrument first?
+6. Does Review Cadence define actual decision rules and thresholds?
+7. Does the output match the `genai_flag` path without leaking irrelevant assumptions?

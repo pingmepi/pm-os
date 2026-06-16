@@ -137,7 +137,7 @@ flowchart TD
 |-----------|----------------|
 | `skills/pm-stage-NN-*/SKILL.md` | The stage prompt + the inline bash the agent runs: pre-stage gate, read upstream, generate, write draft, log telemetry. Ships an `agents/openai.yaml` twin for Codex. |
 | `skills/pm-approve` → `scripts/pm_approve.py` | Validates status, computes body `content_hash`, writes approval to frontmatter + `.meta.yaml`, logs `stage_approved`, then shells out to `post-approve.py`. |
-| `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement, `.meta.yaml` (8 stages `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. |
+| `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement, `.meta.yaml` (9 stages `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. |
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count. |
 | `skills/pm-feedback` → `scripts/pm_feedback.py` | Appends a rating/tags/free-text entry to `feedback.jsonl`; logs `feedback_submitted`. |
 | `skills/pm-share` → `scripts/pm_share.py` | Exports approved artifacts to a shareable text bundle. |
@@ -155,7 +155,7 @@ flowchart TD
 
 ## 4. Stage pipeline & state machine
 
-Stages are fixed and linear (`lib/project.py`): **01 brief → 02 scope → 03 prd → 04 design-spec → 05 prototype-brief → 06 qa-plan → 07 metrics-plan → 08 trd (optional)**.
+Stages are fixed (`lib/project.py`): **01 brief → 02 scope → 03 prd → 04 design-spec → 05 prototype-brief → 06 qa-plan → 07 metrics-plan**, followed by optional capstones: **08 trd** and **09 roadmap**. Stage 08 and 09 both depend on stages 01-07. Stage 09 also depends on stage 08 when an approved TRD is available, so roadmap generation and approval can incorporate technical delivery context without making TRD mandatory.
 
 Each stage carries one status. Two off-path states — `edited` (body changed after approval, caught by hash drift) and `stale` (an upstream was re-approved) — sit beside the happy path.
 

@@ -143,9 +143,8 @@ python3 -m pip install --quiet pyyaml jinja2 gitpython
 # --- Clone or update pm-os repo ---
 if [ -d "$INSTALL_DIR/.git" ]; then
   echo "Updating existing installation at $INSTALL_DIR..."
-  git -C "$INSTALL_DIR" fetch --tags --quiet
-  LATEST_TAG=$(git -C "$INSTALL_DIR" describe --tags --abbrev=0 2>/dev/null || echo "main")
-  git -C "$INSTALL_DIR" checkout "$LATEST_TAG" --quiet
+  git -C "$INSTALL_DIR" fetch --tags origin main --quiet
+  git -C "$INSTALL_DIR" checkout main --quiet
 else
   echo "Cloning pm-os to $INSTALL_DIR..."
   git clone --quiet "$PM_OS_REPO" "$INSTALL_DIR"
