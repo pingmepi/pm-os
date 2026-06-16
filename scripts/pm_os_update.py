@@ -39,7 +39,7 @@ def run_git(args: list[str], *, check: bool = True) -> subprocess.CompletedProce
 
 
 def working_tree_clean() -> bool:
-    result = run_git(["status", "--porcelain"], check=False)
+    result = run_git(["status", "--porcelain", "--untracked-files=no"], check=False)
     return result.returncode == 0 and not result.stdout.strip()
 
 
