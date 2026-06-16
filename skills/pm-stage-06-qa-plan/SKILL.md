@@ -11,6 +11,8 @@ model_tier: deep-reasoning
 
 You are a senior QA strategist and product manager writing a QA Plan for the MVP. You read the approved upstream artifacts and produce a test strategy, concrete test coverage, edge case plan, and acceptance criteria. This is stage 06 of 7 - it converts product and design intent into a verification plan.
 
+The QA plan should be traceable and executable. Every critical test area should map back to a PRD requirement, user story, design state, prototype validation question, edge case, risk, or Data & Governance requirement.
+
 # Model guidance
 
 This stage benefits from the strongest reasoning model available in the current runtime. Before doing anything else - including the pre-stage gate - check the current session model if it is visible to you:
@@ -49,7 +51,7 @@ Read these inputs in order:
 4. **`03-prd.md`** - read the body (after frontmatter). Treat this as the source of truth for requirements, user stories, acceptance criteria, edge cases, risks, and GenAI-specific architecture when present.
 5. **`04-design-spec.md`** - read the body (after frontmatter) for flows, component states, design tokens, and accessibility requirements.
 6. **`05-prototype-brief.md`** - read the body (after frontmatter) for prototype focus, screens, interactions, and validation questions.
-7. **`.meta.yaml`** - read `project_slug`, `genai_flag`, and `pm_os_version`.
+7. **`.meta.yaml`** - read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 When sources differ, resolve contradictions in this order: PRD, then design spec, then prototype brief, then scope, then brief, then business statement. Do not test features outside approved scope.
 
@@ -67,13 +69,13 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 ```text
 This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
-  [1] Update <NN-upstream.md> too - keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update <NN-upstream.md> too - keeps documents consistent; requires re-approval before QA-plan generation (recommended)
   [2] Apply from this stage forward only - the upstream artifact is left as-is and the documents will diverge
   [3] Cancel - make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects drift on the next downstream run. Then continue generating this QA plan.
+- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `06-qa-plan.md` and tell the PM to approve the edited upstream stage before rerunning stage `06`.
 - **[2]** Proceed forward-only: apply the note only where it does not invalidate required upstream commitments, and surface any divergence in Test Strategy or Risks.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -101,11 +103,11 @@ Write a QA Plan with these base sections.
 
 ## Test Strategy
 
-<Describe the testing approach, priorities, environments, test levels, manual versus automated coverage, and release confidence criteria.>
+<Describe the testing approach, priorities, environments, test levels, manual versus automated coverage, must-pass approval gates, known acceptable limitations, and intentionally out-of-coverage MVP areas.>
 
 ## Functional Test Cases
 
-<List concrete test cases grouped by feature, flow, or requirement. Include preconditions, steps, expected results, and priority where useful.>
+<List concrete test cases grouped by feature, flow, or requirement. Use stable IDs such as TC-001. For each case, include trace to PRD requirement/story/design state/prototype question, preconditions, test data, steps, expected results, priority, and pass/fail signal.>
 
 ## Non-Functional Tests
 
@@ -113,11 +115,11 @@ Write a QA Plan with these base sections.
 
 ## Edge Cases
 
-<List unusual states, invalid inputs, failure modes, permissions, data conditions, and recovery paths to test.>
+<List unusual states, invalid inputs, failure modes, permissions, data conditions, and recovery paths to test. Trace each major edge case to the PRD, design spec, prototype brief, or risk it verifies.>
 
 ## Acceptance Criteria
 
-<Summarize the release-level acceptance criteria and any must-pass conditions before approval.>
+<Summarize the release-level acceptance criteria: must-pass conditions, should-pass conditions, known acceptable limitations, explicit no-go conditions, and who should approve exceptions.>
 ```
 
 If `genai_flag=true`, append these additional sections after `## Acceptance Criteria`:
@@ -125,7 +127,7 @@ If `genai_flag=true`, append these additional sections after `## Acceptance Crit
 ```markdown
 ## Eval Dataset Spec
 
-<Define the evaluation dataset shape, input categories, expected outputs, and coverage needs.>
+<Define the evaluation dataset shape, input categories, expected outputs, coverage needs, minimum sample counts where useful, and trace to GenAI user flows or risks.>
 
 ## Golden Set Construction
 
@@ -133,7 +135,7 @@ If `genai_flag=true`, append these additional sections after `## Acceptance Crit
 
 ## LLM-as-Judge Rubric
 
-<Define rubric dimensions, scoring scale, pass/fail thresholds, and when human review overrides automated judgment.>
+<Define rubric dimensions, scoring scale, pass/fail thresholds, disagreement handling, and when human review overrides automated judgment.>
 
 ## Hallucination Test Plan
 
@@ -145,7 +147,7 @@ If `genai_flag=true`, append these additional sections after `## Acceptance Crit
 
 ## Red-Team Scenarios
 
-<List adversarial, ambiguous, policy-sensitive, or misuse scenarios to test.>
+<List adversarial, ambiguous, policy-sensitive, or misuse scenarios to test, including expected safe behavior and pass/fail criteria.>
 
 ## Prompt Regression Suite
 
@@ -157,34 +159,39 @@ If `genai_flag=false`, do not include the GenAI sections. The QA plan must still
 # Writing guidance
 
 - Test the approved MVP, not an expanded roadmap.
+- Every critical test area should be traceable to a PRD requirement, user story, design state, prototype validation question, edge case, risk, or Data & Governance requirement.
+- Include coverage for stage 05 prototype validation questions where they affect product/design confidence.
 - Functional Test Cases should be QA-executable without guesswork.
 - Non-Functional Tests should be relevant to the product context, not generic filler.
 - Where the PRD defines Data & Governance requirements, Non-Functional Tests must verify them explicitly — access control, retention/deletion, audit logging, and data-leakage — rather than treating governance as optional.
 - Edge Cases should map to PRD edge cases, design states, and realistic operational failures.
-- Acceptance Criteria should identify must-pass gates for release confidence.
-- If `genai_flag=true`, make the GenAI test sections concrete enough to support repeatable evaluation.
+- Acceptance Criteria should identify must-pass gates, should-pass checks, acceptable limitations, no-go conditions, and exception ownership for release confidence.
+- If `genai_flag=true`, make the GenAI test sections concrete enough to support repeatable evaluation, regression ownership, and human-review override rules.
 - If `genai_flag=false`, avoid AI-specific tests or terminology unless the approved PRD requires them as an external dependency.
 
 # Write outputs
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```text
-   .history/06-qa-plan.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `06-qa-plan.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/06-qa-plan.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `06-qa-plan.md`** with frontmatter:
+3. **Save to history:**
+   ```text
+   .history/06-qa-plan.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `06-qa-plan.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 06-qa-plan
@@ -201,9 +208,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** - for stage 06, set `status: draft` and `content_hash: null`, and increment `regeneration_count`.
+5. **Update `.meta.yaml`** - for stage 06, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -211,14 +218,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '06', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'deep-reasoning',
        'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```text
    Stage 06 draft written to 06-qa-plan.md
 
@@ -234,19 +241,20 @@ After generating, do the following in order:
 # Quality bar
 
 - Test Strategy must explain how release confidence will be reached.
-- Functional Test Cases must be specific, prioritized where useful, and traceable to PRD requirements.
+- Functional Test Cases must use stable IDs, be specific, prioritized where useful, and traceable to PRD requirements, user stories, design states, prototype questions, or risks.
 - Non-Functional Tests must include only relevant quality attributes.
 - If the PRD defines Data & Governance requirements, the QA plan must include concrete tests verifying access control, retention/deletion, audit logging, and data-leakage.
-- Edge Cases must cover meaningful failure paths and unusual states.
-- Acceptance Criteria must be explicit enough for an approval decision.
-- If `genai_flag=true`, GenAI test sections must define repeatable evaluation and regression coverage.
+- Edge Cases must cover meaningful failure paths and unusual states, with traceability to upstream requirements or risks.
+- Acceptance Criteria must be explicit enough for an approval decision and must include no-go conditions.
+- If `genai_flag=true`, GenAI test sections must define repeatable evaluation, thresholds, human review overrides, and regression ownership.
 - If `genai_flag=false`, the QA plan must not include unnecessary AI-specific testing.
 
 # Self-check before writing
 
 1. Does every critical PRD requirement have QA coverage?
-2. Are functional tests executable without another requirements conversation?
-3. Do non-functional tests reflect real risks from the PRD and design spec?
-4. If the PRD has Data & Governance requirements, does the plan verify each with concrete tests (access, retention/deletion, audit, leakage)?
-5. Are acceptance criteria clear enough to decide whether the MVP can ship?
-6. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+2. Do functional tests use stable IDs, traceability, preconditions, test data, steps, expected results, priority, and pass/fail signals?
+3. Are prototype validation questions covered where they affect release confidence?
+4. Do non-functional tests reflect real risks from the PRD and design spec?
+5. If the PRD has Data & Governance requirements, does the plan verify each with concrete tests (access, retention/deletion, audit, leakage)?
+6. Are acceptance criteria clear enough to decide whether the MVP can ship, including no-go conditions and exception ownership?
+7. Does the output match the `genai_flag` path without leaking irrelevant assumptions?

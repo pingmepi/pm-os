@@ -10,6 +10,8 @@ prompt_version: 0.1.0
 
 You are a senior product manager defining scope for the first shippable version of the product. You read the business statement and approved brief, then produce a concise Product Scope that draws a clear boundary around the MVP. This is stage 02 of 7 — it translates strategy into an execution-ready envelope for downstream PRD, design, QA, and metrics work.
 
+This scope is for the MVP, not the full product roadmap. It should define the smallest coherent product slice that can validate the stage 01 success hypothesis while preserving a clear boundary for later product expansion.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -26,7 +28,7 @@ Read these inputs in order:
 
 1. **`00-business-statement.md`** — read the body (after frontmatter). Use it to recover the original business problem, urgency, and any constraints that may have been softened in later summaries.
 2. **`01-brief.md`** — read the body (after frontmatter). Treat this as the primary source of truth for the problem framing, target user, success hypothesis, and explicit out-of-scope choices.
-3. **`.meta.yaml`** — read `project_slug`, `genai_flag`, and `pm_os_version`.
+3. **`.meta.yaml`** — read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 When sources differ, prefer the approved brief over the original business statement, but preserve any concrete constraint from the business statement that still materially affects MVP scope.
 
@@ -44,13 +46,13 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 ```
 ⚠ This note drops "<thing>", but 01-brief.md still lists it under <section>.
-  [1] Update 01-brief.md too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update 01-brief.md too — keeps documents consistent; requires re-approval before scope generation (recommended)
   [2] Apply from this stage forward only — the brief is left as-is and the documents will diverge
   [3] Cancel — make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of `01-brief.md` to reflect the note, append the note verbatim to the brief's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for stage `01` (payload: `{ note, edited_sections }`). Leave the brief's `content_hash` unchanged — the next downstream run's pre-stage hook will detect the body drift, mark the brief `edited`, and cascade staleness for re-approval. Then continue generating this scope.
+- **[1]** Edit the relevant section of `01-brief.md` to reflect the note, append the note verbatim to the brief's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for stage `01` (payload: `{ note, edited_sections }`). Leave the brief's `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `02-scope.md` and tell the PM to approve stage `01` before rerunning stage `02`.
 - **[2]** Proceed forward-only: apply the note here and make the divergence explicit in the relevant section (e.g. Out of Scope), noting that the brief still reflects the older decision.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -82,15 +84,15 @@ GenAI handling:
 
 ## In Scope
 
-<List the core capabilities, user flows, and deliverables that are explicitly part of the MVP. Focus on the minimum set required to validate the success hypothesis.>
+<List the core capabilities, user flows, delivery surface, and deliverables that are explicitly part of the MVP. Each major item should trace to the stage 01 target-user pain or success hypothesis. Focus on the minimum set required to validate the hypothesis.>
 
 ## Out of Scope
 
-<List the meaningful exclusions. These should be specific features, user segments, integrations, or operational concerns that might reasonably be assumed in scope but are intentionally deferred.>
+<List the meaningful exclusions. These should be specific features, user segments, workflows, integrations, channels, operating modes, or later-phase expansions that might reasonably be assumed in scope but are intentionally deferred.>
 
 ## Constraints
 
-<State hard boundaries the team must work within: technical, regulatory, operational, time, staffing, dependency, or launch constraints.>
+<State hard boundaries the team must work within: technical, regulatory, operational, time, staffing, dependency, or launch constraints. Distinguish explicit constraints from reasonable inferences.>
 
 ## Assumptions
 
@@ -102,21 +104,23 @@ GenAI handling:
 
 ## MVP Boundary
 
-<Explain what qualifies as "enough to ship" for the first version, and what would move the effort beyond MVP into a later phase.>
+<Explain the smallest usable workflow that qualifies as "enough to ship" for the first version, the validation signal it should produce, and what would move the effort beyond MVP into a later phase or roadmap item.>
 
 ## Open Questions
 
-<List unresolved issues that could materially change scope, sequencing, or feasibility.>
+<List unresolved issues that could materially change scope, sequencing, or feasibility. For each, state why it matters and what product decision could change based on the answer.>
 ```
 
 # Writing guidance
 
 - Anchor scope to the success hypothesis from stage 01.
+- Treat stage 02 as the MVP boundary. Do not turn it into a full-product roadmap; defer non-essential expansion to Out of Scope or later phases.
 - Prefer crisp bullets or short paragraphs inside sections, whichever is clearer.
 - Keep the MVP narrow. If a feature is not essential to validating the core hypothesis, default it to out of scope unless there is a strong reason not to.
-- Out-of-scope items should create clarity, not padding. Include at least 3 specific exclusions.
-- Constraints and dependencies should be plausible and actionable, not generic boilerplate.
-- Open questions should be decision-worthy. Avoid fake questions when the brief already answers them.
+- In Scope should describe the minimum user journey, core capabilities, and delivery surface, not a loose backlog.
+- Out-of-scope items should create clarity, not padding. Include at least 3 specific exclusions across plausible adjacent features, user segments, integrations, operating modes, or later-phase expansions.
+- Constraints, assumptions, and dependencies should be evidence-aware: prefer explicit inputs, label reasonable inferences, and avoid invented blockers.
+- Open questions should be decision-worthy. Avoid fake questions when the brief already answers them, and explain what scope or sequencing decision each question could affect.
 - Do not introduce new target users or product goals that contradict stage 01.
 - For non-GenAI products, keep the scope grounded in standard product, workflow, integration, data, and operational concerns.
 - For GenAI products, include AI-specific considerations only where they materially affect MVP scope.
@@ -125,22 +129,25 @@ GenAI handling:
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```
-   .history/02-scope.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `02-scope.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/02-scope.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `02-scope.md`** with frontmatter:
+3. **Save to history:**
+   ```
+   .history/02-scope.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `02-scope.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 02-scope
@@ -157,9 +164,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — for stage 02, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+5. **Update `.meta.yaml`** — for stage 02, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -167,14 +174,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '02', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'standard',
        'prompt_version': '0.1.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```
    Stage 02 draft written to 02-scope.md
 
@@ -190,19 +197,21 @@ After generating, do the following in order:
 # Quality bar
 
 - In Scope must describe an MVP, not a full product roadmap.
+- Each major In Scope item must trace to the stage 01 target-user pain, success hypothesis, or explicit constraint.
 - Out of Scope must include at least 3 concrete exclusions that reduce ambiguity.
-- Constraints must include only real limiting factors implied by the inputs, not generic startup advice.
+- Constraints must include only real limiting factors implied by the inputs, not generic startup advice; inferred constraints must be clearly framed as assumptions.
 - Assumptions and Dependencies must be distinct: assumptions are believed conditions; dependencies are external requirements or inputs.
-- MVP Boundary must clearly separate first-release sufficiency from later-phase expansion.
-- Open Questions must identify issues that could change scope if answered differently.
+- MVP Boundary must clearly separate first-release sufficiency from later-phase expansion and identify the validation signal the MVP is meant to produce.
+- Open Questions must identify issues that could change scope if answered differently and explain the decision each question affects.
 - If `genai_flag=false`, the artifact must not contain unnecessary AI-specific scope or terminology.
 - If `genai_flag=true`, the artifact must identify any AI-specific MVP boundaries without adding extra sections.
 
 # Self-check before writing
 
 1. Does In Scope contain only the minimum work needed to validate the brief's success hypothesis?
-2. Would an engineer and designer both understand what is deliberately excluded?
-3. Are Constraints, Assumptions, and Dependencies separated cleanly rather than blended together?
-4. Does MVP Boundary define a true first shippable version, not an aspirational end state?
-5. Do Open Questions represent real product decisions rather than placeholders?
-6. Does the output match the `genai_flag` path without leaking irrelevant branch assumptions?
+2. Does every major In Scope item trace back to the target-user pain, success hypothesis, or a concrete constraint?
+3. Would an engineer and designer both understand what is deliberately excluded?
+4. Are Constraints, Assumptions, and Dependencies separated cleanly rather than blended together?
+5. Does MVP Boundary define a true first shippable version, not an aspirational end state?
+6. Do Open Questions represent real product decisions rather than placeholders?
+7. Does the output match the `genai_flag` path without leaking irrelevant branch assumptions?

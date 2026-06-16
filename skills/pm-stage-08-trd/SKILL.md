@@ -13,6 +13,8 @@ You are a senior staff engineer / tech lead writing a delivery-ready Technical R
 
 This stage demands deep reasoning. Favor precision, internal consistency, and explicit trade-offs over speed.
 
+The TRD should be a build-ready engineering contract, not a high-level architecture narrative. Major technical requirements and decisions should be traceable to approved scope, PRD requirements, QA coverage, metrics, or explicit technical constraints.
+
 # Model guidance
 
 This stage benefits from the strongest reasoning model available in the current runtime. Before doing anything else — including the pre-stage gate — check the current session model if it is visible to you:
@@ -53,7 +55,7 @@ Read these inputs in order; each is the source of truth for its concern:
 6. **`05-prototype-brief.md`** — what the prototype demonstrates and the questions it answers.
 7. **`06-qa-plan.md`** — test strategy and cases the implementation must be verifiable against.
 8. **`07-metrics-plan.md`** — metrics and instrumentation the system must emit.
-9. **`.meta.yaml`** — read `project_slug`, `genai_flag`, and `pm_os_version`.
+9. **`.meta.yaml`** — read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 The TRD does **not** re-open product decisions. Treat scope and PRD as binding. If a technical reality makes a product decision infeasible, surface it as an Open Technical Question or a conflict (see Steering notes), do not silently override it.
 
@@ -71,13 +73,13 @@ For each conflicting note, stop before writing and ask how to reconcile, naming 
 
 ```
 ⚠ This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
-  [1] Update <NN-upstream.md> too — keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update <NN-upstream.md> too — keeps documents consistent; requires re-approval before TRD generation (recommended)
   [2] Apply from this stage forward only — the upstream artifact is left as-is and the documents will diverge
   [3] Cancel — make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of the named upstream artifact, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects the drift, marks it `edited`, and cascades staleness for re-approval. Then continue generating this TRD.
+- **[1]** Edit the relevant section of the named upstream artifact, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `08-trd.md` and tell the PM to approve the edited upstream stage before rerunning stage `08`.
 - **[2]** Proceed forward-only and surface the divergence in Technical Risks or Open Technical Questions, noting the upstream artifact still reflects the older decision.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -105,11 +107,11 @@ Write a Technical Requirements Document with these base sections.
 
 ## System Context
 
-<What is being built, the boundary of this system, and what it talks to. Tie back to the scoped MVP.>
+<What is being built, the boundary of this system, what it talks to, and what is explicitly outside the system boundary. Tie back to the scoped MVP and approved PRD.>
 
 ## Architecture
 
-<The major components, their responsibilities, and how they interact. Describe the structure in words (and ASCII diagram if helpful). Keep it implementable.>
+<The major components, their responsibilities, data ownership, trust boundaries, synchronous/asynchronous boundaries, failure modes, and how they interact. Describe the structure in words and include an ASCII diagram if helpful. Keep it implementable.>
 
 ## Data Model
 
@@ -121,7 +123,7 @@ Write a Technical Requirements Document with these base sections.
 
 ## API / Interface Contracts
 
-<The interfaces between components and to the outside: endpoints or function signatures, request/response shapes, error semantics, auth.>
+<The interfaces between components and to the outside: endpoints or function signatures, request/response shapes, error semantics, auth, idempotency, rate limits, versioning, and backward compatibility where relevant.>
 
 ## Key Technical Flows
 
@@ -129,7 +131,7 @@ Write a Technical Requirements Document with these base sections.
 
 ## Tech Stack & Rationale
 
-<Languages, frameworks, datastores, and major libraries — with a one-line rationale tied to the requirements, not preference.>
+<Languages, frameworks, datastores, and major libraries — with a one-line rationale tied to requirements, constraints, QA, metrics, or operational needs, not preference.>
 
 ## Non-Functional Implementation
 
@@ -149,7 +151,7 @@ Write a Technical Requirements Document with these base sections.
 
 ## Rollout, Migration & Deployment
 
-<How this ships: environments, migration/backfill needs, feature-flagging, rollback strategy, and any phased rollout.>
+<How this ships: environments, migration/backfill needs, feature flags, rollback strategy, observability checks, go/no-go criteria tied to QA and metrics, and any phased rollout.>
 
 ## Open Technical Questions
 
@@ -161,15 +163,15 @@ If `genai_flag=true`, append these additional sections after `## Open Technical 
 ```markdown
 ## Model Serving & Selection
 
-<Which models, how they are accessed/served (hosted API vs self-hosted), versioning, and the operational characteristics that drove the choice.>
+<Which models, how they are accessed/served (hosted API vs self-hosted), versioning, provider/data-retention assumptions, and the operational characteristics that drove the choice.>
 
 ## Prompt / Agent Architecture (Implementation)
 
-<The concrete orchestration: prompt templates, agent/tool loop, state handling, and control flow — at the level an engineer would build from.>
+<The concrete orchestration: prompt templates, prompt/version management, agent/tool loop, state handling, control flow, and human-review or escalation paths — at the level an engineer would build from.>
 
 ## Tool / Function Implementation
 
-<The tools/functions exposed to the model: signatures, side effects, permissions, and how their outputs are validated before use.>
+<The tools/functions exposed to the model: signatures, side effects, permissions, authorization checks, and how their outputs are validated before use.>
 
 ## Context & Retrieval Engineering
 
@@ -177,7 +179,7 @@ If `genai_flag=true`, append these additional sections after `## Open Technical 
 
 ## Evaluation & Guardrail Implementation
 
-<How quality, safety, and faithfulness are enforced in the running system: input/output validation, guardrails, eval hooks, and how the stage-06 QA eval plan is wired in.>
+<How quality, safety, and faithfulness are enforced in the running system: input/output validation, guardrails, eval hooks wired to the stage-06 QA eval plan, guardrail failure behavior, and monitoring/escalation.>
 
 ## Inference Cost & Latency Engineering
 
@@ -192,34 +194,42 @@ The TRD is the technical home: go deeper here than the PRD did. For GenAI produc
 
 - Treat scope and PRD as binding. The TRD designs how to build the approved product, not a different one.
 - Every architectural choice should trace to a requirement (functional, NFR target, QA, or metrics) — not to preference.
+- Use stable IDs for major technical requirements and decisions where useful, such as `TR-001` or `ADR-001`, so implementation and review can trace them.
 - Prefer concrete, implementable detail over abstraction. An engineer should be able to start building from this.
+- API/interface contracts should include request/response shape, auth, errors, idempotency, rate limits, versioning, and compatibility where relevant.
 - "Trade-offs & Alternatives Considered" must show real alternatives and reasoning, not a single foregone choice.
 - Map the highest-value PRD user stories to Key Technical Flows so coverage is visible.
 - Non-Functional Implementation must reference the specific PRD NFR target each choice satisfies.
 - Data Governance & Compliance Implementation must trace each control back to a Data & Governance requirement in the PRD and name where sensitive data flows — including to any third-party model provider.
+- Rollout, Migration & Deployment must define feature flags, rollback, observability checks, and go/no-go criteria tied to stage-06 QA and stage-07 metrics.
+- The TRD should state how testability, logging, dashboards, and metric events are supported by the implementation.
 - For GenAI products, the extra sections must be operational and buildable, not generic AI commentary.
+- For GenAI products, specify provider/data-retention assumptions, eval hooks, guardrail failure behavior, prompt/version management, tool permissions, cost/latency controls, and human-review/escalation paths where relevant.
 - For non-GenAI products, do not introduce model/prompt/agent/retrieval concerns.
 
 # Write outputs
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```
-   .history/08-trd.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `08-trd.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/08-trd.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `08-trd.md`** with frontmatter:
+3. **Save to history:**
+   ```
+   .history/08-trd.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `08-trd.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 08-trd
@@ -236,9 +246,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** — for stage 08, set `status: draft` and `content_hash: null`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly. Leave the stage's `optional` flag as-is.)
+5. **Update `.meta.yaml`** — for stage 08, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly. Leave the stage's `optional` flag as-is.)
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -246,14 +256,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '08', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'deep-reasoning',
        'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```
    Stage 08 (TRD) draft written to 08-trd.md
 
@@ -270,10 +280,13 @@ After generating, do the following in order:
 
 - The TRD must implement the approved scope and PRD without expanding or re-scoping them.
 - Architecture and Data Model must be concrete enough for an engineer to begin implementation.
+- Major technical requirements and decisions should use stable IDs where helpful and trace to scope, PRD, QA, metrics, or explicit constraints.
+- API / Interface Contracts must include auth, error semantics, idempotency, rate limits, versioning, and compatibility where relevant.
 - Non-Functional Implementation must tie each choice to a specific PRD NFR target.
 - Data Governance & Compliance Implementation must specify concrete controls (access, encryption, audit, retention/deletion) tied to PRD governance requirements, and for GenAI must state what data leaves to third-party model providers.
 - Trade-offs & Alternatives Considered must contain genuine alternatives and reasoning.
 - Technical Risks must be engineering-specific and paired with mitigations, not truisms.
+- Rollout, Migration & Deployment must include feature flags, rollback, observability checks, and QA/metrics-linked go/no-go criteria.
 - If `genai_flag=true`, the GenAI sections must specify a buildable architecture and validation approach, going deeper than the PRD.
 - If `genai_flag=false`, the TRD must use only the base sections and contain no model/prompt/agent/retrieval requirements.
 
@@ -281,9 +294,11 @@ After generating, do the following in order:
 
 1. Does every major technical choice trace to a requirement in scope, PRD, QA, or metrics?
 2. Could an engineer start building from the Architecture, Data Model, and API contracts without re-deriving the product?
-3. Does Non-Functional Implementation reference the specific NFR targets it satisfies?
-4. Does Data Governance & Compliance Implementation enforce every PRD Data & Governance requirement with a concrete control, and (for GenAI) state what data leaves to third-party providers?
-5. Do the Trade-offs show real alternatives, not a single foregone conclusion?
-6. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
-7. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
-8. If `genai_flag=false`, is the TRD complete without any AI-specific content?
+3. Are API/interface contracts concrete enough to implement and test?
+4. Does Non-Functional Implementation reference the specific NFR targets it satisfies?
+5. Does Data Governance & Compliance Implementation enforce every PRD Data & Governance requirement with a concrete control, and (for GenAI) state what data leaves to third-party providers?
+6. Do rollout and deployment plans define feature flags, rollback, observability, and go/no-go criteria tied to QA and metrics?
+7. Do the Trade-offs show real alternatives, not a single foregone conclusion?
+8. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
+9. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
+10. If `genai_flag=false`, is the TRD complete without any AI-specific content?

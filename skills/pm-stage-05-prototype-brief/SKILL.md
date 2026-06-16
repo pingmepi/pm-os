@@ -10,6 +10,8 @@ prompt_version: 0.1.0
 
 You are a senior product manager and prototyping lead writing a focused Prototype Brief. You read the approved design spec and upstream product artifacts, then define what should be prototyped, at what fidelity, which screens/interactions matter, and what questions the prototype should answer. This is stage 05 of 7 - it turns the design spec into a concrete validation and communication artifact.
 
+The prototype brief should focus the approved MVP design into the smallest useful prototype slice. Every screen and interaction should trace back to the approved design spec, PRD user story, functional requirement, or high-risk validation question.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -29,7 +31,7 @@ Read these inputs in order:
 3. **`02-scope.md`** - read the body (after frontmatter) for MVP boundary and exclusions.
 4. **`03-prd.md`** - read the body (after frontmatter) for user stories, requirements, and risks.
 5. **`04-design-spec.md`** - read the body (after frontmatter). Treat this as the source of truth for screens, flows, components, tokens, and accessibility requirements.
-6. **`.meta.yaml`** - read `project_slug`, `genai_flag`, and `pm_os_version`.
+6. **`.meta.yaml`** - read `project_slug`, `project_name`, `genai_flag`, and `pm_os_version`. If `project_name` is missing, derive a readable project name from `project_slug`.
 
 When sources differ, resolve contradictions in this order: design spec, then PRD, then scope, then brief, then business statement. Do not prototype features outside the approved MVP boundary.
 
@@ -47,13 +49,13 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 ```text
 This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
-  [1] Update <NN-upstream.md> too - keeps documents consistent; marks downstream stages stale for re-approval (recommended)
+  [1] Update <NN-upstream.md> too - keeps documents consistent; requires re-approval before prototype-brief generation (recommended)
   [2] Apply from this stage forward only - the upstream artifact is left as-is and the documents will diverge
   [3] Cancel - make no changes
 ```
 
 Handle the choice:
-- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the pre-stage hook detects drift on the next downstream run. Then continue generating this prototype brief.
+- **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `05-prototype-brief.md` and tell the PM to approve the edited upstream stage before rerunning stage `05`.
 - **[2]** Proceed forward-only: apply the note only within this prototype brief and clearly note any divergence in the relevant section.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -85,7 +87,7 @@ GenAI handling:
 
 ## What to Prototype
 
-<Describe the product slice, user journey, and MVP behavior the prototype should represent.>
+<Describe the bounded product slice, user journey, MVP behavior, and design/PRD source this prototype should represent. State why this slice is the right one to prototype first.>
 
 ## Fidelity Level
 
@@ -93,17 +95,17 @@ GenAI handling:
 
 ## Screens to Include
 
-<List the screens, modals, panels, empty states, and error states needed for the prototype.>
+<Use bullets or a numbered list. List the screens, modals, panels, empty states, and error states needed for the prototype. Each item should follow: Screen name - purpose; primary content; key controls; states to show; source design/PRD reference.>
 
 For each screen, include enough layout and state detail for the renderer to create a lo-fi HTML wireframe: screen purpose, primary content area, controls, empty/error/loading states, and what the user should notice first.
 
 ## Interactions to Demonstrate
 
-<List the interactions, transitions, decisions, state changes, and input/output behavior the prototype should make tangible.>
+<Use bullets or a numbered list. List the interactions, transitions, decisions, state changes, and input/output behavior the prototype should make tangible. Each item should name the starting screen/state, user action, system response, resulting state, and source design/PRD reference.>
 
 ## Questions the Prototype Should Answer
 
-<List the product, usability, workflow, feasibility, or stakeholder-alignment questions this prototype should help answer.>
+<Use bullets or a numbered list. List the product, usability, workflow, feasibility, or stakeholder-alignment questions this prototype should help answer. Each question should map to a screen or interaction and state what evidence would answer it.>
 
 ## Non-Goals for Prototype
 
@@ -115,7 +117,9 @@ For each screen, include enough layout and state detail for the renderer to crea
 - Prototype the smallest slice that can answer the highest-risk product and design questions.
 - Anchor screens and interactions to the approved design spec and PRD.
 - Include enough states to make the prototype useful, but avoid turning it into full product delivery.
-- Write screen and interaction bullets as renderer-friendly inputs. Prefer concrete screen names, component names, and state labels over abstract descriptions.
+- Write screen, interaction, and question sections as concise bullets or numbered lists because the HTML renderer extracts list items from these sections.
+- Prefer concrete screen names, component names, state labels, and source references over abstract descriptions.
+- Include only prototype-relevant states: enough to validate the experience, not every possible production state.
 - Make non-goals explicit so reviewers do not mistake omissions for forgotten requirements.
 - If `genai_flag=true`, include AI-specific states only if they are necessary to validate the intended experience.
 - If `genai_flag=false`, avoid AI-shaped prototype assumptions.
@@ -124,22 +128,25 @@ For each screen, include enough layout and state detail for the renderer to crea
 
 After generating, do the following in order:
 
-1. **Save to history:**
-   ```text
-   .history/05-prototype-brief.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full content (frontmatter + body) to this file.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `05-prototype-brief.md` so the generated draft and history snapshot match.
 
-2. **Compute generated_hash:**
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from hashing import hash_artifact_body
-   print(hash_artifact_body('.history/05-prototype-brief.<timestamp>.generated.md'))
+   print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
    ```
 
-3. **Write `05-prototype-brief.md`** with frontmatter:
+3. **Save to history:**
+   ```text
+   .history/05-prototype-brief.<ISO8601-timestamp>.generated.md
+   ```
+   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
+
+4. **Write `05-prototype-brief.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 05-prototype-brief
@@ -156,9 +163,9 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
-4. **Update `.meta.yaml`** - for stage 05, set `status: draft` and `content_hash: null`, and increment `regeneration_count`.
+5. **Update `.meta.yaml`** - for stage 05, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
 
-5. **Log `stage_generated` event:**
+6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -166,14 +173,14 @@ After generating, do the following in order:
    from telemetry import log
    log('stage_generated', Path('.'), '05', {
        'generated_hash': '<hash>',
-       'model': '<the model id you are currently running as>',
+       'model_tier': 'standard',
        'prompt_version': '0.1.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-6. **Print to PM:**
+7. **Print to PM:**
    ```text
    Stage 05 draft written to 05-prototype-brief.md
 
@@ -190,9 +197,9 @@ After generating, do the following in order:
 
 - What to Prototype must describe a bounded product slice, not the entire product.
 - Fidelity Level must be justified by the questions the prototype needs to answer.
-- Screens to Include must map to the approved design spec and critical user flows.
-- Interactions to Demonstrate must include meaningful states, not just page-to-page navigation.
-- Questions the Prototype Should Answer must be specific enough to evaluate after review.
+- Screens to Include must be list-form, renderer-friendly, and map to the approved design spec and critical user flows.
+- Interactions to Demonstrate must be list-form and include meaningful states, not just page-to-page navigation.
+- Questions the Prototype Should Answer must be specific enough to evaluate after review and must map to a screen or interaction.
 - Non-Goals for Prototype must protect the prototype from scope creep.
 - The output must follow the `genai_flag` path cleanly.
 
@@ -200,6 +207,9 @@ After generating, do the following in order:
 
 1. Does this prototype brief focus on the highest-risk or highest-value flows?
 2. Are the included screens and interactions traceable to the design spec and PRD?
-3. Are prototype non-goals explicit enough to prevent overbuilding?
-4. Would a designer or frontend engineer understand what to create first?
-5. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+3. Are Screens to Include, Interactions to Demonstrate, and Questions the Prototype Should Answer written as bullets or numbered lists?
+4. Does each screen item include purpose, primary content, controls, states, and source reference?
+5. Does each prototype question define what evidence would answer it?
+6. Are prototype non-goals explicit enough to prevent overbuilding?
+7. Would a designer or frontend engineer understand what to create first?
+8. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
