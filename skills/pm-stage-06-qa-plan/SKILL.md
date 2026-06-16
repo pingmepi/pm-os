@@ -3,7 +3,7 @@ name: pm-stage-06-qa-plan
 description: Generate the QA Plan for stage 06 from the approved PRD, design spec, and prototype brief.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md"]
 writes: "06-qa-plan.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 model_tier: deep-reasoning
 ---
 
@@ -109,7 +109,7 @@ Write a QA Plan with these base sections.
 
 ## Non-Functional Tests
 
-<List tests for performance, reliability, accessibility, privacy/security, compatibility, observability, and operational readiness where relevant.>
+<List tests for performance, reliability, accessibility, privacy/security, compatibility, observability, and operational readiness where relevant. Where the PRD's Data & Governance section defines requirements, include explicit verification: access-control/authorization tests, data retention and deletion, audit-log capture, and data-leakage checks (including data sent to third-party services or model providers).>
 
 ## Edge Cases
 
@@ -159,6 +159,7 @@ If `genai_flag=false`, do not include the GenAI sections. The QA plan must still
 - Test the approved MVP, not an expanded roadmap.
 - Functional Test Cases should be QA-executable without guesswork.
 - Non-Functional Tests should be relevant to the product context, not generic filler.
+- Where the PRD defines Data & Governance requirements, Non-Functional Tests must verify them explicitly — access control, retention/deletion, audit logging, and data-leakage — rather than treating governance as optional.
 - Edge Cases should map to PRD edge cases, design states, and realistic operational failures.
 - Acceptance Criteria should identify must-pass gates for release confidence.
 - If `genai_flag=true`, make the GenAI test sections concrete enough to support repeatable evaluation.
@@ -211,7 +212,7 @@ After generating, do the following in order:
    log('stage_generated', Path('.'), '06', {
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
@@ -235,6 +236,7 @@ After generating, do the following in order:
 - Test Strategy must explain how release confidence will be reached.
 - Functional Test Cases must be specific, prioritized where useful, and traceable to PRD requirements.
 - Non-Functional Tests must include only relevant quality attributes.
+- If the PRD defines Data & Governance requirements, the QA plan must include concrete tests verifying access control, retention/deletion, audit logging, and data-leakage.
 - Edge Cases must cover meaningful failure paths and unusual states.
 - Acceptance Criteria must be explicit enough for an approval decision.
 - If `genai_flag=true`, GenAI test sections must define repeatable evaluation and regression coverage.
@@ -245,5 +247,6 @@ After generating, do the following in order:
 1. Does every critical PRD requirement have QA coverage?
 2. Are functional tests executable without another requirements conversation?
 3. Do non-functional tests reflect real risks from the PRD and design spec?
-4. Are acceptance criteria clear enough to decide whether the MVP can ship?
-5. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+4. If the PRD has Data & Governance requirements, does the plan verify each with concrete tests (access, retention/deletion, audit, leakage)?
+5. Are acceptance criteria clear enough to decide whether the MVP can ship?
+6. Does the output match the `genai_flag` path without leaking irrelevant assumptions?

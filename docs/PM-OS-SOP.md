@@ -36,6 +36,7 @@ No stage progresses autonomously. Every gate requires explicit PM approval.
 ### What PM-OS is not
 - Not a replacement for product judgment. It drafts and recommends; the PM decides.
 - Not a system of record for live execution (use Jira/Linear/Asana for that).
+- Future Jira/Linear/GitHub integrations should consume and link those systems; they should not make PM-OS the execution tracker.
 - Not a place for confidential customer data, PHI, PII, secrets, or credentials.
 - Not a sign-off authority. Approving a stage in PM-OS records *your* decision; it does not substitute for whatever formal sign-off your org requires.
 
@@ -56,8 +57,8 @@ Use PM-OS when **most** of the following are true:
 **In v1**, the entry point is always a new business statement. Later phases will add entry points for existing PRDs, repos, Jira/Linear tickets, QA bugs, and existing-product enhancement work — but all will follow the same PM-approval model.
 
 ### When **not** to use it (or use a lighter touch)
-- **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need an eight-stage pipeline. The ceremony will cost more than it returns.
-- **Decisions already made and documented elsewhere** — don't regenerate a PRD that already exists and is being executed against; you'll create a competing source of truth.
+- **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need the full stage pipeline. The ceremony will cost more than it returns.
+- **Decisions already made and documented elsewhere (v1)** — don't regenerate a PRD that already exists and is being executed against; you'll create a competing source of truth. Once import/ingest exists, adopt the existing artifact instead.
 - **Inputs you cannot sanitize** — if the only useful framing requires PHI/PII/secrets, stop and resolve the data-handling question first (see §7).
 - **Live incident or execution tracking** — PM-OS defines product intent and coordinates lifecycle state; it is not a ticket tracker or status board.
 
@@ -84,7 +85,7 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 - **Reviewer** reads the draft and gives the go/no-go. Approval should follow review, not precede it.
 - One person can hold multiple hats on a small project — but the *roles* should still be conscious choices, not skipped.
 
-**Deep-reasoning stages (03, 06, 08)** carry the most downstream weight (requirements, quality bar, technical commitments). Run these on your strongest available reasoning model — Opus for Claude users, a high/deep reasoning model for Codex users — and give them a more careful human review.
+**Deep-reasoning stages (03, 06, 08)** carry the most downstream weight (requirements, quality bar, technical commitments). They recommend your strongest available reasoning model. This is advisory, not a hard gate: if the runtime can tell it is on a lightweight model, switch before generating; if the model is unknown, proceed with a note and review carefully.
 
 ---
 
@@ -95,11 +96,25 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 ### 4.1 One-time setup (per machine)
 ```bash
 # Claude
-./install.sh --runtime claude
+./install.sh --runtime claude --pm-user <id> --feedback-repo <repo-url>
+
 # Codex
-./install.sh --runtime codex
+./install.sh --runtime codex --pm-user <id> --feedback-repo <repo-url>
+
+# Optional: choose a non-default project directory
+./install.sh --runtime codex --pm-user <id> --feedback-repo <repo-url> --projects-dir ~/pm-projects
 ```
-The `--runtime` argument is required so skills install into the correct agent directory.
+The `--runtime` argument is required so skills install into the correct agent directory. For team installs, prefer explicit config flags over accepting prompts:
+- `--pm-user` becomes the teammate identity stored in `~/.pm-os/config.yaml` and used in feedback paths such as `telemetry/<pm_user>/<project-slug>/`.
+- Each teammate should use a unique, stable PM identifier.
+- `--feedback-repo` should point to the team's approved feedback repository, not a personal placeholder.
+- `--projects-dir` is optional, but should be standardized if the team wants consistent local paths.
+
+Run the verifier after setup:
+```bash
+python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude
+python3 ~/.pm-os/scripts/pm_os_verify.py --runtime codex
+```
 
 ### 4.2 Start a project
 ```text
@@ -150,6 +165,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 - **Re-scoping an existing product.** Feed the new framing as the business statement and let the pipeline force explicit scope and requirements decisions.
 - **Cross-functional alignment.** When design, eng, QA, and data keep working off different mental models, the approved chain becomes the single shared reference.
 - **GenAI product definition.** With `genai_flag` set, stages emit GenAI-specific sections and rationale — useful when the product's value depends on model behavior.
+- **Regulated or data-sensitive products.** The PRD carries a required **Data & Governance** section (data, sensitivity, retention, access, compliance regime); the TRD's **Data Governance & Compliance Implementation** specifies the enforcing controls, and the QA plan verifies them — so PHI/PII handling and audit/retention obligations are defined before build, not after.
 - **Onboarding a new PM to a domain.** The staged pipeline is a teaching scaffold: it makes the *shape* of a complete product definition visible.
 - **Pre-build technical alignment.** The optional TRD (08) translates the approved product definition into technical requirements without re-litigating product decisions.
 
@@ -164,9 +180,9 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | **Silently overriding an approved upstream artifact** | The "source of truth" quietly forks; readers can't trust the chain. | Surface the conflict; re-open and re-approve the upstream stage if the decision changed. |
 | **Treating a draft as a decision** | Stakeholders act on something that wasn't finalized. | Share/cite only approved artifacts; label drafts as drafts. |
 | **Putting confidential data in prompts or artifacts** | PHI/PII/secrets end up in local files and possibly in pushed telemetry/feedback. | Sanitize inputs first (§7). If you can't, don't proceed. |
-| **Skipping deep-reasoning model on 03/06/08** | The highest-leverage stages get under-reasoned output. | Use Opus (Claude) or a high/deep reasoning model (Codex) for these stages. |
+| **Using a lightweight model on 03/06/08** | The highest-leverage stages get under-reasoned output. | Prefer the strongest available reasoning model; if the model is unknown, proceed with a note and careful review. |
 | **Running stage helpers outside the project directory** | Helpers act on the wrong (or no) project state. | Run PM-OS commands from inside the project directory unless the skill says otherwise. |
-| **Maintaining a parallel PRD elsewhere** | Two sources of truth diverge; nobody knows which is current. | Pick one home. If PM-OS owns it, link to it from your tracker rather than copying. |
+| **Maintaining a parallel PRD elsewhere** | Two sources of truth diverge; nobody knows which is current. | Pick one home. If PM-OS owns it, link to it from your tracker rather than copying; once import exists, ingest the external artifact instead. |
 | **Editing `.meta.yaml` by hand** | Corrupts the state machine (status, hashes, approvals). | Let the helper commands manage state; edit Markdown bodies, not the meta file. |
 | **Ignoring `pm-status` before resuming** | You regenerate or approve the wrong stage. | Run `pm-status` first to ground yourself in the current state. |
 
@@ -185,7 +201,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 
 | Action | Claude | Codex |
 |---|---|---|
-| Install | `./install.sh --runtime claude` | `./install.sh --runtime codex` |
+| Install | `./install.sh --runtime claude --pm-user <id> --feedback-repo <url>` | `./install.sh --runtime codex --pm-user <id> --feedback-repo <url>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
 | Approve stage *N* | `/pm-approve 0N` | `$pm-approve 0N` |
@@ -195,6 +211,6 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
 **Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional).
-`*` = deep-reasoning stage; run on the strongest available reasoning model and review carefully.
+`*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully.
 
 **The one rule to remember:** *generate, review, approve — in order, one stage at a time, on sanitized inputs.*

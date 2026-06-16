@@ -3,7 +3,7 @@ name: pm-stage-03-prd
 description: Generate the Product Requirements Document for stage 03 from the approved brief and scope.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md"]
 writes: "03-prd.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 model_tier: deep-reasoning
 ---
 
@@ -118,6 +118,10 @@ Write a Product Requirements Document with these base sections.
 
 <Describe performance, reliability, security, privacy, accessibility, auditability, maintainability, and operational expectations that matter for this MVP.>
 
+## Data & Governance
+
+<Specify the data this product collects, stores, or processes: what data, its sensitivity classification (e.g. public, internal, confidential, PII/PHI), who owns it, how long it is retained, who may access it and under what permissions, and the consent or legal basis for collection. Name any data residency or regulatory regime that applies (e.g. GDPR, HIPAA) and any data shared with third parties or external services — including any sent to third-party model providers when `genai_flag=true`. If the product handles no sensitive data, state that explicitly rather than omitting the section.>
+
 ## Edge Cases
 
 <List realistic failure modes, unusual states, invalid inputs, permission issues, and data conditions the product must handle.>
@@ -217,7 +221,7 @@ After generating, do the following in order:
    log('stage_generated', Path('.'), '03', {
        'generated_hash': '<hash>',
        'model': '<the model id you are currently running as>',
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
@@ -243,6 +247,7 @@ After generating, do the following in order:
 - User Stories with Acceptance Criteria must be testable and cover the critical flows needed for launch.
 - Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product.
 - Non-Functional Requirements must be relevant, not generic template filler.
+- Data & Governance must name concrete data and its sensitivity, ownership, retention, access rules, and any applicable compliance regime — or explicitly state that no sensitive data is handled. It must not defer these to implementation.
 - Edge Cases and Risks must surface meaningful failure modes and delivery concerns rather than obvious truisms.
 - If `genai_flag=true`, the GenAI sections must describe an actual product architecture and validation approach, not abstract AI commentary.
 - If `genai_flag=false`, the PRD must use only the base sections and must not include AI-specific requirements or terminology unless explicitly required by the approved scope.
@@ -252,6 +257,7 @@ After generating, do the following in order:
 1. Does every major requirement trace back to the approved scope and success hypothesis?
 2. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
 3. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
-4. Are edge cases and risks concrete enough to shape design or delivery decisions?
-5. If `genai_flag=true`, do the additional sections specify operational choices rather than generic AI best practices?
-6. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
+4. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
+5. Are edge cases and risks concrete enough to shape design or delivery decisions?
+6. If `genai_flag=true`, do the additional sections specify operational choices rather than generic AI best practices?
+7. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
