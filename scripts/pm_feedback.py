@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
 from config import load_config
 from project import resolve_project, load_meta, STAGE_NAMES
+from telemetry import log
 
 
 def main():
@@ -74,7 +75,29 @@ def main():
     with open(fpath, "a") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    # Join feedback to the hash-chained telemetry stream so it's diagnosable and
+    # syncs centrally — feedback.jsonl alone is decoupled from the chain.
+    try:
+        log("feedback_submitted", root, stage_id, {
+            "scope": "stage",
+            "rating": rating,
+            "tags": [],
+            "free_text": note,
+        })
+    except Exception as e:
+        print(f"Warning: telemetry logging failed: {e}")
+
     print(f"Feedback captured for stage {stage_id}.")
+
+    # Push now so feedback reaches the central repo without waiting for a later
+    # approval (the only other sync trigger). Failures are reported, not fatal.
+    try:
+        from git_sync import push_feedback_repo
+        status = push_feedback_repo(root)
+        if not status.get("ok"):
+            print(f"[pm-feedback] Central sync deferred — {status.get('reason')}. Retry with /pm-sync.")
+    except Exception as e:
+        print(f"Warning: feedback sync failed: {e}")
 
 
 if __name__ == "__main__":
