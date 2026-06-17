@@ -1,6 +1,39 @@
 # PM-OS Artifact Ingest & Mid-Pipeline Entry Plan
 
-**Status:** 🔲 **Not implemented** (verified against the codebase 2026-06-17 — no `pm-import` command, no `stage_imported` telemetry, no import path in `scripts/`/`skills/`). Tracked as **Phase 2** in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7; per §12 below, its first increment (I0) has no dependencies. (Note: the review's §7 numbering and its §10 "immediate next steps" disagree on whether ingest or the traceability spine comes first — see the roadmap reconciliation notes.)
+**Status:** ✅ **Implemented 2026-06-17** as `/pm-context-import` (command name chosen over `/pm-import` for readability). The realized design is broader than this plan's original per-stage file-import shape — see **§0 Implemented design** below. I0–I3 are delivered; I4 (dogfood a real Indegene enhancement) and `.docx`/`.pdf` conversion remain. Tracked as **Phase 2** in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7.
+
+---
+
+## 0. Implemented design (what actually shipped)
+
+The build went beyond per-stage file labels. The PM provides **all the context they have** (any mix), and PM-OS:
+
+1. **Registers + preserves** every source (`.sources.yaml` registry + raw copies under `.history/`); logs `context_ingested`.
+2. **Builds one gated context wiki** (`00-context-wiki.md`) — a normalized, provenance-tagged knowledge base the model reads as grounding for every downstream stage.
+3. **Writes a gated understanding doc** (`00-context-understanding.md`) — human-facing synthesis: what it understood, how each source maps to the pipeline (adopt-as-stage vs. context-only), and a per-stage coverage map.
+4. **Gate:** all three stage-00 docs — `00-business-statement.md` (now itself a normal gated stage), the wiki, and the understanding doc — must be `approved` before stage 01. The stage-01 gate names exactly which are still pending.
+5. On approval, **adopts** the artifacts the PM authored (`origin: imported`) and **backfills** the upstream gaps below them (`origin: backfilled`), bottom-up, then hands back to the normal pipeline.
+
+**Backfill feasibility map** (governs whether a missing upstream can be reconstructed; lives in `lib/project.py:resolve_backfill`, surfaced in the understanding doc):
+
+| Gap | ✅ Faithful if provided | ⚠️ Lossy if best is | ⛔ Infeasible if best is |
+|---|---|---|---|
+| 01 Brief | 02 or 03 | 04 | 05 / 06 / 07 only |
+| 02 Scope | 03 | 04 | 05 / 06 / 07 only |
+| 03 PRD | — | 04 | 05 / 06 / 07 only |
+| 04 Design | — | 05 | 06 / 07 only |
+| 05 Prototype | — | 06 | 07 only |
+| 06 QA plan | — | — | 07 only |
+
+Only *provided* artifacts count as evidence — a reconstruction is never chained through another reconstructed artifact. An artifact whose chain has a ⛔ gap (e.g. a metrics plan alone) is **not adopted as a stage**; it stays in the wiki as context. This **overrides §10.4's recommendation to cap imports at stage 03** — any stage 01–07 may be provided.
+
+Plumbing: `scripts/pm_context_import.py` (`register` / `preflight` / `commit`), `skills/pm-context-import/`, `lib/project.py` (schema_version 2 + `migrate_meta`, per-stage `origin`, stage-00 `00`/`00w`/`00u` group, `resolve_backfill`). `stage_imported` / `stage_backfilled` / `context_ingested` telemetry events.
+
+---
+
+### Original plan (per-stage file import — superseded shape, kept for history)
+
+The remainder of this document describes the original `/pm-import NN <file>` shape. The mechanism that shipped generalizes it; the principles below (artifact-driven gate, write-to-approved precedent, gaps-backfilled-not-skipped, narrate-every-action) all still hold.
 **Author:** Karan (with Claude Code)
 **Date:** 2026-06-12
 **Scope:** Let a PM plug *already-authored* artifacts (e.g. an existing scope and PRD) into a PM-OS project and continue the pipeline from that point, instead of regenerating every stage from scratch.

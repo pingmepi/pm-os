@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-06-17
+
+### Added
+- **Start from the context you already have.** New `/pm-context-import` ingests your existing material — research, brief, scope, PRD, design notes — and builds two things: a single *context wiki* the model reads as grounding, and an *understanding doc* that shows what it understood and how your material maps onto the pipeline. Both are review-gated: you approve them before anything proceeds.
+- PM-OS now **adopts the artifacts you authored** (your real PRD becomes the stage-03 artifact, marked `imported`) instead of regenerating them, and **faithfully backfills the upstream stages below them** (e.g. brief + scope from your PRD), so the pipeline chain stays intact.
+- A feasibility check tells you up front which missing stages can be reconstructed faithfully, which only lossily, and which can't be rebuilt from what you provided (a metrics plan can't recreate a PRD) — surfaced in the understanding doc for your approval.
+- `/pm-status` now marks each stage's origin (`imported` / `backfilled`) so it's always clear which artifacts you authored vs. which PM-OS generated.
+
+### Changed
+- The business statement is now a normal approval-gated stage (`/pm-approve 00`) like every other stage, and all three stage-00 documents (statement, context wiki, understanding) must be approved before stage 01 — if you try to move ahead, PM-OS tells you exactly what's still pending. Existing projects migrate automatically with no loss of approvals.
+
 ## 0.4.8 — 2026-06-16
 
 ### Added
