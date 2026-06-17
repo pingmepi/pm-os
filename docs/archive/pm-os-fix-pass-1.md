@@ -5,7 +5,7 @@
 **Status:** ✅ **Completed and shipped** (verified against the codebase 2026-06-17). All four phases landed: Phase A — mechanical skills refactored to script wrappers (`scripts/`); Phase B — `config.yaml` migration + config-driven install flow (`lib/config.py`, `install.sh`); Phase C — gate hooks (`hooks/pre-stage.py`, `hooks/post-approve.py`); Phase D — install verifier (`scripts/pm_os_verify.py` + the `pm-os-verify` skill). Retained as a historical record; this is the doc destined for `docs/archive/`.
 **Context:** PM-OS first-run dogfooding surfaced 12 issues across install correctness, missing components, performance, and UX. This document specifies a single fix pass that resolves all of them in coordinated order.
 
-**Read first:** the original `pm-os-spec.md`. (Note: `pm-os-feedback-spec.md` is referenced here and elsewhere but does **not** exist in this repo — treat that reference as historical.) This document assumes familiarity with the spec. References to "the spec" mean `pm-os-spec.md` unless stated otherwise.
+**Read first:** the original `../spec/pm-os-spec.md`. (Note: `pm-os-feedback-spec.md` is referenced here and elsewhere but does **not** exist in this repo — treat that reference as historical.) This document assumes familiarity with the spec. References to "the spec" mean `../spec/pm-os-spec.md` unless stated otherwise.
 
 ---
 
@@ -508,7 +508,7 @@ When this fix pass is complete:
 1. Confirmation of correct Haiku model identifier (Phase A pre-implementation step)
 2. Whether to use SSH or HTTPS form of feedback repo URL (Phase B — Karan to confirm based on his GitHub auth setup)
 3. Whether to remove or keep the `continuous-learning` Stop hook from settings.json (Phase D — current spec preserves it, Karan to decide separately)
-4. Any apparent contradiction between this document and `pm-os-spec.md`
+4. Any apparent contradiction between this document and `../spec/pm-os-spec.md`
 
 ---
 

@@ -206,7 +206,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_started`: `{}`
 - `stage_generated`: `{ generated_hash, model, prompt_version, notes }`
 - `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }`
-- `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (see `pm-os-ingest-plan.md`). Raw original preserved under `.history/`; registry in `.sources.yaml`.
+- `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (see `../plans/pm-os-ingest-plan.md`). Raw original preserved under `.history/`; registry in `.sources.yaml`.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`).
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "post_tool_use_hook" }`
