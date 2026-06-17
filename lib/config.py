@@ -83,6 +83,23 @@ def _apply_model_policy_defaults(config: dict) -> None:
     config.setdefault("deep_reasoning_stages", DEEP_REASONING_STAGES)
 
 
+def model_tier_for_stage(stage_id: str) -> str:
+    """Return the recommended model tier for a stage, derived from config.
+
+    Single source of truth so skill telemetry can't drift from the model policy:
+    stages listed in ``deep_reasoning_stages`` report ``"deep-reasoning"``, all
+    others report ``default_model_tier``. Degrades to module defaults if config
+    is unavailable so telemetry logging never fails on this.
+    """
+    try:
+        cfg = load_config()
+        deep = cfg.get("deep_reasoning_stages") or DEEP_REASONING_STAGES
+        default = cfg.get("default_model_tier") or DEFAULT_MODEL_TIER
+    except Exception:
+        deep, default = DEEP_REASONING_STAGES, DEFAULT_MODEL_TIER
+    return "deep-reasoning" if stage_id in deep else default
+
+
 def _write_config_atomic(config: dict) -> None:
     tmp = CONFIG_PATH.with_suffix(".yaml.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
