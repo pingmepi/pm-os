@@ -174,6 +174,46 @@ def check_gate_selftest(r: Result):
     r.add(ok, "Gate self-test (blocks unapproved upstream, allows first stage)", detail)
 
 
+def check_telemetry_selftest(r: Result):
+    """Log events into a throwaway project; assert they append, the hash chain
+    validates, and push_all returns a clear status (without any network call)."""
+    try:
+        sys.path.insert(0, str(LIB_DIR))
+        from telemetry import log, verify_chain
+        from git_sync import push_all
+    except Exception as e:  # noqa: BLE001
+        r.add(False, "Telemetry self-test", f"import failed: {e}")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="pmos-telemetry-") as tmp:
+        proj = Path(tmp) / "proj"
+        proj.mkdir()
+        (proj / ".meta.yaml").write_text(
+            "schema_version: 2\nproject_slug: pmos-verify-telemetry\n"
+            "project_name: PM-OS Verify Telemetry\nstages: []\n"
+        )
+        try:
+            log("stage_started", proj, "01", {"selftest": True})
+            log("stage_generated", proj, "01", {"selftest": True})
+        except Exception as e:  # noqa: BLE001
+            r.add(False, "Telemetry self-test", f"log() raised: {e}")
+            return
+
+        tpath = proj / "telemetry.jsonl"
+        n = sum(1 for ln in tpath.read_text().splitlines() if ln.strip()) if tpath.exists() else 0
+        chain = verify_chain(proj)
+
+        # push_all against an empty projects dir must report a clear status with
+        # no git/network operation (the "no projects" branch).
+        empty = Path(tmp) / "empty"
+        empty.mkdir()
+        status = push_all(str(empty))
+
+    ok = n == 2 and chain["ok"] and isinstance(status, dict) and "ok" in status
+    detail = "" if ok else f"events={n}, chain={chain}, push_status={status}"
+    r.add(ok, "Telemetry self-test (append + hash chain + push status)", detail)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify a PM-OS installation.")
     parser.add_argument("--runtime", choices=["claude", "codex", "all"], default="all",
@@ -196,6 +236,7 @@ def main():
     check_config(r)
     check_skills(r, args.runtime)
     check_gate_selftest(r)
+    check_telemetry_selftest(r)
 
     print()
     if r.ok:
