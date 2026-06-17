@@ -76,6 +76,20 @@ This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
 
 Handle the choice:
 - **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `06-qa-plan.md` and tell the PM to approve the edited upstream stage before rerunning stage `06`.
+
+  Log the event before you stop (fill in your own values):
+
+  ```bash
+  python3 -c "
+  import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+  from pathlib import Path
+  from telemetry import log
+  log('stage_edited_via_note', Path('.'), '<upstream stage id you edited, e.g. 03>', {
+      'note': '<the note verbatim>',
+      'edited_sections': [<headings you changed in the upstream artifact>],
+  })
+  "
+  ```
 - **[2]** Proceed forward-only: apply the note only where it does not invalidate required upstream commitments, and surface any divergence in Test Strategy or Risks.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -216,9 +230,11 @@ After generating, do the following in order:
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from pathlib import Path
    from telemetry import log
+   from config import model_tier_for_stage
    log('stage_generated', Path('.'), '06', {
        'generated_hash': '<hash>',
-       'model_tier': 'deep-reasoning',
+       'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
+       'model_tier': model_tier_for_stage('06'),
        'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })

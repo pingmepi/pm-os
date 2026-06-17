@@ -75,6 +75,20 @@ For each conflicting note, stop before writing and ask the PM how to reconcile, 
 
 Handle the choice:
 - **[1]** Edit the relevant section of the named upstream artifact (`02-scope.md` or `01-brief.md`) to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `03-prd.md` and tell the PM to approve the edited upstream stage before rerunning stage `03`.
+
+  Log the event before you stop (fill in your own values):
+
+  ```bash
+  python3 -c "
+  import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+  from pathlib import Path
+  from telemetry import log
+  log('stage_edited_via_note', Path('.'), '<upstream stage id you edited, e.g. 02>', {
+      'note': '<the note verbatim>',
+      'edited_sections': [<headings you changed in the upstream artifact>],
+  })
+  "
+  ```
 - **[2]** Proceed forward-only: apply only the narrowing parts of the note and surface any divergence (e.g. in Goals/Non-Goals or Risks), noting the upstream artifact still reflects the older decision. Never silently expand beyond scope.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -225,9 +239,11 @@ After generating, do the following in order:
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from pathlib import Path
    from telemetry import log
+   from config import model_tier_for_stage
    log('stage_generated', Path('.'), '03', {
        'generated_hash': '<hash>',
-       'model_tier': 'deep-reasoning',
+       'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
+       'model_tier': model_tier_for_stage('03'),
        'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
