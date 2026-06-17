@@ -10,11 +10,12 @@ project creation, gates, approvals, telemetry, and sharing.
   concrete provider model id into shared PM-OS config, shared skill frontmatter,
   or generated artifacts.
 - In Claude, invoke PM-OS skills with slash commands such as `/pm-new`,
-  `/pm-stage-01-brief`, `/pm-approve 01`, `/pm-status`, `/pm-feedback 03`, and
-  `/pm-os-verify`.
+  `/pm-context-import`, `/pm-approve 00`, `/pm-stage-01-brief`, `/pm-approve 01`,
+  `/pm-status`, `/pm-feedback 03`, and `/pm-os-verify`.
 - In Codex, invoke PM-OS skills through the `/skills` picker or by mentioning the
-  skill name directly, for example `$pm-new`, `$pm-stage-01-brief`,
-  `$pm-approve`, `$pm-status`, `$pm-feedback`, and `$pm-os-verify`.
+  skill name directly, for example `$pm-new`, `$pm-context-import`,
+  `$pm-approve`, `$pm-stage-01-brief`, `$pm-status`, `$pm-feedback`, and
+  `$pm-os-verify`.
 - Codex user-level skills belong in `~/.agents/skills/`. Repo-local development
   skills may live in `.agents/skills/`.
 - Claude skills install into `~/.claude/skills/`; the installer also copies hooks
@@ -23,6 +24,15 @@ project creation, gates, approvals, telemetry, and sharing.
   is not on the execution path and Codex skipping it does not reduce coverage.
 - The install and update commands require an explicit runtime argument:
   `--runtime claude` or `--runtime codex`.
+- **Never hand-modify the installed PM-OS.** The installed `~/.pm-os` and the
+  synced skill dirs (`~/.claude/skills`, `~/.agents/skills`) update through **one
+  path only: `pm_os_update.py`** (fast-forward `~/.pm-os` to `origin/main`, then
+  re-sync). Do not copy files into `~/.pm-os`, edit them there, or drop a skill
+  into the runtime skill dirs — not even to test. Manual edits diverge the local
+  checkout and make `pm_os_update.py` refuse to update (without `--reset-main`),
+  breaking the update path for every PM. To ship a change: commit + push to the
+  remote, then run `pm_os_update.py`. To test uncommitted code, run it in
+  isolation against the repo working copy (`PYTHONPATH=lib`), never by syncing it.
 - Native Codex hooks are optional. Baseline correctness comes from the explicit
   shell commands already listed inside each skill.
 - Model policy is expressed in runtime-neutral tiers. The default tier is
@@ -58,7 +68,11 @@ approved product pipeline alone.
   `projects_dir`.
 - `.meta.yaml` is the source of truth for project slug, PM-OS version,
   `genai_flag`, stage status, approval state, hashes, and regeneration counts.
-- `00-business-statement.md` is the seed input for the whole pipeline.
+- `00-business-statement.md` is the seed input for the whole pipeline, and is a
+  gated stage (`00`) — it must be approved (`/pm-approve 00`) before stage 01. A
+  project may also be seeded from existing material via `/pm-context-import`,
+  which adds gated `00-context-wiki.md` / `00-context-understanding.md`; all
+  present stage-00 docs must be approved before stage 01.
 - Stage artifacts are Markdown files with YAML frontmatter and a generated body.
 - `.history/` stores timestamped generated snapshots before the current artifact
   is written.
