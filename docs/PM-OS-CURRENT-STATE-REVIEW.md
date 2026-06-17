@@ -73,11 +73,11 @@ It is not yet the full PDLC operating system described above (no brownfield code
 
 | Area | Status | Source |
 |---|---:|---|
-| Gemini runtime support | Planned | `pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Existing-product/enhancement mode | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
-| Jira/Linear handoff | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Figma/design-system integration | Planned later | `pm-os-modes-and-handoff-plan.md` |
+| Gemini runtime support | Planned | `plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
+| Existing-product/enhancement mode | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
+| Codebase understanding stage | Planned | `plans/pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
+| Jira/Linear handoff | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
+| Figma/design-system integration | Planned later | `plans/pm-os-modes-and-handoff-plan.md` |
 | QA bug analysis against codebase | Missing | part of expanded ask |
 | Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
 | Release readiness workflow | Missing | part of expanded ask |
@@ -257,7 +257,7 @@ Docs corrected in this phase: README / CLAUDE.md / AGENTS.md now make `~/.pm-os/
 
 ### Phase 2: Flexible Intake and Artifact Ingest — COMPLETE (core)
 
-Shipped 2026-06-17 as `/pm-context-import` (see `pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all three stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 2` with an in-place `migrate_meta` so existing projects keep working. Remaining: `.docx`/`.pdf` conversion, dogfood a real Indegene enhancement, and unifying codebase-understanding (Phase 3) into the same stage-00 framework.
+Shipped 2026-06-17 as `/pm-context-import` (see `plans/pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all three stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 2` with an in-place `migrate_meta` so existing projects keep working. Remaining: `.docx`/`.pdf` conversion, dogfood a real Indegene enhancement, and unifying codebase-understanding (Phase 3) into the same stage-00 framework.
 
 Original Phase 2 sketch (superseded shape):
 
@@ -498,7 +498,7 @@ Recommended order:
 2. ~~Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.~~ (done — Phase 0)
 3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
 4. ~~Add `schema_version` and the migration path so existing projects survive new fields.~~ (done — `.meta.yaml` is `schema_version: 2` with in-place `migrate_meta`)
-5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `pm-os-ingest-plan.md` §0)
+5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `plans/pm-os-ingest-plan.md` §0)
 6. Implement enhancement mode and codebase understanding (Phase 3).
 7. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
 8. Ship local handoff packet (4a), then one opt-in tracker export (4b).

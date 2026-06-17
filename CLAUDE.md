@@ -83,4 +83,4 @@ Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/ope
 - **Non-interactive safety:** code that prompts (`input()`) must have an env-var/`--flag` escape and a non-tty branch. Examples: `PM_OS_EDITED_UPSTREAM_CHOICE` for the edited-upstream gate; `config.py` defaults `feedback_repo` when stdin isn't a tty. Preserve this — these run unattended inside agents.
 - **`schema_version`** exists in both `.meta.yaml` and `config.yaml`; bump it and provide migration when changing those shapes (existing projects on disk must keep working).
 - Skills carry instructions and prompts; Python carries mechanical state. Keep generation/judgment in the `SKILL.md`, not in Python.
-- The `pm-os-spec.md` repo/lib listing is partly aspirational (it references `edit_distance.py`, `embeddings.py`, `post-tool-use.py`, `session-end.py` that don't exist yet). Trust the actual files in `lib/` and `hooks/` over the spec.
+- The `docs/spec/pm-os-spec.md` repo/lib listing is partly aspirational (it references `edit_distance.py`, `embeddings.py`, `post-tool-use.py`, `session-end.py` that don't exist yet). Trust the actual files in `lib/` and `hooks/` over the spec.
