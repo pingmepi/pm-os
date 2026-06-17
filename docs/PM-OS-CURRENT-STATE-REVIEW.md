@@ -1,6 +1,6 @@
 # PM-OS Current State Review and Roadmap
 
-**Date:** 2026-06-12
+**Date:** 2026-06-12 · **Updated:** 2026-06-17 (Phase 1 runtime parity and Phase 2 flexible intake both shipped — §2 and §3 below reflect this)
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -33,11 +33,11 @@ It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or futu
 
 ## 2. Current State Summary
 
-The current codebase is a strong **local-first product-definition MVP**.
+The current codebase is a strong **local-first product-definition MVP** with flexible intake.
 
-It can scaffold a project from a business statement, generate staged product artifacts, require human approval between stages, track status/hashes in local files, record telemetry/feedback, and export approved artifacts.
+It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; record telemetry/feedback; and export approved artifacts.
 
-It is not yet the full PDLC operating system described above.
+It is not yet the full PDLC operating system described above (no brownfield codebase awareness, external integrations, or dev/QA/release/feedback workflows).
 
 ### Implemented Today
 
@@ -63,6 +63,11 @@ It is not yet the full PDLC operating system described above.
 | Runtime-neutral model wording | Implemented | stages 03/06/08 use advisory deep-reasoning guidance instead of `/model opus` |
 | Non-interactive gate safety | Implemented | `pre-stage.py` has `isatty()` branch + `PM_OS_EDITED_UPSTREAM_CHOICE`; never hangs unattended |
 | Install verifier | Implemented | `scripts/pm_os_verify.py` + `pm-os-verify` skill: install-integrity checks + deterministic gate self-test, per runtime |
+| Flexible context intake | Implemented | `/pm-context-import` (`scripts/pm_context_import.py` + `skills/pm-context-import/`): ingest existing research/brief/scope/PRD/design, register sources in `.sources.yaml`, preserve raw in `.history/` |
+| Gated stage-00 understanding | Implemented | context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`); the business statement is now a normal gated stage `00`. All three must be approved before stage 01 |
+| Adopt + backfill | Implemented | PM-authored artifacts adopted as stage artifacts (`origin: imported`); upstream gaps reverse-generated (`origin: backfilled`) per the feasibility map in `lib/project.resolve_backfill` |
+| Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 2`; `lib/project.migrate_meta` upgrades v1 projects in place (adds `00` stage + per-stage `origin`) without disturbing approvals |
+| Telemetry: intake events | Implemented | `context_ingested`, `stage_imported`, `stage_backfilled` kept distinct from `stage_approved` so quality signals are not polluted |
 
 ### Planned but Not Implemented
 
@@ -70,9 +75,7 @@ It is not yet the full PDLC operating system described above.
 |---|---:|---|
 | Gemini runtime support | Planned | `pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
 | Existing-product/enhancement mode | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` |
-| Mid-pipeline artifact ingest | Planned | `pm-os-ingest-plan.md` |
-| Import existing scope/PRD | Planned | `pm-os-ingest-plan.md` |
+| Codebase understanding stage | Planned | `pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
 | Jira/Linear handoff | Planned | `pm-os-modes-and-handoff-plan.md` |
 | Figma/design-system integration | Planned later | `pm-os-modes-and-handoff-plan.md` |
 | QA bug analysis against codebase | Missing | part of expanded ask |
@@ -97,15 +100,15 @@ The current architecture already has several foundations that should survive:
 
 ### Where It Falls Short
 
-The current product is still centered on generating documents from a one-line business statement.
+The product now generates from a business statement **or** adopts existing PM-authored context, but it remains a product-definition tool: it has no brownfield codebase awareness, no external integrations, and no dev/QA/release/feedback workflows.
 
 Major gaps:
 
-1. **Scope mismatch:** README and spec still describe a seven-stage product-definition pipeline, while the ask is full PDLC from idea through dev, QA, release, and feedback.
-2. **Rigid entry point:** PM-OS starts from `pm-new <slug> "<statement>"`; it cannot yet start from a PRD, repo, Jira bug, QA report, or existing ticket.
-3. **Linear dependency model:** stages are hard-coded as 01-09 (core 01-07 + optional 08/09 capstones); no explicit lifecycle graph for optional/nonlinear paths.
-4. **No context sufficiency/recommendation layer:** PM-OS gates upstream approvals, but it does not assess whether the provided inputs are enough for the requested work and recommend next options to the PM.
-5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned.
+1. **Scope mismatch (largely closed):** README, spec, and SOP were reframed (Phase 0) from "doc generator" to PM-led PDLC layer; the *implementation* still covers only product definition (stages 00–09), while the ask extends to dev, QA, release, and feedback.
+2. **Entry point (partly addressed):** PM-OS can start from a business statement *or* from existing PM-authored docs (research/brief/scope/PRD/design) via `/pm-context-import`. It still cannot start from a repo, Jira bug, QA report, or existing ticket.
+3. **Linear dependency model:** stages are hard-coded (stage-00 understanding group + core 01-07 + optional 08/09 capstones); no explicit lifecycle graph for optional/nonlinear paths.
+4. **Context-sufficiency layer (partly built):** for ingest, PM-OS now assesses whether provided inputs can faithfully reconstruct the missing upstream stages (the `resolve_backfill` feasibility map, surfaced in the understanding doc for approval). There is still no general recommendation layer across the wider PDLC.
+5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned (intended to reuse the stage-00 understanding framework).
 6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
 7. **No dev/QA execution support:** PM-OS can draft a QA plan and TRD, but cannot yet analyze a QA bug, map it to requirements/code, classify it, and suggest a developer fix plan.
 8. **Runtime agnosticism is complete (Claude + Codex).** Install, skill interfaces, advisory model guidance, a real `AGENTS.md`, non-interactive-safe gates, and an install verifier are all shipped. Gate parity was confirmed: the gates run from `~/.pm-os/hooks` via skill bash and `pm_approve.py`, not native Claude hooks, so they behave identically on both runtimes. (Gemini remains a later runtime target.)
@@ -252,7 +255,11 @@ Remaining under "runtime": only **Gemini** support, deferred to a later phase.
 
 Docs corrected in this phase: README / CLAUDE.md / AGENTS.md now make `~/.pm-os/hooks` the unambiguous execution path so the `~/.claude/hooks` copy is not mistaken for a parity gap.
 
-### Phase 2: Flexible Intake and Artifact Ingest
+### Phase 2: Flexible Intake and Artifact Ingest — COMPLETE (core)
+
+Shipped 2026-06-17 as `/pm-context-import` (see `pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all three stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 2` with an in-place `migrate_meta` so existing projects keep working. Remaining: `.docx`/`.pdf` conversion, dogfood a real Indegene enhancement, and unifying codebase-understanding (Phase 3) into the same stage-00 framework.
+
+Original Phase 2 sketch (superseded shape):
 
 Goal: PM can start from partial existing context instead of a one-line statement only.
 
@@ -490,8 +497,8 @@ Recommended order:
 1. ~~Approve the product aim and scope in this document.~~ (done)
 2. ~~Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.~~ (done — Phase 0)
 3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
-4. Add `schema_version` and the migration path so existing projects survive new fields.
-5. Implement artifact ingest for existing scope/PRD (Phase 2). **Ingest comes first** — its first increment (I0) has no dependencies, and it delivers standalone value (start from an existing PRD) without waiting on the traceability spine.
+4. ~~Add `schema_version` and the migration path so existing projects survive new fields.~~ (done — `.meta.yaml` is `schema_version: 2` with in-place `migrate_meta`)
+5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `pm-os-ingest-plan.md` §0)
 6. Implement enhancement mode and codebase understanding (Phase 3).
 7. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
 8. Ship local handoff packet (4a), then one opt-in tracker export (4b).
@@ -502,8 +509,8 @@ Recommended order:
 
 ## 11. Current Verdict
 
-PM-OS today is a useful and coherent **stage-gated product-definition tool**.
+PM-OS today is a useful and coherent **stage-gated product-definition tool with flexible intake**.
 
-It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, and PM-visible review points.
+It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, PM-visible review points, and — as of Phase 2 — the ability to adopt existing PM-authored context through a gated understanding step instead of regenerating it.
 
-To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase can be the kernel, but the next major work is not simply "add more stages." The larger move is to add flexible intake, external artifact ingestion, brownfield/codebase awareness, traceability links, dev/QA support workflows, release readiness, and feedback loops while preserving PM authority and human execution.
+To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase is the kernel, and flexible intake (from PM-authored documents) now exists; the next major work is not simply "add more stages." The larger remaining move is to add external artifact ingestion (repos/trackers/design files), brownfield/codebase awareness, traceability links, dev/QA support workflows, release readiness, and feedback loops while preserving PM authority and human execution.

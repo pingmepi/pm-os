@@ -1,4 +1,7 @@
-schema_version: 1
+{# Reference template for .meta.yaml — NOT rendered by code. scripts/pm_new.py
+   builds the meta dict inline and is the authoritative source; migrations live
+   in lib/project.py:migrate_meta. Keep this in sync for documentation only. #}
+schema_version: 2
 project_slug: {{ project_slug }}
 project_name: {{ project_name }}
 created_at: {{ created_at }}
@@ -9,9 +12,11 @@ stages:
 {% for stage in stages %}
   - id: "{{ stage.id }}"
     name: {{ stage.name }}
-    status: pending
+    status: {{ stage.status }}
     approved_at: null
     content_hash: null
     upstream_hashes_at_approval: {}
     regeneration_count: 0
+    optional: {{ stage.optional }}
+    origin: generated
 {% endfor %}

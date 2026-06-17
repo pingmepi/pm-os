@@ -17,8 +17,18 @@ Editing files here does **not** change the running tool. There are two layers:
 
 Consequences when developing:
 - `scripts/*.py` import `lib` via a hardcoded `~/.pm-os/lib` path (`sys.path.insert(0, Path.home()/".pm-os"/"lib")`). The gate hooks are executed from `~/.pm-os/hooks` (the skill calls `python3 ~/.pm-os/hooks/pre-stage.py`; `pm_approve.py` invokes `~/.pm-os/hooks/post-approve.py`). So **your edits in this working copy are inert until they reach `~/.pm-os`.**
-- `install.sh` clones `~/.pm-os` from the **GitHub remote**, not from this local directory. To test local changes, either work directly in `~/.pm-os`, or commit+push then run the updater, or manually copy files into `~/.pm-os` and re-sync.
-- `pm_os_update.py` fast-forwards `~/.pm-os` to `origin/main`, then copies skills/hooks into the runtime dirs. It refuses to run on a non-`main` branch with a dirty tree, and refuses to overwrite a diverged local `main` without `--reset-main`.
+- `install.sh` clones `~/.pm-os` from the **GitHub remote**, not from this local directory.
+
+### NEVER hand-modify the installed `~/.pm-os` or runtime skill dirs
+
+**The installed `~/.pm-os` (and the synced `~/.claude/skills` / `~/.agents/skills`) update through exactly ONE path: `pm_os_update.py`, which fast-forwards `~/.pm-os` to `origin/main` and re-syncs skills/hooks.** This is non-negotiable and has bitten us repeatedly.
+
+- ❌ Do **not** copy files into `~/.pm-os`, edit files there, or copy a skill into `~/.claude/skills` / `~/.agents/skills` — not even "just to test." Any manual mutation diverges the local checkout; `pm_os_update.py` then **refuses to fast-forward a diverged `main`** (needs `--reset-main`), so you have silently broken every PM's update path, not just your own.
+- ✅ To get changes into the install: **commit + push to the GitHub remote, then run `pm_os_update.py`.** That is the only supported route, for you and for any other PM/agent.
+- ✅ To test *uncommitted* working-copy logic without touching the install, run it in isolation against this repo (e.g. `python3 -c "import sys; sys.path.insert(0,'lib'); ..."` or run a script with `PYTHONPATH=lib`). Never sync it out to exercise it.
+- `pm_os_verify.py` runs against the installed `~/.pm-os`; it is a health check of the *installed* tool, not a way to validate working-copy edits.
+
+`pm_os_update.py` fast-forwards `~/.pm-os` to `origin/main`, then copies skills/hooks into the runtime dirs. It refuses to run on a non-`main` branch with a dirty tree, and refuses to overwrite a diverged local `main` without `--reset-main` — which is precisely the breakage manual edits cause.
 
 ## Commands
 

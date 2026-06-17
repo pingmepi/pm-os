@@ -80,9 +80,26 @@ interactive shell it prompts; when run non-interactively (the usual case inside
 an agent) pass `--genai` or `--no-genai` (or set `PM_OS_GENAI_FLAG`). Projects
 are created under the `projects_dir` from your config (default `~/pm-projects`).
 
-Generate and approve stages:
+Already have context? If you walk in with material you've authored — research, a
+brief, a scope doc, a PRD, design notes — seed the project from it instead of
+generating from scratch:
 
 ```text
+Claude: /pm-context-import <files-or-folder>
+Codex:  $pm-context-import <files-or-folder>
+```
+
+PM-OS builds a context wiki and an understanding doc for you to review and
+approve, then adopts the artifacts you authored and faithfully backfills the
+upstream stages below them before handing back to the normal pipeline.
+
+Approve the business statement, then generate and approve stages. The business
+statement is stage `00` — gated like any other stage, so approve it first:
+
+```text
+Claude: /pm-approve 00
+Codex:  $pm-approve 00
+
 Claude: /pm-stage-01-brief
 Codex:  $pm-stage-01-brief
 Claude: /pm-approve 01

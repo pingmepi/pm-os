@@ -54,7 +54,7 @@ Use PM-OS when **most** of the following are true:
 | The work spans more than a throwaway experiment | The stage overhead pays off when the artifact will be read by others. |
 | Inputs can be sanitized | The business statement and notes contain no confidential or regulated data. |
 
-**In v1**, the entry point is always a new business statement. Later phases will add entry points for existing PRDs, repos, Jira/Linear tickets, QA bugs, and existing-product enhancement work — but all will follow the same PM-approval model.
+**In v1**, there are two entry points, both following the same PM-approval model: (1) a new business statement (`/pm-new`), or (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them. Later phases will add entry points for repos, Jira/Linear tickets, QA bugs, and existing-product enhancement work.
 
 ### When **not** to use it (or use a lighter touch)
 - **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need the full stage pipeline. The ceremony will cost more than it returns.
@@ -126,16 +126,18 @@ Codex:  $pm-new <project-slug> "<business statement>" --genai|--no-genai
 - Write the business statement in plain language. **Sanitize it first** (§7).
 - Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
 - The project is created under the `projects_dir` from your config (default `~/pm-projects`).
-- This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections.
+- This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
 
 ### 4.3 Generate → review → approve, one stage at a time
-For each stage, in order:
+First approve the business statement, then proceed through the stages in order:
 ```text
+Claude: /pm-approve 00            Codex: $pm-approve 00
+   (the business statement is stage 00 — review, then approve)
 Claude: /pm-stage-01-brief        Codex: $pm-stage-01-brief
    (read the draft, edit if needed, have the reviewer look)
 Claude: /pm-approve 01            Codex: $pm-approve 01
 ```
-Then 02, 03, … 07. Optional capstones come after 01-07 are approved: TRD (08) for technical requirements, and Roadmap (09) for the path from MVP to deliverable product. If TRD is approved before Roadmap, stage 09 uses it as technical delivery context.
+Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you also approve the context wiki `00w` and understanding doc `00u` before stage 01.) Optional capstones come after 01-07 are approved: TRD (08) for technical requirements, and Roadmap (09) for the path from MVP to deliverable product. If TRD is approved before Roadmap, stage 09 uses it as technical delivery context.
 
 **The core discipline (recommended default — relax only with eyes open):**
 1. **Never generate a downstream stage from an unapproved upstream stage.** The gate exists to stop drift. If a pre-stage gate exits non-zero, stop and read the error; do not write the artifact anyway.

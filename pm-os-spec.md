@@ -133,7 +133,7 @@ For single-user MVP, `<pm-identifier>` = `karan`. Folder structure exists from d
 ### 5.1 `.meta.yaml`
 
 ```yaml
-schema_version: 1
+schema_version: 2                     # v2 added stage 00 + origin; lib/project.py:migrate_meta upgrades v1
 project_slug: <kebab-case-slug>
 project_name: <human readable>
 created_at: <ISO 8601>
@@ -141,15 +141,20 @@ created_by: <pm identifier from $PM_OS_USER>
 genai_flag: true | false              # set at /pm-new, propagates downstream
 pm_os_version: <semver from VERSION file at scaffold time>
 stages:
-  - id: "01"
-    name: brief
+  # Stage-00 understanding group. "00" (business statement) is always present and
+  # gated; "00w" context-wiki / "00u" context-understanding exist only when
+  # /pm-context-import is used. All three must be approved before stage 01.
+  - id: "00"
+    name: business-statement
     status: pending | draft | approved | edited | stale
     approved_at: <ISO 8601 or null>
     content_hash: <sha256 or null>
     upstream_hashes_at_approval: {}   # map of stage id -> hash at this stage's approval
     regeneration_count: 0
-  - id: "02"
-    name: scope
+    optional: false
+    origin: generated | imported | backfilled   # how the artifact got here
+  - id: "01"
+    name: brief
     ...
 ```
 
@@ -188,7 +193,7 @@ genai_flag: true | false
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_edited_post_approval | stage_edited_via_note | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -201,6 +206,9 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_started`: `{}`
 - `stage_generated`: `{ generated_hash, model, prompt_version, notes }`
 - `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }`
+- `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (see `pm-os-ingest-plan.md`). Raw original preserved under `.history/`; registry in `.sources.yaml`.
+- `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
+- `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`).
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "post_tool_use_hook" }`
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
