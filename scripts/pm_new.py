@@ -77,23 +77,31 @@ def main():
     project_root.mkdir(parents=True)
     (project_root / ".history").mkdir()
 
+    # The business statement is a normal gated stage (00): written as a draft the
+    # PM approves via /pm-approve 00, just like every other stage. No special case.
     bs_fm = {
         "stage": "00-business-statement",
         "project": args.slug,
-        "status": "approved",
-        "approved_at": ts,
-        "approved_by": pm,
+        "status": "draft",
+        "approved_at": None,
+        "approved_by": None,
         "content_hash": None,
         "generated_hash": None,
         "pm_os_version": pm_os_version,
         "genai_flag": genai_flag,
+        "origin": "generated",
     }
     fm_text = yaml.dump(bs_fm, default_flow_style=False, allow_unicode=True, sort_keys=False)
     bs_content = f"---\n{fm_text}---\n\n{args.statement}\n"
     (project_root / "00-business-statement.md").write_text(bs_content)
 
     project_name = " ".join(w.capitalize() for w in args.slug.split("-"))
-    stages = []
+    stages = [{
+        "id": "00", "name": "business-statement", "status": "draft",
+        "approved_at": None, "content_hash": None,
+        "upstream_hashes_at_approval": {}, "regeneration_count": 0,
+        "optional": False, "origin": "generated",
+    }]
     for sid, name in [
         ("01", "brief"), ("02", "scope"), ("03", "prd"),
         ("04", "design-spec"), ("05", "prototype-brief"),
@@ -104,11 +112,11 @@ def main():
             "id": sid, "name": name, "status": "pending",
             "approved_at": None, "content_hash": None,
             "upstream_hashes_at_approval": {}, "regeneration_count": 0,
-            "optional": sid in {"08", "09"},
+            "optional": sid in {"08", "09"}, "origin": "generated",
         })
 
     meta = {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_slug": args.slug,
         "project_name": project_name,
         "created_at": ts,
@@ -132,8 +140,11 @@ def main():
     print(f"Project '{args.slug}' created at {project_root}/")
     print(f"GenAI flag: {'yes' if genai_flag else 'no'}")
     print(f"Next step: cd {project_root}")
-    print("  Claude: /pm-stage-01-brief")
-    print("  Codex:  $pm-stage-01-brief")
+    print("  Review and approve the business statement first (it is a gated stage):")
+    print("    Claude: /pm-approve 00       Codex: $pm-approve 00")
+    print("  Then start the pipeline:")
+    print("    Claude: /pm-stage-01-brief   Codex: $pm-stage-01-brief")
+    print("  Or seed from existing context: /pm-context-import <files-or-folder>")
 
 
 if __name__ == "__main__":

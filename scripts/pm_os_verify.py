@@ -136,16 +136,18 @@ def check_gate_selftest(r: Result):
         return
 
     meta = (
-        "schema_version: 1\n"
+        "schema_version: 2\n"
         "project_slug: pm-os-verify-selftest\n"
         "project_name: PM-OS Verify Self-Test\n"
         "genai_flag: false\n"
         'pm_os_version: "0"\n'
         "stages:\n"
+        '  - id: "00"\n    name: business-statement\n    status: approved\n'
+        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n    origin: generated\n"
         '  - id: "01"\n    name: brief\n    status: pending\n'
-        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n"
+        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n    origin: generated\n"
         '  - id: "02"\n    name: scope\n    status: pending\n'
-        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n"
+        "    content_hash: null\n    upstream_hashes_at_approval: {}\n    regeneration_count: 0\n    origin: generated\n"
     )
 
     def run_gate(stage, cwd):
@@ -162,7 +164,7 @@ def check_gate_selftest(r: Result):
         (Path(tmp) / ".meta.yaml").write_text(meta)
         try:
             blocked = run_gate("02", tmp)   # upstream 01 pending -> must block
-            allowed = run_gate("01", tmp)   # no upstream -> must pass
+            allowed = run_gate("01", tmp)   # upstream 00 approved -> must pass
         except subprocess.TimeoutExpired:
             r.add(False, "Gate self-test", "pre-stage.py hung (non-interactive timeout)")
             return
