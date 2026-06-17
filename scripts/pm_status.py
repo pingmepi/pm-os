@@ -10,6 +10,7 @@ from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
 
 STAGE_LABELS = {
+    "00": "Business Statement", "00w": "Context Wiki", "00u": "Understanding",
     "01": "Brief", "02": "Scope", "03": "PRD",
     "04": "Design Spec", "05": "Prototype Brief",
     "06": "QA Plan", "07": "Metrics Plan",
@@ -67,7 +68,9 @@ def main():
         except Exception:
             pass
         opt = "  (optional)" if s.get("optional") else ""
-        print(f"  {s['id']} {label} [{status}]{detail}{notes_str}{opt}")
+        origin = s.get("origin", "generated")
+        status_tag = f"{status} · {origin}" if origin in ("imported", "backfilled") else status
+        print(f"  {s['id']} {label} [{status_tag}]{detail}{notes_str}{opt}")
 
     tpath = root / "telemetry.jsonl"
     events = []
