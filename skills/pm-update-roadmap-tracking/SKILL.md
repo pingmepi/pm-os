@@ -12,10 +12,10 @@ Keep roadmap and progress-tracking documents aligned with the real product state
 ## Core Workflow
 
 1. Identify the active product root. Use the current working directory unless the user names another repo, PM-OS project, or docs folder.
-2. Run the discovery helper from this skill to find likely tracking docs and code/doc change signals:
+2. Run the discovery helper to find likely tracking docs and code/doc change signals:
 
    ```bash
-   python3 <skill-dir>/scripts/discover_tracking_context.py <product-root>
+   python3 ~/.pm-os/scripts/discover_tracking_context.py <product-root>
    ```
 
 3. Read the likely tracking docs before editing. Prefer docs whose titles or paths include roadmap, plan, implementation, status, tracker, release, milestone, backlog, or TODO.
