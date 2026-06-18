@@ -24,6 +24,8 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
 # Inputs
 
+**Context wiki (if present).** If `00-context-wiki.md` exists, read its body first and use it as grounding context alongside the inputs below — it is the normalized knowledge base of the PM's imported research and decisions (context-import projects). Greenfield projects won't have it; skip silently if it's absent. Treat it as background, not a new requirement source, and never let it override an approved upstream artifact.
+
 Read these inputs in order:
 
 1. **`00-business-statement.md`** - read the body (after frontmatter). Use it only for original context and urgency.
@@ -55,6 +57,20 @@ This note <changes X>, but <NN-upstream.md> still <states Y> under <section>.
 
 Handle the choice:
 - **[1]** Edit the relevant section of the named upstream artifact to reflect the note, append the note verbatim to that artifact's `generation_notes` frontmatter, and log a `stage_edited_via_note` event for that upstream stage (payload: `{ note, edited_sections }`). Leave its `content_hash` unchanged so the next downstream run's pre-stage hook detects the body drift. Then stop without writing `04-design-spec.md` and tell the PM to approve the edited upstream stage before rerunning stage `04`.
+
+  Log the event before you stop (fill in your own values):
+
+  ```bash
+  python3 -c "
+  import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+  from pathlib import Path
+  from telemetry import log
+  log('stage_edited_via_note', Path('.'), '<upstream stage id you edited, e.g. 03>', {
+      'note': '<the note verbatim>',
+      'edited_sections': [<headings you changed in the upstream artifact>],
+  })
+  "
+  ```
 - **[2]** Proceed forward-only: apply only the parts of the note that can fit within the approved PRD and scope, and surface any divergence in the relevant design section.
 - **[3]** Abort without writing any artifact or telemetry.
 
@@ -181,9 +197,11 @@ After generating, do the following in order:
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
    from pathlib import Path
    from telemetry import log
+   from config import model_tier_for_stage
    log('stage_generated', Path('.'), '04', {
        'generated_hash': '<hash>',
-       'model_tier': 'standard',
+       'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
+       'model_tier': model_tier_for_stage('04'),
        'prompt_version': '0.1.0',
        'notes': [<--note values used verbatim, or empty list>],
    })

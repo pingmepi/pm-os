@@ -15,17 +15,38 @@ from project import (
 )
 from hashing import hash_artifact_body
 from frontmatter import update_status, read as fm_read
-from telemetry import log
+from telemetry import log, last_event
+from text_metrics import char_edit_distance, normalized_edit_distance
 
 
 def stage_command(stage_id: str) -> str:
     return f"pm-stage-{stage_id}-{STAGE_NAMES[stage_id]}"
 
 
+def _latest_generated_snapshot(project_root: Path, apath: Path):
+    """Most recent .history/<stem>.<ts>.generated.md snapshot for this artifact, or None.
+
+    History filenames embed an ISO8601 timestamp that sorts chronologically, so
+    the lexicographically last match is the newest generation.
+    """
+    hist = project_root / ".history"
+    if not hist.is_dir():
+        return None
+    matches = sorted(hist.glob(f"{apath.stem}.*.generated.md"))
+    return matches[-1] if matches else None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Approve a PM-OS stage artifact.")
     parser.add_argument("stage_id", help="Two-digit stage number (e.g. '01')")
+    parser.add_argument("--semantic-distance", dest="semantic_distance", type=float, default=None,
+                        help="Optional agent-estimated semantic drift 0..1 (subjective judgment; "
+                             "defaults to null when not supplied).")
     args = parser.parse_args()
+
+    if args.semantic_distance is not None and not (0.0 <= args.semantic_distance <= 1.0):
+        print("Error: --semantic-distance must be between 0 and 1.")
+        sys.exit(1)
 
     stage_id = args.stage_id.zfill(2)
     if stage_id not in STAGE_NAMES:
@@ -83,14 +104,39 @@ def main():
 
     generated_hash = fm.get("generated_hash")
     regen_count = stage_meta.get("regeneration_count", 0)
+
+    # --- Compute real timing + edit metrics ---
+    # These are only meaningful when the stage was actually generated (has a
+    # stage_generated event and a retained .history snapshot). Stage-00 group and
+    # imported/backfilled artifacts have neither, so the fields stay None — correct.
+    char_dist = norm_dist = time_to_approve = None
+
+    snap = _latest_generated_snapshot(project_root, apath)
+    if snap is not None:
+        try:
+            _, gen_body = fm_read(str(snap))
+            char_dist = char_edit_distance(gen_body, body)
+            norm_dist = round(normalized_edit_distance(gen_body, body), 6)
+        except Exception:
+            pass
+
+    gen_ev = last_event(project_root, "stage_generated", stage_id)
+    if gen_ev and gen_ev.get("timestamp"):
+        try:
+            t_gen = datetime.fromisoformat(gen_ev["timestamp"])
+            t_app = datetime.fromisoformat(ts)
+            time_to_approve = (t_app - t_gen).total_seconds()
+        except Exception:
+            pass
+
     try:
         log("stage_approved", project_root, stage_id, {
             "approved_hash": content_hash,
             "generated_hash": generated_hash,
-            "char_edit_distance": None,
-            "normalized_edit_distance": None,
-            "semantic_distance": None,
-            "time_to_approve_seconds": None,
+            "char_edit_distance": char_dist,
+            "normalized_edit_distance": norm_dist,
+            "semantic_distance": args.semantic_distance,
+            "time_to_approve_seconds": time_to_approve,
             "regeneration_count": regen_count,
             "implicit_reapproval": False,
         })

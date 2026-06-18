@@ -26,7 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
 import yaml
-from config import load_config
+from config import load_config, model_tier_for_stage
 from project import (
     resolve_project, load_meta, save_meta, get_stage, artifact_path,
     upstream_stage_ids, downstream_stage_ids, resolve_backfill,
@@ -182,6 +182,23 @@ def cmd_commit(args):
         stage_meta["status"] = "draft"
         fm_write(str(apath), fm, body)
         save_meta(meta, root)
+        # The wiki/understanding docs are model-produced — record the model that
+        # generated them, mirroring the stage skills' stage_generated event.
+        if args.kind == "generated":
+            try:
+                # Match the documented stage_generated schema (see the stage skills
+                # and docs/spec) so telemetry aggregation treats context drafts the
+                # same. Context-import takes no --note steering, so notes is empty.
+                log("stage_generated", root, stage_id, {
+                    "generated_hash": hash_artifact_body(str(apath)),
+                    "model": args.model,
+                    "model_tier": model_tier_for_stage(stage_id),
+                    "prompt_version": args.prompt_version,
+                    "notes": [],
+                    "origin": args.kind,
+                })
+            except Exception as e:
+                print(f"Warning: telemetry logging failed: {e}")
         print(f"Stage {stage_id} ({STAGE_NAMES[stage_id]}) committed as draft "
               f"(origin={args.kind}). Approve with /pm-approve {stage_id}.")
         return
@@ -205,14 +222,20 @@ def cmd_commit(args):
 
     event = "stage_imported" if args.kind == "imported" else (
         "stage_backfilled" if args.kind == "backfilled" else "stage_approved")
+    payload = {
+        "origin": args.kind,
+        "approved_hash": content_hash,
+        "source_format": args.source_format,
+        "source_filename": args.source_name,
+        "derived_from": args.derived_from,
+    }
+    # Backfilled (reverse-generated) and generated artifacts are model-produced;
+    # imported ones are the PM's own authored docs, so no model applies there.
+    if args.kind in ("generated", "backfilled"):
+        payload["model"] = args.model
+        payload["model_tier"] = model_tier_for_stage(stage_id)
     try:
-        log(event, root, stage_id, {
-            "origin": args.kind,
-            "approved_hash": content_hash,
-            "source_format": args.source_format,
-            "source_filename": args.source_name,
-            "derived_from": args.derived_from,
-        })
+        log(event, root, stage_id, payload)
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
 
@@ -248,6 +271,12 @@ def main():
     p_com.add_argument("--source-name", dest="source_name", default=None)
     p_com.add_argument("--source-format", dest="source_format", default=None)
     p_com.add_argument("--derived-from", dest="derived_from", default=None)
+    p_com.add_argument("--model", default=None,
+                       help="Actual model id that produced this artifact "
+                            "(for generated/backfilled kinds; the agent fills in its own id).")
+    p_com.add_argument("--prompt-version", dest="prompt_version", default=None,
+                       help="prompt_version of the generating skill, recorded on generated "
+                            "stage_generated events to match the documented schema.")
     p_com.set_defaults(func=cmd_commit)
 
     args = parser.parse_args()

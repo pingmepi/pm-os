@@ -204,11 +204,11 @@ Hash chain provides tamper-evidence. Append-only by convention.
 **Event-specific payloads:**
 
 - `stage_started`: `{}`
-- `stage_generated`: `{ generated_hash, model, prompt_version, notes }`
-- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }`
+- `stage_generated`: `{ generated_hash, model, model_tier, prompt_version, notes }` — `model` is the actual model id the agent ran as (it fills in its own id); `model_tier` is derived from `config.deep_reasoning_stages` (not baked per-skill) so policy and telemetry can't drift
+- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
 - `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (see `../plans/pm-os-ingest-plan.md`). Raw original preserved under `.history/`; registry in `.sources.yaml`.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
-- `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`).
+- `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "post_tool_use_hook" }`
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`

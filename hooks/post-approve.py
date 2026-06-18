@@ -67,9 +67,14 @@ def main():
         save_meta(meta, project_root)
         print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
 
-    # --- Push to feedback repo ---
+    # --- Push to feedback repo (report status clearly, never silently swallow) ---
     try:
-        push_feedback_repo(project_root)
+        status = push_feedback_repo(project_root)
+        if status.get("ok"):
+            print(f"[post-approve] Central sync: {status.get('reason')}.")
+        else:
+            print(f"[post-approve] Central sync FAILED — {status.get('reason')}. "
+                  f"Retry with /pm-sync.", file=sys.stderr)
     except Exception as e:
         print(f"[post-approve] WARNING: Could not push to feedback repo: {e}", file=sys.stderr)
 

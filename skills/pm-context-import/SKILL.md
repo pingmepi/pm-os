@@ -3,7 +3,7 @@ name: pm-context-import
 description: Ingest the context a PM already has (research, brief, scope, PRD, design…), build a gated context wiki + understanding doc, then adopt/backfill stage artifacts into the normal pipeline.
 reads: ["00-business-statement.md", ".meta.yaml", ".sources.yaml"]
 writes: ["00-context-wiki.md", "00-context-understanding.md", "<adopted/backfilled stage artifacts>"]
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -25,7 +25,9 @@ This is the intake path. A greenfield project that starts from just a one-line s
 
 ```bash
 python3 - <<'PY'
-import sys; sys.path.insert(0, "$HOME/.pm-os/lib")
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 from project import resolve_project, load_meta, get_stage
 root = resolve_project()
 meta = load_meta(root)
@@ -63,10 +65,41 @@ Record the set of **provided core stages** (the stages you'll adopt). Honor any 
 
 # Step 3 — Build the context wiki (`00-context-wiki.md`)
 
-Write one normalized knowledge base the model will read as grounding for every downstream stage. Exhaustive but organized; tag claims with their source id (`src_001`…) from `.sources.yaml` so provenance is traceable. Then scaffold it as a draft stage:
+Write **one** normalized knowledge base the model will read as grounding for every downstream stage. This is a *persistent, compounding artifact*, not a one-off summary — exhaustive but organized, source-grounded, and skimmable. Keep it a **single page**: do not split it into per-topic files; cross-reference sections by name instead.
+
+## Section template (use these `##` headings, in this order)
+
+- `## TL;DR` — the useful takeaway up front: what the product is, the core problem, who it's for, and the decisions already locked. A reader should grasp the project from this section alone.
+- `## Problem & context` — the problem space and why-now.
+- `## Users & needs` — who they are and their jobs/pains.
+- `## Decisions already made` — scope calls, constraints, and commitments the PM has locked, so downstream stages don't relitigate them.
+- `## Concepts & glossary` — normalized domain terms used across sources.
+- `## Open questions & uncertainties` — gaps, conflicts, and thin evidence (this is also where the self-lint findings land — see Step 3b).
+- `## Source map` — a provenance table: `src_NNN` → file → type → what it contributed.
+
+Omit a section only if no source touches it at all — and when you do, note the gap under Open questions rather than dropping it silently.
+
+## Style rules
+
+- **Lead with the takeaway**, then support it. Keep the page skimmable.
+- **Tag every factual claim** with its `src_NNN` id from `.sources.yaml` so provenance is traceable.
+- **Distinguish sourced claims from interpretation.** Anything you synthesized or inferred (not stated in a source) is prefixed `_Interpretation:_` so the PM can tell evidence from inference.
+- **Mark uncertainty inline** with `⚠️` when sources conflict or evidence is thin — never resolve a conflict by silently picking one side; surface it under Open questions.
+- **No filler.** Every line must add navigation, synthesis, or decision value.
+
+# Step 3b — Self-lint the wiki
+
+Before scaffolding the draft, review the wiki you just wrote for:
+- **Contradictions** — claims from different sources that conflict → must surface under `## Open questions & uncertainties`, never silently reconciled.
+- **Gaps** — pipeline-relevant areas (problem / users / scope) with no source coverage → note them under `## Open questions & uncertainties`.
+- **Unsourced claims** — any assertion lacking a `src_NNN` tag and not marked `_Interpretation:_` → either source it, mark it as interpretation, or cut it.
+
+Emit each finding as an `FYI:` line (per the "Nothing is silent" rule), e.g. `FYI: sources src_002 and src_004 disagree on the target segment — flagged under Open questions for your call.`
+
+Then scaffold the wiki as a draft stage:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.2.0
 ```
 
 (The script creates the `00w` stage entry. Write the file with a normal frontmatter block — `status: draft` — plus the body before committing.)
@@ -105,7 +138,7 @@ Human-facing synthesis the PM approves. Include:
 Then scaffold it as a draft:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit 00u --kind generated --status draft
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00u --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.2.0
 ```
 
 # Step 6 — Surface FYIs and hand the gate to the PM
@@ -124,7 +157,7 @@ After the PM approves the wiki and understanding, adopt and backfill **bottom-up
 For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind backfilled --status approved --derived-from <provided-stage>
+python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind backfilled --status approved --derived-from <provided-stage> --model "<the model id you are running as, e.g. claude-opus-4-8>"
 ```
 
 For each adopted artifact, normalize it into the stage's section template, write the slot, then:
