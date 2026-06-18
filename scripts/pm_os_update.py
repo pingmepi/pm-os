@@ -145,8 +145,26 @@ def print_restart_guidance(runtime: str) -> None:
     print("Then run the PM-OS verifier for your runtime, if installed, to confirm installation health.")
 
 
+def seed_context_overlay() -> None:
+    """Seed any missing context-overlay files from context.example/ (never overwrites).
+
+    Runs after the fast-forward so newly-added seed files (e.g. new stage packs) reach
+    existing installs. The live ~/.pm-os/context/ is gitignored user data, so this is
+    the only thing that touches it. Non-critical — a failure here never blocks an update.
+    """
+    try:
+        sys.path.insert(0, str(PM_OS_DIR / "lib"))
+        from context import seed_context
+        n = seed_context()
+        if n:
+            print(f"✓ Seeded {n} new context-overlay file(s) into {PM_OS_DIR / 'context'}")
+    except Exception as e:
+        print(f"Warning: could not seed context overlay: {e}")
+
+
 def finish_update(runtime: str) -> None:
     sync_runtime(runtime)
+    seed_context_overlay()
     print_version()
     print()
     print_restart_guidance(runtime)
