@@ -41,3 +41,8 @@ pip-wheel-metadata/
 *.log
 *.tmp
 
+# Live context overlay — user data, seeded from context.example/ on install and
+# edited in place under ~/.pm-os/context/. Never tracked, so pm_os_update's
+# fast-forward never clobbers a PM's filled-in company/stage context.
+/context/
+

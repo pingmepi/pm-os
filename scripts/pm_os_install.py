@@ -153,6 +153,18 @@ def main():
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
 
+    # Step 7: seed the context overlay (user data) from context.example/ if missing.
+    # Non-critical — a failure here never blocks the install.
+    try:
+        from context import seed_context
+        n = seed_context()
+        if n:
+            print(f"✓ Seeded context overlay ({n} files) into {PM_OS_DIR / 'context'}")
+        else:
+            print("✓ Context overlay present (left untouched)")
+    except Exception as e:
+        print(f"Warning: could not seed context overlay: {e}")
+
     # Summary
     print()
     total = len(steps_ok) + len(steps_fail)

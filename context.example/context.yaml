@@ -1,0 +1,63 @@
+# PM-OS context overlay — manifest
+#
+# This is the SEED template (context.example/). On install it is copied to
+# ~/.pm-os/context/, which the engine reads at every stage via lib/context.py
+# and the "Load context overlay" step in each stage skill. Fill in the files
+# below to activate the overlay; an all-TODO (empty) pack stays a no-op.
+#
+# Layering (precedence high -> low): project override > stage pack > global.
+# apply modes:
+#   augment        -> keep the skill's default Output spec, fold these in (CHOSEN DEFAULT)
+#   override        -> this format's sections REPLACE the skill's default output spec
+#   reference-only  -> examples shown for tone/depth only, not structure
+
+schema_version: 1
+active_pack: indegene
+description: Indegene life-sciences PM context
+
+# Applied to every project, every stage.
+global:
+  - global/company.md
+  - global/team.md
+  - global/glossary.md
+  - global/guardrails.md
+
+# Per-stage context. All core + capstone stages are seeded. Fill in a stage's
+# format.md / example.md to activate it; an all-TODO pack stays a no-op.
+stages:
+  "01":
+    format:   stages/01-brief/format.md
+    examples: [stages/01-brief/example.md]
+    apply: augment
+  "02":
+    format:   stages/02-scope/format.md
+    examples: [stages/02-scope/example.md]
+    apply: augment
+  "03":
+    format:   stages/03-prd/format.md
+    examples: [stages/03-prd/example.md]
+    apply: augment
+  "04":
+    format:   stages/04-design-spec/format.md
+    examples: [stages/04-design-spec/example.md]
+    apply: augment
+  "05":
+    format:   stages/05-prototype-brief/format.md
+    examples: [stages/05-prototype-brief/example.md]
+    apply: augment
+  "06":
+    format:   stages/06-qa-plan/format.md
+    examples: [stages/06-qa-plan/example.md]
+    apply: augment
+  "07":
+    format:   stages/07-metrics-plan/format.md
+    examples: [stages/07-metrics-plan/example.md]
+    apply: augment
+  "08":
+    format:   stages/08-trd/format.md
+    examples: [stages/08-trd/example.md]
+    apply: augment
+  "09":
+    format:   stages/09-roadmap/format.md
+    examples: [stages/09-roadmap/example.md]
+    apply: augment

@@ -214,6 +214,35 @@ def check_telemetry_selftest(r: Result):
     r.add(ok, "Telemetry self-test (append + hash chain + push status)", detail)
 
 
+def check_context_pack(r: Result):
+    """If a context overlay is installed, its manifest must parse; missing referenced
+    files are warned (not failed). No overlay at all is fine (optional feature)."""
+    ctx_dir = PM_OS_DIR / "context"
+    manifest = ctx_dir / "context.yaml"
+    if not manifest.exists():
+        r.add(True, "Context overlay", "not configured (optional)")
+        return
+    try:
+        import yaml
+        data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+    except Exception as e:  # noqa: BLE001
+        r.add(False, "Context overlay manifest parses", str(e).splitlines()[0])
+        return
+
+    referenced = list(data.get("global", []) or [])
+    for entry in (data.get("stages") or {}).values():
+        entry = entry or {}
+        if entry.get("format"):
+            referenced.append(entry["format"])
+        referenced.extend(entry.get("examples", []) or [])
+    missing = [rel for rel in referenced if not (ctx_dir / rel).exists()]
+
+    # Dangling references are a warning, not a hard fail (the pack is optional and
+    # a PM may be mid-edit) — surface them but keep the check green.
+    detail = "manifest OK" if not missing else "WARNING — missing referenced files: " + ", ".join(missing)
+    r.add(True, "Context overlay manifest", detail)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify a PM-OS installation.")
     parser.add_argument("--runtime", choices=["claude", "codex", "all"], default="all",
@@ -237,6 +266,7 @@ def main():
     check_skills(r, args.runtime)
     check_gate_selftest(r)
     check_telemetry_selftest(r)
+    check_context_pack(r)
 
     print()
     if r.ok:

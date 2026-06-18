@@ -71,7 +71,7 @@ flowchart LR
     CANON -.->|"scripts import lib via<br/>hardcoded ~/.pm-os/lib"| CANON
 ```
 
-- `install.sh --runtime claude|codex` clones `~/.pm-os` from the **GitHub remote** and syncs skills (and, for Claude, hooks) into the runtime discovery dirs.
+- `install.sh --runtime claude|codex|all` clones `~/.pm-os` from the **GitHub remote** and syncs skills (and, for Claude, hooks) into the runtime discovery dirs.
 - Gates always execute from `~/.pm-os/hooks` — the copy into `~/.claude/hooks` is vestigial/reserved for future native-hook registration. Codex skips hooks entirely.
 - `scripts/*.py` insert `~/.pm-os/lib` on `sys.path`, so **edits in the working copy are inert until they reach `~/.pm-os`.**
 
@@ -86,8 +86,9 @@ flowchart TD
     subgraph Skills["skills/"]
         S1["pm-stage-NN-*<br/>(generate artifact)"]
         S2["pm-approve"]
-        S3["pm-new / pm-status<br/>pm-feedback / pm-share"]
-        S4["pm-os-install / pm-os-update"]
+        S3["pm-new / pm-status<br/>pm-feedback / pm-share / pm-sync"]
+        S4["pm-os-install / pm-os-update<br/>pm-os-verify"]
+        S5["pm-context-import"]
     end
 
     subgraph Scripts["scripts/"]
@@ -95,8 +96,9 @@ flowchart TD
         P2["pm_approve.py"]
         P3["pm_status.py"]
         P4["pm_feedback.py"]
-        P5["pm_share.py"]
-        P6["pm_os_install.py / pm_os_update.py"]
+        P5["pm_share.py / pm_sync.py"]
+        P6["pm_os_install.py / pm_os_update.py<br/>pm_os_verify.py"]
+        P7["pm_context_import.py"]
     end
 
     subgraph Hooks["hooks/ (run from ~/.pm-os/hooks)"]
@@ -112,21 +114,27 @@ flowchart TD
         L5["config.py<br/>config + model policy"]
         L6["html_render.py<br/>04/05 HTML companions"]
         L7["git_sync.py<br/>push feedback repo"]
+        L8["text_metrics.py<br/>edit distance"]
+        L9["context.py<br/>context overlay"]
     end
 
     S1 -->|PM_OS_STAGE=NN inline bash| H1
     S1 -->|writes draft + logs| L3 & L4
+    S1 -->|load context overlay| L9
     S2 --> P2
     S3 --> P1 & P3 & P4 & P5
     S4 --> P6
+    S5 --> P7
 
     P2 -->|"subprocess, PM_OS_STAGE=NN"| H2
+    P7 -->|"subprocess, PM_OS_STAGE=NN (on approve)"| H2
     H1 --> L1 & L2 & L3 & L4
     H2 --> L6 & L7 & L1 & L3 & L4
     P1 --> L1 & L4 & L5
-    P2 --> L1 & L2 & L3 & L4 & L5
+    P2 --> L1 & L2 & L3 & L4 & L5 & L8
     P3 --> L1
     P4 --> L4
+    P7 --> L1 & L2 & L3 & L4 & L5
 ```
 
 **State flows between scripts and hooks via the `PM_OS_STAGE` environment variable, not arguments.**
@@ -138,10 +146,12 @@ flowchart TD
 | `skills/pm-stage-NN-*/SKILL.md` | The stage prompt + the inline bash the agent runs: pre-stage gate, read upstream, generate, write draft, log telemetry. Ships an `agents/openai.yaml` twin for Codex. |
 | `skills/pm-approve` → `scripts/pm_approve.py` | Validates status, computes body `content_hash`, writes approval to frontmatter + `.meta.yaml`, logs `stage_approved`, then shells out to `post-approve.py`. |
 | `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement, `.meta.yaml` (9 stages `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. |
+| `skills/pm-context-import` → `scripts/pm_context_import.py` | Mechanical state for the context-intake flow. `register` preserves a raw source in `.history/` + `.sources.yaml` (logs `context_ingested`); `preflight` prints backfill-feasibility verdicts (`resolve_backfill`) and exits non-zero on an infeasible gap; `commit` stamps an SKILL-written artifact slot to draft/approved with `origin` (`generated`/`imported`/`backfilled`), body hash, meta + frontmatter, telemetry, and (on approve) `post-approve.py`. Generates no content — judgment lives in the SKILL. |
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count. |
 | `skills/pm-feedback` → `scripts/pm_feedback.py` | Appends a rating/tags/free-text entry to `feedback.jsonl`; logs `feedback_submitted` into the hash chain; triggers a central sync. |
 | `skills/pm-sync` → `scripts/pm_sync.py` | Manual catch-up sync of **all** projects' telemetry/feedback to the central repo (`git_sync.push_all`); `--verify` validates every project's hash chain. |
 | `skills/pm-share` → `scripts/pm_share.py` | Exports approved artifacts to a shareable text bundle. |
+| `skills/pm-os-verify` → `scripts/pm_os_verify.py` | Health-checks the *installed* `~/.pm-os` for a runtime: config, `lib` imports, gate hooks, installed skills, plus a deterministic gate self-test that runs the real `pre-stage.py` in a throwaway project (asserts it blocks an unapproved upstream and allows stage 01) and a telemetry self-test. |
 | `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift; runs the implicit-reapproval prompt, cascading `stale` to downstream approved stages on implicit reapproval. |
 | `hooks/post-approve.py` | Renders HTML companions for stages 04/05, cascades `stale` to downstream approved stages, pushes telemetry/feedback via `git_sync`. |
 | `lib/project.py` | `resolve_project()` walks up from CWD to the nearest `.meta.yaml`; stage order/name tables; `upstream_stage_ids()`. |
@@ -152,6 +162,7 @@ flowchart TD
 | `lib/html_render.py` | Jinja2 render of `04-design-spec.html` and `05-prototype-mockup.html`. |
 | `lib/git_sync.py` | Clone-or-fetch the feedback repo cache, copy JSONL, commit, push. `push_feedback_repo()` (one project) and `push_all()` (every project) share one helper, report failures loudly with a status dict, and skip deleted projects. |
 | `lib/text_metrics.py` | Pure-stdlib Levenshtein `char_edit_distance` + `normalized_edit_distance` for generated-vs-approved drift. |
+| `lib/context.py` | **Context overlay loader.** `resolve_context()` / `render_context()` merge the company/team/glossary/guardrails **global** layer + per-stage **format/example** packs + a per-project override (precedence project > stage > global), applying `augment`/`override`/`reference-only` modes and dropping empty/TODO content so an unfilled pack is a no-op. `seed_context()` copies missing files from `context.example/` → `~/.pm-os/context/`. The 9 stage skills call it in a "Load context overlay" step; install/update seed it, and the loader self-seeds on first read if the dir is absent (covers the self-update bootstrap). The live `~/.pm-os/context/` is gitignored user data. |
 
 ---
 
