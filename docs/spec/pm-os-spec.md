@@ -69,9 +69,12 @@ pm-os/
     frontmatter.py                 # YAML frontmatter read/write
     telemetry.py                   # append JSONL event with hash chain
     project.py                     # resolve project root from CWD, load .meta.yaml
-    edit_distance.py               # Levenshtein + embedding cosine distance
-    embeddings.py                  # local sentence-transformers wrapper
-    git_sync.py                    # push telemetry/feedback to feedback repo
+    text_metrics.py                # Levenshtein char + normalized edit distance (implemented)
+    # NOTE: embedding-based semantic distance (embeddings.py) was never built; semantic_distance
+    #       is an optional agent estimate passed to pm-approve, not computed locally.
+    config.py                      # config load + model-tier policy (model_tier_for_stage)
+    context.py                     # context-overlay loader (resolve/render/seed)
+    git_sync.py                    # push telemetry/feedback to feedback repo (push_feedback_repo + push_all)
     html_render.py                 # render design-spec.html and prototype-mockup.html
   hooks/
     pre-stage.py                   # gate: upstream approved + staleness check

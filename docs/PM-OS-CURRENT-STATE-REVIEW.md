@@ -1,6 +1,6 @@
 # PM-OS Current State Review and Roadmap
 
-**Date:** 2026-06-12 · **Updated:** 2026-06-17 (Phase 1 runtime parity and Phase 2 flexible intake both shipped — §2 and §3 below reflect this)
+**Date:** 2026-06-12 · **Updated:** 2026-06-18 (Phase 1 runtime parity and Phase 2 flexible intake both shipped; the **context overlay** and richer **telemetry metrics** also shipped — v0.5.3 — and §2/§3 below reflect this)
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -33,7 +33,7 @@ It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or futu
 
 ## 2. Current State Summary
 
-The current codebase is a strong **local-first product-definition MVP** with flexible intake.
+The current codebase (v0.5.3) is a strong **local-first product-definition MVP** with flexible intake and a pluggable company/team context overlay.
 
 It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; record telemetry/feedback; and export approved artifacts.
 
@@ -44,12 +44,14 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Area | Status | Evidence |
 |---|---:|---|
 | Local project scaffold | Implemented | `scripts/pm_new.py` creates `~/pm-projects/<slug>`, `.meta.yaml`, `00-business-statement.md`, `.history/`, telemetry, feedback |
-| Linear stage pipeline | Implemented | Stages 01-09 exist in `skills/`; `lib/project.py` defines order — core MVP is 01-07, with optional 08 (TRD) and 09 (roadmap) capstones |
+| Linear stage pipeline | Implemented | `lib/project.py` defines `STAGE_ORDER` = `00`, `00w`, `00u`, `01`–`09`: stage-00 understanding group (`00` business-statement always present; `00w` context-wiki + `00u` context-understanding only after `/pm-context-import`), `CORE_STAGE_ORDER` 01-07, plus optional 08 (TRD) and 09 (roadmap) capstones |
 | Human approval gates | Implemented | `scripts/pm_approve.py`, `hooks/pre-stage.py`, `hooks/post-approve.py` |
 | Artifact status model | Implemented | `pending`, `draft`, `approved`, `edited`, `stale` in `.meta.yaml` and frontmatter |
 | Hash-based drift detection | Implemented | `hooks/pre-stage.py` recomputes upstream hashes and marks edits |
 | Downstream staleness cascade | Implemented | `hooks/post-approve.py` marks approved downstream stages stale |
 | Telemetry | Implemented | `lib/telemetry.py` appends hash-chained JSONL events |
+| Telemetry: approval metrics | Implemented | `pm_approve.py` records real `time_to_approve_seconds`, PM edit distance (`char_edit_distance` + `normalized_edit_distance`, Levenshtein via `lib/text_metrics.py`), optional agent-estimated `semantic_distance`, and `regeneration_count` — null for stage-00/imported/backfilled artifacts that were never generated |
+| Telemetry: model capture | Implemented | generated/backfilled artifacts record the real `model` id + `model_tier` (`config.model_tier_for_stage`); imported (PM-authored) artifacts carry no model |
 | Feedback capture | Implemented, basic | `scripts/pm_feedback.py` writes simple feedback JSONL entries |
 | Share/export | Implemented, basic | `scripts/pm_share.py` exports approved/edited artifacts |
 | GenAI-specific sections | Implemented in prompts | `genai_flag` exists and stage prompts branch on it |
@@ -62,12 +64,16 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Runtime-neutral `AGENTS.md` | Implemented | full agents file; `claude-mem` stub removed |
 | Runtime-neutral model wording | Implemented | stages 03/06/08 use advisory deep-reasoning guidance instead of `/model opus` |
 | Non-interactive gate safety | Implemented | `pre-stage.py` has `isatty()` branch + `PM_OS_EDITED_UPSTREAM_CHOICE`; never hangs unattended |
+| Catch-up telemetry sync | Implemented | `/pm-sync` + `scripts/pm_sync.py` walk every project under `projects_dir`, copy telemetry/feedback to the central repo, and push in one commit; `--verify` validates each project's hash chain. Failures are surfaced loudly, not swallowed |
+| Automated test suite | Implemented (in progress) | `tests/` pytest harness (T0–T9: unit/integration/contract), isolated from the real `~/.pm-os` via temp-install fixtures; `pyproject.toml` config, `docs/TESTING.md` reference, `.github/workflows/tests.yml` CI |
 | Install verifier | Implemented | `scripts/pm_os_verify.py` + `pm-os-verify` skill: install-integrity checks + deterministic gate self-test, per runtime |
 | Flexible context intake | Implemented | `/pm-context-import` (`scripts/pm_context_import.py` + `skills/pm-context-import/`): ingest existing research/brief/scope/PRD/design, register sources in `.sources.yaml`, preserve raw in `.history/` |
 | Gated stage-00 understanding | Implemented | context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`); the business statement is now a normal gated stage `00`. All three must be approved before stage 01 |
 | Adopt + backfill | Implemented | PM-authored artifacts adopted as stage artifacts (`origin: imported`); upstream gaps reverse-generated (`origin: backfilled`) per the feasibility map in `lib/project.resolve_backfill` |
 | Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 2`; `lib/project.migrate_meta` upgrades v1 projects in place (adds `00` stage + per-stage `origin`) without disturbing approvals |
 | Telemetry: intake events | Implemented | `context_ingested`, `stage_imported`, `stage_backfilled` kept distinct from `stage_approved` so quality signals are not polluted |
+| Context overlay | Implemented (v0.5.3) | `lib/context.py` (resolve/render/seed) injects a pluggable company/team/product knowledge layer into every stage prompt. Three apply modes — `augment`, `override`, `reference-only`; layering precedence project > stage > global; empty/TODO packs are a silent no-op. Seed lives in `context.example/` (global `company`/`team`/`glossary`/`guardrails.md` + per-stage `format.md`/`example.md` packs); all stage skills load it; seeded on install/update and self-seeds on first read |
+| Context overlay as user data | Implemented (v0.5.3) | live `~/.pm-os/context/` is **gitignored** and edited in place by the PM — the one engine-dir exception to the never-hand-modify rule; never diverges `main` or blocks `pm_os_update.py` |
 
 ### Planned but Not Implemented
 
@@ -97,6 +103,7 @@ The current architecture already has several foundations that should survive:
 - **The pipeline is artifact-driven.** Downstream stages care about approved files and hashes, not session state.
 - **Hash/staleness machinery is valuable.** This is the beginning of lifecycle traceability.
 - **Skill-based workflow is a good portable wrapper.** The same idea can work across Claude/Codex if runtime-specific assumptions are removed.
+- **The context overlay is an early context-layer foundation.** Per-PM/company knowledge (company, team, glossary, guardrails, per-stage packs) now flows into every stage's generation without any code change, and lives as gitignored user data. This is the seed of the wider PDLC context graph the target product needs.
 
 ### Where It Falls Short
 
@@ -259,6 +266,8 @@ Docs corrected in this phase: README / CLAUDE.md / AGENTS.md now make `~/.pm-os/
 
 Shipped 2026-06-17 as `/pm-context-import` (see `plans/pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all three stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 2` with an in-place `migrate_meta` so existing projects keep working. Remaining: `.docx`/`.pdf` conversion, dogfood a real Indegene enhancement, and unifying codebase-understanding (Phase 3) into the same stage-00 framework.
 
+Shipped in the same Phase 2 push (v0.5.3, PR #19): the **context overlay** (`lib/context.py` + `context.example/`) — a pluggable company/team/product knowledge layer loaded into every stage prompt (apply modes `augment`/`override`/`reference-only`; precedence project > stage > global). It is seeded on install/update (self-seeding on first read) and the live `~/.pm-os/context/` is gitignored user data the PM edits in place, so it never diverges `main`. Alongside it, the approval path gained real **telemetry metrics** (time-to-approve, edit distance, semantic distance, model id/tier) so generation quality can be measured rather than guessed.
+
 Original Phase 2 sketch (superseded shape):
 
 Goal: PM can start from partial existing context instead of a one-line statement only.
@@ -338,6 +347,29 @@ Checks:
 Blockers:
 
 - Current PRD/QA artifacts are prose; IDs must be introduced without breaking existing projects (needs `schema_version`).
+
+### Phase 3.6: Automated Test Suite (foundational — infra alongside Phase 3.5)
+
+Goal: give a contributor **one repo-level command** that yields real confidence in both halves of PM-OS — the deterministic Python state machine *and* the Markdown skill/doc contract — without ever touching the installed `~/.pm-os`, `~/.agents/skills`, or `~/.claude/skills`. Today the only smoke test is `pm_os_verify.py` against the install; there is no `pytest`, linter, or CI beyond version-bump. Design is captured in `docs/plans/pm-os-test-implementation-plan.md` (drafted 2026-06-18).
+
+Work:
+
+- Add `pyproject.toml` with pytest config and markers: `unit`, `integration`, `contract`, `connection`, `slow`.
+- Add `tests/` (`conftest.py`, `helpers.py`, `unit/`, `integration/`, `contracts/`, `fixtures/`) with fixtures for isolated HOME-like temp dirs and throwaway PM-OS installs.
+- Cover: `lib/` modules (`project`, `frontmatter`, `hashing`, `config`, `telemetry`, `text_metrics`, `html_render`, `git_sync`, `context`); the full lifecycle (`pm_new` → approve → gates → stale → status → share); deliverable/format contracts (skill frontmatter, stage artifact sections, runtime examples); runtime parity (install/update/verify for Claude and Codex); context import + provenance; telemetry metrics; negative/resilience (malformed meta, corrupt telemetry, idempotent recovery); local-first boundaries (no default network, HTML escaping); and doc-drift (stage lists, runtime paths, model-tier policy).
+
+Checks:
+
+- `python3 -m pytest` is green from a clean checkout; markers run subsets (`-m unit` / `-m integration` / `-m contract`).
+- Gates block unsafe progression and allow valid progression inside isolated temp projects.
+- No test writes to real user dirs or hits the network; external side effects point at local temp repos.
+
+Dependencies:
+
+- Tests target the repo source tree directly — never the installed runtime dirs.
+- Runs before the handoff/triage/release phases so their ID-linked behavior is regression-protected.
+
+Out of scope (this phase): LLM prose-quality evaluation, real Claude/Codex skill invocation, pushing to the real feedback repo, mutation/visual-regression testing.
 
 ### Phase 4: Handoff and External Work Artifacts
 
@@ -499,11 +531,14 @@ Recommended order:
 3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
 4. ~~Add `schema_version` and the migration path so existing projects survive new fields.~~ (done — `.meta.yaml` is `schema_version: 2` with in-place `migrate_meta`)
 5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `plans/pm-os-ingest-plan.md` §0)
-6. Implement enhancement mode and codebase understanding (Phase 3).
-7. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
-8. Ship local handoff packet (4a), then one opt-in tracker export (4b).
-9. Ship bug intake + classification (5a), then quarantined code-area suggestion (5b).
-10. Ship local release-readiness report (6a), then feedback intake (6b).
+6. ~~Ship the context overlay so company/team knowledge flows into every stage.~~ (done — v0.5.3, `lib/context.py` + `context.example/`, gitignored user data)
+7. Implement enhancement mode and codebase understanding (Phase 3).
+8. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
+9. ~~Stand up the automated test suite (Phase 3.6)~~ — **DONE** (pytest suite T0–T9 under `tests/`, CI at `.github/workflows/tests.yml`, reference in `docs/TESTING.md`). Locks current behavior before the ID-linked phases land. The final phase **T10 — `/pm-check` consistency toolkit** (a PM-facing reuse of the suite's invariants) is specified in `plans/pm-os-test-implementation-plan.md` §19 and is the next test-track item to build.
+10. Add the PM-OS quality, operations, usage, and self-improvement loop so telemetry/feedback turn into readable metrics, suggestions, PM decisions, and implementation plans without automatic source changes. See `plans/pm-os-self-improvement-loop-plan.md`.
+11. Ship local handoff packet (4a), then one opt-in tracker export (4b).
+12. Ship bug intake + classification (5a), then quarantined code-area suggestion (5b).
+13. Ship local release-readiness report (6a), then feedback intake (6b).
 
 ---
 
@@ -511,6 +546,6 @@ Recommended order:
 
 PM-OS today is a useful and coherent **stage-gated product-definition tool with flexible intake**.
 
-It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, PM-visible review points, and — as of Phase 2 — the ability to adopt existing PM-authored context through a gated understanding step instead of regenerating it.
+It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, PM-visible review points, and — as of Phase 2 — the ability to adopt existing PM-authored context through a gated understanding step instead of regenerating it. The v0.5.3 **context overlay** adds a second instinct worth keeping: company/team/product knowledge flows into every stage's generation as gitignored, edit-in-place user data — the first thread of the PDLC context graph the target product needs.
 
 To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase is the kernel, and flexible intake (from PM-authored documents) now exists; the next major work is not simply "add more stages." The larger remaining move is to add external artifact ingestion (repos/trackers/design files), brownfield/codebase awareness, traceability links, dev/QA support workflows, release readiness, and feedback loops while preserving PM authority and human execution.

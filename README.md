@@ -93,6 +93,10 @@ PM-OS builds a context wiki and an understanding doc for you to review and
 approve, then adopts the artifacts you authored and faithfully backfills the
 upstream stages below them before handing back to the normal pipeline.
 
+Day to day you'll also use `/pm-status` (project state), `/pm-feedback <NN>` (rate a
+stage), `/pm-share` (export approved artifacts), and `/pm-sync` (push every project's
+telemetry/feedback to the team repo; `--verify` checks each hash chain).
+
 Approve the business statement, then generate and approve stages. The business
 statement is stage `00` — gated like any other stage, so approve it first:
 
@@ -167,11 +171,19 @@ PM-OS is intended for sanitized product-planning inputs. Do not put confidential
 
 By default, PM-OS is configured to push local telemetry and feedback artifacts to `https://github.com/pingmepi/pm-os-feedback.git`. Override this during setup if your team needs a private or organization-specific feedback repository.
 
+## Testing
+
+PM-OS has a pytest suite under `tests/` — run `python3 -m pytest`. It covers the `lib/`
+helpers, the full project lifecycle, the gate/approval/staleness machine, skill &
+documentation contracts, telemetry metrics, and failure recovery, and is fully isolated
+from your real `~/.pm-os` install (temp-install fixtures). See **`docs/TESTING.md`** for the
+catalog of what every suite and test checks.
+
 ## Requirements
 
 - Claude Code or OpenAI Codex with local skill support
 - Python 3.11+
-- `pyyaml`
+- `pyyaml`, `jinja2`, `gitpython` (runtime); `pytest` to run the test suite
 
 Configuration is managed by the PM-OS installer and stored locally in the PM-OS config file.
 
