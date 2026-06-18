@@ -26,6 +26,29 @@ def test_model_tier_for_stage(pmos):
         assert config.model_tier_for_stage(std) == "standard"
 
 
+def test_model_policy_defaults_merge_stale_config(pmos):
+    """Older configs may have a deep-reasoning list from before context stages existed.
+    Loading config should merge in required policy stages without dropping custom entries."""
+    config.CONFIG_PATH.write_text(
+        "schema_version: 1\n"
+        "pm_user: tester\n"
+        f"feedback_repo: {pmos.feedback}\n"
+        f"projects_dir: {pmos.projects}\n"
+        "pm_os_version: 0.0.0-test\n"
+        "default_model_tier: standard\n"
+        "deep_reasoning_stages: ['03', '06', '08', 'custom']\n",
+        encoding="utf-8",
+    )
+    config._config_cache = None
+
+    cfg = config.load_config()
+
+    for deep in ("00w", "00u", "03", "04", "06", "08", "09", "custom"):
+        assert deep in cfg["deep_reasoning_stages"]
+    assert config.model_tier_for_stage("00w") == "deep-reasoning"
+    assert config.model_tier_for_stage("custom") == "deep-reasoning"
+
+
 def test_model_tier_falls_back_without_config(monkeypatch):
     """If config can't be loaded, the helper still returns a sane tier from module defaults
     rather than raising — telemetry logging must never fail on this lookup."""

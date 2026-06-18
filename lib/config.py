@@ -82,7 +82,12 @@ def _migrate_from_env() -> dict:
 
 def _apply_model_policy_defaults(config: dict) -> None:
     config.setdefault("default_model_tier", DEFAULT_MODEL_TIER)
-    config.setdefault("deep_reasoning_stages", DEEP_REASONING_STAGES)
+    configured = config.get("deep_reasoning_stages") or []
+    if not isinstance(configured, list):
+        configured = []
+    config["deep_reasoning_stages"] = list(
+        dict.fromkeys([*configured, *DEEP_REASONING_STAGES])
+    )
 
 
 def model_tier_for_stage(stage_id: str) -> str:
