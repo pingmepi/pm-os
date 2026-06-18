@@ -110,6 +110,16 @@ def resolve_context(stage_id: str, project_root=None) -> dict:
          "global": [(name, text), ...], "stage_format": text|None,
          "stage_examples": [text, ...]}
     """
+    # Bootstrap: if the overlay was never seeded — e.g. the upgrade that introduced
+    # update-time seeding ran the OLD updater process, so its finish_update() never
+    # called seed_context() — materialize it from the seed on first read. Makes the
+    # loader self-healing regardless of how the install arrived.
+    if CONTEXT_SEED_DIR.is_dir() and not (CONTEXT_DIR / "context.yaml").exists():
+        try:
+            seed_context()
+        except Exception:
+            pass
+
     override_dir = None
     if project_root is not None:
         cand = Path(project_root) / "context"
