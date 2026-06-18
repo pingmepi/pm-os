@@ -53,7 +53,7 @@ Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): 
 PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, Codex uses `$pm-*`:
 `/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`.
 
-**There is no unit-test suite, linter, or build step in this repo** (no `pytest`, `pyproject.toml`, `Makefile`, or CI beyond `.github/workflows/version-bump.yml`). The closest thing to a smoke test is `pm_os_verify.py` (above); beyond that, verify by running the skill/script flow against a scratch project under `~/pm-projects/`.
+**Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`, `gitpython`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/TESTING.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
 
 ## Architecture
 

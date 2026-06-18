@@ -1,3 +1,5 @@
+"""Unit tests for lib/telemetry.py — the append-only, hash-chained event log that is the
+audit/diagnosis backbone. The chain must be tamper-evident and queryable. See docs/TESTING.md §5 (T1)."""
 import json
 
 import pytest
@@ -14,6 +16,8 @@ def _project(tmp_path, slug="demo"):
 
 
 def test_log_appends_chained_events(tmp_path):
+    """Each logged event appends one JSONL line and links prev_event_hash→event_hash, and
+    the payload is preserved verbatim."""
     root = _project(tmp_path)
     telemetry.log("stage_started", root, "01", {})
     telemetry.log("stage_generated", root, "01", {"model": "claude-opus-4-8"})
@@ -25,6 +29,8 @@ def test_log_appends_chained_events(tmp_path):
 
 
 def test_last_event_filters(tmp_path):
+    """last_event returns the most recent event matching the type/stage filter (used e.g.
+    to find the matching stage_generated when computing time-to-approve)."""
     root = _project(tmp_path)
     telemetry.log("stage_started", root, "01", {})
     telemetry.log("stage_generated", root, "01", {"n": 1})
@@ -35,12 +41,13 @@ def test_last_event_filters(tmp_path):
 
 
 def test_verify_chain_ok_and_tamper(tmp_path):
+    """An intact chain verifies ok; tampering with a middle event's payload is detected and
+    reported with the 1-based break line and a reason — the integrity guarantee."""
     root = _project(tmp_path)
     for et in ("stage_started", "stage_generated", "stage_approved"):
         telemetry.log(et, root, "01", {})
     assert telemetry.verify_chain(root)["ok"] is True
 
-    # Tamper with the middle event's payload.
     path = root / "telemetry.jsonl"
     lines = path.read_text().splitlines()
     d = json.loads(lines[1]); d["payload"]["x"] = "tampered"; lines[1] = json.dumps(d)
@@ -52,6 +59,7 @@ def test_verify_chain_ok_and_tamper(tmp_path):
 
 
 def test_verify_chain_no_file(tmp_path):
+    """A project with no telemetry file verifies ok with 0 events (absence is not corruption)."""
     res = telemetry.verify_chain(_project(tmp_path))
     assert res["ok"] is True
     assert res["events"] == 0
