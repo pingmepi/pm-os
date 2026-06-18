@@ -78,7 +78,7 @@ If a note does not conflict, apply it silently and proceed.
 
 # Load context overlay
 
-Run the loader. If it prints anything, that is your team's configured context — company/team/glossary/guardrails plus any stage-specific format and example. Treat it as authoritative background for this generation and follow the `apply:` directive it prints (`augment` keeps this stage's required sections and folds the overlay in; `override` lets the overlay's Required sections replace the default output spec; `reference-only` uses examples for tone/depth only). If it prints nothing, no overlay is configured — generate exactly as specified below.
+Run the loader. If it prints anything, that is your team's configured context — company/team/glossary/guardrails plus any stage-specific format and example. Treat it as authoritative background for this generation and follow the `apply:` directive it prints (`augment` keeps this stage's required sections and folds the overlay in; `override` lets the overlay's Required sections replace the default output spec; `reference-only` uses examples for tone/depth only). If it prints nothing, no overlay is configured — generate exactly as specified below. If the loader exits with an error, stop and surface it — the context manifest is malformed (not "no overlay"); do not generate until it is fixed.
 
 ```bash
 python3 -c "

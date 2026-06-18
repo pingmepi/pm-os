@@ -50,14 +50,29 @@ def _norm(text: str) -> str:
     return "\n".join(ln.strip() for ln in text.splitlines() if ln.strip())
 
 
+def _union(base, extra) -> list:
+    """Base list plus any extra entries not already present, order-preserving."""
+    out = list(base or [])
+    for item in (extra or []):
+        if item not in out:
+            out.append(item)
+    return out
+
+
 def _load_manifest(ctx_dir: Path) -> dict:
     path = ctx_dir / "context.yaml"
     if not path.exists():
         return {}
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return {}
+    except yaml.YAMLError as e:
+        # Fail loud: silently treating a typo'd manifest as "no overlay" would drop
+        # the PM's company/guardrail context from generation without warning.
+        raise ValueError(
+            f"PM-OS context manifest is malformed and is NOT being applied: {path}\n"
+            f"  {str(e).splitlines()[0] if str(e) else e}\n"
+            f"  Fix the YAML (or remove the file), then retry."
+        ) from e
 
 
 def _read_overlay_file(rel_path: str, ctx_dir: Path, override_dir):
@@ -101,14 +116,34 @@ def resolve_context(stage_id: str, project_root=None) -> dict:
         if cand.is_dir():
             override_dir = cand
 
-    # Project manifest (if any) overrides the base manifest for stage entries/apply.
+    # Layer the project manifest ON TOP of the base — a partial project manifest
+    # (one extra global file, or one stage's format) must not wipe the shared base
+    # global files / stage fields. Project wins per duplicate path/field; lists union.
     base_manifest = _load_manifest(CONTEXT_DIR)
     proj_manifest = _load_manifest(override_dir) if override_dir else {}
-    manifest = base_manifest
+    manifest = dict(base_manifest)
     if proj_manifest:
-        manifest = {**base_manifest, **proj_manifest}
-        # merge stage maps shallowly, project entries winning
-        merged_stages = {**(base_manifest.get("stages") or {}), **(proj_manifest.get("stages") or {})}
+        for key, value in proj_manifest.items():
+            if key not in ("global", "stages"):
+                manifest[key] = value
+
+        manifest["global"] = _union(base_manifest.get("global"), proj_manifest.get("global"))
+
+        base_stages = base_manifest.get("stages") or {}
+        proj_stages = proj_manifest.get("stages") or {}
+        merged_stages = {}
+        for sid in set(base_stages) | set(proj_stages):
+            b = base_stages.get(sid) or {}
+            p = proj_stages.get(sid) or {}
+            entry = dict(b)
+            if p.get("format"):
+                entry["format"] = p["format"]          # project format wins
+            if p.get("apply"):
+                entry["apply"] = p["apply"]             # project apply mode wins
+            examples = _union(b.get("examples"), p.get("examples"))
+            if examples:
+                entry["examples"] = examples            # examples union (base + project)
+            merged_stages[sid] = entry
         manifest["stages"] = merged_stages
 
     empty = {"has_content": False, "apply": DEFAULT_APPLY,
