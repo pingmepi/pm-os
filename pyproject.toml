@@ -1,0 +1,20 @@
+# PM-OS test configuration. This file exists ONLY to configure pytest — PM-OS is
+# an agent skill suite, not a packaged Python distribution, so there is no
+# [build-system]/[project] table here by design.
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "unit: pure in-process tests of lib/ helpers",
+    "integration: subprocess/script + hook flows against an isolated temp install",
+    "contract: skill/doc/spec drift and stable-protocol contracts",
+    "connection: external-boundary behavior (sync) against a local bare repo only",
+    "slow: large/perf cases, excluded from the default fast run",
+    # Reserved markers for planned phases — tests can be committed ahead of the
+    # feature and gated with requires_feature(); CI runs `-m 'not phaseN_*'` until live.
+    "phase3_enhancement: enhancement / codebase-understanding mode",
+    "phase4_handoff: Jira/Linear/Figma handoff",
+    "phase5_triage: QA bug triage",
+    "phase6_release: release readiness + feedback intake",
+]
