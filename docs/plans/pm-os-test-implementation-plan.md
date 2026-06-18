@@ -792,6 +792,7 @@ Then confirm the workflow passes in GitHub Actions.
 | T7 | Add negative/idempotency/recovery tests | Broken local state fails clearly and safely |
 | T8 | Add local-first/security/documentation drift tests | Trust and privacy guarantees covered |
 | T9 | Add CI workflow and optional coverage | Suite runs automatically |
+| T10 | **PM consistency toolkit (final phase, §19)** — built **after T9 is green** | `lib/consistency.py` shared by tests + `/pm-check`; live project audits against the at-rest invariants |
 
 ---
 
@@ -852,6 +853,60 @@ restructuring. Conventions that make that cheap:
 - **One source of truth per contract.** Runtime paths, stage list, model policy, and event list are
   asserted from the code/spec constants the implementation also reads — never re-typed in tests — so
   a future phase that changes a constant updates code, test expectation, and docs in lockstep.
+
+---
+
+## 19. T10 — PM consistency toolkit (final phase)
+
+> **Built last — only after T0–T9 are complete and verified.** It leans on the matured harness
+> and the T7 negative fixtures, and it reuses the invariant logic the earlier phases assert.
+
+A **read-only toolkit the PM reaches for when something feels wrong** with their project. The
+test suite asserts PM-OS invariants on throwaway projects; the same invariants matter for a PM's
+*live* project mid-work, but today they're scattered across `pm_approve.py`/`pre-stage.py`/
+`post-approve.py` and enforced only at the moment of an operation — there is no single
+"is this project internally consistent right now?" check.
+
+### Design
+
+- **`lib/consistency.py` → `check_project(project_root) -> list[Issue]`** — the single source of
+  truth, reusing existing lib (`project`, `hashing`, `frontmatter`, `telemetry.verify_chain`).
+  `Issue = {code, severity (error|warning), stage, message, remediation}`; empty list == healthy.
+  Plus `format_report(issues)` and `summary_line(issues)`.
+- **Shared with the tests:** the correlated suites are refactored to assert `check_project`
+  against healthy + corrupted fixtures, so the "testing apparatus" and the runtime check are one
+  piece of logic. Correlated: `test_telemetry` (chain), `test_hashing` (body-hash drift),
+  `test_project` (ordering + schema shape), `test_approval_and_staleness` (meta↔frontmatter sync),
+  `test_stage_gates` (no approval over an unapproved upstream). Behavior-only suites
+  (`text_metrics`, `html_render`, `config` model-tier, `git_sync` stubs, context apply-mode/
+  no-op/layering) do **not** correlate and stay as-is.
+- **Read-only:** diagnoses and prints the remediation command (e.g. "stage 03 body drifted — run
+  /pm-approve 03 or regenerate"); never mutates state. Fixes still flow through the normal gated
+  commands.
+
+### Invariants checked (at rest)
+
+- meta↔frontmatter status sync; for approved/edited, `content_hash` matches between them (error)
+- approved stage body still hashes to its recorded `content_hash` — drift (warning; the gate
+  marks it `edited` on the next run)
+- no `approved` stage has an upstream in {pending, draft, stale} (error; `edited` allowed)
+- telemetry hash chain intact via `verify_chain` (error, with break line/reason)
+- schema/stage shape: `schema_version` present; valid stage `id`/`status`/`origin`; required
+  fields present (error)
+- every non-`pending` stage has its artifact file (error)
+- project `<project>/context/context.yaml` and `.sources.yaml` parse if present (error)
+
+### Surfaces
+
+- **`/pm-check`** (new `skills/pm-check/` + `scripts/pm_check.py`) — on-demand audit; exit 1 on
+  any error (warnings listed, exit 0).
+- **pre-stage gate** — a non-blocking advisory summary (read-only) before generation; the
+  existing gate stays the authoritative blocker.
+- **`/pm-status`** — a one-line consistency verdict.
+
+### Out of scope
+Auto-fix/reconciliation (read-only); cross-project auditing (that's `/pm-sync --verify`); install
+health (that's `pm_os_verify`); changing the gate's blocking behavior.
 
 ---
 

@@ -206,6 +206,20 @@ Tracked in the implementation plan; this catalog grows as each lands.
 | T7 | `integration/` recovery | malformed/missing state, idempotency, non-tty escapes, schema migration |
 | T8 | `contracts/` | local-first/network isolation, secret-free fixtures, documentation drift |
 | T9 | CI | GitHub Actions running the default suite |
+| T10 | `lib/consistency.py` + `/pm-check` | **Final phase, built after T9.** A reusable live consistency checker (see below). |
+
+### Reused as a live consistency check (planned — final phase, T10)
+
+The invariant-style suites here aren't just tests — once T0–T9 are done, their checks get lifted
+into a single shared `lib/consistency.py` → `check_project(project_root)` so a PM can audit a
+**live** project ("something feels wrong") with the exact logic the tests assert. The tests then
+assert that shared function against healthy + corrupted fixtures, and it's surfaced to the PM via
+`/pm-check`, a non-blocking advisory in the pre-stage gate, and a one-line verdict in `/pm-status`
+— read-only (diagnose + point to the fix, never mutate). See the test-implementation plan §19.
+
+The suites that **correlate** (encode at-rest invariants → feed the checker): `test_telemetry`,
+`test_hashing`, `test_project`, `test_approval_and_staleness`, `test_stage_gates`. The rest are
+behavior-only and stay as they are.
 
 ---
 
