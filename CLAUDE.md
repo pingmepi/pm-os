@@ -27,6 +27,7 @@ Consequences when developing:
 - ✅ To get changes into the install: **commit + push to the GitHub remote, then run `pm_os_update.py`.** That is the only supported route, for you and for any other PM/agent.
 - ✅ To test *uncommitted* working-copy logic without touching the install, run it in isolation against this repo (e.g. `python3 -c "import sys; sys.path.insert(0,'lib'); ..."` or run a script with `PYTHONPATH=lib`). Never sync it out to exercise it.
 - `pm_os_verify.py` runs against the installed `~/.pm-os`; it is a health check of the *installed* tool, not a way to validate working-copy edits.
+- **One deliberate exception: `~/.pm-os/context/`** (the context overlay) is *user data*, not engine code. It is **gitignored** (the repo tracks `context.example/` as the seed; the live `context/` is copied there on install and edited in place by the PM). Because it's gitignored, editing it never diverges `main` or blocks the fast-forward, so the never-hand-modify rule does not apply to it. Engine code (`lib/`, `scripts/`, `hooks/`, `skills/`) still goes through the commit→push→`pm_os_update.py` path only.
 
 `pm_os_update.py` fast-forwards `~/.pm-os` to `origin/main`, then copies skills/hooks into the runtime dirs. It refuses to run on a non-`main` branch with a dirty tree, and refuses to overwrite a diverged local `main` without `--reset-main` — which is precisely the breakage manual edits cause.
 
