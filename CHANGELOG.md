@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Automated test suite.** A pytest suite under `tests/` (phases T0–T9) covering the `lib/` helpers, the full project lifecycle, the gate/approval/staleness machine, skill & documentation contracts, install/verify/update parity, context import, telemetry metrics, failure recovery, and local-first boundaries — fully isolated from the real `~/.pm-os` via temp-install fixtures. Config in `pyproject.toml`, central reference in `docs/TESTING.md`, CI in `.github/workflows/tests.yml`.
+
+## 0.5.3 — 2026-06-18
+
+### Added
+- **Context overlay.** A pluggable company/team/product context layer (`lib/context.py`, seeded from `context.example/`) that loads into every stage prompt — apply modes `augment`/`override`/`reference-only`, precedence project > stage > global, with empty/TODO packs a silent no-op. The live `~/.pm-os/context/` is gitignored user data you edit in place; it's seeded on install/update and self-seeds on first read.
+- **Telemetry you can measure with.** `stage_generated` now records the real `model` id and `model_tier`; `stage_approved` records real `time_to_approve_seconds` and PM edit distance (`char_edit_distance` + `normalized_edit_distance`), plus an optional agent-estimated `semantic_distance`.
+- **Reliable central sync.** Feedback now enters the hash-chained telemetry stream, and a new `/pm-sync` catches up every project's telemetry/feedback to the team repo (`--verify` validates each hash chain). Sync failures are reported loudly instead of being swallowed.
+
 ## 0.5.0 — 2026-06-17
 
 ### Added

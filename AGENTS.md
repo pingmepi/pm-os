@@ -11,11 +11,11 @@ project creation, gates, approvals, telemetry, and sharing.
   or generated artifacts.
 - In Claude, invoke PM-OS skills with slash commands such as `/pm-new`,
   `/pm-context-import`, `/pm-approve 00`, `/pm-stage-01-brief`, `/pm-approve 01`,
-  `/pm-status`, `/pm-feedback 03`, and `/pm-os-verify`.
+  `/pm-status`, `/pm-feedback 03`, `/pm-sync`, and `/pm-os-verify`.
 - In Codex, invoke PM-OS skills through the `/skills` picker or by mentioning the
   skill name directly, for example `$pm-new`, `$pm-context-import`,
-  `$pm-approve`, `$pm-stage-01-brief`, `$pm-status`, `$pm-feedback`, and
-  `$pm-os-verify`.
+  `$pm-approve`, `$pm-stage-01-brief`, `$pm-status`, `$pm-feedback`, `$pm-sync`,
+  and `$pm-os-verify`.
 - Codex user-level skills belong in `~/.agents/skills/`. Repo-local development
   skills may live in `.agents/skills/`.
 - Claude skills install into `~/.claude/skills/`; the installer also copies hooks
