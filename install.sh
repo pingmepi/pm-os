@@ -138,7 +138,7 @@ fi
 
 # --- Install Python dependencies ---
 echo "Installing Python dependencies..."
-python3 -m pip install --quiet pyyaml jinja2 gitpython
+python3 -m pip install --quiet pyyaml jinja2
 
 # --- Clone or update pm-os repo ---
 if [ -d "$INSTALL_DIR/.git" ]; then

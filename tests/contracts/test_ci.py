@@ -15,5 +15,5 @@ def test_ci_workflow_runs_pytest():
     assert "pytest" in text
     assert "pull_request" in text
     # runtime deps the suite needs are installed in CI
-    for dep in ("pyyaml", "jinja2", "gitpython"):
+    for dep in ("pyyaml", "jinja2"):
         assert dep in text, f"CI must install {dep}"
