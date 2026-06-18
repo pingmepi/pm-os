@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Roadmap Tracking"
+  short_description: "Sync roadmap docs with product and code progress"
+  default_prompt: "Use $pm-update-roadmap-tracking to review the product docs and codebase, then update the relevant roadmap tracking docs."
