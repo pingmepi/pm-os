@@ -186,10 +186,15 @@ def cmd_commit(args):
         # generated them, mirroring the stage skills' stage_generated event.
         if args.kind == "generated":
             try:
+                # Match the documented stage_generated schema (see the stage skills
+                # and docs/spec) so telemetry aggregation treats context drafts the
+                # same. Context-import takes no --note steering, so notes is empty.
                 log("stage_generated", root, stage_id, {
                     "generated_hash": hash_artifact_body(str(apath)),
                     "model": args.model,
                     "model_tier": model_tier_for_stage(stage_id),
+                    "prompt_version": args.prompt_version,
+                    "notes": [],
                     "origin": args.kind,
                 })
             except Exception as e:
@@ -269,6 +274,9 @@ def main():
     p_com.add_argument("--model", default=None,
                        help="Actual model id that produced this artifact "
                             "(for generated/backfilled kinds; the agent fills in its own id).")
+    p_com.add_argument("--prompt-version", dest="prompt_version", default=None,
+                       help="prompt_version of the generating skill, recorded on generated "
+                            "stage_generated events to match the documented schema.")
     p_com.set_defaults(func=cmd_commit)
 
     args = parser.parse_args()

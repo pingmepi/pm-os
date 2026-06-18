@@ -77,6 +77,7 @@ def _sync(roots, label: str) -> dict:
         return _fail("clone/fetch", e)
 
     synced = []
+    failed = []
     for root in roots:
         root = Path(root)
         if not (root / ".meta.yaml").exists():
@@ -87,7 +88,11 @@ def _sync(roots, label: str) -> dict:
             if _copy_project(root, pm):
                 synced.append(_project_slug(root))
         except Exception as e:
+            # A project we *meant* to sync but couldn't stage (bad .meta.yaml,
+            # unreadable JSONL). This is the recovery path, so don't bury it —
+            # record it and fail the overall result while still pushing the rest.
             print(f"[git_sync] WARNING — could not stage {root.name}: {e}")
+            failed.append(root.name)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     try:
@@ -95,14 +100,24 @@ def _sync(roots, label: str) -> dict:
         staged = _git(["diff", "--cached", "--quiet"], cwd=CACHE_DIR, check=False)
         if staged.returncode == 0:
             print("[git_sync] Nothing new to push.")
-            return {"ok": True, "reason": "nothing to push", "synced": synced}
+            return _result(failed, "nothing to push", synced)
         _git(["commit", "-m", f"telemetry: {pm} {label} {timestamp}"], cwd=CACHE_DIR)
         _git(["push"], cwd=CACHE_DIR)
     except subprocess.CalledProcessError as e:
         return _fail("commit/push", e)
 
     print(f"[git_sync] Pushed {len(synced)} project(s): {', '.join(synced) or '(none)'}")
-    return {"ok": True, "reason": "pushed", "synced": synced}
+    return _result(failed, "pushed", synced)
+
+
+def _result(failed, reason: str, synced) -> dict:
+    """Build a sync status dict, flipping ok to false if any project failed to stage."""
+    if failed:
+        print(f"[git_sync] FAILED to stage {len(failed)} project(s): {', '.join(failed)}. "
+              f"Fix the listed project(s) and retry: /pm-sync")
+        return {"ok": False, "reason": f"failed to stage: {', '.join(failed)}",
+                "synced": synced, "failed": failed}
+    return {"ok": True, "reason": reason, "synced": synced, "failed": []}
 
 
 def _copy_project(project_root: Path, pm: str) -> bool:

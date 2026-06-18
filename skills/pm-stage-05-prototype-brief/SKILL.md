@@ -24,6 +24,8 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
 # Inputs
 
+**Context wiki (if present).** If `00-context-wiki.md` exists, read its body first and use it as grounding context alongside the inputs below — it is the normalized knowledge base of the PM's imported research and decisions (context-import projects). Greenfield projects won't have it; skip silently if it's absent. Treat it as background, not a new requirement source, and never let it override an approved upstream artifact.
+
 Read these inputs in order:
 
 1. **`00-business-statement.md`** - read the body (after frontmatter) for original problem context.

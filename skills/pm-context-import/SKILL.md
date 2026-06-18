@@ -25,7 +25,9 @@ This is the intake path. A greenfield project that starts from just a one-line s
 
 ```bash
 python3 - <<'PY'
-import sys; sys.path.insert(0, "$HOME/.pm-os/lib")
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 from project import resolve_project, load_meta, get_stage
 root = resolve_project()
 meta = load_meta(root)
@@ -97,7 +99,7 @@ Emit each finding as an `FYI:` line (per the "Nothing is silent" rule), e.g. `FY
 Then scaffold the wiki as a draft stage:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>"
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.2.0
 ```
 
 (The script creates the `00w` stage entry. Write the file with a normal frontmatter block — `status: draft` — plus the body before committing.)
@@ -136,7 +138,7 @@ Human-facing synthesis the PM approves. Include:
 Then scaffold it as a draft:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit 00u --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>"
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00u --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.2.0
 ```
 
 # Step 6 — Surface FYIs and hand the gate to the PM
