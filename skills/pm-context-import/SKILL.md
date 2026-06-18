@@ -14,6 +14,10 @@ You generate and judge; the `pm_context_import.py` script only moves bytes and u
 
 This is the intake path. A greenfield project that starts from just a one-line statement does not use this skill.
 
+# Model guidance
+
+Building the context wiki (`00w`) and understanding doc (`00u`) is **deep-reasoning** work — you synthesize arbitrary, possibly conflicting sources into one normalized, provenance-tagged knowledge base plus a backfill-feasibility map, and you reverse-generate (`backfilled`) upstream artifacts. Use the strongest reasoning model available in the current runtime; if the session is clearly on a lightweight model, say so and recommend switching before building the wiki/understanding or backfilling. This is advisory, not a hard gate.
+
 # Hard rules
 
 - **Nothing is silent.** Every non-obvious action (format conversion/extraction, any lossy or uncertain extraction from a scanned/table-heavy source, reshaping a source into a stage template, adopting an artifact, reverse-generating a missing upstream, where the raw original is preserved) is surfaced as a plain `FYI:` line before approval.

@@ -8,7 +8,9 @@ CONFIG_PATH = Path.home() / ".pm-os" / "config.yaml"
 REQUIRED_KEYS = ["pm_user", "feedback_repo", "projects_dir"]
 DEFAULT_FEEDBACK_REPO = "https://github.com/pingmepi/pm-os-feedback.git"
 DEFAULT_MODEL_TIER = "standard"
-DEEP_REASONING_STAGES = ["03", "06", "08"]
+# Stages whose generation warrants the strongest available reasoning model: PRD, design
+# spec, QA plan, TRD, roadmap, and the context-build docs (context wiki + understanding).
+DEEP_REASONING_STAGES = ["00w", "00u", "03", "04", "06", "08", "09"]
 
 _config_cache = None
 

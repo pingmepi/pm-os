@@ -140,7 +140,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 **`test_config.py`** — config + model policy
 - `test_load_config_reads_temp_install` — reads the isolated config; applies model-policy defaults.
-- `test_model_tier_for_stage` — 03/06/08 → `deep-reasoning`; others → `standard`.
+- `test_model_tier_for_stage` — deep-reasoning stages (00w/00u/03/04/06/08/09) → `deep-reasoning`; others → `standard`.
 - `test_model_tier_falls_back_without_config` — returns a sane tier even if config load fails.
 
 **`test_telemetry.py`** — hash-chained log
@@ -198,7 +198,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 ### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
 **Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
-- `test_skill_contracts`: every skill has frontmatter name/description; no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on 03/06/08; both runtime entrypoints; **`KNOWN_MISSING_CODEX_TWIN`** locks the current Codex-parity gap and blocks new drift either way.
+- `test_skill_contracts`: every skill has frontmatter name/description; no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints; **`KNOWN_MISSING_CODEX_TWIN`** locks the current Codex-parity gap and blocks new drift either way.
 - `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
 
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)

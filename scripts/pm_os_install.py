@@ -8,13 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
 import yaml
+# Single source of truth for the model policy — never duplicate the literals here.
+from config import DEFAULT_MODEL_TIER, DEEP_REASONING_STAGES
 
 PM_OS_DIR = Path.home() / ".pm-os"
 CONFIG_PATH = PM_OS_DIR / "config.yaml"
 PROJECTS_DIR = Path.home() / "pm-projects"
 DEFAULT_FEEDBACK_REPO = "https://github.com/pingmepi/pm-os-feedback.git"
-DEFAULT_MODEL_TIER = "standard"
-DEEP_REASONING_STAGES = ["03", "06", "08"]
 
 
 def choose_value(label, current, provided, env_name, *, reconfigure=False, default=""):

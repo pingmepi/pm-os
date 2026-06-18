@@ -24,9 +24,10 @@ def test_every_pipeline_stage_has_a_skill():
 
 
 def test_model_policy_constant():
-    """The model policy is the documented one (default standard; deep-reasoning 03/06/08)."""
+    """The model policy is the documented one: default standard; deep-reasoning for the
+    context-build docs (00w/00u), PRD/design/QA/TRD/roadmap (03/04/06/08/09)."""
     assert config.DEFAULT_MODEL_TIER == "standard"
-    assert config.DEEP_REASONING_STAGES == ["03", "06", "08"]
+    assert config.DEEP_REASONING_STAGES == ["00w", "00u", "03", "04", "06", "08", "09"]
 
 
 def test_spec_event_list_covers_emitted_events():

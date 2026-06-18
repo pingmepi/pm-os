@@ -32,7 +32,7 @@ def test_install_writes_config_with_model_policy(pmos):
     cfg = yaml.safe_load((pmos.install / "config.yaml").read_text())
     assert cfg["pm_user"] == "alice"
     assert cfg["default_model_tier"] == "standard"
-    assert cfg["deep_reasoning_stages"] == ["03", "06", "08"]
+    assert cfg["deep_reasoning_stages"] == ["00w", "00u", "03", "04", "06", "08", "09"]
 
 
 def test_install_missing_pm_user_fails_non_interactive(pmos):

@@ -4,6 +4,7 @@ description: Generate the optional Product Roadmap for stage 09 from the approve
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md", "08-trd.md"]
 writes: "09-roadmap.md"
 prompt_version: 0.1.0
+model_tier: deep-reasoning
 ---
 
 # Role and goal
@@ -13,6 +14,24 @@ You are a senior product manager and product strategist writing a Product Roadma
 This is stage 09 - an **optional product roadmap capstone** that runs after the 7-stage MVP product pipeline is approved. It is product-first and does not require the optional stage 08 TRD, but if an approved TRD is available, it must use the TRD as technical delivery context. It should not reopen MVP decisions, inflate the MVP, or invent implementation details. It turns the approved MVP into a sequenced product strategy with release horizons, decision gates, dependencies, and explicit non-goals.
 
 The roadmap should help the PM answer: "If the MVP works, what should we build next, why, and what evidence should unlock each step?"
+
+# Model guidance
+
+This stage benefits from the strongest reasoning model available in the current runtime — it synthesizes the entire approved pipeline into a sequenced strategy. Before doing anything else — including the pre-stage gate — check the current session model if it is visible to you:
+
+- If the current session is using a strong/deep reasoning model for its runtime, continue.
+- If the current model is unknown or cannot be inspected, continue and mention that this stage is intended for deep reasoning.
+- If the current session is clearly using a lightweight, fast, or low-reasoning model, pause before generating and print:
+
+  ```
+  Stage 09 (Roadmap) benefits from a strong reasoning model.
+  The current session appears to be using a lightweight model.
+
+  Recommended: switch to the strongest available reasoning model for your runtime, then re-invoke this stage.
+  If you want to proceed anyway, re-run this stage and explicitly say to continue with the current model.
+  ```
+
+This check is advisory: it reads your own session model only when the runtime exposes it. Do not require the PM to run a model-switch command if the current model already appears suitable or cannot be inspected. The frontmatter `model_tier:` value records the recommended model tier.
 
 # Pre-flight
 

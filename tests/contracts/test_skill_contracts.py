@@ -72,12 +72,19 @@ def test_stage_skill_structure(stage_id):
 
 
 def test_deep_reasoning_stages_declare_tier():
-    """Stages 03/06/08 declare the deep-reasoning tier in frontmatter, matching
-    config.DEEP_REASONING_STAGES."""
+    """Every deep-reasoning stage that has its own stage skill declares the tier in frontmatter,
+    matching config.DEEP_REASONING_STAGES. The context-build stages (00w/00u) are deep too but
+    are generated via pm-context-import (no per-stage skill), so they're checked via config."""
     import config
     for sid in config.DEEP_REASONING_STAGES:
-        fm, _ = frontmatter.read(str(stage_skill_dir(sid) / "SKILL.md"))
+        sd = stage_skill_dir(sid)
+        if not sd.is_dir():
+            continue  # 00w/00u have no pm-stage-* skill; verified below
+        fm, _ = frontmatter.read(str(sd / "SKILL.md"))
         assert fm.get("model_tier") == "deep-reasoning", f"stage {sid} should declare deep-reasoning"
+    for sid in ("00w", "00u"):
+        assert sid in config.DEEP_REASONING_STAGES
+        assert config.model_tier_for_stage(sid) == "deep-reasoning"
 
 
 def test_stage_skills_print_both_runtime_entrypoints():

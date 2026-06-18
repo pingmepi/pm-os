@@ -17,11 +17,12 @@ def test_load_config_reads_temp_install(pmos):
 
 
 def test_model_tier_for_stage(pmos):
-    """Deep-reasoning stages (03/06/08) resolve to 'deep-reasoning'; all others to the
-    configured default — the single source of truth skills derive their tier from."""
-    for deep in ("03", "06", "08"):
+    """Deep-reasoning stages — context build (00w/00u), PRD (03), design (04), QA (06), TRD (08),
+    roadmap (09) — resolve to 'deep-reasoning'; all others to the configured default. Single
+    source of truth that skills derive their tier from."""
+    for deep in ("00w", "00u", "03", "04", "06", "08", "09"):
         assert config.model_tier_for_stage(deep) == "deep-reasoning"
-    for std in ("01", "02", "04", "05", "07", "09"):
+    for std in ("00", "01", "02", "05", "07"):
         assert config.model_tier_for_stage(std) == "standard"
 
 

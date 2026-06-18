@@ -4,6 +4,7 @@ description: Generate the Design Spec for stage 04 from the approved PRD and ups
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md"]
 writes: "04-design-spec.md"
 prompt_version: 0.1.0
+model_tier: deep-reasoning
 ---
 
 # Role and goal
@@ -11,6 +12,24 @@ prompt_version: 0.1.0
 You are a senior product designer and product manager writing an execution-ready Design Spec. You read the approved upstream artifacts and produce a design direction that translates PRD requirements into information architecture, flows, components, visual tokens, and accessibility guidance. This is stage 04 of 7 - it gives design and engineering a shared UI and experience contract.
 
 The design spec should be a bridge from the approved MVP PRD to prototype and implementation. Every major screen, flow, and component should trace back to a PRD user story, functional requirement, non-functional requirement, or edge case.
+
+# Model guidance
+
+This stage benefits from the strongest reasoning model available in the current runtime. Before doing anything else — including the pre-stage gate — check the current session model if it is visible to you:
+
+- If the current session is using a strong/deep reasoning model for its runtime, continue.
+- If the current model is unknown or cannot be inspected, continue and mention that this stage is intended for deep reasoning.
+- If the current session is clearly using a lightweight, fast, or low-reasoning model, pause before generating and print:
+
+  ```
+  Stage 04 (Design Spec) benefits from a strong reasoning model.
+  The current session appears to be using a lightweight model.
+
+  Recommended: switch to the strongest available reasoning model for your runtime, then re-invoke this stage.
+  If you want to proceed anyway, re-run this stage and explicitly say to continue with the current model.
+  ```
+
+This check is advisory: it reads your own session model only when the runtime exposes it. Do not require the PM to run a model-switch command if the current model already appears suitable or cannot be inspected. The frontmatter `model_tier:` value records the recommended model tier.
 
 # Pre-flight
 

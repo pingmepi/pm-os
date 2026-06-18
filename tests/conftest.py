@@ -68,7 +68,7 @@ def _build_install(home: Path) -> SimpleNamespace:
         f"projects_dir: {projects}\n"
         "pm_os_version: 0.0.0-test\n"
         "default_model_tier: standard\n"
-        "deep_reasoning_stages: ['03', '06', '08']\n",
+        "deep_reasoning_stages: ['00w', '00u', '03', '04', '06', '08', '09']\n",
         encoding="utf-8",
     )
     return SimpleNamespace(
