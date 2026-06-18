@@ -8,6 +8,20 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def skill_dirs():
+    """All skills/<name>/ directories in the repo (each must ship SKILL.md)."""
+    return sorted(p for p in (REPO_ROOT / "skills").iterdir()
+                  if p.is_dir() and (p / "SKILL.md").exists())
+
+
+def stage_skill_dir(stage_id: str):
+    """The skills/pm-stage-NN-<name> directory for a stage id."""
+    import project
+    return REPO_ROOT / "skills" / f"pm-stage-{stage_id}-{project.STAGE_NAMES[stage_id]}"
+
 
 def run_script(pmos, script: str, *args: str, cwd: Path | None = None, stdin: str | None = None):
     """Run scripts/<script> from the temp install with the isolated env.
@@ -77,6 +91,29 @@ def make_draft(proj: Path, stage_id: str, body: str = "Draft body.\n") -> Path:
     meta = project.load_meta(proj)
     project.get_stage(meta, stage_id)["status"] = "draft"
     project.save_meta(meta, proj)
+    return apath
+
+
+def generate_stage(proj: Path, stage_id: str, body: str = "Generated body.\n",
+                   model: str = "claude-opus-4-8") -> Path:
+    """Simulate a full skill generation: draft artifact + a .history generated snapshot +
+    stage_started/stage_generated telemetry (with model + tier). Lets approval-metric tests
+    compute real time-to-approve and edit distance the way the live flow does."""
+    import project
+    import telemetry
+    from config import model_tier_for_stage
+
+    apath = make_draft(proj, stage_id, body=body)
+    # Retain a generated snapshot (what edit distance diffs the approved body against).
+    hist = proj / ".history"
+    hist.mkdir(exist_ok=True)
+    (hist / f"{apath.stem}.20260101T000000+00:00.generated.md").write_text(
+        apath.read_text(), encoding="utf-8")
+    telemetry.log("stage_started", proj, stage_id, {})
+    telemetry.log("stage_generated", proj, stage_id, {
+        "generated_hash": "gen", "model": model,
+        "model_tier": model_tier_for_stage(stage_id), "prompt_version": "0.1.0", "notes": [],
+    })
     return apath
 
 
