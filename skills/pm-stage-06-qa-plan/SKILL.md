@@ -99,6 +99,20 @@ If a note does not conflict, apply it silently and proceed.
 
 - Record every note used verbatim in the `generation_notes` frontmatter and in the `stage_generated` telemetry payload (see Write outputs).
 
+# Load context overlay
+
+Run the loader. If it prints anything, that is your team's configured context — company/team/glossary/guardrails plus any stage-specific format and example. Treat it as authoritative background for this generation and follow the `apply:` directive it prints (`augment` keeps this stage's required sections and folds the overlay in; `override` lets the overlay's Required sections replace the default output spec; `reference-only` uses examples for tone/depth only). If it prints nothing, no overlay is configured — generate exactly as specified below.
+
+```bash
+python3 -c "
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.home() / '.pm-os' / 'lib'))
+from context import render_context
+print(render_context('06', '.'))
+"
+```
+
 # Log stage started
 
 ```bash
