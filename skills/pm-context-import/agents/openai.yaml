@@ -1,4 +1,4 @@
 interface:
   display_name: "Context Import"
-  short_description: "Ingest existing PM context into a gated wiki + understanding doc, then seed the pipeline"
+  short_description: "Ingest existing PM context"
   default_prompt: "Use $pm-context-import to ingest the context I already have and seed the pipeline."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify PM-OS"
+  short_description: "Verify PM-OS install health"
+  default_prompt: "Use $pm-os-verify to verify the PM-OS installation for this runtime."

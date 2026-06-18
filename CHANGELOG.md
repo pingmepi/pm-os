@@ -2,8 +2,22 @@
 
 ## Unreleased
 
+### Fixed
+- Documentation alignment sweep: corrected the `deep_reasoning_stages` value (the 7-stage set) in README / CLAUDE.md / AGENTS.md / ARCHITECTURE.md; bumped stale `v0.5.3` "current version" references; annotated the spec's aspirational sections (`edit_distance.py`/`embeddings.py`/`post-tool-use.py`/`session-end.py`/`session_end` event) and added `origin`/`generation_notes` to the spec frontmatter schema; fixed a dead `AGENTS.md` link and a duplicate row in `docs/TESTING.md`.
+- Removed the unused `gitpython` dependency (git operations shell out via `subprocess`).
+
+### Added
+- Codex parity: the remaining utility skills (`pm-approve`, `pm-feedback`, `pm-new`, `pm-os-{install,update,verify}`, `pm-share`, `pm-status`) now ship `agents/openai.yaml` twins.
+
+## 0.5.5 — 2026-06-18
+
 ### Added
 - **Automated test suite.** A pytest suite under `tests/` (phases T0–T9) covering the `lib/` helpers, the full project lifecycle, the gate/approval/staleness machine, skill & documentation contracts, install/verify/update parity, context import, telemetry metrics, failure recovery, and local-first boundaries — fully isolated from the real `~/.pm-os` via temp-install fixtures. Config in `pyproject.toml`, central reference in `docs/TESTING.md`, CI in `.github/workflows/tests.yml`.
+
+## 0.5.4 — 2026-06-18
+
+### Changed
+- **Expanded the deep-reasoning model tier** to also cover the context-build docs (`00w`/`00u`), the design spec (`04`), and the roadmap (`09`); `deep_reasoning_stages` is now `["00w","00u","03","04","06","08","09"]`. Config merges in these policy stages even for older on-disk configs.
 
 ## 0.5.3 — 2026-06-18
 

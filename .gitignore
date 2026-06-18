@@ -46,3 +46,7 @@ pip-wheel-metadata/
 # fast-forward never clobbers a PM's filled-in company/stage context.
 /context/
 
+# Local docs-audit artifacts (codebase-docs-alignment output) — kept local, not committed.
+.alignment-cache.json
+docs-alignment-report.md
+

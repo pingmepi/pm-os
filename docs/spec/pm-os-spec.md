@@ -1,7 +1,7 @@
 # PM-OS — Build Specification
 
 **Owner:** Karan (PM, Indegene)
-**Status:** ✅ **Kernel implemented as of v0.4.8** — stages 01–08, approval gates (`hooks/pre-stage.py`, `hooks/post-approve.py`), the status/hash state machine, config, telemetry/feedback logs, HTML companions, and cross-runtime install (Claude + Codex) are all live. ⚠️ Parts of this spec are **aspirational and were never built** — e.g. `lib/edit_distance.py` and `lib/embeddings.py` (confirmed absent 2026-06-17). When this spec and the code disagree, trust the code and `ARCHITECTURE.md`.
+**Status:** ✅ **Kernel implemented as of v0.4.8** — stages 01–08, approval gates (`hooks/pre-stage.py`, `hooks/post-approve.py`), the status/hash state machine, config, telemetry/feedback logs, HTML companions, and cross-runtime install (Claude + Codex) are all live. ⚠️ Parts of this spec are **aspirational and were never built** — `lib/edit_distance.py` and `lib/embeddings.py` (edit distance actually lives in `lib/text_metrics.py`; embedding-based semantic distance was never built), the `hooks/post-tool-use.py` and `hooks/session-end.py` hooks (§9.3/§9.4), the `session_end` telemetry event, and the "Sonnet default; Opus for 03/06" line in §6 step 9 (superseded by the runtime-neutral tier policy in §7). When this spec and the code disagree, trust the code and `ARCHITECTURE.md`.
 **Purpose:** Build the product-definition kernel of a PM-led PDLC operating layer. v1 takes a business statement through a gated artifact pipeline (brief → scope → PRD → design spec → prototype brief → QA plan → metrics plan, plus optional TRD and roadmap capstones) with explicit PM approval at every stage. Later phases extend this kernel into dev handoff, QA bug triage, release readiness, and feedback ingestion.
 **Target executor:** Claude Code and OpenAI Codex, working from this spec.
 
@@ -176,6 +176,8 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
+origin: generated | imported | backfilled
+generation_notes: [<verbatim --note values, or empty>]
 ---
 
 # <Artifact Title>
@@ -212,12 +214,12 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (see `../plans/pm-os-ingest-plan.md`). Raw original preserved under `.history/`; registry in `.sources.yaml`.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
-- `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "post_tool_use_hook" }`
+- `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "pre_stage_hook" }` — emitted by `hooks/pre-stage.py` when it re-hashes an approved upstream and finds drift
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
 - `implicit_reapproval`: `{ stage, old_hash, new_hash }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
-- `session_end`: `{ session_duration_seconds, events_in_session }`
+- `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
 
 ### 5.4 Feedback entry (JSONL line)
 
@@ -363,7 +365,7 @@ Common flow:
 6. Log `stage_started` event.
 7. Read upstream artifacts per the skill's `reads` declaration.
 8. Render the stage prompt with upstream content injected.
-9. Generate output via Claude (model choice: Sonnet default; Opus for stages 03, 06).
+9. Generate output (model choice is **runtime-neutral**: the `deep-reasoning` tier for stages in `deep_reasoning_stages`, `standard` otherwise — see §7; no hardcoded provider model).
 10. Write generated content to `.history/<NN>-<name>.<timestamp>.generated.md`.
 11. Write same content to `<NN>-<name>.md` with frontmatter status=`draft`, `generated_hash` set.
 12. Log `stage_generated` event with `generated_hash` and `prompt_version`.

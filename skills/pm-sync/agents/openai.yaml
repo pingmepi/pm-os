@@ -1,4 +1,4 @@
 interface:
   display_name: "Sync Telemetry"
-  short_description: "Catch-up sync of all projects' telemetry/feedback to the central repo (or --verify chains)"
+  short_description: "Sync PM-OS telemetry and feedback"
   default_prompt: "Use $pm-sync to push all my projects' telemetry and feedback to the central repo."

@@ -537,7 +537,7 @@ Add tests for the metrics that PM-OS derives from the telemetry stream, artifact
 - Model telemetry
   - contract-test every stage skill logs `stage_generated.payload.model`
   - assert `model_tier` is produced through `model_tier_for_stage(stage_id)`
-  - assert stages `03`, `06`, and `08` resolve to `deep-reasoning`; other stages resolve to the configured default
+  - assert the deep-reasoning stages (`00w`, `00u`, `03`, `04`, `06`, `08`, `09`) resolve to `deep-reasoning`; other stages resolve to the configured default
 - Regeneration metrics
   - generate a stage twice
   - assert `.meta.yaml.stages[].regeneration_count` increments
@@ -682,7 +682,7 @@ Add contract tests that compare docs, scripts, and skills for stable facts:
 - optional stage semantics for 08 and 09
 - model tier policy:
   - default `standard`
-  - deep-reasoning stages `03`, `06`, `08`
+  - deep-reasoning stages `00w`, `00u`, `03`, `04`, `06`, `08`, `09`
 - no shared config/provider-specific model IDs
 
 ### Success criteria

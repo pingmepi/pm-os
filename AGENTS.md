@@ -36,7 +36,8 @@ project creation, gates, approvals, telemetry, and sharing.
 - Native Codex hooks are optional. Baseline correctness comes from the explicit
   shell commands already listed inside each skill.
 - Model policy is expressed in runtime-neutral tiers. The default tier is
-  `standard`; stages `03`, `06`, and `08` recommend `deep-reasoning`. Claude
+  `standard`; the context-build docs (`00w`/`00u`) and stages `03`, `04`, `06`,
+  `08`, `09` recommend `deep-reasoning`. Claude
   users should map `deep-reasoning` to Opus or the strongest available reasoning
   model. Codex users should map it to a high/deep reasoning model.
 

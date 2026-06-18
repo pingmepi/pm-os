@@ -1,0 +1,4 @@
+interface:
+  display_name: "Record Feedback"
+  short_description: "Record PM-OS artifact feedback"
+  default_prompt: "Use $pm-feedback to record feedback on a PM-OS stage artifact."

@@ -48,12 +48,12 @@ python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude   # or codex, or all (
 
 `pm_os_verify.py` is the fastest way to confirm a change didn't break the install: it runs the real `pre-stage.py` gate in a throwaway project and asserts it blocks an unapproved upstream and allows the first stage. Run it after touching `lib/`, `hooks/`, or the installer (against `~/.pm-os`, so sync your changes there first).
 
-Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): `pyyaml`, `jinja2`, `gitpython`. Python 3.11+.
+Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): `pyyaml`, `jinja2`. Python 3.11+. (Git operations shell out to `git` via `subprocess`.)
 
 PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, Codex uses `$pm-*`:
 `/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`.
 
-**Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`, `gitpython`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/TESTING.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
+**Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/TESTING.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
 
 ## Architecture
 
@@ -71,7 +71,7 @@ Stage state lives in **both** `.meta.yaml` (`stages[]` list) **and** each artifa
 State flows between hooks and scripts via the `PM_OS_STAGE` environment variable, not arguments.
 
 ### Runtime agnosticism
-Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/openai.yaml` (Codex interface metadata). When adding or changing a skill, update both. `install.sh`/`pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `lib/config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["03","06","08"]`); skills/SOP advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
+Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/openai.yaml` (Codex interface metadata). When adding or changing a skill, update both. `install.sh`/`pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `lib/config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00w","00u","03","04","06","08","09"]`); skills/SOP advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
 
 ### Telemetry
 `lib/telemetry.log(event_type, project_root, stage, payload)` appends a hash-chained JSONL line to the project's `telemetry.jsonl` (`prev_event_hash` → `event_hash`). Append-only by convention — never edit past events. Telemetry calls are wrapped so a failure warns but doesn't break the workflow.

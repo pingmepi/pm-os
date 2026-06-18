@@ -1,6 +1,6 @@
 # PM-OS Current State Review and Roadmap
 
-**Date:** 2026-06-12 · **Updated:** 2026-06-18 (Phase 1 runtime parity and Phase 2 flexible intake both shipped; the **context overlay** and richer **telemetry metrics** also shipped — v0.5.3 — and §2/§3 below reflect this)
+**Date:** 2026-06-12 · **Updated:** 2026-06-18 (Phase 1 runtime parity and Phase 2 flexible intake shipped; the **context overlay** and richer **telemetry metrics** shipped in v0.5.3; the **deep-reasoning-tier expansion** (v0.5.4) and the **automated test suite** (v0.5.5) also landed — current VERSION is 0.5.5; §2/§3 below reflect this)
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -33,7 +33,7 @@ It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or futu
 
 ## 2. Current State Summary
 
-The current codebase (v0.5.3) is a strong **local-first product-definition MVP** with flexible intake and a pluggable company/team context overlay.
+The current codebase (v0.5.5) is a strong **local-first product-definition MVP** with flexible intake and a pluggable company/team context overlay.
 
 It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; record telemetry/feedback; and export approved artifacts.
 

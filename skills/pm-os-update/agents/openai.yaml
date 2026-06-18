@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update PM-OS"
+  short_description: "Update PM-OS from the remote repo"
+  default_prompt: "Use $pm-os-update to update PM-OS from the remote repository."

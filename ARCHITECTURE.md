@@ -276,7 +276,7 @@ For diagnosis, prefer a layered read:
 
 ## 7. Runtime agnosticism
 
-Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/openai.yaml`** (Codex interface metadata). `install.sh` / `pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["03","06","08"]`); skills advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
+Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/openai.yaml`** (Codex interface metadata). `install.sh` / `pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00w","00u","03","04","06","08","09"]`); skills advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
 
 ---
 
@@ -290,6 +290,6 @@ Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/op
 | `hooks/post-tool-use.py` | **Not built.** Out-of-band edits are detected lazily by `pre-stage.py` on the next stage run, not on every tool use. |
 | `hooks/session-end.py` | **Not built.** Telemetry writes are synchronous; `telemetry.flush_pending()` is a no-op. |
 | Full MCP `pm-share` integration | `pm_share.py` exports a text bundle; no live connector. |
-| `sentence-transformers` dependency | Not installed. Runtime deps are `pyyaml`, `jinja2`, `gitpython` only. |
+| `sentence-transformers` dependency | Not installed. Runtime deps are `pyyaml`, `jinja2` only (git operations shell out to `git`). |
 
 Everything else in this document reflects code that exists and runs on `main`.
