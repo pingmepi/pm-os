@@ -72,7 +72,7 @@ For this pass, Codex is the only new target. Gemini can be revisited later once 
 These are the concrete gaps in the current repo.
 
 1. **`AGENTS.md` is effectively empty for Codex.**  
-   The root [AGENTS.md](AGENTS.md) contains only the claude-mem wrapper. Codex reads `AGENTS.md` before work and walks from project root to cwd, so PM-OS is currently missing its main repository-level instruction surface in Codex.
+   The root [AGENTS.md](../../AGENTS.md) contains only the claude-mem wrapper. Codex reads `AGENTS.md` before work and walks from project root to cwd, so PM-OS is currently missing its main repository-level instruction surface in Codex.
 
 2. **The prior plan used the wrong Codex skill install target.**  
    The Codex docs describe repo-local `.agents/skills/` and user-level `~/.agents/skills/` discovery. The earlier draft referred to `~/.codex/skills/`, which should not be treated as canonical unless verified separately.

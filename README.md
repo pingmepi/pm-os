@@ -183,7 +183,7 @@ catalog of what every suite and test checks.
 
 - Claude Code or OpenAI Codex with local skill support
 - Python 3.11+
-- `pyyaml`, `jinja2`, `gitpython` (runtime); `pytest` to run the test suite
+- `pyyaml`, `jinja2` (runtime); `pytest` to run the test suite
 
 Configuration is managed by the PM-OS installer and stored locally in the PM-OS config file.
 
@@ -198,7 +198,7 @@ reduce gate coverage. Approval, hash-drift, and staleness behavior are identical
 across runtimes; `pm-os-verify` confirms this with a gate self-test.
 
 Model policy is runtime-neutral. PM-OS stores `default_model_tier: standard` and
-`deep_reasoning_stages: ["03", "06", "08"]` in local config instead of concrete
+`deep_reasoning_stages: ["00w", "00u", "03", "04", "06", "08", "09"]` in local config instead of concrete
 provider model ids. Claude users should run deep-reasoning stages on Opus or the
 strongest available reasoning model. Codex users should run those stages on a
 high/deep reasoning model.

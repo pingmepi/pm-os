@@ -38,7 +38,7 @@ python3 -m pytest -m "not slow"   # skip perf cases (the default fast run)
 python3 -m pytest tests/unit/test_context.py -k layering -v   # one test
 ```
 
-Dependencies (local/CI): `pytest`, plus the runtime deps `pyyaml`, `jinja2`, `gitpython`.
+Dependencies (local/CI): `pytest`, plus the runtime deps `pyyaml` and `jinja2`.
 Config + markers live in `pyproject.toml` (`[tool.pytest.ini_options]`).
 
 ## 3. The harness (`tests/conftest.py`, `tests/helpers.py`)
@@ -198,7 +198,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 ### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
 **Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
-- `test_skill_contracts`: every skill has frontmatter name/description; no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints; **`KNOWN_MISSING_CODEX_TWIN`** locks the current Codex-parity gap and blocks new drift either way.
+- `test_skill_contracts`: every skill has frontmatter name/description **and a Codex `agents/openai.yaml` twin with well-formed interface metadata** (display name, short description, a `$skill` default prompt); no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints.
 - `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
 
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)
@@ -234,8 +234,7 @@ Tracked in the implementation plan; this catalog grows as each lands.
 
 | Phase | Suite | Will cover |
 |---|---|---|
-| T10 | `lib/consistency.py` + `/pm-check` | **Final phase** — reusable live consistency checker (see "Reused as a live consistency check" below + test-plan §19). |
-| T10 | `lib/consistency.py` + `/pm-check` | **Final phase, built after T9.** A reusable live consistency checker (see below). |
+| T10 | `lib/consistency.py` + `/pm-check` | **Final phase, built after T9** — reusable live consistency checker (see "Reused as a live consistency check" below + test-plan §19). |
 
 ### Reused as a live consistency check (planned — final phase, T10)
 
