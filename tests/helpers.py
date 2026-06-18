@@ -57,3 +57,44 @@ def write_artifact(path: Path, *, stage: str, project: str, status: str = "draft
     lines = "\n".join(f"{k}: {v if v is not None else 'null'}" for k, v in fm.items())
     path.write_text(f"---\n{lines}\n---\n{body}", encoding="utf-8")
     return path
+
+
+# --- in-process state helpers (lib is importable; these touch only the project tree) ---
+
+def make_draft(proj: Path, stage_id: str, body: str = "Draft body.\n") -> Path:
+    """Simulate a skill generating a stage: write a draft artifact and set BOTH the meta
+    stage entry and frontmatter to 'draft', so it can then be approved by pm_approve.py."""
+    import project
+    import frontmatter as fm_mod
+
+    apath = project.artifact_path(proj, stage_id)
+    fm_mod.write(str(apath), {
+        "stage": f"{stage_id}-{project.STAGE_NAMES[stage_id]}", "project": proj.name,
+        "status": "draft", "approved_at": None, "approved_by": None,
+        "content_hash": None, "generated_hash": "gen", "pm_os_version": "0.0.0-test",
+        "genai_flag": False, "generation_notes": [],
+    }, body)
+    meta = project.load_meta(proj)
+    project.get_stage(meta, stage_id)["status"] = "draft"
+    project.save_meta(meta, proj)
+    return apath
+
+
+def stage_status(proj: Path, stage_id: str) -> str:
+    """Read a stage's status from .meta.yaml."""
+    import project
+    return project.get_stage(project.load_meta(proj), stage_id)["status"]
+
+
+def read_events(proj: Path) -> list:
+    """Parse a project's telemetry.jsonl into a list of event dicts."""
+    import json
+    p = proj / "telemetry.jsonl"
+    if not p.exists():
+        return []
+    return [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
+
+
+def event_types(proj: Path) -> list:
+    """The ordered list of telemetry event_type values for a project."""
+    return [e["event_type"] for e in read_events(proj)]

@@ -76,12 +76,15 @@ tests/
 ├── conftest.py            # harness: fixtures + isolation
 ├── helpers.py             # run_script / run_hook / write_artifact
 ├── test_harness_smoke.py  # T0 — proves the harness itself works
-└── unit/                  # T1 — in-process lib/ tests
-    ├── test_project.py     test_hashing.py     test_frontmatter.py
-    ├── test_config.py      test_telemetry.py   test_text_metrics.py
-    ├── test_context.py     test_git_sync.py    test_html_render.py
-# (added as phases land:)
-# ├── integration/         # T2,T4,T5,T7 — script+hook flows
+├── unit/                  # T1 — in-process lib/ tests
+│   ├── test_project.py     test_hashing.py     test_frontmatter.py
+│   ├── test_config.py      test_telemetry.py   test_text_metrics.py
+│   └── test_context.py     test_git_sync.py    test_html_render.py
+└── integration/           # T2 — script + hook flows (subprocess, isolated)
+    ├── test_project_lifecycle.py
+    ├── test_stage_gates.py
+    └── test_approval_and_staleness.py
+# (added as later phases land:)
 # └── contracts/           # T3,T8 — skill/doc/spec drift
 ```
 
@@ -167,12 +170,35 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_markdownish_escapes_untrusted_html` / `test_inline_escapes_and_formats` — untrusted Markdown is HTML-escaped (XSS guard); bold/code still render.
 - `test_parse_sections_splits_on_h2` / `test_parse_sections_no_headings_defaults_overview` — sections split on `##`; no-heading body becomes one "Overview" section.
 
+### T2 — Lifecycle integration (`tests/integration/`)
+**Purpose:** exercise the real scripts + hooks end to end against the isolated temp install — the state machine as a PM drives it.
+**Pass:** scaffolding, gating, approval, staleness, and HTML rendering behave per spec and keep meta↔frontmatter in sync.
+**Fail:** a gate lets unsafe progression through (or blocks valid), state desyncs, or a side effect corrupts the project.
+
+**`test_project_lifecycle.py`** — scaffold → approve → status → share
+- `test_pm_new_creates_full_scaffold` — `pm_new` writes meta/statement/telemetry/feedback/.history, records genai flag, logs `project_created`.
+- `test_approve_business_statement_logs_telemetry` — approving 00 syncs meta+frontmatter, records a hash, logs `stage_approved`.
+- `test_pm_status_reports_state` — `pm_status` surfaces stage statuses, feedback count, recent telemetry.
+- `test_pm_share_includes_approved_excludes_pending` — share exports approved bodies, omits pending stages.
+
+**`test_stage_gates.py`** — the gate (`pre-stage.py`)
+- `test_gate_blocks_when_upstream_unapproved` — stage 02 blocked while 01 is pending; blocker named.
+- `test_gate_allows_first_stage_after_00_approved` — stage 01 gate passes once 00 is approved.
+- `test_editing_approved_upstream_marks_edited` — body drift on an approved upstream → marked `edited` + `stage_edited_post_approval` logged.
+- `test_non_tty_without_choice_is_clear_error` — edited upstream + no `PM_OS_EDITED_UPSTREAM_CHOICE` fails with guidance (never hangs).
+- `test_implicit_reapproval_continue` — `…CHOICE=continue` re-approves the edited upstream and logs `implicit_reapproval`, then allows the run.
+
+**`test_approval_and_staleness.py`** — `post-approve.py` side effects
+- `test_approval_syncs_frontmatter_and_meta` — approval records identical hash/status in both sources of truth.
+- `test_reapproving_upstream_cascades_downstream_stale` — re-approving 01 marks approved 02 stale + logs `stage_marked_stale`.
+- `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
+- `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
+
 ### Planned suites (not yet built)
 Tracked in the implementation plan; this catalog grows as each lands.
 
 | Phase | Suite | Will cover |
 |---|---|---|
-| T2 | `integration/` lifecycle | pm_new→approve→gate→edited→stale→status→share; 04/05 HTML render; frontmatter↔meta sync |
 | T3 | `contracts/` | skill frontmatter/gate/write-output contracts; stage section contracts; doc/spec drift |
 | T4 | `integration/` runtime parity | install/update/verify for Claude+Codex; context seeding on install/update; verify checks |
 | T5 | `integration/` | context-import (register/preflight/commit), **context-overlay skill integration** (§7A), feedback, telemetry, local bare-repo sync |

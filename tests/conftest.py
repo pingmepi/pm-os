@@ -32,7 +32,8 @@ LIB_DIR = REPO_ROOT / "lib"
 # (pyyaml/jinja2) that may live in the user site-packages.
 _REAL_USER_SITE = site.getusersitepackages()
 # Copied verbatim into the temp install so subprocess runs exercise the working copy.
-INSTALL_DIRS = ["lib", "scripts", "hooks", "skills", "context.example"]
+# `templates/` is required by html_render (resolved as ~/.pm-os/templates).
+INSTALL_DIRS = ["lib", "scripts", "hooks", "skills", "context.example", "templates"]
 
 # Make lib importable for in-process unit tests.
 if str(LIB_DIR) not in sys.path:
