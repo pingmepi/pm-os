@@ -4,6 +4,7 @@ install). See docs/TESTING.md §5 (T3)."""
 import re
 
 import pytest
+import yaml
 
 import project
 import frontmatter
@@ -15,16 +16,6 @@ STAGE_IDS = project.CORE_STAGE_ORDER + ["08", "09"]
 PROVIDER_TOKENS = ("claude-", "gpt-", "opus", "sonnet", "haiku", "o1", "o3")
 
 
-# KNOWN GAP (surfaced by this test): these utility skills currently ship no Codex
-# agents/openai.yaml twin, contrary to the runtime-agnostic rule in CLAUDE.md. Tracked here
-# so the suite stays green AND any *new* drop — or a fix — is noticed. Resolve separately,
-# then delete entries from this set (the parity test will then require the twin).
-KNOWN_MISSING_CODEX_TWIN = {
-    "pm-approve", "pm-feedback", "pm-new", "pm-os-install",
-    "pm-os-update", "pm-os-verify", "pm-share", "pm-status",
-}
-
-
 def test_every_skill_has_frontmatter():
     """Every skill ships valid frontmatter with a name and description."""
     for sd in skill_dirs():
@@ -34,15 +25,24 @@ def test_every_skill_has_frontmatter():
 
 
 def test_codex_twin_parity_no_regression():
-    """Skills outside the documented known-gap set must ship a Codex agents/openai.yaml twin;
-    and the set of skills missing it must match the allowlist exactly — so a NEW skill dropping
-    its twin fails here, and fixing a known one (removing it from the allowlist) is required to
-    keep this green. Locks the current state and prevents silent drift either way."""
+    """Every skill ships the Codex/OpenAI agents/openai.yaml UI metadata twin."""
     missing = {sd.name for sd in skill_dirs() if not (sd / "agents" / "openai.yaml").exists()}
-    new_gaps = missing - KNOWN_MISSING_CODEX_TWIN
-    assert not new_gaps, f"skill(s) dropped the Codex twin: {sorted(new_gaps)}"
-    fixed = KNOWN_MISSING_CODEX_TWIN - missing
-    assert not fixed, f"twin added for {sorted(fixed)} — remove them from KNOWN_MISSING_CODEX_TWIN"
+    assert not missing, f"skill(s) missing the Codex twin: {sorted(missing)}"
+
+
+def test_openai_yaml_interface_metadata_is_well_formed():
+    """OpenAI skill descriptors expose stable UI metadata and an explicit $skill prompt."""
+    for sd in skill_dirs():
+        path = sd / "agents" / "openai.yaml"
+        data = yaml.safe_load(path.read_text())
+        interface = data.get("interface", {}) if isinstance(data, dict) else {}
+        assert interface.get("display_name"), f"{sd.name}: missing display_name"
+        short = interface.get("short_description")
+        assert isinstance(short, str), f"{sd.name}: missing short_description"
+        assert 25 <= len(short) <= 64, f"{sd.name}: short_description length {len(short)}"
+        prompt = interface.get("default_prompt")
+        assert isinstance(prompt, str), f"{sd.name}: missing default_prompt"
+        assert f"${sd.name}" in prompt, f"{sd.name}: default_prompt must mention ${sd.name}"
 
 
 def test_skill_frontmatter_has_no_provider_model_ids():

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Status"
+  short_description: "Show PM-OS project status"
+  default_prompt: "Use $pm-status to show the current PM-OS project status."

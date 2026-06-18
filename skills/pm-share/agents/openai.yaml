@@ -1,0 +1,4 @@
+interface:
+  display_name: "Share Artifacts"
+  short_description: "Export approved PM-OS artifacts"
+  default_prompt: "Use $pm-share to export approved PM-OS artifacts in a shareable format."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Install PM-OS"
+  short_description: "Install or reconfigure PM-OS"
+  default_prompt: "Use $pm-os-install to install or reconfigure PM-OS for this runtime."

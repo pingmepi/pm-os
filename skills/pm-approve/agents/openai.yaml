@@ -1,0 +1,4 @@
+interface:
+  display_name: "Approve Stage"
+  short_description: "Approve PM-OS stage drafts"
+  default_prompt: "Use $pm-approve to approve a PM-OS stage draft."
