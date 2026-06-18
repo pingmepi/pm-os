@@ -62,7 +62,7 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Runtime-neutral skill interface | Implemented | each stage skill ships `agents/openai.yaml` alongside `SKILL.md` |
 | Gate parity across runtimes | Implemented | gates run via skill bash (`python3 ~/.pm-os/hooks/pre-stage.py`) + `pm_approve.py` subprocess, not native hooks — identical on Claude and Codex (verified) |
 | Runtime-neutral `AGENTS.md` | Implemented | full agents file; `claude-mem` stub removed |
-| Runtime-neutral model wording | Implemented | stages 03/06/08 use advisory deep-reasoning guidance instead of `/model opus` |
+| Runtime-neutral model wording | Implemented | deep-reasoning stages 03/04/06/08/09 (and the context-build docs 00w/00u) use advisory deep-reasoning guidance instead of `/model opus` |
 | Non-interactive gate safety | Implemented | `pre-stage.py` has `isatty()` branch + `PM_OS_EDITED_UPSTREAM_CHOICE`; never hangs unattended |
 | Catch-up telemetry sync | Implemented | `/pm-sync` + `scripts/pm_sync.py` walk every project under `projects_dir`, copy telemetry/feedback to the central repo, and push in one commit; `--verify` validates each project's hash chain. Failures are surfaced loudly, not swallowed |
 | Automated test suite | Implemented (in progress) | `tests/` pytest harness (T0–T9: unit/integration/contract), isolated from the real `~/.pm-os` via temp-install fixtures; `pyproject.toml` config, `docs/TESTING.md` reference, `.github/workflows/tests.yml` CI |
@@ -253,7 +253,7 @@ When this phase was scoped it listed a gate-parity gap as the substantive item. 
 What shipped to close the phase:
 
 1. **Gate parity — verified, not just argued.** A deterministic self-test runs `pre-stage.py` exactly as the skills do, in a throwaway project, asserting it blocks an unapproved upstream and allows the first stage. Identical behavior on both runtimes.
-2. **Runtime-neutral model guidance.** Stages 03/06/08 give advisory deep-reasoning guidance; no `/model opus` hard-stop.
+2. **Runtime-neutral model guidance.** The deep-reasoning stages (03/04/06/08/09, plus context-build 00w/00u) give advisory deep-reasoning guidance; no `/model opus` hard-stop.
 3. **Real `AGENTS.md`.** Full runtime-neutral agents file; the `claude-mem` stub was removed.
 4. **Non-interactive gate safety.** `pre-stage.py` already had an `isatty()` branch plus `PM_OS_EDITED_UPSTREAM_CHOICE`; it errors with guidance instead of hanging. Covered by the verifier's timeout-guarded self-test.
 5. **Install verifier.** `scripts/pm_os_verify.py` + the `pm-os-verify` skill check config, shared-lib imports, gate hooks, installed skills per runtime, and run the gate self-test. This is the verifier `pm_os_update.py` already pointed users to.

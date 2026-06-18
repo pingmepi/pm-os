@@ -75,18 +75,18 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 | 01 | Product brief | PM | Product lead / sponsor |
 | 02 | Scope (MVP) | PM | Product lead, eng lead (feasibility sanity check) |
 | 03 | PRD *(deep-reasoning)* | PM | Eng lead, design lead |
-| 04 | Design spec | PM + design | Design lead |
+| 04 | Design spec *(deep-reasoning)* | PM + design | Design lead |
 | 05 | Prototype brief | PM + design | Design lead, eng lead |
 | 06 | QA plan *(deep-reasoning)* | PM + QA | QA lead |
 | 07 | Metrics plan | PM + data | Data/analytics owner |
 | 08 | TRD *(optional, deep-reasoning)* | Eng + PM | Eng lead / architect |
-| 09 | Roadmap *(optional)* | PM + leadership | PM |
+| 09 | Roadmap *(optional, deep-reasoning)* | PM + leadership | PM |
 
 - **Driver** runs the generate command, edits the draft, and requests review.
 - **Reviewer** reads the draft and gives the go/no-go. Approval should follow review, not precede it.
 - One person can hold multiple hats on a small project — but the *roles* should still be conscious choices, not skipped.
 
-**Deep-reasoning stages (03, 06, 08)** carry the most downstream weight (requirements, quality bar, technical commitments). They recommend your strongest available reasoning model. This is advisory, not a hard gate: if the runtime can tell it is on a lightweight model, switch before generating; if the model is unknown, proceed with a note and review carefully.
+**Deep-reasoning stages (03, 04, 06, 08, 09 — plus the context-build docs 00w/00u from `/pm-context-import`)** carry the most downstream weight (requirements, design, quality bar, technical commitments, strategy, and synthesized context). They recommend your strongest available reasoning model. This is advisory, not a hard gate: if the runtime can tell it is on a lightweight model, switch before generating; if the model is unknown, proceed with a note and review carefully.
 
 ---
 
@@ -184,7 +184,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | **Silently overriding an approved upstream artifact** | The "source of truth" quietly forks; readers can't trust the chain. | Surface the conflict; re-open and re-approve the upstream stage if the decision changed. |
 | **Treating a draft as a decision** | Stakeholders act on something that wasn't finalized. | Share/cite only approved artifacts; label drafts as drafts. |
 | **Putting confidential data in prompts or artifacts** | PHI/PII/secrets end up in local files and possibly in pushed telemetry/feedback. | Sanitize inputs first (§7). If you can't, don't proceed. |
-| **Using a lightweight model on 03/06/08** | The highest-leverage stages get under-reasoned output. | Prefer the strongest available reasoning model; if the model is unknown, proceed with a note and careful review. |
+| **Using a lightweight model on the deep-reasoning stages (03/04/06/08/09, context build)** | The highest-leverage stages get under-reasoned output. | Prefer the strongest available reasoning model; if the model is unknown, proceed with a note and careful review. |
 | **Running stage helpers outside the project directory** | Helpers act on the wrong (or no) project state. | Run PM-OS commands from inside the project directory unless the skill says otherwise. |
 | **Maintaining a parallel PRD elsewhere** | Two sources of truth diverge; nobody knows which is current. | Pick one home. If PM-OS owns it, link to it from your tracker rather than copying; once import exists, ingest the external artifact instead. |
 | **Editing `.meta.yaml` by hand** | Corrupts the state machine (status, hashes, approvals). | Let the helper commands manage state; edit Markdown bodies, not the meta file. |
@@ -214,7 +214,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | Share approved set | `/pm-share` | `$pm-share` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
-**Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap, optional; uses approved TRD when available).
+**Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec* → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap*, optional; uses approved TRD when available).
 `*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully.
 
 **The one rule to remember:** *generate, review, approve — in order, one stage at a time, on sanitized inputs.*
