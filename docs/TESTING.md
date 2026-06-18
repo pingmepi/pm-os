@@ -80,12 +80,14 @@ tests/
 │   ├── test_project.py     test_hashing.py     test_frontmatter.py
 │   ├── test_config.py      test_telemetry.py   test_text_metrics.py
 │   └── test_context.py     test_git_sync.py    test_html_render.py
-└── integration/           # T2 — script + hook flows (subprocess, isolated)
-    ├── test_project_lifecycle.py
-    ├── test_stage_gates.py
-    └── test_approval_and_staleness.py
-# (added as later phases land:)
-# └── contracts/           # T3,T8 — skill/doc/spec drift
+├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
+│   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
+│   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
+│   ├── test_git_sync_local.py         test_telemetry_metrics.py
+│   └── test_failure_recovery.py       test_idempotency.py
+└── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
+    ├── test_skill_contracts.py    test_documentation_drift.py
+    └── test_local_first_boundaries.py    test_ci.py
 ```
 
 ---
@@ -194,18 +196,45 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 
+### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
+**Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
+- `test_skill_contracts`: every skill has frontmatter name/description; no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on 03/06/08; both runtime entrypoints; **`KNOWN_MISSING_CODEX_TWIN`** locks the current Codex-parity gap and blocks new drift either way.
+- `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
+
+### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)
+**Purpose:** the install lifecycle + runtime parity. **Pass:** install writes config & seeds context; verify passes on a healthy install and fails on tampering; update validates args and syncs per runtime.
+- install: writes config + model policy; missing pm_user fails non-interactively; seeds the overlay.
+- verify: passes on a complete install; fails on a missing hook / missing config.
+- update: requires `--runtime`; rejects invalid runtime; **Claude gets skills+hooks, Codex skills only.**
+
+### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
+**Purpose:** the intake path, feedback capture, and the real central-sync git path.
+- context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin).
+- feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
+- `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path); `pm_sync` backfills all projects; `--verify` reports chains intact.
+
+### T6 — Telemetry metrics (`tests/integration/test_telemetry_metrics.py`)
+**Purpose:** the computed approval metrics. **Pass:** metrics populate from real data and stay null where no generation snapshot exists.
+- time-to-approve recorded when generated; edit distance 0 unchanged / >0 edited / null without snapshot; `--semantic-distance` passthrough + out-of-range rejection; model id + config-derived tier captured; regeneration count surfaced.
+
+### T7 — Negative/resilience + idempotency (`test_failure_recovery.py`, `test_idempotency.py`)
+**Purpose:** broken/hostile state fails safely; safe ops repeat cleanly.
+- malformed/missing `.meta.yaml`, not-in-project, no-frontmatter artifact, tampered telemetry, non-tty genai decision → clear failures.
+- approve-already-approved no-op; `pm_status` stable; HTML render deterministic.
+
+### T8 — Local-first & security (`tests/contracts/test_local_first_boundaries.py`)
+**Purpose:** trust/privacy boundaries. **Pass:** read-only commands don't sync; provenance stays in-project; fixtures carry no secrets.
+- `pm_status`/`pm_share` don't import `git_sync` or push; source registration stays inside `.history`; no secrets/hardcoded home in `tests/`.
+
+### T9 — CI (`tests/contracts/test_ci.py` + `.github/workflows/tests.yml`)
+**Purpose:** the suite runs automatically. The workflow runs `pytest -m "not slow"` on push/PR; a contract test guards it stays wired (and installs the runtime deps).
+
 ### Planned suites (not yet built)
 Tracked in the implementation plan; this catalog grows as each lands.
 
 | Phase | Suite | Will cover |
 |---|---|---|
-| T3 | `contracts/` | skill frontmatter/gate/write-output contracts; stage section contracts; doc/spec drift |
-| T4 | `integration/` runtime parity | install/update/verify for Claude+Codex; context seeding on install/update; verify checks |
-| T5 | `integration/` | context-import (register/preflight/commit), **context-overlay skill integration** (§7A), feedback, telemetry, local bare-repo sync |
-| T6 | `integration/` metrics | timing, edit-distance, model capture, regeneration, feedback, drift, sync-verify |
-| T7 | `integration/` recovery | malformed/missing state, idempotency, non-tty escapes, schema migration |
-| T8 | `contracts/` | local-first/network isolation, secret-free fixtures, documentation drift |
-| T9 | CI | GitHub Actions running the default suite |
+| T10 | `lib/consistency.py` + `/pm-check` | **Final phase** — reusable live consistency checker (see "Reused as a live consistency check" below + test-plan §19). |
 | T10 | `lib/consistency.py` + `/pm-check` | **Final phase, built after T9.** A reusable live consistency checker (see below). |
 
 ### Reused as a live consistency check (planned — final phase, T10)
