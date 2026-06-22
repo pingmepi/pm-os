@@ -154,6 +154,10 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   echo "Updating existing installation at $INSTALL_DIR..."
   git -C "$INSTALL_DIR" fetch --tags origin main --quiet
   git -C "$INSTALL_DIR" checkout main --quiet
+  git -C "$INSTALL_DIR" merge --ff-only origin/main --quiet \
+    || { echo "ERROR: could not fast-forward ~/.pm-os to origin/main (local branch has diverged)."; \
+         echo "       Run: python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude --reset-main"; \
+         exit 1; }
 else
   echo "Cloning pm-os to $INSTALL_DIR..."
   git clone --quiet "$PM_OS_REPO" "$INSTALL_DIR"
