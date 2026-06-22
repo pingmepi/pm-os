@@ -238,12 +238,10 @@ def cmd_commit(args):
         save_meta(meta, root)
         # The wiki/understanding docs are model-produced — record the model that
         # generated them, mirroring the stage skills' stage_generated event.
-        if args.kind == "generated":
+        if args.kind in ("generated", "backfilled"):
+            event = "stage_generated" if args.kind == "generated" else "stage_backfilled_draft"
             try:
-                # Match the documented stage_generated schema (see the stage skills
-                # and docs/spec) so telemetry aggregation treats context drafts the
-                # same. Context-import takes no --note steering, so notes is empty.
-                log("stage_generated", root, stage_id, {
+                log(event, root, stage_id, {
                     "generated_hash": hash_artifact_body(str(apath)),
                     "model": args.model,
                     "model_tier": model_tier_for_stage(stage_id),

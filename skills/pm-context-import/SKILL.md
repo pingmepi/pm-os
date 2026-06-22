@@ -81,7 +81,11 @@ Write **one** normalized knowledge base the model will read as grounding for eve
 - `## TL;DR` — the useful takeaway up front: what the product is, the core problem, who it's for, and the decisions already locked. A reader should grasp the project from this section alone.
 - `## Problem & context` — the problem space and why-now.
 - `## Users & needs` — who they are and their jobs/pains.
-- `## Decisions already made` — scope calls, constraints, and commitments the PM has locked, so downstream stages don't relitigate them.
+- `## Non-goals & explicit exclusions` `<!-- stage-affinity: 01 02 -->` — things explicitly ruled out per the sources; bullets tagged `[hard]` (explicitly stated) or `[inferred]` (derived from context); every item carries a `src_NNN` tag. Omit if no source excludes anything, but note the gap under Open questions.
+- `## Success indicators` `<!-- stage-affinity: 01 07 -->` — KPIs, OKRs, and launch criteria from the sources. Mark `⚠️` if no measurable indicators exist in any source.
+- `## Decisions already made` `<!-- stage-affinity: 01 02 03 -->` — scope calls, constraints, and commitments the PM has locked, so downstream stages don't relitigate them.
+- `## Technical constraints` `<!-- stage-affinity: 03 04 06 08 -->` — hard/soft platform or integration constraints; tag each item `[hard]` or `[soft/preferred]`. Omit only if no source touches constraints, and record the gap under Open questions.
+- `## Stakeholder authority` `<!-- stage-affinity: 01 02 03 -->` — decisions attributed to a named authority; format as a table: `Decision | Authority | Source | Binding?`. Treat entries as binding constraints unless a PM annotation overrides. Omit if absent.
 - `## Concepts & glossary` — normalized domain terms used across sources.
 - `## Open questions & uncertainties` — gaps, conflicts, and thin evidence (this is also where the self-lint findings land — see Step 3b).
 - `## Source map` — a provenance table: `src_NNN` → file → type → what it contributed.
@@ -94,16 +98,32 @@ Omit a section only if no source touches it at all — and when you do, note the
 - **Tag every factual claim** with its `src_NNN` id from `.sources.yaml` so provenance is traceable.
 - **Distinguish sourced claims from interpretation.** Anything you synthesized or inferred (not stated in a source) is prefixed `_Interpretation:_` so the PM can tell evidence from inference.
 - **Mark uncertainty inline** with `⚠️` when sources conflict or evidence is thin — never resolve a conflict by silently picking one side; surface it under Open questions.
+- **Open each content-bearing section** (all except TL;DR, Concepts & glossary, and Source map) with a confidence tier line: `> Confidence: High / Medium / Low — <reason>`. High = PM-authored, current, unconflicted. Medium = secondary source or inferred from strong evidence. Low = model-inferred, lossy, contradicted, or missing decision owner.
 - **No filler.** Every line must add navigation, synthesis, or decision value.
+
+## PM annotation override convention
+
+`> **PM:** ...` blockquotes added anywhere in this wiki are highest-priority overrides of the immediately preceding content. They are PM-authored corrections added after the draft is written — do not generate them yourself, and do not remove them when updating the wiki. If a PM annotation conflicts with a sourced claim, the annotation wins; preserve the original claim in `## Open questions & uncertainties` so the PM has a record.
+
+PM annotations are included in the body hash — the PM should be aware that editing them after approval triggers drift detection and cascades staleness downstream.
 
 # Step 3b — Self-lint the wiki
 
-Before scaffolding the draft, review the wiki you just wrote for:
-- **Contradictions** — claims from different sources that conflict → must surface under `## Open questions & uncertainties`, never silently reconciled.
-- **Gaps** — pipeline-relevant areas (problem / users / scope) with no source coverage → note them under `## Open questions & uncertainties`.
-- **Unsourced claims** — any assertion lacking a `src_NNN` tag and not marked `_Interpretation:_` → either source it, mark it as interpretation, or cut it.
+Before scaffolding the draft, review the wiki for all of the following. Emit each finding as an `FYI:` line (per the "Nothing is silent" rule).
 
-Emit each finding as an `FYI:` line (per the "Nothing is silent" rule), e.g. `FYI: sources src_002 and src_004 disagree on the target segment — flagged under Open questions for your call.`
+**Content checks (fix before committing):**
+- **Contradictions** — claims from different sources that conflict → must surface under `## Open questions & uncertainties`, never silently reconciled. e.g. `FYI: sources src_002 and src_004 disagree on the target segment — flagged under Open questions for your call.`
+- **Gaps** — pipeline-relevant areas (problem / users / scope) with no source coverage → note them under `## Open questions & uncertainties`.
+- **Unsourced claims** — any factual assertion lacking a `src_NNN` tag, a PM annotation, a Stakeholder authority entry, or `_Interpretation:_` label → source it, mark it as interpretation, or cut it.
+- **Confidence mismatch** — any claim extracted from a lossy source (scanned PDF, table-heavy layout) must not be marked High confidence; downgrade to Medium or Low and note the extraction quality.
+
+**Structural warnings (emit FYI, do not block):**
+- If sources contain KPIs, OKRs, or measurable targets but `## Success indicators` is empty or all Low confidence → `FYI: sources mention metrics but Success indicators has no high-confidence entries — review before approving.`
+- If the highest provided stage is ≥ 04 but `## Technical constraints` is empty → `FYI: no technical constraints found in sources — is this expected for a stage-04+ project?`
+
+**Understanding doc pre-checks (also verified in Step 5):**
+- Every inferred claim that drives a downstream stage should appear in the assumption register; flag any obvious gap as `FYI:`.
+- Any `⚠️` conflict in the wiki that affects a named stage must appear in the conflict resolution block of the understanding doc; flag preemptively if the conflict is clearly stage-relevant.
 
 Then scaffold the wiki as a draft stage:
 
@@ -138,11 +158,44 @@ Information flows downstream and gets more concrete (WHY → WHAT → HOW), so a
 
 # Step 5 — Write the understanding doc (`00-context-understanding.md`)
 
-Human-facing synthesis the PM approves. Include:
-- **What I understood** — the problem, users, decisions already made, drawn from the sources.
-- **Source classification** — each source: adopted-as-stage-NN vs. context-only.
-- **Coverage map** — per stage 01–07: provided / ✅ faithful backfill / ⚠️ lossy backfill (review carefully) / will be generated fresh / ⛔ not adoptable.
-- **What happens on approval** — exactly which stages will be adopted (`imported`), which backfilled, which generated later in the normal flow.
+Human-facing synthesis the PM approves. Use exactly these six sections:
+
+**1. What I understood**
+Prose summary followed by a structured block:
+```
+**Problem:** <one sentence>
+**Primary users:** <one sentence>
+**Key locked decisions:** <bullets>
+**Non-goals I extracted:** <bullets; flag any inferred as [inferred] for PM confirmation>
+```
+
+**2. Source trust table**
+| Source | Type | Registered as | Extraction quality | Reliability | Strengths | Weaknesses | Role |
+|---|---|---|---|---|---|---|---|
+
+Extraction quality: Clean / Lossy (scanned/table-heavy) / Unknown. Reliability: High / Medium / Low.
+
+**3. Assumption register**
+For every stage that will be generated fresh or backfilled lossily, list the specific assumptions the model will use:
+| Stage | Section | Assumption I will use | Based on | Confidence | PM review needed? |
+|---|---|---|---|---|---|
+
+**4. Conflict resolution block**
+Every `⚠️` conflict in the wiki that affects a pipeline stage becomes an explicit block:
+```
+**Conflict N: <topic>**
+- src_NNN says "..."
+- src_NNN says "..."
+- This affects: <downstream stages and what changes>
+- **Your call:** ___________
+```
+If no conflicts affect any stage: "No conflicts found across sources."
+
+**5. Coverage map**
+Per stage 01–07: `✅` provided / `✅` faithful backfill / `⚠️` lossy backfill (PM must approve) / `🔄` generated fresh / `⛔` not adoptable. For `⚠️` stages, name what's likely lost. For `🔄` stages, name the top assumption (link to assumption register row).
+
+**6. What happens on approval**
+Exactly which stages will be adopted (`imported`), which backfilled as approved, and which will remain `draft` after seeding (lossy backfills and backfills with unfilled conflicts). Name the draft-remaining stages explicitly so the PM is not surprised.
 
 Then scaffold it as a draft:
 
@@ -167,11 +220,18 @@ Do not continue until both are approved (the stage-01 gate enforces this anyway)
 
 After the PM approves the wiki and understanding, adopt and backfill **bottom-up** (lowest stage id first) so each commit's upstream hashes capture already-written upstreams:
 
-For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then:
+For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then commit using the status that matches the extraction quality:
 
+**Faithful backfill with no unresolved stage-relevant conflicts:**
 ```bash
 python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind backfilled --status approved --derived-from <provided-stage> --model "<the model id you are running as, e.g. claude-opus-4-8>"
 ```
+
+**Lossy backfill, OR any backfill with an unfilled conflict decision that affects this stage:**
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind backfilled --status draft --derived-from <provided-stage> --model "<the model id you are running as, e.g. claude-opus-4-8>"
+```
+Emit `FYI: <NN>-<name>.md is a lossy/conflicted backfill — committed as draft; PM must /pm-approve <NN> before the pipeline can proceed.`
 
 For each adopted artifact, normalize it into the stage's section template, write the slot, then:
 
