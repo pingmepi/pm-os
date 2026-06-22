@@ -43,6 +43,8 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
 **Edited upstream is the PM's call, not yours.** If the gate reports an upstream stage was *edited after approval*, do **not** set `PM_OS_EDITED_UPSTREAM_CHOICE` or re-approve it yourself. Stop, tell the PM exactly which stage changed, and ask them to either re-approve it explicitly (`/pm-approve <NN>`) or confirm in their own words that you should continue. Re-run this gate only after the PM has acted.
 
+**If you edit any upstream artifact during generation** (e.g. reconciling a `--note` into the brief), stop before writing this stage's output and re-run the pre-stage gate. The gate will detect the edit, stale any downstream intermediates, and block if any of those intermediates are also upstream of this stage — preventing generation from unapproved artifacts.
+
 # Inputs
 
 **Context wiki (if present).** If `00-context-wiki.md` exists, read it before generating. Apply these rules in order:
