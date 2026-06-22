@@ -308,7 +308,26 @@ def cmd_prepare_codebase(args):
 
     if raw.startswith(("https://", "http://", "git@")):
         target = root / ".codebase"
-        if not target.exists():
+        if target.exists():
+            # Validate that the existing checkout matches the requested URL so a
+            # retry with a different URL doesn't silently scan the wrong codebase.
+            remote_r = subprocess.run(
+                ["git", "-C", str(target), "remote", "get-url", "origin"],
+                capture_output=True, text=True,
+            )
+            existing_url = remote_r.stdout.strip() if remote_r.returncode == 0 else "(unknown)"
+            if existing_url != raw:
+                print(
+                    f"Error: .codebase/ already exists but its remote is\n"
+                    f"  {existing_url!r}\n"
+                    f"not the requested\n"
+                    f"  {raw!r}\n"
+                    "Remove .codebase/ manually to re-clone with the new URL, "
+                    "or pass the same URL to reuse the existing checkout."
+                )
+                sys.exit(1)
+            print(f"Reusing existing .codebase/ (remote matches {existing_url!r}).")
+        else:
             print(f"Cloning {raw} → {target} (--depth 1)…")
             r = subprocess.run(
                 ["git", "clone", "--depth", "1", raw, str(target)],

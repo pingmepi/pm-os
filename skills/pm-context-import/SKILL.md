@@ -262,10 +262,12 @@ Print the FYI summary (registered sources, adopt vs. context split, any reshapin
 
 Then stop and tell the PM:
 
-> Review `00-context-wiki.md` and `00-context-understanding.md`. Approve them to proceed:
-> `/pm-approve 00w` then `/pm-approve 00u`.
+> Review and approve all stage-00 docs before proceeding. Approve in this order:
+> - **Enhancement mode only:** `/pm-approve 00c` (codebase understanding — skip if no codebase was scanned)
+> - `/pm-approve 00w` (context wiki)
+> - `/pm-approve 00u` (context understanding)
 
-Do not continue until both are approved (the stage-01 gate enforces this anyway).
+Do not continue until all present stage-00 docs are approved — the stage-01 gate blocks until every stage-00 doc in the project metadata is approved.
 
 # Step 7 — On approval, seed the pipeline
 
