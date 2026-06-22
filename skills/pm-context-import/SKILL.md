@@ -45,19 +45,24 @@ If `00` (business statement) is not `approved`, tell the PM to review and approv
 # Inputs
 
 Arguments are paths to the PM's source files and/or a folder. Read `$ARGUMENTS`.
+- **A folder is walked recursively.** Passing a folder registers every document file in it *and all its subfolders* in one call (see Step 1) — the script reports how many files across how many folders it ingested and lists anything it skipped. You do not need to enumerate subfolders yourself; do confirm the reported coverage matches what the PM expects, and surface the skipped list so nothing is silently dropped.
 - **Read each source directly — including `.pdf` and `.docx`.** `.md` / `.txt` are read verbatim. For `.pdf` / `.docx`, read the file with your runtime's native file reading (Claude Code reads PDFs directly and has `pdf` / `docx` skills). If your runtime cannot read a binary format directly, convert it with an available tool (`pandoc`, `pdftotext`, or the `pdf`/`docx` skill); only as a last resort ask the PM to export to Markdown.
 - **Flag lossy extraction.** Text-based PDFs and `.docx` extract cleanly. A **scanned/image-only PDF** (no selectable text) or a **table-heavy / multi-column** layout extracts unreliably — order scrambles, tables merge, or OCR is needed. When a source looks like this, emit an `FYI:` calling it out and lean on the review gate: e.g. `FYI: payments-spec.pdf looks scanned/table-heavy — extraction may be imperfect; review the wiki section sourced from it carefully before approving.` Never silently treat a degraded extraction as faithful.
 - Optional override: `--as <NN>=<path>` forces a specific file to be adopted as a specific core stage (01–07). Without it, you classify each source yourself.
 
 # Step 1 — Register and preserve every source
 
-For each source file, preserve the raw original and register provenance:
+For each source file (or folder), preserve the raw original(s) and register provenance:
 
 ```bash
 python3 ~/.pm-os/scripts/pm_context_import.py register "<path>" --type <research|brief|scope|prd|design|context>
 ```
 
-`FYI: registered <file> as <type>; raw original preserved at .history/source-…`
+- If `<path>` is a **file**, it registers that one file.
+- If `<path>` is a **folder**, it walks the folder **recursively**, registers every document file (`.md/.txt/.pdf/.docx/.doc/.rtf/.csv/…`) in it and its subfolders, and prints a coverage line (`Registered N file(s) across M folder(s)…`) plus any non-document files it skipped.
+
+Surface both as FYIs so coverage is visible and nothing is dropped silently:
+`FYI: registered N sources across M folders from <path> (raw originals preserved under .history/). FYI: skipped K non-document file(s): <list> — tell me if any of these hold context.`
 
 # Step 2 — Classify each source: adopt vs. context
 
