@@ -80,3 +80,18 @@ def test_commit_backfilled_approved_records_origin(pmos, new_project):
     assert stage_status(proj, "01") == "approved"
     bf = [e for e in read_events(proj) if e["event_type"] == "stage_backfilled" and e["stage"] == "01"]
     assert bf and bf[-1]["payload"]["origin"] == "backfilled"
+
+
+def test_commit_backfilled_draft(pmos, new_project):
+    """Committing a lossy/conflicted backfill as backfilled+draft keeps the stage in draft and
+    logs a stage_backfilled_draft event (PM must /pm-approve explicitly)."""
+    proj = _ctx_proj(pmos, new_project)
+    write_artifact(proj / "01-brief.md", stage="01-brief", project=proj.name,
+                   status="draft", body="Lossy reverse-generated brief.\n")
+    res = run_script(pmos, "pm_context_import.py", "commit", "01",
+                     "--kind", "backfilled", "--status", "draft",
+                     "--derived-from", "03", "--model", "claude-opus-4-8", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert stage_status(proj, "01") == "draft"
+    bf = [e for e in read_events(proj) if e["event_type"] == "stage_backfilled_draft" and e["stage"] == "01"]
+    assert bf and bf[-1]["payload"]["origin"] == "backfilled"

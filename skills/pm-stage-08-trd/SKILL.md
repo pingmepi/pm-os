@@ -47,7 +47,13 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed. 
 
 # Inputs
 
-**Context wiki (if present).** If `00-context-wiki.md` exists, read its body first and use it as grounding context alongside the inputs below — it is the normalized knowledge base of the PM's imported research and decisions (context-import projects). Greenfield projects won't have it; skip silently if it's absent. Treat it as background, not a new requirement source, and never let it override an approved upstream artifact.
+**Context wiki (if present).** If `00-context-wiki.md` exists, read it before generating. Apply these rules in order:
+1. `> **PM:** ...` annotations are highest priority and override conflicting claims in the same section.
+2. `## Stakeholder authority` entries are binding constraints unless a PM annotation revises them.
+3. `## Decisions already made`, `## Non-goals & explicit exclusions`, and `## Technical constraints` are locked project context — do not re-open, re-derive, or contradict them.
+4. All other wiki content is grounding background; use it to avoid invention, but do not let it override an approved upstream artifact or introduce requirements beyond sourced context.
+5. Do not introduce scope adjacent to a stated non-goal unless the PM has explicitly approved it in a `> **PM:** ...` annotation.
+Use `<!-- stage-affinity: NN -->` hints to weight which sections matter most for this stage.
 
 Read these inputs in order; each is the source of truth for its concern:
 
