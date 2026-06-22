@@ -152,7 +152,11 @@ python3 ~/.pm-os/scripts/pm_context_import.py commit 00u --kind generated --stat
 
 # Step 6 — Surface FYIs and hand the gate to the PM
 
-Print the FYI summary (registered sources, adopt vs. context split, any reshaping, the coverage verdicts incl. any ⚠️ lossy or demoted-to-context items, provenance paths). Then stop and tell the PM:
+Print the FYI summary (registered sources, adopt vs. context split, any reshaping, the coverage verdicts incl. any ⚠️ lossy or demoted-to-context items, provenance paths).
+
+**Surface the open questions.** Reprint the items from the wiki's `## Open questions & uncertainties` section directly in your response (under "Open questions pending your input:"), so the PM sees every unresolved or conflicting point explicitly and can discuss or resolve it before approving — don't make them open the file to find them. If there are none, say so in one line.
+
+Then stop and tell the PM:
 
 > Review `00-context-wiki.md` and `00-context-understanding.md`. Approve them to proceed:
 > `/pm-approve 00w` then `/pm-approve 00u`.

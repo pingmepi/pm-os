@@ -227,6 +227,16 @@ After generating, do the following in order:
      Codex:  $pm-feedback 05                 - capture notes
    ```
 
+# Surface open questions for the PM
+
+After printing the draft location, scan the artifact body you just wrote for unresolved items the PM should see — an `## Open Questions` / `## Open Technical Questions` section, the `## Questions the Prototype Should Answer` items, or any decision, assumption, or gap you explicitly flagged as open. Surface them directly in your response (not only in the file) so the PM knows what is pending and can discuss or resolve it before approving:
+
+> **Open questions pending your input:**
+> 1. <question — and the decision it affects or why it matters>
+> 2. …
+
+Pull them from the artifact (lightly trimmed for readability), and invite the PM to chat about or resolve them now. If the stage flagged none, say so in one line ("No open questions flagged for this stage.") so the absence is explicit. This is visibility only — it does not change approval state or the gate.
+
 # Quality bar
 
 - What to Prototype must describe a bounded product slice, not the entire product.
