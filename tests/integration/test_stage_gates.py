@@ -1,5 +1,5 @@
 """T2 — the gate (hooks/pre-stage.py): blocking unapproved upstreams, detecting
-post-approval edits, and the non-interactive implicit-reapproval path. See docs/TESTING.md §5 (T2)."""
+post-approval edits, and the non-interactive implicit-reapproval path. See docs/guides/testing.md §5 (T2)."""
 import pytest
 
 from helpers import run_script, run_hook, make_draft, stage_status, read_events
@@ -57,6 +57,49 @@ def test_non_tty_without_choice_routes_to_pm(pmos, new_project):
     assert res.returncode != 0
     assert "/pm-approve" in res.stderr
     assert "PM_OS_EDITED_UPSTREAM_CHOICE" not in res.stderr
+
+
+def test_enhancement_project_scaffolds(pmos):
+    """pm_new.py --mode enhancement writes project_type=enhancement and schema_version=3 to meta,
+    with codebase_path set when --codebase is provided."""
+    import yaml
+    res = run_script(pmos, "pm_new.py", "enhance-test", "Add feature X",
+                     "--no-genai", "--mode", "enhancement",
+                     "--codebase", "/tmp/some-repo")
+    assert res.returncode == 0, res.stderr
+    proj = pmos.projects / "enhance-test"
+    meta = yaml.safe_load((proj / ".meta.yaml").read_text(encoding="utf-8"))
+    assert meta["project_type"] == "enhancement"
+    assert meta["schema_version"] == 3
+    assert meta["codebase_path"] == "/tmp/some-repo"
+    assert meta["codebase_ref"] is None
+
+
+def test_brief_gates_on_00c_when_present(pmos, new_project):
+    """When a 00c stage entry exists in meta, the stage-01 gate requires it to be approved.
+    Absent 00c (greenfield) must not gate stage 01."""
+    proj = new_project("gate-00c", "A problem")
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+
+    # Inject 00c as draft via pm_context_import.py commit
+    from helpers import write_artifact
+    write_artifact(proj / "00-codebase-understanding.md",
+                   stage="00c-codebase-understanding", project=proj.name,
+                   status="draft", body="## TL;DR\nSome codebase.\n")
+    res_commit = run_script(pmos, "pm_context_import.py", "commit", "00c",
+                            "--kind", "generated", "--status", "draft",
+                            "--model", "test", cwd=proj)
+    assert res_commit.returncode == 0, res_commit.stderr
+
+    # Gate for 01 must block while 00c is draft
+    res_block = run_hook(pmos, "pre-stage.py", "01", proj)
+    assert res_block.returncode != 0, "gate must block when 00c is present but draft"
+    assert "00c" in res_block.stderr
+
+    # Approving 00c unblocks stage 01
+    run_script(pmos, "pm_approve.py", "00c", cwd=proj)
+    res_pass = run_hook(pmos, "pre-stage.py", "01", proj)
+    assert res_pass.returncode == 0, res_pass.stderr
 
 
 def test_implicit_reapproval_continue(pmos, new_project):

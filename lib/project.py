@@ -40,10 +40,11 @@ def save_meta(meta_dict: dict, project_root=None) -> None:
 
 # Current .meta.yaml shape. Bump (and extend migrate_meta) when the shape
 # changes. Independent of config.yaml's own schema_version.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 STAGE_NAMES = {
     "00": "business-statement",
+    "00c": "codebase-understanding",
     "00w": "context-wiki",
     "00u": "context-understanding",
     "01": "brief",
@@ -60,15 +61,16 @@ STAGE_NAMES = {
 # Stage-00 "understanding" group. The business statement is always present;
 # the context wiki + understanding doc exist only when /pm-context-import is
 # used. All three are normal gated stages (draft -> approved).
-PRE_STAGES = ["00", "00w", "00u"]
+PRE_STAGES = ["00", "00c", "00w", "00u"]
 
 # Stages whose artifact filename doesn't follow the f"{id}-{name}.md" formula.
 STAGE_ARTIFACTS = {
+    "00c": "00-codebase-understanding.md",
     "00w": "00-context-wiki.md",
     "00u": "00-context-understanding.md",
 }
 
-STAGE_ORDER = ["00", "00w", "00u", "01", "02", "03", "04", "05", "06", "07", "08", "09"]
+STAGE_ORDER = ["00", "00c", "00w", "00u", "01", "02", "03", "04", "05", "06", "07", "08", "09"]
 
 CORE_STAGE_ORDER = ["01", "02", "03", "04", "05", "06", "07"]
 
@@ -179,6 +181,13 @@ def migrate_meta(meta: dict, project_root: Optional[Path] = None) -> bool:
             "optional": False,
             "origin": "generated",
         })
+        changed = True
+
+    # v3: project-level enhancement-mode fields (new_product by default for existing projects).
+    if meta.get("schema_version", 1) < 3:
+        meta.setdefault("project_type", "new_product")
+        meta.setdefault("codebase_path", None)
+        meta.setdefault("codebase_ref", None)
         changed = True
 
     if meta.get("schema_version", 1) < SCHEMA_VERSION:

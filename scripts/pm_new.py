@@ -24,15 +24,34 @@ def parse_bool(value):
 def main():
     parser = argparse.ArgumentParser(description="Scaffold a new PM-OS project.")
     parser.add_argument("slug", help="kebab-case project identifier")
-    parser.add_argument("statement", help="One-line business problem statement")
+    parser.add_argument("statement", nargs="?", default=None,
+                        help="One-line business problem statement (optional; can be added later)")
     parser.set_defaults(genai=None)
     genai_group = parser.add_mutually_exclusive_group()
     genai_group.add_argument("--genai", dest="genai", action="store_true")
     genai_group.add_argument("--no-genai", dest="genai", action="store_false")
+    parser.add_argument("--mode", dest="mode", default=None,
+                        choices=["new_product", "enhancement"],
+                        help="Project mode (default: new_product). Env: PM_OS_PROJECT_TYPE.")
+    parser.add_argument("--codebase", dest="codebase", default=None,
+                        help="GitHub URL or local path to the existing codebase (enhancement mode).")
     args = parser.parse_args()
 
     if not re.match(r"^[a-z0-9][a-z0-9-]*$", args.slug):
         print(f"Error: slug '{args.slug}' must be kebab-case (lowercase letters, numbers, hyphens; start with letter/digit)")
+        sys.exit(1)
+
+    # Resolve project_type from flag → env var → default
+    env_mode = os.environ.get("PM_OS_PROJECT_TYPE")
+    if args.mode is not None:
+        project_type = args.mode
+    elif env_mode in ("new_product", "enhancement"):
+        project_type = env_mode
+    else:
+        project_type = "new_product"
+
+    if args.codebase and project_type == "new_product":
+        print("Error: --codebase requires --mode enhancement.")
         sys.exit(1)
 
     try:
@@ -74,6 +93,15 @@ def main():
 
     ts = datetime.now(timezone.utc).isoformat()
 
+    # Resolve business statement: provided inline, prompted on tty, or placeholder
+    statement = args.statement
+    if statement is None:
+        if sys.stdin.isatty():
+            resp = input("What do you want to build? (Enter to add later): ").strip()
+            statement = resp if resp else None
+        if statement is None:
+            statement = "[Business statement pending — describe what you want to build here, then /pm-approve 00]"
+
     project_root.mkdir(parents=True)
     (project_root / ".history").mkdir()
 
@@ -92,7 +120,7 @@ def main():
         "origin": "generated",
     }
     fm_text = yaml.dump(bs_fm, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    bs_content = f"---\n{fm_text}---\n\n{args.statement}\n"
+    bs_content = f"---\n{fm_text}---\n\n{statement}\n"
     (project_root / "00-business-statement.md").write_text(bs_content)
 
     project_name = " ".join(w.capitalize() for w in args.slug.split("-"))
@@ -116,12 +144,15 @@ def main():
         })
 
     meta = {
-        "schema_version": 2,
+        "schema_version": 3,
         "project_slug": args.slug,
         "project_name": project_name,
         "created_at": ts,
         "created_by": pm,
         "genai_flag": genai_flag,
+        "project_type": project_type,
+        "codebase_path": args.codebase,
+        "codebase_ref": None,
         "pm_os_version": pm_os_version,
         "stages": stages,
     }
@@ -133,18 +164,24 @@ def main():
 
     try:
         from telemetry import log
-        log("project_created", project_root, None, {})
+        log("project_created", project_root, None, {"project_type": project_type})
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
 
     print(f"Project '{args.slug}' created at {project_root}/")
-    print(f"GenAI flag: {'yes' if genai_flag else 'no'}")
+    print(f"GenAI flag: {'yes' if genai_flag else 'no'}  Mode: {project_type}")
+    if project_type == "enhancement" and args.codebase:
+        print(f"Codebase: {args.codebase}")
     print(f"Next step: cd {project_root}")
     print("  Review and approve the business statement first (it is a gated stage):")
     print("    Claude: /pm-approve 00       Codex: $pm-approve 00")
-    print("  Then start the pipeline:")
-    print("    Claude: /pm-stage-01-brief   Codex: $pm-stage-01-brief")
-    print("  Or seed from existing context: /pm-context-import <files-or-folder>")
+    if project_type == "enhancement":
+        print("  Then import context (docs + codebase scan):")
+        print("    Claude: /pm-context-import   Codex: $pm-context-import")
+    else:
+        print("  Then start the pipeline:")
+        print("    Claude: /pm-stage-01-brief   Codex: $pm-stage-01-brief")
+        print("  Or seed from existing context: /pm-context-import <files-or-folder>")
 
 
 if __name__ == "__main__":

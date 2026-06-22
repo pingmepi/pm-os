@@ -34,6 +34,8 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 5. Do not introduce scope adjacent to a stated non-goal unless the PM has explicitly approved it in a `> **PM:** ...` annotation.
 Use `<!-- stage-affinity: NN -->` hints to weight which sections matter most for this stage.
 
+**`00-codebase-understanding.md` (if present).** If this file exists, read its `<!-- stage-affinity -->` hints to weight which sections are most relevant for the brief. The wiki already synthesizes the codebase substance — use `00c` for stage-affinity weighting only, not as a parallel knowledge source.
+
 **`00-business-statement.md`** — read the body (after frontmatter). This is the raw one-line or short-form business problem from the PM. Extract:
 - The core problem or opportunity
 - Any hints about target user or market
@@ -116,6 +118,7 @@ Write a Product Brief with exactly these sections. Be concrete, avoid filler, ke
 - The brief should be specific enough for stage 02 to define MVP scope without re-deciding the target user, problem framing, or success hypothesis.
 - For `genai_flag=false`, do not introduce AI, model, prompt, agent, eval, token, hallucination, or AI governance language outside the required GenAI rationale line.
 - For `genai_flag=true`, explain why GenAI or agentic approaches are relevant to the problem without prescribing implementation details that belong in later stages.
+- **Enhancement framing.** If `00-codebase-understanding.md` exists OR `project_type: enhancement` is set in `.meta.yaml`: the brief covers the **enhancement only** — the new capability being added to the existing product. "Problem" = the current-product gap (what is missing or broken in the existing product). "Why Now" = why this change at this point in the product's life. Do not re-describe the existing product — the pre-stage docs hold that context; reference it where needed rather than repeating it.
 
 # Write outputs
 

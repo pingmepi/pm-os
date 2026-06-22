@@ -10,7 +10,8 @@ from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
 
 STAGE_LABELS = {
-    "00": "Business Statement", "00w": "Context Wiki", "00u": "Understanding",
+    "00": "Business Statement", "00c": "Codebase Understanding",
+    "00w": "Context Wiki", "00u": "Understanding",
     "01": "Brief", "02": "Scope", "03": "PRD",
     "04": "Design Spec", "05": "Prototype Brief",
     "06": "QA Plan", "07": "Metrics Plan",
@@ -34,6 +35,20 @@ def main():
     created_with = meta.get("pm_os_version", "unknown")
     version_str = installed if created_with == installed else f"{installed} (project created with {created_with})"
     print(f"Created: {meta['created_at']}  GenAI: {genai}  PM-OS version: {version_str}")
+    if meta.get("project_type") == "enhancement":
+        codebase = meta.get("codebase_path") or "(not set)"
+        drift = ""
+        codebase_ref = meta.get("codebase_ref")
+        if codebase_ref and codebase != "(not set)":
+            try:
+                import subprocess as _sp
+                r = _sp.run(["git", "-C", codebase, "rev-parse", "HEAD"],
+                            capture_output=True, text=True, timeout=5)
+                if r.returncode == 0 and r.stdout.strip() != codebase_ref:
+                    drift = "  ⚠ codebase drift — re-run /pm-context-import"
+            except Exception:
+                pass
+        print(f"Mode: enhancement  Codebase: {codebase}{drift}")
     print()
     print("Stages:")
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Context Scan: Codebase"
+  short_description: "Explore-based read-only codebase scan for PM understanding"
+  default_prompt: "Use $pm-context-scan-codebase to scan the existing codebase and produce a structured understanding document."
