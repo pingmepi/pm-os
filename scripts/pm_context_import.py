@@ -48,46 +48,100 @@ def _pm():
         return "unknown"
 
 
-def cmd_register(args):
-    root = resolve_project()
-    src = Path(args.file).expanduser()
-    if not src.exists():
-        print(f"Error: source file not found: {src}")
-        sys.exit(1)
+# Document-like extensions worth ingesting when a whole folder is handed in.
+# Anything else (images, archives, binaries, junk) is reported as skipped rather
+# than silently snapshotted — honoring the skill's "nothing is silent" rule.
+DOC_EXTS = {".md", ".markdown", ".txt", ".rst", ".pdf", ".docx", ".doc", ".rtf", ".csv"}
+# Never descend into these — engine/state dirs and OS cruft, not PM context.
+IGNORE_DIRS = {".history", ".git", "__pycache__", ".meta", "node_modules"}
+IGNORE_NAMES = {".DS_Store", "Thumbs.db", ".meta.yaml", ".sources.yaml"}
 
-    ts = _now()
+
+def _register_one(root, src, src_type, ts, sources):
+    """Snapshot one file and append a provenance entry to ``sources`` (in place)."""
     stamp = ts.replace(":", "").replace("-", "")[:15]
-    snapshot = root / ".history" / f"source-{stamp}-{src.name}"
+    src_id = f"src_{len(sources) + 1:03d}"
+    history = root / ".history"
+    history.mkdir(parents=True, exist_ok=True)
+    snapshot = history / f"source-{stamp}-{src.name}"
+    if snapshot.exists():  # collision (same name within the same second) — disambiguate
+        snapshot = history / f"source-{stamp}-{src_id}-{src.name}"
     snapshot.write_bytes(src.read_bytes())
 
-    sources_path = root / ".sources.yaml"
-    sources = []
-    if sources_path.exists():
-        sources = yaml.safe_load(sources_path.read_text()) or []
-    src_id = f"src_{len(sources) + 1:03d}"
     sources.append({
         "id": src_id,
-        "type": args.type,
+        "type": src_type,
         "uri": str(src),
         "captured_at": ts,
         "snapshot": str(snapshot.relative_to(root)),
         "summary_hash": None,
     })
-    sources_path.write_text(
-        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    )
-
     try:
         log("context_ingested", root, None, {
             "source_id": src_id,
-            "source_type": args.type,
+            "source_type": src_type,
             "source_filename": src.name,
             "snapshot": str(snapshot.relative_to(root)),
         })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
+    return src_id, snapshot
 
-    print(f"Registered {src_id} ({args.type}) — raw preserved at {snapshot.relative_to(root)}")
+
+def cmd_register(args):
+    root = resolve_project()
+    src = Path(args.file).expanduser()
+    if not src.exists():
+        print(f"Error: source not found: {src}")
+        sys.exit(1)
+
+    ts = _now()
+    sources_path = root / ".sources.yaml"
+    sources = []
+    if sources_path.exists():
+        sources = yaml.safe_load(sources_path.read_text()) or []
+
+    # --- Single file ---
+    if src.is_file():
+        src_id, snapshot = _register_one(root, src, args.type, ts, sources)
+        sources_path.write_text(
+            yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        )
+        print(f"Registered {src_id} ({args.type}) — raw preserved at {snapshot.relative_to(root)}")
+        return
+
+    # --- Folder: walk recursively, register document files, report coverage ---
+    registered, skipped, subdirs = [], [], set()
+    for path in sorted(src.rglob("*")):
+        rel = path.relative_to(src)
+        if any(part in IGNORE_DIRS or part.startswith(".") for part in rel.parts[:-1]):
+            continue  # inside an ignored or hidden subdirectory
+        if not path.is_file():
+            continue
+        if path.name in IGNORE_NAMES or path.name.startswith("."):
+            continue
+        if path.parent != src:
+            subdirs.add(str(path.parent.relative_to(src)))
+        if path.suffix.lower() in DOC_EXTS:
+            src_id, _ = _register_one(root, path, args.type, ts, sources)
+            registered.append((src_id, str(rel)))
+        else:
+            skipped.append(str(rel))
+
+    sources_path.write_text(
+        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    )
+
+    if not registered:
+        print(f"Warning: no document files ({', '.join(sorted(DOC_EXTS))}) found under {src}")
+    print(f"Registered {len(registered)} file(s) across {len(subdirs) + 1} folder(s) "
+          f"(including subfolders) from {src}:")
+    for src_id, rel in registered:
+        print(f"  {src_id}  {rel}")
+    if skipped:
+        print(f"Skipped {len(skipped)} non-document file(s) — review if any hold context:")
+        for rel in skipped:
+            print(f"  (skipped) {rel}")
 
 
 def cmd_preflight(args):
@@ -244,7 +298,7 @@ def cmd_commit(args):
     if hook.exists():
         env = os.environ.copy()
         env["PM_OS_STAGE"] = stage_id
-        subprocess.run(["python3", str(hook)], env=env, cwd=str(root))
+        subprocess.run([sys.executable, str(hook)], env=env, cwd=str(root))
 
     print(f"Stage {stage_id} ({STAGE_NAMES[stage_id]}) committed as approved "
           f"(origin={args.kind}). Hash: {content_hash[:12]}")

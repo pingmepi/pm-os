@@ -187,7 +187,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_gate_blocks_when_upstream_unapproved` — stage 02 blocked while 01 is pending; blocker named.
 - `test_gate_allows_first_stage_after_00_approved` — stage 01 gate passes once 00 is approved.
 - `test_editing_approved_upstream_marks_edited` — body drift on an approved upstream → marked `edited` + `stage_edited_post_approval` logged.
-- `test_non_tty_without_choice_is_clear_error` — edited upstream + no `PM_OS_EDITED_UPSTREAM_CHOICE` fails with guidance (never hangs).
+- `test_non_tty_without_choice_routes_to_pm` — edited upstream + no `PM_OS_EDITED_UPSTREAM_CHOICE` blocks and routes the re-approval to the PM (`/pm-approve`), and does NOT advertise the env-var bypass (so an agent can't self-approve); never hangs.
 - `test_implicit_reapproval_continue` — `…CHOICE=continue` re-approves the edited upstream and logs `implicit_reapproval`, then allows the run.
 
 **`test_approval_and_staleness.py`** — `post-approve.py` side effects

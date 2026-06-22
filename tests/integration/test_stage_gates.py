@@ -46,15 +46,17 @@ def test_editing_approved_upstream_marks_edited(pmos, new_project):
                for e in read_events(proj))
 
 
-def test_non_tty_without_choice_is_clear_error(pmos, new_project):
-    """In non-interactive mode an edited upstream with no PM_OS_EDITED_UPSTREAM_CHOICE fails
-    with explicit guidance rather than hanging on input()."""
+def test_non_tty_without_choice_routes_to_pm(pmos, new_project):
+    """In non-interactive mode an edited upstream with no PM_OS_EDITED_UPSTREAM_CHOICE blocks
+    and routes the re-approval decision back to the PM (/pm-approve) rather than hanging on
+    input() — and it must NOT advertise the env-var bypass, so an agent can't self-approve."""
     proj = new_project("gate-nontty", "A problem")
     _approve_00_and_01(pmos, proj)
     (proj / "01-brief.md").write_text((proj / "01-brief.md").read_text() + "\nedit\n", encoding="utf-8")
     res = run_hook(pmos, "pre-stage.py", "02", proj)
     assert res.returncode != 0
-    assert "PM_OS_EDITED_UPSTREAM_CHOICE" in res.stderr
+    assert "/pm-approve" in res.stderr
+    assert "PM_OS_EDITED_UPSTREAM_CHOICE" not in res.stderr
 
 
 def test_implicit_reapproval_continue(pmos, new_project):

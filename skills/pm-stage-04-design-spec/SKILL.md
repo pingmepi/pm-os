@@ -41,6 +41,8 @@ PM_OS_STAGE=04 python3 ~/.pm-os/hooks/pre-stage.py
 
 If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
+**Edited upstream is the PM's call, not yours.** If the gate reports an upstream stage was *edited after approval*, do **not** set `PM_OS_EDITED_UPSTREAM_CHOICE` or re-approve it yourself. Stop, tell the PM exactly which stage changed, and ask them to either re-approve it explicitly (`/pm-approve <NN>`) or confirm in their own words that you should continue. Re-run this gate only after the PM has acted.
+
 # Inputs
 
 **Context wiki (if present).** If `00-context-wiki.md` exists, read its body first and use it as grounding context alongside the inputs below — it is the normalized knowledge base of the PM's imported research and decisions (context-import projects). Greenfield projects won't have it; skip silently if it's absent. Treat it as background, not a new requirement source, and never let it override an approved upstream artifact.
@@ -253,6 +255,16 @@ After generating, do the following in order:
      Claude: /pm-feedback 04             - capture notes
      Codex:  $pm-feedback 04             - capture notes
    ```
+
+# Surface open questions for the PM
+
+After printing the draft location, scan the artifact body you just wrote for unresolved items the PM should see — an `## Open Questions` / `## Open Technical Questions` section, or any decision, assumption, or gap you explicitly flagged as open. Surface them directly in your response (not only in the file) so the PM knows what is pending and can discuss or resolve it before approving:
+
+> **Open questions pending your input:**
+> 1. <question — and the decision it affects or why it matters>
+> 2. …
+
+Pull them from the artifact (lightly trimmed for readability), and invite the PM to chat about or resolve them now. If the stage flagged none, say so in one line ("No open questions flagged for this stage.") so the absence is explicit. This is visibility only — it does not change approval state or the gate.
 
 # Quality bar
 

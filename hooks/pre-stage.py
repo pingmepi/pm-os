@@ -46,11 +46,20 @@ def read_edited_choice(stage_id: str) -> str:
             sys.exit(1)
         return choices[env_choice]
     if not sys.stdin.isatty():
+        # Non-interactive (agent session or CI). Implicitly re-approving an edited
+        # upstream is the PM's decision, not the agent's — so we BLOCK here and do
+        # NOT advertise the env-var escape, otherwise an agent reads the hint and
+        # bypasses the human. PM_OS_EDITED_UPSTREAM_CHOICE (handled above) remains
+        # the deliberate hatch for genuinely unattended CI/cron runs only.
         print(
-            "[pre-stage] ERROR: edited upstream stages require an explicit choice "
-            "in non-interactive mode.\n"
-            f"Set PM_OS_EDITED_UPSTREAM_CHOICE=continue to generate stage {stage_id} "
-            "with implicit re-approval, or reapprove edited stages first.",
+            f"[pre-stage] BLOCKED: upstream stage(s) were edited after approval, so "
+            f"stage {stage_id} cannot be generated yet.\n"
+            "Re-approving an edited stage is the PM's decision. Agent: STOP — do not "
+            "re-approve on the PM's behalf. Tell the PM which stage changed, then ask "
+            "them to either:\n"
+            "  - re-approve it explicitly:  /pm-approve <NN>   (Codex: $pm-approve <NN>)\n"
+            "  - or confirm in their own words that you should continue.\n"
+            "Re-run this stage only after the PM has acted.",
             file=sys.stderr,
         )
         sys.exit(1)

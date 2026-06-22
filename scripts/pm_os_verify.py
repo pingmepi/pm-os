@@ -154,7 +154,7 @@ def check_gate_selftest(r: Result):
         env = os.environ.copy()
         env["PM_OS_STAGE"] = stage
         return subprocess.run(
-            ["python3", str(pre_stage)],
+            [sys.executable, str(pre_stage)],
             cwd=cwd, env=env,
             stdin=subprocess.DEVNULL,
             capture_output=True, text=True, timeout=30,
