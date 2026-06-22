@@ -1,7 +1,7 @@
 """T0 smoke tests — prove the harness builds an isolated install and runs in it.
 
 If these pass, the fixtures work and nothing in the suite touches real user paths.
-See docs/TESTING.md §5 (T0).
+See docs/guides/testing.md §5 (T0).
 """
 from pathlib import Path
 

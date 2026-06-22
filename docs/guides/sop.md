@@ -54,7 +54,7 @@ Use PM-OS when **most** of the following are true:
 | The work spans more than a throwaway experiment | The stage overhead pays off when the artifact will be read by others. |
 | Inputs can be sanitized | The business statement and notes contain no confidential or regulated data. |
 
-**In v1**, there are two entry points, both following the same PM-approval model: (1) a new business statement (`/pm-new`), or (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them. Later phases will add entry points for repos, Jira/Linear tickets, QA bugs, and existing-product enhancement work.
+**In v1**, there are three entry points, all following the same PM-approval model: (1) a new business statement (`/pm-new`); (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them; or (3) an **enhancement to an existing product** (`/pm-new --mode enhancement --codebase <url-or-path>`), where `/pm-context-import` additionally runs a read-only codebase scan and produces a gated codebase-understanding doc (`00c`) that grounds the downstream stages on the existing system. Later phases will add entry points for Jira/Linear tickets and QA bugs.
 
 ### When **not** to use it (or use a lighter touch)
 - **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need the full stage pipeline. The ceremony will cost more than it returns.
@@ -119,14 +119,15 @@ python3 ~/.pm-os/scripts/pm_os_verify.py --runtime codex
 
 ### 4.2 Start a project
 ```text
-Claude: /pm-new <project-slug> "<business statement>" --genai|--no-genai
-Codex:  $pm-new <project-slug> "<business statement>" --genai|--no-genai
+Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--mode enhancement --codebase <url-or-path>]
+Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--mode enhancement --codebase <url-or-path>]
 ```
 - Keep the slug short and stable; it's used in paths and history.
-- Write the business statement in plain language. **Sanitize it first** (§7).
+- Write the business statement in plain language. **Sanitize it first** (§7). The statement is optional — omit it to add it later (a placeholder is written into `00`).
 - Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
+- For an **enhancement to an existing product**, pass `--mode enhancement` (or set `PM_OS_PROJECT_TYPE=enhancement`) and `--codebase <github-url-or-local-path>`. `/pm-context-import` will then scan the codebase and produce a gated codebase-understanding doc (`00c`).
 - The project is created under the `projects_dir` from your config (default `~/pm-projects`).
-- This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
+- This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections, and (for enhancements) `project_type`/`codebase_path`. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
 
 ### 4.3 Generate → review → approve, one stage at a time
 First approve the business statement, then proceed through the stages in order:
@@ -137,7 +138,7 @@ Claude: /pm-stage-01-brief        Codex: $pm-stage-01-brief
    (read the draft, edit if needed, have the reviewer look)
 Claude: /pm-approve 01            Codex: $pm-approve 01
 ```
-Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you also approve the context wiki `00w` and understanding doc `00u` before stage 01.) Optional capstones come after 01-07 are approved: TRD (08) for technical requirements, and Roadmap (09) for the path from MVP to deliverable product. If TRD is approved before Roadmap, stage 09 uses it as technical delivery context.
+Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you also approve the context wiki `00w` and understanding doc `00u` before stage 01 — plus the codebase-understanding doc `00c` for enhancement projects.) Optional capstones come after 01-07 are approved: TRD (08) for technical requirements, and Roadmap (09) for the path from MVP to deliverable product. If TRD is approved before Roadmap, stage 09 uses it as technical delivery context.
 
 **The core discipline (recommended default — relax only with eyes open):**
 1. **Never generate a downstream stage from an unapproved upstream stage.** The gate exists to stop drift. If a pre-stage gate exits non-zero, stop and read the error; do not write the artifact anyway.
@@ -207,6 +208,8 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 |---|---|---|
 | Install | `./install.sh --runtime claude --pm-user <id> --feedback-repo <url>` | `./install.sh --runtime codex --pm-user <id> --feedback-repo <url>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
+| New enhancement | `/pm-new <slug> --mode enhancement --codebase <url-or-path>` | `$pm-new <slug> --mode enhancement --codebase <url-or-path>` |
+| Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
 | Approve stage *N* | `/pm-approve 0N` | `$pm-approve 0N` |
 | Project status | `/pm-status` | `$pm-status` |

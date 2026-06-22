@@ -2,7 +2,7 @@
 
 > **Revalidation note (2026-06-17, after Phase 2 context-intake shipped).** Re-checked against the current codebase. **Still accurate and unaddressed:** central sync runs only from `post-approve` with no backfill and swallowed failures (Area 1); no `last_event` reader and no `lib/text_metrics.py` (Area 3); `scripts/pm_feedback.py` does not log `feedback_submitted` into the chain (Area 4); `pm_os_verify.py` has no telemetry self-test (Area 6). **Corrections forced by Phase 2:**
 > - **Area 2 / Context #2 overstated.** `model_tier` is **not** a uniform `'standard'` constant across all 9 skills — it is already differentiated per stage (`'standard'` in 01/02/04/05/07/09, `'deep-reasoning'` in 03/06/08, matching `config.deep_reasoning_stages`). It is still a per-stage *baked literal* (not read from config), and the genuinely missing field is the **actual `model` id**. Scope Area 2 to adding `model`, not "fixing a useless constant."
-> - **New events already exist.** Phase 2 added `context_ingested`, `stage_imported`, `stage_backfilled` (`scripts/pm_context_import.py`) and the gated stage-00 group (`00` / `00w` / `00u`). The `spec/pm-os-spec.md` and `ARCHITECTURE.md` event lists were already updated for these, so Area 2's doc reconciliation there is partly done.
+> - **New events already exist.** Phase 2 added `context_ingested`, `stage_imported`, `stage_backfilled` (`scripts/pm_context_import.py`) and the gated stage-00 group (`00` / `00w` / `00u`). The `../reference/pm-os-spec.md` and `ARCHITECTURE.md` event lists were already updated for these, so Area 2's doc reconciliation there is partly done.
 > - **Some metrics are correctly `None`.** The stage-00 group and any `imported` / `backfilled` stage have no `stage_generated` event and no `.history/*.generated.md` snapshot, so Area 3's `time_to_approve_seconds` and edit-distance fields legitimately stay `None` for them — expected, not breakage. Compute only when a generation snapshot exists.
 > - **Model-capture gap extends to context-import.** The wiki / understanding docs and reverse-generated (`backfilled`) artifacts are model-produced but log no `model` / `model_tier`. Either extend Area 2 to `scripts/pm_context_import.py` + the `pm-context-import` skill, or explicitly scope it out.
 > - **Backfill targets — re-verify at runtime.** As of this check: `bill-checker` / `image-generator` / `marketing-agent` are still stranded locally; `storyboard-demo` is synced. Phase-2 testing also left throwaway `phase2-*` entries in `~/.pm-os-feedback-cache` that should be pruned (and `push_all` should skip/ignore deleted projects gracefully).
@@ -38,7 +38,7 @@ Per `CLAUDE.md`: edits in this working copy are **inert** until they reach `~/.p
   - `model`: the **actual model id** the agent is running as (agent fills this in — it knows its own id), matching the historical field name.
   - `model_tier`: keep the per-stage value, but **derive it from `config.deep_reasoning_stages`** rather than baking the literal into each skill, so config and telemetry can't drift apart.
 - **Extend to the context-intake generation path** (or explicitly scope out): `scripts/pm_context_import.py` `stage_backfilled` plus the wiki/understanding commits in the `pm-context-import` skill are model-produced and should carry `model` too.
-- `spec/pm-os-spec.md` and `ARCHITECTURE.md` event lists were already updated for the Phase-2 events; still need to document `model` + `model_tier` on `stage_generated` and reconcile the historical `model` field. (Global rule: grep all 9 skills first, change in one pass, summarize.)
+- `../reference/pm-os-spec.md` and `ARCHITECTURE.md` event lists were already updated for the Phase-2 events; still need to document `model` + `model_tier` on `stage_generated` and reconcile the historical `model` field. (Global rule: grep all 9 skills first, change in one pass, summarize.)
 
 ### Area 3 — Timing & quality metrics (mechanical, in Python)
 - **New `lib/text_metrics.py`** (pure stdlib, no deps): `char_edit_distance(a, b)` (Levenshtein) and `normalized_edit_distance(a, b)`.
@@ -67,7 +67,7 @@ Per `CLAUDE.md`: edits in this working copy are **inert** until they reach `~/.p
 - `hooks/post-approve.py` (clear push status)
 - All 9 `skills/pm-stage-0*-*/SKILL.md` (add `model` id, derive `model_tier` from config; `stage_edited_via_note`), `skills/pm-approve/SKILL.md`, **new** `skills/pm-sync/` — plus matching `agents/openai.yaml` for each
 - `scripts/pm_context_import.py` + `skills/pm-context-import/SKILL.md` — add `model` to `stage_backfilled` and the wiki/understanding commits (Area 2 extension), or scope out
-- Docs: `spec/pm-os-spec.md`, `ARCHITECTURE.md` — event lists already carry the Phase-2 events (`context_ingested` / `stage_imported` / `stage_backfilled`); still add `model` + `model_tier` to the `stage_generated` payload doc
+- Docs: `../reference/pm-os-spec.md`, `ARCHITECTURE.md` — event lists already carry the Phase-2 events (`context_ingested` / `stage_imported` / `stage_backfilled`); still add `model` + `model_tier` to the `stage_generated` payload doc
 
 ## Verification
 

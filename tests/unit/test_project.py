@@ -1,6 +1,6 @@
 """Unit tests for lib/project.py — stage tables, dependency graph, backfill feasibility,
 schema migration, and project resolution. This module encodes the pipeline's shape and the
-state-machine dependencies, so its edges are high-value. See docs/TESTING.md §5 (T1)."""
+state-machine dependencies, so its edges are high-value. See docs/guides/testing.md §5 (T1)."""
 import pytest
 
 import project
@@ -10,16 +10,17 @@ pytestmark = pytest.mark.unit
 
 def test_stage_tables_consistent():
     """Every ordered stage has a name, core stages are a subset of the full order, and the
-    stage-00 understanding group (00/00w/00u) leads the pipeline."""
+    stage-00 understanding group (00/00c/00w/00u) leads the pipeline."""
     for sid in project.STAGE_ORDER:
         assert sid in project.STAGE_NAMES
     assert set(project.CORE_STAGE_ORDER) <= set(project.STAGE_ORDER)
-    assert project.STAGE_ORDER[:3] == ["00", "00w", "00u"]
+    assert project.STAGE_ORDER[:4] == ["00", "00c", "00w", "00u"]
 
 
 def test_artifact_path_special_and_formula(tmp_path):
-    """Special-cased artifacts (00w/00u) map to their fixed filenames; all others follow
+    """Special-cased artifacts (00c/00w/00u) map to their fixed filenames; all others follow
     the NN-name.md formula."""
+    assert project.artifact_path(tmp_path, "00c").name == "00-codebase-understanding.md"
     assert project.artifact_path(tmp_path, "00w").name == "00-context-wiki.md"
     assert project.artifact_path(tmp_path, "00u").name == "00-context-understanding.md"
     assert project.artifact_path(tmp_path, "01").name == "01-brief.md"
@@ -99,6 +100,42 @@ def test_migrate_meta_v1_to_v2(tmp_path):
     assert all("origin" in s for s in meta["stages"])
     assert project.get_stage(meta, "00")["status"] == "approved"
     assert project.migrate_meta(meta, tmp_path) is False
+
+
+def test_00c_in_stage_tables():
+    """00c (codebase-understanding) is registered in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES,
+    and STAGE_ORDER, and sits between 00 and 00w."""
+    assert "00c" in project.STAGE_NAMES
+    assert "00c" in project.STAGE_ARTIFACTS
+    assert "00c" in project.PRE_STAGES
+    assert "00c" in project.STAGE_ORDER
+    idx = project.STAGE_ORDER.index("00c")
+    assert project.STAGE_ORDER[idx - 1] == "00"
+    assert project.STAGE_ORDER[idx + 1] == "00w"
+
+
+def test_migrate_v2_to_v3():
+    """v2→v3 migration adds project_type, codebase_path, codebase_ref to existing meta
+    and bumps schema_version to 3; existing stages and hashes are untouched."""
+    meta = {
+        "schema_version": 2,
+        "project_slug": "demo",
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "abc123", "origin": "generated"},
+            {"id": "01", "name": "brief", "status": "draft", "origin": "generated"},
+        ],
+    }
+    changed = project.migrate_meta(meta)
+    assert changed is True
+    assert meta["schema_version"] == project.SCHEMA_VERSION
+    assert meta["project_type"] == "new_product"
+    assert meta["codebase_path"] is None
+    assert meta["codebase_ref"] is None
+    # Existing stage data untouched
+    assert project.get_stage(meta, "00")["content_hash"] == "abc123"
+    # Idempotent
+    assert project.migrate_meta(meta) is False
 
 
 def test_resolve_project_walks_up(tmp_path, monkeypatch):

@@ -1,5 +1,5 @@
 """T2 — approval side effects (hooks/post-approve.py): downstream staleness cascade,
-frontmatter↔meta sync, and HTML companion rendering for stages 04/05. See docs/TESTING.md §5 (T2)."""
+frontmatter↔meta sync, and HTML companion rendering for stages 04/05. See docs/guides/testing.md §5 (T2)."""
 import pytest
 
 from helpers import run_script, make_draft, stage_status, read_events

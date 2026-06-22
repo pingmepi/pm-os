@@ -1,5 +1,5 @@
 """Unit tests for lib/text_metrics.py — Levenshtein edit distance used to quantify how
-much a PM edited a generated artifact before approving. See docs/TESTING.md §5 (T1)."""
+much a PM edited a generated artifact before approving. See docs/guides/testing.md §5 (T1)."""
 import pytest
 
 import text_metrics as tm

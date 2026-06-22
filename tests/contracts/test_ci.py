@@ -1,5 +1,5 @@
 """T9 — CI contract: the suite runs automatically. Guards that the workflow stays wired to
-pytest so the suite can't quietly stop running in CI. See docs/TESTING.md §5 (T9)."""
+pytest so the suite can't quietly stop running in CI. See docs/guides/testing.md §5 (T9)."""
 import pytest
 
 from helpers import REPO_ROOT

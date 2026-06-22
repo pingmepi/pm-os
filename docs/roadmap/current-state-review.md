@@ -65,12 +65,12 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Runtime-neutral model wording | Implemented | deep-reasoning stages 03/04/06/08/09 (and the context-build docs 00w/00u) use advisory deep-reasoning guidance instead of `/model opus` |
 | Non-interactive gate safety | Implemented | `pre-stage.py` has `isatty()` branch + `PM_OS_EDITED_UPSTREAM_CHOICE`; never hangs unattended |
 | Catch-up telemetry sync | Implemented | `/pm-sync` + `scripts/pm_sync.py` walk every project under `projects_dir`, copy telemetry/feedback to the central repo, and push in one commit; `--verify` validates each project's hash chain. Failures are surfaced loudly, not swallowed |
-| Automated test suite | Implemented (in progress) | `tests/` pytest harness (T0–T9: unit/integration/contract), isolated from the real `~/.pm-os` via temp-install fixtures; `pyproject.toml` config, `docs/TESTING.md` reference, `.github/workflows/tests.yml` CI |
+| Automated test suite | Implemented (in progress) | `tests/` pytest harness (T0–T9: unit/integration/contract), isolated from the real `~/.pm-os` via temp-install fixtures; `pyproject.toml` config, `docs/guides/testing.md` reference, `.github/workflows/tests.yml` CI |
 | Install verifier | Implemented | `scripts/pm_os_verify.py` + `pm-os-verify` skill: install-integrity checks + deterministic gate self-test, per runtime |
 | Flexible context intake | Implemented | `/pm-context-import` (`scripts/pm_context_import.py` + `skills/pm-context-import/`): ingest existing research/brief/scope/PRD/design, register sources in `.sources.yaml`, preserve raw in `.history/` |
 | Gated stage-00 understanding | Implemented | context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`); the business statement is now a normal gated stage `00`. All three must be approved before stage 01 |
 | Adopt + backfill | Implemented | PM-authored artifacts adopted as stage artifacts (`origin: imported`); upstream gaps reverse-generated (`origin: backfilled`) per the feasibility map in `lib/project.resolve_backfill` |
-| Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 2`; `lib/project.migrate_meta` upgrades v1 projects in place (adds `00` stage + per-stage `origin`) without disturbing approvals |
+| Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 3`; `lib/project.migrate_meta` upgrades older projects in place (v2 added `00` stage + per-stage `origin`; v3 added `project_type`/`codebase_path`/`codebase_ref`) without disturbing approvals |
 | Telemetry: intake events | Implemented | `context_ingested`, `stage_imported`, `stage_backfilled` kept distinct from `stage_approved` so quality signals are not polluted |
 | Context overlay | Implemented (v0.5.3) | `lib/context.py` (resolve/render/seed) injects a pluggable company/team/product knowledge layer into every stage prompt. Three apply modes — `augment`, `override`, `reference-only`; layering precedence project > stage > global; empty/TODO packs are a silent no-op. Seed lives in `context.example/` (global `company`/`team`/`glossary`/`guardrails.md` + per-stage `format.md`/`example.md` packs); all stage skills load it; seeded on install/update and self-seeds on first read |
 | Context overlay as user data | Implemented (v0.5.3) | live `~/.pm-os/context/` is **gitignored** and edited in place by the PM — the one engine-dir exception to the never-hand-modify rule; never diverges `main` or blocks `pm_os_update.py` |
@@ -79,11 +79,11 @@ It is not yet the full PDLC operating system described above (no brownfield code
 
 | Area | Status | Source |
 |---|---:|---|
-| Gemini runtime support | Planned | `plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Existing-product/enhancement mode | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
-| Codebase understanding stage | Planned | `plans/pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
-| Jira/Linear handoff | Planned | `plans/pm-os-modes-and-handoff-plan.md` |
-| Figma/design-system integration | Planned later | `plans/pm-os-modes-and-handoff-plan.md` |
+| Gemini runtime support | Planned | `../plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
+| Existing-product/enhancement mode | Planned | `../plans/pm-os-modes-and-handoff-plan.md` |
+| Codebase understanding stage | Planned | `../plans/pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
+| Jira/Linear handoff | Planned | `../plans/pm-os-modes-and-handoff-plan.md` |
+| Figma/design-system integration | Planned later | `../plans/pm-os-modes-and-handoff-plan.md` |
 | QA bug analysis against codebase | Missing | part of expanded ask |
 | Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
 | Release readiness workflow | Missing | part of expanded ask |
@@ -264,7 +264,7 @@ Docs corrected in this phase: README / CLAUDE.md / AGENTS.md now make `~/.pm-os/
 
 ### Phase 2: Flexible Intake and Artifact Ingest — COMPLETE (core)
 
-Shipped 2026-06-17 as `/pm-context-import` (see `plans/pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all three stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 2` with an in-place `migrate_meta` so existing projects keep working. Remaining: `.docx`/`.pdf` conversion, dogfood a real Indegene enhancement, and unifying codebase-understanding (Phase 3) into the same stage-00 framework.
+Shipped 2026-06-17 as `/pm-context-import` (see `../plans/pm-os-ingest-plan.md` §0). The realized design is broader than the original per-stage import below: the PM provides **all the context they have**; PM-OS builds a **gated context wiki** (`00-context-wiki.md`) + **gated understanding doc** (`00-context-understanding.md`), then adopts the artifacts the PM authored (`origin: imported`) and faithfully backfills the upstream gaps below them (`origin: backfilled`), governed by a feasibility map. The business statement became a normal gated stage (`00`), and all present stage-00 docs must be approved before stage 01 (the gate lists exactly what's pending). `.meta.yaml` is now `schema_version: 3` with an in-place `migrate_meta` so existing projects keep working. Codebase-understanding has since been unified into the same stage-00 framework: enhancement projects (`/pm-new --mode enhancement --codebase <url-or-path>`, `schema_version: 3`) get a conditional gated `00c` codebase-understanding doc, produced by `/pm-context-import` via a read-only codebase scan, alongside the wiki/understanding docs. Remaining: `.docx`/`.pdf` conversion and dogfooding a real Indegene enhancement end-to-end.
 
 Shipped in the same Phase 2 push (v0.5.3, PR #19): the **context overlay** (`lib/context.py` + `context.example/`) — a pluggable company/team/product knowledge layer loaded into every stage prompt (apply modes `augment`/`override`/`reference-only`; precedence project > stage > global). It is seeded on install/update (self-seeding on first read) and the live `~/.pm-os/context/` is gitignored user data the PM edits in place, so it never diverges `main`. Alongside it, the approval path gained real **telemetry metrics** (time-to-approve, edit distance, semantic distance, model id/tier) so generation quality can be measured rather than guessed.
 
@@ -530,12 +530,12 @@ Recommended order:
 2. ~~Update README/spec/SOP to reflect the expanded PDLC scope and PM/dev/QA authority model.~~ (done — Phase 0)
 3. ~~Finish runtime parity (Phase 1): model wording, real `AGENTS.md`, non-interactive gate, install verifier. Gate parity confirmed (gates run from `~/.pm-os/hooks`, not native hooks).~~ (done — Phase 1)
 4. ~~Add `schema_version` and the migration path so existing projects survive new fields.~~ (done — `.meta.yaml` is `schema_version: 2` with in-place `migrate_meta`)
-5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `plans/pm-os-ingest-plan.md` §0)
+5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `../plans/pm-os-ingest-plan.md` §0)
 6. ~~Ship the context overlay so company/team knowledge flows into every stage.~~ (done — v0.5.3, `lib/context.py` + `context.example/`, gitignored user data)
 7. Implement enhancement mode and codebase understanding (Phase 3).
 8. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
-9. ~~Stand up the automated test suite (Phase 3.6)~~ — **DONE** (pytest suite T0–T9 under `tests/`, CI at `.github/workflows/tests.yml`, reference in `docs/TESTING.md`). Locks current behavior before the ID-linked phases land. The final phase **T10 — `/pm-check` consistency toolkit** (a PM-facing reuse of the suite's invariants) is specified in `plans/pm-os-test-implementation-plan.md` §19 and is the next test-track item to build.
-10. Add the PM-OS quality, operations, usage, and self-improvement loop so telemetry/feedback turn into readable metrics, suggestions, PM decisions, and implementation plans without automatic source changes. See `plans/pm-os-self-improvement-loop-plan.md`.
+9. ~~Stand up the automated test suite (Phase 3.6)~~ — **DONE** (pytest suite T0–T9 under `tests/`, CI at `.github/workflows/tests.yml`, reference in `docs/guides/testing.md`). Locks current behavior before the ID-linked phases land. The final phase **T10 — `/pm-check` consistency toolkit** (a PM-facing reuse of the suite's invariants) is specified in `../plans/pm-os-test-implementation-plan.md` §19 and is the next test-track item to build.
+10. Add the PM-OS quality, operations, usage, and self-improvement loop so telemetry/feedback turn into readable metrics, suggestions, PM decisions, and implementation plans without automatic source changes. See `../plans/pm-os-self-improvement-loop-plan.md`.
 11. Ship local handoff packet (4a), then one opt-in tracker export (4b).
 12. Ship bug intake + classification (5a), then quarantined code-area suggestion (5b).
 13. Ship local release-readiness report (6a), then feedback intake (6b).

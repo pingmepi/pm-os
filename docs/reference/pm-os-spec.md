@@ -56,6 +56,9 @@ pm-os/
     pm-approve/SKILL.md            # approve current stage
     pm-feedback/SKILL.md           # manual feedback capture
     pm-share/SKILL.md              # push artifacts to leadership share
+    pm-context-import/SKILL.md     # context-intake: wiki + understanding doc + backfill
+    pm-context-scan-docs/SKILL.md  # subagent: extract structured knowledge from source docs
+    pm-context-scan-codebase/SKILL.md  # subagent: read-only codebase scan (enhancement mode)
     pm-stage-01-brief/SKILL.md
     pm-stage-02-scope/SKILL.md
     pm-stage-03-prd/SKILL.md
@@ -136,17 +139,21 @@ For single-user MVP, `<pm-identifier>` = `karan`. Folder structure exists from d
 ### 5.1 `.meta.yaml`
 
 ```yaml
-schema_version: 2                     # v2 added stage 00 + origin; lib/project.py:migrate_meta upgrades v1
+schema_version: 3                     # v2 added stage 00 + origin; v3 added project_type + codebase fields; lib/project.py:migrate_meta upgrades older projects
 project_slug: <kebab-case-slug>
 project_name: <human readable>
 created_at: <ISO 8601>
 created_by: <pm identifier from $PM_OS_USER>
 genai_flag: true | false              # set at /pm-new, propagates downstream
+project_type: new_product | enhancement     # v3; set at /pm-new --mode (default new_product)
+codebase_path: <url-or-local-path or null>  # v3; enhancement codebase, set via /pm-new --codebase or prepare-codebase
+codebase_ref: <git sha or null>             # v3; codebase HEAD recorded at scan time (for drift detection)
 pm_os_version: <semver from VERSION file at scaffold time>
 stages:
   # Stage-00 understanding group. "00" (business statement) is always present and
-  # gated; "00w" context-wiki / "00u" context-understanding exist only when
-  # /pm-context-import is used. All three must be approved before stage 01.
+  # gated; the conditional "00c" codebase-understanding, "00w" context-wiki, and
+  # "00u" context-understanding exist only when /pm-context-import is used ("00c"
+  # only in enhancement mode). All present stage-00 docs must be approved before stage 01.
   - id: "00"
     name: business-statement
     status: pending | draft | approved | edited | stale
@@ -343,15 +350,16 @@ Bootstrap installer. Performs:
 4. Print changelog diff.
 5. Prompt user to restart session.
 
-### 7.3 `pm-new <slug> "<business statement>"`
+### 7.3 `pm-new <slug> ["<business statement>"] [--genai|--no-genai] [--mode new_product|enhancement] [--codebase <url-or-path>]`
 
 1. Validate slug is kebab-case and unique under `~/pm-projects/`.
 2. Create `~/pm-projects/<slug>/`.
-3. Write `00-business-statement.md` with frontmatter and the statement as body.
-4. Prompt user: "Is this a GenAI/agentic product? [y/n]". Set `genai_flag` in `.meta.yaml`.
-5. Initialize `.meta.yaml` with all 7 stages in `pending` status.
-6. Initialize empty `telemetry.jsonl` and `feedback.jsonl`.
-7. Log `project_created` event to telemetry.
+3. Write `00-business-statement.md` with frontmatter and the statement as body. The statement is optional — if omitted, a placeholder body is written for the PM to fill before approving `00`.
+4. Prompt user: "Is this a GenAI/agentic product? [y/n]" (or take `--genai`/`--no-genai`/`PM_OS_GENAI_FLAG`). Set `genai_flag` in `.meta.yaml`.
+5. Resolve `project_type` from `--mode` → `PM_OS_PROJECT_TYPE` → default `new_product`; record `project_type`, `codebase_path` (from `--codebase`, enhancement only), and `codebase_ref: null` in `.meta.yaml` (`schema_version: 3`).
+6. Initialize `.meta.yaml` with stage `00` as `draft` and stages `01–09` in `pending` status.
+7. Initialize empty `telemetry.jsonl` and `feedback.jsonl`.
+8. Log `project_created` event (with `project_type`) to telemetry.
 
 ### 7.4 `pm-stage-NN-<name>` (per stage)
 
@@ -625,7 +633,7 @@ Karan runs 2-3 real projects through the system. Captures feedback aggressively.
 
 ## 13. Out of scope for v1
 
-> ⚠️ **Superseded for later phases.** This list defined the boundary of the *original v1 kernel*. The canonical roadmap is now `docs/PM-OS-CURRENT-STATE-REVIEW.md`, which deliberately brings several of these items **back into scope** in later phases — notably engineering handoff and MCP integrations beyond `pm-share` (Jira/Linear/Figma, Phase 4), and data-governance/compliance content (now required in PRD/QA/TRD as of v0.4.8). Treat the items below as out of scope **only for the v1 kernel**; where this list and the Current State Review disagree, the review wins.
+> ⚠️ **Superseded for later phases.** This list defined the boundary of the *original v1 kernel*. The canonical roadmap is now `docs/roadmap/current-state-review.md`, which deliberately brings several of these items **back into scope** in later phases — notably engineering handoff and MCP integrations beyond `pm-share` (Jira/Linear/Figma, Phase 4), and data-governance/compliance content (now required in PRD/QA/TRD as of v0.4.8). Treat the items below as out of scope **only for the v1 kernel**; where this list and the Current State Review disagree, the review wins.
 
 Do not build these in the v1 kernel. If a design decision seems to require one, flag and stop.
 

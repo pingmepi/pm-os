@@ -1,0 +1,4 @@
+interface:
+  display_name: "Context Scan: Docs"
+  short_description: "Extract structured wiki-ready knowledge from PM source documents"
+  default_prompt: "Use $pm-context-scan-docs to extract structured knowledge from the registered source documents."

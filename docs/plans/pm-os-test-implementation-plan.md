@@ -832,7 +832,7 @@ These can be added later once the deterministic suite is reliable.
 
 The suite must absorb planned phases (enhancement/codebase-understanding mode, Jira/Linear/Figma
 handoff, stable REQ-/TC- IDs + traceability, QA bug triage, release readiness, feedback intake —
-see `docs/plans/pm-os-modes-and-handoff-plan.md` and `docs/PM-OS-CURRENT-STATE-REVIEW.md`) without
+see `docs/plans/pm-os-modes-and-handoff-plan.md` and `docs/roadmap/current-state-review.md`) without
 restructuring. Conventions that make that cheap:
 
 - **Data-driven contracts, not hardcoded lists.** Stage contract tests iterate over

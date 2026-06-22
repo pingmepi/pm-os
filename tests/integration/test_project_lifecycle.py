@@ -1,6 +1,6 @@
 """T2 — project lifecycle integration: scaffold, approve the business statement, status,
 and share. Runs the real scripts as subprocesses against the isolated temp install.
-See docs/TESTING.md §5 (T2)."""
+See docs/guides/testing.md §5 (T2)."""
 import pytest
 
 from helpers import run_script, make_draft, event_types, read_events

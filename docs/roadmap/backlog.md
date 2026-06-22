@@ -21,7 +21,7 @@ Status legend: 🔴 open · 🟡 partially fixed · 🟢 fixed (pending release)
 **Fixed (this change):**
 - `hooks/pre-stage.py` non-TTY branch no longer prints the `Set PM_OS_EDITED_UPSTREAM_CHOICE=continue` hint. It now **blocks** and routes the decision to the PM (`/pm-approve <NN>`), explicitly telling the agent to STOP and not re-approve on the PM's behalf. The env var is still honored *if already set* (CI/cron escape) but is no longer advertised to the agent.
 - All 9 stage skills (`pm-stage-01…09/SKILL.md`) now carry an explicit instruction next to the gate: on an edited upstream, do **not** set the env var or self-approve — surface the changed stage to the PM and wait for `/pm-approve` or an explicit human go-ahead.
-- Test renamed/updated: `tests/integration/test_stage_gates.py::test_non_tty_without_choice_routes_to_pm` asserts the block routes to `/pm-approve` and that `PM_OS_EDITED_UPSTREAM_CHOICE` is *not* present in stderr. `test_implicit_reapproval_continue` still verifies the CI escape works when the var is set. `docs/TESTING.md` updated to match.
+- Test renamed/updated: `tests/integration/test_stage_gates.py::test_non_tty_without_choice_routes_to_pm` asserts the block routes to `/pm-approve` and that `PM_OS_EDITED_UPSTREAM_CHOICE` is *not* present in stderr. `test_implicit_reapproval_continue` still verifies the CI escape works when the var is set. `docs/guides/testing.md` updated to match.
 
 ---
 

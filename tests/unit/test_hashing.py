@@ -2,7 +2,7 @@
 
 The body-only hash is the foundation of drift detection (frontmatter is metadata, the
 body is the product), and hash_event is the link in the tamper-evident telemetry chain.
-See docs/TESTING.md §5 (T1).
+See docs/guides/testing.md §5 (T1).
 """
 import pytest
 

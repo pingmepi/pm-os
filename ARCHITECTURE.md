@@ -1,6 +1,6 @@
 # PM-OS Architecture
 
-This document describes the **as-built** architecture of PM-OS on the `main` branch. Where the build spec (`docs/spec/pm-os-spec.md`) and the running code differ, this document follows the code — see [Spec vs. implemented](#spec-vs-implemented) at the end.
+This document describes the **as-built** architecture of PM-OS on the `main` branch. Where the build spec (`docs/reference/pm-os-spec.md`) and the running code differ, this document follows the code — see [Spec vs. implemented](#spec-vs-implemented) at the end.
 
 PM-OS is a **local-first, PM-led product-definition layer** delivered as an **agent skill suite** — not an app. There is no frontend and no backend service. A PM drives a product idea through a fixed, gated pipeline of stages; each stage emits a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files on the PM's machine.
 
@@ -145,8 +145,8 @@ flowchart TD
 |-----------|----------------|
 | `skills/pm-stage-NN-*/SKILL.md` | The stage prompt + the inline bash the agent runs: pre-stage gate, read upstream, generate, write draft, log telemetry. Ships an `agents/openai.yaml` twin for Codex. |
 | `skills/pm-approve` → `scripts/pm_approve.py` | Validates status, computes body `content_hash`, writes approval to frontmatter + `.meta.yaml`, logs `stage_approved`, then shells out to `post-approve.py`. |
-| `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement, `.meta.yaml` (9 stages `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. |
-| `skills/pm-context-import` → `scripts/pm_context_import.py` | Mechanical state for the context-intake flow. `register` preserves a raw source in `.history/` + `.sources.yaml` (logs `context_ingested`); `preflight` prints backfill-feasibility verdicts (`resolve_backfill`) and exits non-zero on an infeasible gap; `commit` stamps an SKILL-written artifact slot to draft/approved with `origin` (`generated`/`imported`/`backfilled`), body hash, meta + frontmatter, telemetry, and (on approve) `post-approve.py`. Generates no content — judgment lives in the SKILL. |
+| `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement (`00` as `draft`; optional — a placeholder is written if omitted), `.meta.yaml` (stages `01–09` `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. `--mode enhancement` (or `PM_OS_PROJECT_TYPE`) records `project_type: enhancement`; `--codebase <url-or-path>` records `codebase_path` for the codebase scan. |
+| `skills/pm-context-import` → `scripts/pm_context_import.py` | Mechanical state for the context-intake flow. `register` preserves a raw source in `.history/` + `.sources.yaml` (logs `context_ingested`); `preflight` prints backfill-feasibility verdicts (`resolve_backfill`) and exits non-zero on an infeasible gap; `prepare-codebase` clones (URL) or validates (local path) the enhancement codebase, records its git SHA as `codebase_ref`, and gitignores `.codebase/`; `commit` stamps an SKILL-written artifact slot to draft/approved with `origin` (`generated`/`imported`/`backfilled`), body hash, meta + frontmatter, telemetry, and (on approve) `post-approve.py`. Generates no content — judgment lives in the SKILL. |
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count. |
 | `skills/pm-feedback` → `scripts/pm_feedback.py` | Appends a rating/tags/free-text entry to `feedback.jsonl`; logs `feedback_submitted` into the hash chain; triggers a central sync. |
 | `skills/pm-sync` → `scripts/pm_sync.py` | Manual catch-up sync of **all** projects' telemetry/feedback to the central repo (`git_sync.push_all`); `--verify` validates every project's hash chain. |
@@ -227,7 +227,7 @@ sequenceDiagram
 
 ## 6. Data & telemetry
 
-- **`.meta.yaml`** — project metadata + `stages[]` list (id, name, status, `approved_at`, `content_hash`, `upstream_hashes_at_approval`, `regeneration_count`, `optional`, `origin`). Carries `schema_version` (currently 2; `lib/project.py:migrate_meta` upgrades older projects in place). `origin` is `generated | imported | backfilled`. The stage-00 understanding group (`00` business-statement, plus `00w`/`00u` when `/pm-context-import` is used) gates stage 01.
+- **`.meta.yaml`** — project metadata + `stages[]` list (id, name, status, `approved_at`, `content_hash`, `upstream_hashes_at_approval`, `regeneration_count`, `optional`, `origin`). Carries `schema_version` (currently 3; `lib/project.py:migrate_meta` upgrades older projects in place). v3 adds `project_type` (`new_product | enhancement`), `codebase_path`, and `codebase_ref` for enhancement projects. `origin` is `generated | imported | backfilled`. The stage-00 understanding group (`00` business-statement, plus the conditional `00c` codebase-understanding, `00w` context-wiki, and `00u` context-understanding when `/pm-context-import` is used) gates stage 01.
 - **`.sources.yaml`** — registry of externally-provided sources ingested via `/pm-context-import` (id, type, uri, captured_at, snapshot path); raw originals preserved under `.history/`.
 - **Artifact frontmatter** — `status`, `approved_at/by`, `content_hash`, `generated_hash`, `pm_os_version`, `genai_flag`, `generation_notes`, `origin`, followed by the Markdown body.
 - **`telemetry.jsonl`** — append-only, hash-chained (`prev_event_hash` → `event_hash`). Event types include `project_created`, `stage_started`, `stage_generated`, `stage_approved`, `stage_imported`, `stage_backfilled`, `context_ingested`, `stage_edited_post_approval`, `stage_edited_via_note`, `implicit_reapproval`, `stage_marked_stale`, `feedback_submitted`. Telemetry failures warn but never break the workflow.
@@ -282,7 +282,7 @@ Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/op
 
 ## Spec vs. implemented
 
-`docs/spec/pm-os-spec.md` is partly aspirational. The `main` code is **leaner** than the spec in these ways — trust the code:
+`docs/reference/pm-os-spec.md` is partly aspirational. The `main` code is **leaner** than the spec in these ways — trust the code:
 
 | Spec describes | Status on `main` |
 |----------------|-----------------|

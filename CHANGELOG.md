@@ -2,11 +2,17 @@
 
 ## Unreleased
 
+### Changed
+- **Reorganized `docs/` into categorized folders** with lowercase filenames: `guides/` (`sop.md`, `testing.md`), `reference/` (`pm-os-spec.md`), `roadmap/` (`current-state-review.md`, `backlog.md`), `plans/` (now includes `context-intake-improvements.md` and `telemetry-fix-plan.md`), and `archive/`. Added a `docs/README.md` index. All inbound references (test docstrings, `CLAUDE.md`, `README.md`, `ARCHITECTURE.md`, the `test_documentation_drift` spec path, and intra-doc relative links) were updated in one pass.
+
 ### Fixed
 - Documentation alignment sweep: corrected the `deep_reasoning_stages` value (the 7-stage set) in README / CLAUDE.md / AGENTS.md / ARCHITECTURE.md; bumped stale `v0.5.3` "current version" references; annotated the spec's aspirational sections (`edit_distance.py`/`embeddings.py`/`post-tool-use.py`/`session-end.py`/`session_end` event) and added `origin`/`generation_notes` to the spec frontmatter schema; fixed a dead `AGENTS.md` link and a duplicate row in `docs/TESTING.md`.
 - Removed the unused `gitpython` dependency (git operations shell out via `subprocess`).
 
 ### Added
+- **Enhancement mode.** `/pm-new --mode enhancement --codebase <url-or-path>` (or `PM_OS_PROJECT_TYPE`) scaffolds a project that targets an existing product. `.meta.yaml` is now `schema_version: 3` with `project_type`, `codebase_path`, and `codebase_ref` (in-place `migrate_meta` upgrades v2 projects). A new conditional stage-00 doc, `00c` codebase-understanding, is produced by `/pm-context-import` via a read-only codebase scan and gates stage 01 when present. `pm_context_import.py prepare-codebase` clones (URL) or validates (local path) the codebase and records its git SHA; `/pm-status` shows the mode/codebase and warns on codebase drift. The business statement is now optional at `/pm-new`.
+- **Reusable context-scan subagents.** Two standalone skills — `pm-context-scan-docs` (extract structured, wiki-ready knowledge from source documents) and `pm-context-scan-codebase` (read-only codebase scan) — that `/pm-context-import` orchestrates in parallel, and which can be invoked independently.
+- **Richer context intake.** The context wiki and understanding doc gain new sections (non-goals/exclusions, success indicators, technical constraints, stakeholder authority, source-trust table, assumption register, conflict-resolution block), per-section confidence tiers, stage-affinity hints, a `> **PM:** …` annotation/override convention, lossy-vs-faithful backfill approval (lossy → `draft`), and six pre-commit self-lint rules. Stage skills `01–09` share a five-rule wiki-consumption block; stage `01` gains enhancement framing.
 - Codex parity: the remaining utility skills (`pm-approve`, `pm-feedback`, `pm-new`, `pm-os-{install,update,verify}`, `pm-share`, `pm-status`) now ship `agents/openai.yaml` twins.
 
 ## 0.5.5 — 2026-06-18

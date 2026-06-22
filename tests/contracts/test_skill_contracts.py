@@ -1,6 +1,6 @@
 """T3 — skill contracts: structural facts that must not silently drift between the skill
 Markdown, the scripts, and the code constants. These read the repo source directly (no temp
-install). See docs/TESTING.md §5 (T3)."""
+install). See docs/guides/testing.md §5 (T3)."""
 import re
 
 import pytest

@@ -229,7 +229,7 @@ Changes:
 
 ### Step 6 — Verify end-to-end in Codex and document the exact UX
 
-**Files:** `README.md`, `../spec/pm-os-spec.md`, this plan if needed
+**Files:** `README.md`, `../reference/pm-os-spec.md`, this plan if needed
 
 Validation flow should use Codex-native invocation, for example:
 
@@ -279,7 +279,7 @@ This order front-loads the pieces that most affect whether Codex feels reliable 
 
 ## 8. Non-goals for this pass
 
-- Gemini CLI / AI Studio support — **deferred to a later pass, not abandoned.** Gemini remains a planned runtime target (see `docs/PM-OS-CURRENT-STATE-REVIEW.md`); it is out of scope only for *this* Claude + Codex pass.
+- Gemini CLI / AI Studio support — **deferred to a later pass, not abandoned.** Gemini remains a planned runtime target (see `docs/roadmap/current-state-review.md`); it is out of scope only for *this* Claude + Codex pass.
 - a mandatory Codex hooks integration
 - prompt forking or skill duplication
 - replacing the local-file PM-OS architecture with MCP or a service backend

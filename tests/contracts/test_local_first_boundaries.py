@@ -1,6 +1,6 @@
 """T8 — local-first & security boundaries: read-only commands stay local, source registration
 can't escape the project, and the test fixtures embed no secrets or real user paths.
-See docs/TESTING.md §5 (T8)."""
+See docs/guides/testing.md §5 (T8)."""
 import re
 
 import pytest

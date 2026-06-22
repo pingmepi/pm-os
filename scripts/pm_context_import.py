@@ -302,6 +302,55 @@ def cmd_commit(args):
           f"(origin={args.kind}). Hash: {content_hash[:12]}")
 
 
+def cmd_prepare_codebase(args):
+    root = resolve_project()
+    raw = args.path
+
+    if raw.startswith(("https://", "http://", "git@")):
+        target = root / ".codebase"
+        if not target.exists():
+            print(f"Cloning {raw} → {target} (--depth 1)…")
+            r = subprocess.run(
+                ["git", "clone", "--depth", "1", raw, str(target)],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                print(f"Error: git clone failed:\n{r.stderr}")
+                sys.exit(1)
+        local_path = target
+    else:
+        local_path = Path(raw).resolve()
+        if not local_path.is_dir():
+            print(f"Error: codebase path '{raw}' is not a directory.")
+            sys.exit(1)
+
+    sha = None
+    sha_r = subprocess.run(
+        ["git", "-C", str(local_path), "rev-parse", "HEAD"],
+        capture_output=True, text=True,
+    )
+    if sha_r.returncode == 0:
+        sha = sha_r.stdout.strip()
+
+    meta = load_meta(root)
+    meta["codebase_path"] = str(local_path)
+    if sha:
+        meta["codebase_ref"] = sha
+    save_meta(meta, root)
+
+    gitignore = root / ".gitignore"
+    if gitignore.exists():
+        content = gitignore.read_text(encoding="utf-8")
+        if ".codebase/" not in content:
+            gitignore.write_text(content.rstrip() + "\n.codebase/\n", encoding="utf-8")
+    else:
+        gitignore.write_text(".codebase/\n", encoding="utf-8")
+
+    print(f"Codebase prepared: {local_path}")
+    if sha:
+        print(f"Recorded codebase_ref: {sha[:12]}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="PM-OS context-intake mechanical state.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -330,6 +379,11 @@ def main():
                        help="prompt_version of the generating skill, recorded on generated "
                             "stage_generated events to match the documented schema.")
     p_com.set_defaults(func=cmd_commit)
+
+    p_prep = sub.add_parser("prepare-codebase",
+                             help="Clone or validate a codebase and record its git SHA in meta.")
+    p_prep.add_argument("path", help="GitHub URL (https://... or git@...) or local directory path.")
+    p_prep.set_defaults(func=cmd_prepare_codebase)
 
     args = parser.parse_args()
     args.func(args)

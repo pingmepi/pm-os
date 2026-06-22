@@ -1,5 +1,5 @@
 """T7 — negative / resilience: broken or hostile local state must fail with a clear error and
-never corrupt the project. See docs/TESTING.md §5 (T7)."""
+never corrupt the project. See docs/guides/testing.md §5 (T7)."""
 import subprocess
 
 import pytest

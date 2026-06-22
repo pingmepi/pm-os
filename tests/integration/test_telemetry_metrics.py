@@ -1,6 +1,6 @@
 """T6 — telemetry metrics computed at approval (scripts/pm_approve.py): time-to-approve,
 char/normalized edit distance vs the generated snapshot, semantic-distance passthrough, model
-capture, and regeneration count. See docs/TESTING.md §5 (T6)."""
+capture, and regeneration count. See docs/guides/testing.md §5 (T6)."""
 import pytest
 
 from helpers import run_script, generate_stage, make_draft, read_events

@@ -478,7 +478,7 @@ Recommended severities:
 
 Acceptance criteria:
 
-- [ ] Schemas documented in `docs/spec/pm-os-spec.md` or a dedicated reference doc.
+- [ ] Schemas documented in `docs/reference/pm-os-spec.md` or a dedicated reference doc.
 - [ ] Feedback tags are shared by `pm-feedback`, metrics, and insights.
 - [ ] Recommendation and decision records are append-only.
 

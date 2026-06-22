@@ -36,11 +36,24 @@ from project import resolve_project, load_meta, get_stage
 root = resolve_project()
 meta = load_meta(root)
 bs = get_stage(meta, "00")
-print("project:", meta["project_slug"], "| business-statement:", bs["status"])
+print("project:", meta["project_slug"])
+print("business-statement:", bs["status"])
+print("project_type:", meta.get("project_type", "new_product"))
+print("codebase_path:", meta.get("codebase_path") or "(none)")
 PY
 ```
 
 If `00` (business statement) is not `approved`, tell the PM to review and approve it first (`/pm-approve 00`) — the wiki depends on it — then stop.
+
+## Codebase pre-flight (enhancement mode only)
+
+If `$ARGUMENTS` includes a `--codebase <url-or-path>` argument, or if `.meta.yaml` has `codebase_path` already set, prepare the codebase before scanning:
+
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py prepare-codebase <url-or-path>
+```
+
+This clones (for URLs) or validates (for local paths) the codebase and records the git SHA as `codebase_ref` in `.meta.yaml`. Fail fast if the clone fails — do not continue with a missing codebase. After preparation, the local path is available via `.meta.yaml` `codebase_path`.
 
 # Inputs
 
@@ -72,9 +85,47 @@ Decide, per source, which it is — and say so:
 
 Record the set of **provided core stages** (the stages you'll adopt). Honor any `--as` overrides.
 
+# Step 2b — Parallel subagent scan
+
+Spawn both subagents in parallel. Each reads its own SKILL.md from the install and returns structured markdown output. You do not commit anything in this step — just collect the outputs for synthesis.
+
+**Subagent A — Document scan** (always runs when sources are registered):
+
+Read the doc-scan skill and spawn it as a subagent, providing the project root so it can read `.sources.yaml` and the registered source files:
+
+```bash
+cat ~/.pm-os/skills/pm-context-scan-docs/SKILL.md
+```
+
+Pass this skill content as the subagent prompt along with: the project root path, and the list of registered sources from `.sources.yaml`. The subagent returns a structured extraction keyed to wiki sections with src_NNN tags and confidence tiers.
+
+**Subagent B — Codebase scan** (only when `codebase_path` is set in `.meta.yaml`):
+
+Read the codebase-scan skill and spawn it as a subagent, providing the codebase path:
+
+```bash
+cat ~/.pm-os/skills/pm-context-scan-codebase/SKILL.md
+```
+
+Pass this skill content as the subagent prompt along with: the codebase path from `.meta.yaml` `codebase_path`. The subagent returns structured content for the `00-codebase-understanding.md` sections with file-path citations and `<!-- stage-affinity -->` hints.
+
+Wait for both subagents to finish before proceeding to synthesis.
+
+# Step 2c — Write `00-codebase-understanding.md` (only when Subagent B ran)
+
+Using Subagent B's output, write `00-codebase-understanding.md` with a standard frontmatter block (`status: draft`) followed by the subagent's structured output verbatim (TL;DR through Known constraints & tech debt). Then commit:
+
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00c --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.1.0
+```
+
+`FYI: wrote 00-codebase-understanding.md from codebase scan (stage 00c, draft).`
+
 # Step 3 — Build the context wiki (`00-context-wiki.md`)
 
 Write **one** normalized knowledge base the model will read as grounding for every downstream stage. This is a *persistent, compounding artifact*, not a one-off summary — exhaustive but organized, source-grounded, and skimmable. Keep it a **single page**: do not split it into per-topic files; cross-reference sections by name instead.
+
+Synthesize from **Subagent A's structured extraction** (the primary source). Where `00-codebase-understanding.md` exists (Subagent B ran), reference it for the `## Technical constraints` and `## Decisions already made` sections where the codebase reveals constraints the docs don't cover — but do not re-describe the codebase here; cross-reference `00c` instead (e.g. "See 00-codebase-understanding.md § Known constraints & tech debt").
 
 ## Section template (use these `##` headings, in this order)
 

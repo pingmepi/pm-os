@@ -2,7 +2,7 @@
 
 These verify the *status contract* of the sync layer: it reports failures loudly (so
 stranded telemetry is visible) and degrades cleanly. The real local-bare-repo push is a
-connection test (T5). See docs/TESTING.md §5 (T1)."""
+connection test (T5). See docs/guides/testing.md §5 (T1)."""
 import pytest
 
 import git_sync
