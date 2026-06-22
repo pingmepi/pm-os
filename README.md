@@ -71,14 +71,27 @@ agent directory.
 Create a project:
 
 ```text
-Claude: /pm-new <project-slug> "<business statement>" --genai|--no-genai
-Codex:  $pm-new <project-slug> "<business statement>" --genai|--no-genai
+Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai
+Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai
 ```
 
 `pm-new` needs to know whether this is a GenAI/agentic product. In an
 interactive shell it prompts; when run non-interactively (the usual case inside
-an agent) pass `--genai` or `--no-genai` (or set `PM_OS_GENAI_FLAG`). Projects
-are created under the `projects_dir` from your config (default `~/pm-projects`).
+an agent) pass `--genai` or `--no-genai` (or set `PM_OS_GENAI_FLAG`). The
+business statement is optional — omit it to add it later. Projects are created
+under the `projects_dir` from your config (default `~/pm-projects`).
+
+Building an enhancement to an existing product? Point PM-OS at the codebase:
+
+```text
+Claude: /pm-new <project-slug> --mode enhancement --codebase <github-url-or-local-path>
+Codex:  $pm-new <project-slug> --mode enhancement --codebase <github-url-or-local-path>
+```
+
+Then run `/pm-context-import`: PM-OS does a read-only scan of the codebase and
+produces a gated codebase-understanding doc (`00c`) that grounds every
+downstream stage on the existing system, so the brief and beyond cover the
+enhancement delta rather than re-describing the whole product.
 
 Already have context? If you walk in with material you've authored — research, a
 brief, a scope doc, a PRD, design notes — seed the project from it instead of
@@ -176,7 +189,7 @@ By default, PM-OS is configured to push local telemetry and feedback artifacts t
 PM-OS has a pytest suite under `tests/` — run `python3 -m pytest`. It covers the `lib/`
 helpers, the full project lifecycle, the gate/approval/staleness machine, skill &
 documentation contracts, telemetry metrics, and failure recovery, and is fully isolated
-from your real `~/.pm-os` install (temp-install fixtures). See **`docs/TESTING.md`** for the
+from your real `~/.pm-os` install (temp-install fixtures). See **`docs/guides/testing.md`** for the
 catalog of what every suite and test checks.
 
 ## Requirements
