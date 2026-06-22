@@ -22,6 +22,8 @@ PM_OS_STAGE=01 python3 ~/.pm-os/hooks/pre-stage.py
 
 If the hook exits non-zero, stop and surface the error message. Do not proceed.
 
+**Edited upstream is the PM's call, not yours.** If the gate reports an upstream stage was *edited after approval*, do **not** set `PM_OS_EDITED_UPSTREAM_CHOICE` or re-approve it yourself. Stop, tell the PM exactly which stage changed, and ask them to either re-approve it explicitly (`/pm-approve <NN>`) or confirm in their own words that you should continue. Re-run this gate only after the PM has acted.
+
 # Inputs
 
 **Context wiki (if present).** If `00-context-wiki.md` exists, read its body first and use it as grounding context alongside the inputs below — it is the normalized knowledge base of the PM's imported research and decisions (context-import projects). Greenfield projects won't have it; skip silently if it's absent. Treat it as background, not a new requirement source, and never let it override an approved upstream artifact.
