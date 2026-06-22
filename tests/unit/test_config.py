@@ -1,5 +1,5 @@
 """Unit tests for lib/config.py — config load + the model-tier policy that keeps skill
-telemetry in lockstep with deep_reasoning_stages. See docs/TESTING.md §5 (T1)."""
+telemetry in lockstep with deep_reasoning_stages. See docs/guides/testing.md §5 (T1)."""
 import pytest
 
 import config

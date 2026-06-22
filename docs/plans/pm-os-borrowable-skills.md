@@ -1,7 +1,7 @@
 # PM-OS: Borrowable Skills & Connectors
 
 **Status:** Analysis (no code changes). **Date:** 2026-06-18
-**Purpose:** Identify which existing Claude Code / Codex agent skills and MCP connectors PM-OS can **borrow** instead of building from scratch — across both the current product and the roadmap in `PM-OS-CURRENT-STATE-REVIEW.md` §7 — and check the current skill suite against that catalog for gaps.
+**Purpose:** Identify which existing Claude Code / Codex agent skills and MCP connectors PM-OS can **borrow** instead of building from scratch — across both the current product and the roadmap in `../roadmap/current-state-review.md` §7 — and check the current skill suite against that catalog for gaps.
 
 This is analysis only. Adopting any item still goes through the normal **commit → push → `pm_os_update.py`** path, and any MCP/external use must respect the **read-before-write, dry-run → confirm** sequencing principle already stated in §7.
 
@@ -23,13 +23,13 @@ PM-OS must behave identically on Claude Code and Codex (`CLAUDE.md`, Phase 1). M
 
 ## Part 1 — Roadmap phase → borrowable capability
 
-Phase titles key to `PM-OS-CURRENT-STATE-REVIEW.md` §7.
+Phase titles key to `../roadmap/current-state-review.md` §7.
 
 | Roadmap phase | Borrow | Capability / connector | Mode | Note |
 |---|---|---|---|---|
 | **3 — Brownfield / codebase understanding** | `codebase-docs-alignment` (drift audit), `repo-interview-prep` / `customize-faqs` (repo mining → understanding), built-in `init` (generates CLAUDE.md), the `Explore` agent | Pattern for the enhancement-mode `00-codebase-understanding` doc + a drift signal | **B** | Reuse the audit/mining *approach*; PM-OS keeps its own gated stage-00 artifact. |
 | **3.5 — Traceability spine (`REQ-` / `TC-` IDs)** | *(little external)* | Internal data model | — | No good external borrow; build natively. |
-| **3.6 — Automated test suite** | `python-testing` (pytest/fixtures/mocking/coverage), `tdd-workflow`, `eval-harness` (formal EDD), `verification-loop`, `llm-output-hardening` (guard LLM-output parsing in context-import/backfill) | Test-harness patterns + LLM-output guards | **B** | Partly already shipped (`tests/`, `pyproject.toml`, `docs/TESTING.md`). Borrow remaining patterns. |
+| **3.6 — Automated test suite** | `python-testing` (pytest/fixtures/mocking/coverage), `tdd-workflow`, `eval-harness` (formal EDD), `verification-loop`, `llm-output-hardening` (guard LLM-output parsing in context-import/backfill) | Test-harness patterns + LLM-output guards | **B** | Partly already shipped (`tests/`, `pyproject.toml`, `docs/guides/testing.md`). Borrow remaining patterns. |
 | **4a — Local handoff packet** | `doc-coauthoring` (structured spec authoring); `docx` / `pdf` / `pptx` (export to Word/PDF/deck) | Authoring workflow + format export | **B** (authoring) / **C** (format) | Packet stays local Markdown; format skills only when the PM wants Word/deck. |
 | **4b — One tracker, export-only** | **Linear MCP** (full issue/project/milestone CRUD) **or** **Atlassian MCP** (Jira) | The connector itself — *do not build* | **A** | Biggest build-vs-borrow win. Cross-runtime via MCP. Keep PM-OS's dry-run → confirm → store-IDs-only policy. |
 | **4 — Design-system / Figma (planned later)** | **Figma MCP** (design-context read, code-connect, diagrams) or **penpot MCP** (OSS) | Design source links + design context into stage 04/05 | **A** | Auth-gated, optional. penpot is the open-source fallback. |

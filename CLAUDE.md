@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What PM-OS is
 
-A local-first, PM-led PDLC operating layer, built as an **agent skill suite** (not an app). There is no frontend and no backend service. A PM drives a product idea through a gated pipeline of stages; each stage produces a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files (`.meta.yaml`, Markdown, JSONL) on the PM's machine. v1 covers product definition (stages 01–07 plus optional 08/09 capstones); dev handoff / QA triage / release / feedback are planned later phases (see `docs/PM-OS-CURRENT-STATE-REVIEW.md`).
+A local-first, PM-led PDLC operating layer, built as an **agent skill suite** (not an app). There is no frontend and no backend service. A PM drives a product idea through a gated pipeline of stages; each stage produces a Markdown artifact that a human reviews and explicitly approves before the next stage can run. All state is plain files (`.meta.yaml`, Markdown, JSONL) on the PM's machine. v1 covers product definition (stages 01–07 plus optional 08/09 capstones); dev handoff / QA triage / release / feedback are planned later phases (see `docs/roadmap/current-state-review.md`).
 
 The agent (Claude Code or Codex) is the generation engine: stage `SKILL.md` files contain the prompt + the inline bash the agent runs. Python in `scripts/`, `lib/`, and `hooks/` only handles mechanical state (scaffold, hash, approve, gate, telemetry). Decision authority stays with the PM — nothing progresses autonomously.
 
@@ -53,7 +53,7 @@ Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): 
 PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, Codex uses `$pm-*`:
 `/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`.
 
-**Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/TESTING.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
+**Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/guides/testing.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
 
 ## Architecture
 
@@ -84,4 +84,4 @@ Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/ope
 - **Non-interactive safety:** code that prompts (`input()`) must have an env-var/`--flag` escape and a non-tty branch. Examples: `PM_OS_EDITED_UPSTREAM_CHOICE` for the edited-upstream gate; `config.py` defaults `feedback_repo` when stdin isn't a tty. Preserve this — these run unattended inside agents.
 - **`schema_version`** exists in both `.meta.yaml` and `config.yaml`; bump it and provide migration when changing those shapes (existing projects on disk must keep working).
 - Skills carry instructions and prompts; Python carries mechanical state. Keep generation/judgment in the `SKILL.md`, not in Python.
-- The `docs/spec/pm-os-spec.md` repo/lib listing is partly aspirational (it references `edit_distance.py`, `embeddings.py`, `post-tool-use.py`, `session-end.py` that don't exist yet). Trust the actual files in `lib/` and `hooks/` over the spec.
+- The `docs/reference/pm-os-spec.md` repo/lib listing is partly aspirational (it references `edit_distance.py`, `embeddings.py`, `post-tool-use.py`, `session-end.py` that don't exist yet). Trust the actual files in `lib/` and `hooks/` over the spec.

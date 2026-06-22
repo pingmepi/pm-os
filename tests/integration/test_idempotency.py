@@ -1,5 +1,5 @@
 """T7 — idempotency: repeating a safe operation doesn't change the outcome or corrupt state.
-See docs/TESTING.md §5 (T7)."""
+See docs/guides/testing.md §5 (T7)."""
 import pytest
 
 from helpers import run_script, make_draft

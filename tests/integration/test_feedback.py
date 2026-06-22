@@ -1,5 +1,5 @@
 """T5 — feedback capture (scripts/pm_feedback.py): writes feedback.jsonl AND joins the
-hash-chained telemetry stream; non-interactive safety. See docs/TESTING.md §5 (T5)."""
+hash-chained telemetry stream; non-interactive safety. See docs/guides/testing.md §5 (T5)."""
 import json
 
 import pytest

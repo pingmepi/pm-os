@@ -1,6 +1,6 @@
 # PM-OS Artifact Ingest & Mid-Pipeline Entry Plan
 
-**Status:** ✅ **Implemented 2026-06-17** as `/pm-context-import` (command name chosen over `/pm-import` for readability). The realized design is broader than this plan's original per-stage file-import shape — see **§0 Implemented design** below. I0–I3 are delivered; I4 (dogfood a real Indegene enhancement) and `.docx`/`.pdf` conversion remain. Tracked as **Phase 2** in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7.
+**Status:** ✅ **Implemented 2026-06-17** as `/pm-context-import` (command name chosen over `/pm-import` for readability). The realized design is broader than this plan's original per-stage file-import shape — see **§0 Implemented design** below. I0–I3 are delivered; I4 (dogfood a real Indegene enhancement) and `.docx`/`.pdf` conversion remain. Tracked as **Phase 2** in `docs/roadmap/current-state-review.md` §7.
 
 ---
 

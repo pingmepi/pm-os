@@ -1,5 +1,5 @@
 """T4 — install / verify / update runtime parity. Exercises the real scripts against the
-isolated temp install. See docs/TESTING.md §5 (T4)."""
+isolated temp install. See docs/guides/testing.md §5 (T4)."""
 import importlib
 import subprocess
 import sys

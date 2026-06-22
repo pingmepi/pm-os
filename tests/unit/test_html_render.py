@@ -1,6 +1,6 @@
 """Unit tests for lib/html_render.py — the security-critical escaping + section parsing
 behind the stage 04/05 HTML companions. Untrusted artifact Markdown must never become live
-HTML. Full companion rendering on approval is exercised in integration. See docs/TESTING.md §5 (T1)."""
+HTML. Full companion rendering on approval is exercised in integration. See docs/guides/testing.md §5 (T1)."""
 import pytest
 
 import html_render

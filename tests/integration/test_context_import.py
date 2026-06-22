@@ -1,5 +1,5 @@
 """T5 — context-import mechanical state (scripts/pm_context_import.py): register sources,
-preflight backfill feasibility, and commit slots the skill wrote. See docs/TESTING.md §5 (T5)."""
+preflight backfill feasibility, and commit slots the skill wrote. See docs/guides/testing.md §5 (T5)."""
 import pytest
 
 from helpers import run_script, write_artifact, read_events, stage_status

@@ -1,6 +1,6 @@
 # PM-OS Modes & Engineering Handoff Plan
 
-**Status:** 🔲 **Not implemented** (verified against the codebase 2026-06-17 — no `pm-stage-00-understand` skill, no `project_type` or `codebase` fields in `.meta.yaml`, no MCP handoff). Tracked as **Phase 3** (enhancement mode / codebase understanding) and **Phase 4** (engineering handoff) in `docs/PM-OS-CURRENT-STATE-REVIEW.md` §7.
+**Status:** 🔲 **Not implemented** (verified against the codebase 2026-06-17 — no `pm-stage-00-understand` skill, no `project_type` or `codebase` fields in `.meta.yaml`, no MCP handoff). Tracked as **Phase 3** (enhancement mode / codebase understanding) and **Phase 4** (engineering handoff) in `docs/roadmap/current-state-review.md` §7.
 
 > **Reconciliation note (2026-06-17):** Phase 2 shipped a general **stage-00 understanding framework** — a gated context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`) synthesized from PM-provided sources, plus the business statement as gated stage `00`. The codebase understanding described below should be implemented as **one more evidence source feeding that same framework** (the code becomes another source the wiki absorbs and the understanding doc summarizes), not as a separate bespoke `00-codebase-understanding.md` pipeline. Reuse `lib/project.py`'s stage-00 group, `migrate_meta`, and `pm_context_import.py` rather than duplicating them.
 **Author:** Karan (with Claude Code)

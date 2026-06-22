@@ -1,7 +1,7 @@
 """Unit tests for lib/frontmatter.py — YAML frontmatter + body read/write/update.
 
 This module is the lockstep point between an artifact's on-disk metadata and the rest of
-the state machine, so round-trip fidelity and body-preservation matter. See docs/TESTING.md §5 (T1).
+the state machine, so round-trip fidelity and body-preservation matter. See docs/guides/testing.md §5 (T1).
 """
 import pytest
 

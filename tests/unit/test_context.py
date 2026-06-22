@@ -7,7 +7,7 @@ These lock down the guarantees Codex flagged in review of the overlay feature:
 plus seeding (copy-if-missing) and the lazy self-seed bootstrap.
 
 The `pmos` fixture repoints context.CONTEXT_DIR / CONTEXT_SEED_DIR at the temp install
-(which ships context.example/ but no live context/ until seeded). See docs/TESTING.md §5 (T1).
+(which ships context.example/ but no live context/ until seeded). See docs/guides/testing.md §5 (T1).
 """
 import pytest
 

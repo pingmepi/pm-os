@@ -6,7 +6,7 @@ reviewing. Every test also carries a docstring saying what it checks and why —
 doc and those docstrings are kept in lockstep (see [Conventions](#conventions-for-adding-tests)).
 
 The implementation roadmap (which phases exist, exit criteria) lives in
-[`docs/plans/pm-os-test-implementation-plan.md`](plans/pm-os-test-implementation-plan.md).
+[`docs/plans/pm-os-test-implementation-plan.md`](../plans/pm-os-test-implementation-plan.md).
 This doc describes what is **built**.
 
 ---
@@ -115,14 +115,16 @@ one-line description. The matching docstring in code carries the same intent for
 **Fail:** an invariant breaks, or a regression reappears in a guarded area.
 
 **`test_project.py`** — stage/state helpers
-- `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group leads the order.
-- `test_artifact_path_special_and_formula` — `00w`/`00u` map to their fixed filenames; others follow `NN-name.md`.
+- `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group (`00`, `00c`, `00w`, `00u`) leads the order.
+- `test_artifact_path_special_and_formula` — `00c`/`00w`/`00u` map to their fixed filenames; others follow `NN-name.md`.
 - `test_get_stage_found_and_missing` — returns the stage dict; raises `KeyError` for unknown id.
 - `test_upstream_linear_filtered_by_present_stages` — upstreams are prior present stages only.
 - `test_stage_09_optional_dependency_on_08` — 09 gains 08 as upstream **only when 08 is approved**.
 - `test_downstream_includes_dependents` — downstream = stages that depend on the given one.
 - `test_resolve_backfill_verdicts` — faithful/lossy/infeasible classification; no-gap and empty cases.
 - `test_migrate_meta_v1_to_v2` — adds `origin`, injects approved stage 00, sets `schema_version`; idempotent.
+- `test_00c_in_stage_tables` — `00c` is in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES, STAGE_ORDER; positioned between `00` and `00w`.
+- `test_migrate_v2_to_v3` — adds `project_type`, `codebase_path`, `codebase_ref` to existing meta; bumps to schema v3; idempotent.
 - `test_resolve_project_walks_up` / `test_resolve_project_not_found` — finds nearest `.meta.yaml`; raises when none.
 
 **`test_hashing.py`** — content addressing
@@ -188,6 +190,8 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_gate_allows_first_stage_after_00_approved` — stage 01 gate passes once 00 is approved.
 - `test_editing_approved_upstream_marks_edited` — body drift on an approved upstream → marked `edited` + `stage_edited_post_approval` logged.
 - `test_non_tty_without_choice_routes_to_pm` — edited upstream + no `PM_OS_EDITED_UPSTREAM_CHOICE` blocks and routes the re-approval to the PM (`/pm-approve`), and does NOT advertise the env-var bypass (so an agent can't self-approve); never hangs.
+- `test_enhancement_project_scaffolds` — `pm_new --mode enhancement` writes `project_type=enhancement`, `schema_version=3`, and `codebase_path` to meta.
+- `test_brief_gates_on_00c_when_present` — when `00c` exists in meta as `draft`, stage-01 gate blocks; approving `00c` unblocks it.
 - `test_implicit_reapproval_continue` — `…CHOICE=continue` re-approves the edited upstream and logs `implicit_reapproval`, then allows the run.
 
 **`test_approval_and_staleness.py`** — `post-approve.py` side effects

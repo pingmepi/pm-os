@@ -1,6 +1,6 @@
 """T5 (connection) — real central sync against a LOCAL bare feedback repo (no network).
 Exercises the actual git clone/copy/commit/push path the unit tests stubbed out.
-See docs/TESTING.md §5 (T5)."""
+See docs/guides/testing.md §5 (T5)."""
 import subprocess
 
 import pytest

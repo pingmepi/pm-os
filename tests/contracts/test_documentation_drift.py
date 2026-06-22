@@ -1,5 +1,5 @@
 """T3 — documentation/spec drift: stable facts asserted from the code's own source-of-truth
-constants, so docs/spec and code can't silently diverge. See docs/TESTING.md §5 (T3)."""
+constants, so docs/reference and code can't silently diverge. See docs/guides/testing.md §5 (T3)."""
 import pytest
 
 import project
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.contract
 def test_stage_order_shape():
     """The pipeline shape is the documented one: stage-00 understanding group leads, then the
     seven core stages, then the optional capstones."""
-    assert project.STAGE_ORDER[:3] == ["00", "00w", "00u"]
+    assert project.STAGE_ORDER[:4] == ["00", "00c", "00w", "00u"]
     assert project.CORE_STAGE_ORDER == ["01", "02", "03", "04", "05", "06", "07"]
     assert project.STAGE_ORDER[-2:] == ["08", "09"]
 
@@ -33,11 +33,11 @@ def test_model_policy_constant():
 def test_spec_event_list_covers_emitted_events():
     """The spec's telemetry event list documents the events the code actually emits — guards
     against the spec going stale when an event type is added."""
-    spec = (REPO_ROOT / "docs" / "spec" / "pm-os-spec.md").read_text()
+    spec = (REPO_ROOT / "docs" / "reference" / "pm-os-spec.md").read_text()
     for event in ("stage_started", "stage_generated", "stage_approved", "stage_imported",
                   "stage_backfilled", "context_ingested", "stage_edited_via_note",
                   "feedback_submitted", "stage_marked_stale"):
-        assert event in spec, f"spec/pm-os-spec.md does not document event '{event}'"
+        assert event in spec, f"reference/pm-os-spec.md does not document event '{event}'"
 
 
 def test_architecture_documents_runtime_paths():

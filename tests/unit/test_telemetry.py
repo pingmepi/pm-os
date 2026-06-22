@@ -1,5 +1,5 @@
 """Unit tests for lib/telemetry.py — the append-only, hash-chained event log that is the
-audit/diagnosis backbone. The chain must be tamper-evident and queryable. See docs/TESTING.md §5 (T1)."""
+audit/diagnosis backbone. The chain must be tamper-evident and queryable. See docs/guides/testing.md §5 (T1)."""
 import json
 
 import pytest
