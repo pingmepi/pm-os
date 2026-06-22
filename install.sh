@@ -123,22 +123,31 @@ if [[ "$RUNTIME" == "claude" ]] && ! command -v claude &>/dev/null; then
   exit 1
 fi
 
-# --- Check Python ---
-if ! command -v python3 &>/dev/null; then
-  echo "ERROR: python3 not found. Install Python 3.11+."
+# --- Check Python (resolve interpreter: python3, python, or the py launcher) ---
+# Windows installs Python as `python` / `py`, not `python3`, so don't hard-assume.
+PY=""
+for candidate in python3 python "py -3"; do
+  if $candidate -c "import sys" &>/dev/null; then
+    PY="$candidate"
+    break
+  fi
+done
+if [[ -z "$PY" ]]; then
+  echo "ERROR: Python not found. Install Python 3.11+ (provides python3, python, or the py launcher)."
   exit 1
 fi
 
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_VERSION=$($PY -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 REQUIRED="3.11"
-if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
-  echo "ERROR: Python 3.11+ required (found $PYTHON_VERSION)."
+if ! $PY -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
+  echo "ERROR: Python 3.11+ required (found $PYTHON_VERSION via '$PY')."
   exit 1
 fi
+echo "Python: $PY ($PYTHON_VERSION)"
 
 # --- Install Python dependencies ---
 echo "Installing Python dependencies..."
-python3 -m pip install --quiet pyyaml jinja2
+$PY -m pip install --quiet pyyaml jinja2
 
 # --- Clone or update pm-os repo ---
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -195,7 +204,7 @@ fi
 if [[ -n "$CONFIG_PROJECTS_DIR" ]]; then
   CONFIG_ARGS+=("--projects-dir" "$CONFIG_PROJECTS_DIR")
 fi
-python3 "$INSTALL_DIR/scripts/pm_os_install.py" "${CONFIG_ARGS[@]}"
+$PY "$INSTALL_DIR/scripts/pm_os_install.py" "${CONFIG_ARGS[@]}"
 
 echo ""
 echo "=== PM-OS installation complete ==="

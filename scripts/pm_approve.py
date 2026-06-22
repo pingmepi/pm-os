@@ -148,7 +148,7 @@ def main():
         env = os.environ.copy()
         env["PM_OS_STAGE"] = stage_id
         result = subprocess.run(
-            ["python3", str(hook_path)],
+            [sys.executable, str(hook_path)],
             env=env,
             cwd=str(project_root),
         )
