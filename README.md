@@ -66,7 +66,8 @@ Install or configure PM-OS:
 ```
 
 The `--runtime` argument is required so PM-OS installs skills into the correct
-agent directory.
+agent directory. For GitLab mirrors, offline zip installs, or IT/MDM deployments,
+see **[`docs/guides/offline-install.md`](docs/guides/offline-install.md)**.
 
 Create a project:
 

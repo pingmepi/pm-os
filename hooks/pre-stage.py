@@ -8,6 +8,9 @@ Checks:
   3. If any upstream is 'edited', prints implicit-reapproval prompt.
   4. On implicit re-approval, cascades staleness to downstream approved stages
      (including intermediate ones) so they get re-approved against new content.
+  5. After the cascade, re-checks whether any of the newly staled stages are
+     themselves upstream of the target stage — if so, blocks rather than
+     proceeding with unapproved intermediate artifacts.
 """
 
 import sys
@@ -194,10 +197,27 @@ Options:
             stale_logged = cascade_stale_for_edited(
                 meta, project_root, {uid for uid, _ in edited})
             save_meta(meta, project_root)
-            print("[pre-stage] Implicit re-approval logged. Proceeding.")
+            print("[pre-stage] Implicit re-approval logged.")
             if stale_logged:
                 print("[pre-stage] Marked downstream stages stale: "
                       + ", ".join(stale_logged))
+
+            # Re-check: if any of the staled stages are upstream of the
+            # target, we must block. Example: editing stage 01 while
+            # running stage 04 stales 02/03, which are also upstream of
+            # 04 — proceeding would generate from unapproved intermediates.
+            stale_upstream = [s for s in stale_logged if s in upstream_ids]
+            if stale_upstream:
+                print(
+                    f"\n[pre-stage] BLOCKED: implicit re-approval staled "
+                    f"intermediate stage(s) that are upstream of stage "
+                    f"{stage_id}: {', '.join(sorted(stale_upstream))}.\n"
+                    "Re-approve them first, then retry this stage.\n"
+                    "  Claude: /pm-approve <NN>   Codex: $pm-approve <NN>",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print("[pre-stage] Proceeding.")
         elif choice == "2":
             print("[pre-stage] Halted. Re-approve each edited stage, then retry.")
             print("[pre-stage] Claude: /pm-approve <stage>")

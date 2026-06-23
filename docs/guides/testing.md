@@ -84,7 +84,8 @@ tests/
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
 │   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
-│   └── test_failure_recovery.py       test_idempotency.py
+│   ├── test_failure_recovery.py       test_idempotency.py
+│   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
     └── test_local_first_boundaries.py    test_ci.py
@@ -232,6 +233,19 @@ one-line description. The matching docstring in code carries the same intent for
 
 ### T9 — CI (`tests/contracts/test_ci.py` + `.github/workflows/tests.yml`)
 **Purpose:** the suite runs automatically. The workflow runs `pytest -m "not slow"` on push/PR; a contract test guards it stays wired (and installs the runtime deps).
+
+### T_offline — Offline install (`tests/integration/test_offline_install.py`)
+**Purpose:** verify that `install.sh --source` works without git or network, that reinstall
+preserves user data, and that `git archive` produces a clean distribution zip.
+**Pass:** exit 0 with verifier PASS; context/config survive reinstall; zip omits dev files.
+**Fail:** offline install breaks, user data is overwritten, or dev files ship in the zip.
+**Requires:** `bash` (tests 1–2), `git` (test 3); skipped automatically when unavailable.
+
+| Test | Checks |
+|---|---|
+| `test_offline_source_install_populates_and_autoverifies` | `--source` install populates `~/.pm-os`, syncs skills to `~/.agents/skills`, auto-runs verifier, exits 0 with PASS. |
+| `test_offline_reinstall_preserves_user_data` | `context/` marker file and `config.yaml` sentinel key survive a second `--source` install (rsync/cp excludes work). |
+| `test_package_excludes_dev_files` | `git archive HEAD` omits `CLAUDE.md`, `AGENTS.md`, `tests/`, `.github/` but includes `install.sh`, `lib/`, `skills/`. |
 
 ### Planned suites (not yet built)
 Tracked in the implementation plan; this catalog grows as each lands.
