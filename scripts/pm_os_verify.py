@@ -23,7 +23,7 @@ HOOKS_DIR = PM_OS_DIR / "hooks"
 CLAUDE_SKILLS_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "skills"
 CODEX_SKILLS_DIR = Path(os.environ.get("CODEX_SKILLS_DIR", str(Path.home() / ".agents" / "skills")))
 
-REQUIRED_LIB_MODULES = ["project", "hashing", "frontmatter", "telemetry", "config"]
+REQUIRED_LIB_MODULES = ["project", "hashing", "frontmatter", "telemetry", "config", "artifact_contracts"]
 REQUIRED_HOOKS = ["pre-stage.py", "post-approve.py"]
 
 
@@ -214,6 +214,36 @@ def check_telemetry_selftest(r: Result):
     r.add(ok, "Telemetry self-test (append + hash chain + push status)", detail)
 
 
+def check_artifact_contract_selftest(r: Result):
+    """Prove the installed contract detects a PRD that omits User Journeys."""
+    try:
+        sys.path.insert(0, str(LIB_DIR))
+        from artifact_contracts import validate_artifact
+    except Exception as e:  # noqa: BLE001
+        r.add(False, "Artifact contract self-test", f"import failed: {e}")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="pmos-contract-") as tmp:
+        root = Path(tmp)
+        (root / ".meta.yaml").write_text(
+            "schema_version: 3\nproject_slug: contract-selftest\n"
+            "project_name: Contract Self-Test\ngenai_flag: false\npm_os_version: 0\n"
+            "stages: []\n",
+            encoding="utf-8",
+        )
+        (root / "03-prd.md").write_text(
+            "---\nstage: 03-prd\nproject: contract-selftest\nstatus: draft\n"
+            "artifact_contract_version: 1\n---\n"
+            "# PRD\n\n## Overview\nPresent, but journeys are omitted.\n",
+            encoding="utf-8",
+        )
+        findings = validate_artifact(root, "03")
+    codes = {finding.code for finding in findings}
+    ok = "REQUIRED_SECTION_MISSING" in codes and "USER_JOURNEY_MISSING" in codes
+    r.add(ok, "Artifact contract self-test (detects missing PRD journeys)",
+          "" if ok else f"unexpected finding codes: {sorted(codes)}")
+
+
 def check_context_pack(r: Result):
     """If a context overlay is installed, its manifest must parse; missing referenced
     files are warned (not failed). No overlay at all is fine (optional feature)."""
@@ -266,6 +296,7 @@ def main():
     check_skills(r, args.runtime)
     check_gate_selftest(r)
     check_telemetry_selftest(r)
+    check_artifact_contract_selftest(r)
     check_context_pack(r)
 
     print()

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-06-24
+
+### Added
+- **Artifact quality contracts for Stages 03–05.** PRDs now require structured `UJ-###` user journeys; design specs map journeys to flows and declare a product interaction model; prototype briefs separate participant/reviewer modes and include a validation plan. A deterministic validator catches required-section errors, recommended-section gaps, journey drift, and high-signal prototype UX conflicts. Generation repairs required errors; approval/import remain warning-only and log `artifact_validation_warning` telemetry.
+- **Research-safe interactive prototypes.** `pm-prototype-html` now follows the approved information architecture and interaction model instead of assuming every GenAI product needs generation/streaming/confidence UI. Participant mode is clean by default; reviewer controls and research questions are available through `?review=1`.
 
 ### Changed
 - **Reorganized `docs/` into categorized folders** with lowercase filenames: `guides/` (`sop.md`, `testing.md`), `reference/` (`pm-os-spec.md`), `roadmap/` (`current-state-review.md`, `backlog.md`), `plans/` (now includes `context-intake-improvements.md` and `telemetry-fix-plan.md`), and `archive/`. Added a `docs/README.md` index. All inbound references (test docstrings, `CLAUDE.md`, `README.md`, `ARCHITECTURE.md`, the `test_documentation_drift` spec path, and intra-doc relative links) were updated in one pass.

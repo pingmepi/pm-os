@@ -36,7 +36,7 @@ def test_spec_event_list_covers_emitted_events():
     spec = (REPO_ROOT / "docs" / "reference" / "pm-os-spec.md").read_text()
     for event in ("stage_started", "stage_generated", "stage_approved", "stage_imported",
                   "stage_backfilled", "context_ingested", "stage_edited_via_note",
-                  "feedback_submitted", "stage_marked_stale"):
+                  "artifact_validation_warning", "feedback_submitted", "stage_marked_stale"):
         assert event in spec, f"reference/pm-os-spec.md does not document event '{event}'"
 
 

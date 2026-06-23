@@ -3,7 +3,7 @@ name: pm-stage-04-design-spec
 description: Generate the Design Spec for stage 04 from the approved PRD and upstream product artifacts.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md"]
 writes: "04-design-spec.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 model_tier: deep-reasoning
 ---
 
@@ -147,9 +147,17 @@ GenAI handling:
 
 <Describe the screen/page inventory, hierarchy, entry points, primary navigation, secondary navigation if needed, and rules for how users move through the MVP. Tie each major screen to the PRD requirement or user story it supports.>
 
+## Journey-to-Flow Traceability
+
+<Map every PRD `UJ-###` to its entry point, screens or overlays, important states, happy-path completion, recovery paths, and supporting `US-###` / `FR-###`. Distinguish a user journey from a UI flow.>
+
 ## Key User Flows
 
 <Narrate the critical flows step by step. For each flow, include start state, user action, system response, decision or failure branch, completion state, and the PRD story or requirement it satisfies.>
+
+## Product UX Guardrails
+
+<Declare `Interaction model: retrieval-only | generative | mixed | non-AI`, then define the product mental model, approved user-facing vocabulary, prohibited or misleading UI patterns, trust/safety constraints, and rules distinguishing pages/screens, overlays, and states. A GenAI flag alone never justifies generative UI.>
 
 ## Design Principles
 
@@ -158,6 +166,14 @@ GenAI handling:
 ## Component Inventory
 
 <List the required UI components, what each is for, where it appears, key content/props, validation rules, and important states: default, loading, empty, error, disabled, success, permission-denied, and any GenAI uncertainty/review states when applicable. Tie major components to PRD requirements.>
+
+## Responsive & Platform Behavior
+
+<Recommended. Define platform, viewport, orientation, input-method, low-bandwidth, and responsive behavior relevant to the product. If the product targets one fixed environment, state that explicitly.>
+
+## UX Content Rules
+
+<Recommended. Define user-facing terminology, CTA naming, status language, error/recovery copy, and content that must remain reviewer-only. If no special rules apply, state the default language principles.>
 
 ## Typography
 
@@ -185,12 +201,13 @@ GenAI handling:
 - Treat the PRD as binding. Design should clarify requirements, not create new product scope.
 - Favor practical implementation guidance over mood-board language.
 - Make flows concrete enough that a designer could sketch screens and an engineer could infer component states.
+- Treat PRD journeys as binding context. Map each journey to flows without turning loading, empty, error, success, or degraded states into sequential screens unless the IA explicitly requires that topology.
 - Every major screen, flow, and component should trace to an approved PRD user story, functional requirement, non-functional requirement, or edge case.
 - Include error, empty, loading, disabled, and success states where they matter.
 - Keep design tokens usable, restrained, and parseable for the companion HTML renderer. Avoid decorative token sets that do not map to the MVP.
 - Typography, color, spacing, and icon guidance should support readable, buildable UI decisions rather than brand exploration.
 - Accessibility notes should be specific enough for design, engineering, and QA to act on.
-- If `genai_flag=true`, include AI-specific UX states only where they support PRD requirements.
+- If `genai_flag=true`, include AI-specific UX states only where the PRD explicitly requires them. Never infer generation, streaming, confidence, correction, or override UI from the flag alone.
 - If `genai_flag=false`, avoid AI-shaped UI assumptions.
 
 # Write outputs
@@ -227,14 +244,21 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   artifact_contract_version: 1
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-5. **Update `.meta.yaml`** - for stage 04, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+5. **Validate the artifact contract:**
+   ```bash
+   python3 ~/.pm-os/scripts/pm_validate_artifact.py 04 --mode strict
+   ```
+   If validation exits non-zero, repair the artifact and history snapshot, recompute the hash, and rerun validation before metadata or telemetry updates. Recommended-section warnings are non-blocking.
 
-6. **Log `stage_generated` event:**
+6. **Update `.meta.yaml`** - for stage 04, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+
+7. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -245,13 +269,13 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('04'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-7. **Print to PM:**
+8. **Print to PM:**
    ```text
    Stage 04 draft written to 04-design-spec.md
 
@@ -277,6 +301,8 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Quality bar
 
 - Information Architecture must include a clear screen/page inventory.
+- Journey-to-Flow Traceability must reference every PRD `UJ-###` and preserve its start, completion, and recovery context.
+- Product UX Guardrails must declare the interaction model and prevent AI or navigation patterns that contradict the PRD.
 - Every major screen, flow, and component must trace to an approved PRD requirement, story, non-functional requirement, or edge case.
 - Key User Flows must cover the critical PRD stories and include start states, system responses, completion states, and failure or exception paths where relevant.
 - Component Inventory must include meaningful component states, content/props, validation behavior, and placement, not just names.
@@ -288,9 +314,11 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Self-check before writing
 
 1. Does every major screen or component trace back to an approved PRD requirement?
-2. Are the key flows clear enough to sketch without another scoping conversation?
-3. Do flows include important states: loading, empty, error, disabled, success, permission, and fallback where relevant?
-4. Are component states and validation rules concrete enough for prototype and implementation?
-5. Are tokens practical and internally consistent?
-6. Are accessibility notes specific enough to guide design and QA?
-7. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+2. Is every PRD journey mapped to UI flows, screens/overlays, states, and recovery paths?
+3. Does Product UX Guardrails declare the correct interaction model and prohibit misleading patterns?
+4. Are the key flows clear enough to sketch without another scoping conversation?
+5. Do flows include important states: loading, empty, error, disabled, success, permission, and fallback where relevant?
+6. Are component states and validation rules concrete enough for prototype and implementation?
+7. Are tokens practical and internally consistent?
+8. Are accessibility notes specific enough to guide design and QA?
+9. Does the output match explicit PRD behavior rather than inferring UI from `genai_flag`?

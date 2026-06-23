@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
 
 from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
+from artifact_contracts import validate_artifact
 
 STAGE_LABELS = {
     "00": "Business Statement", "00c": "Codebase Understanding",
@@ -73,6 +74,7 @@ def main():
             detail = "  awaiting approval"
 
         notes_str = ""
+        contract_str = ""
         try:
             apath = artifact_path(root, s["id"])
             if apath.exists():
@@ -80,12 +82,16 @@ def main():
                 gn = fm.get("generation_notes") or []
                 if gn:
                     notes_str = f"  · {len(gn)} note{'s' if len(gn) != 1 else ''}"
+                if s["id"] in {"03", "04", "05"}:
+                    findings = validate_artifact(root, s["id"], apath)
+                    if findings:
+                        contract_str = f"  · ⚠ contract warnings: {len(findings)}"
         except Exception:
             pass
         opt = "  (optional)" if s.get("optional") else ""
         origin = s.get("origin", "generated")
         status_tag = f"{status} · {origin}" if origin in ("imported", "backfilled") else status
-        print(f"  {s['id']} {label} [{status_tag}]{detail}{notes_str}{opt}")
+        print(f"  {s['id']} {label} [{status_tag}]{detail}{notes_str}{contract_str}{opt}")
 
     tpath = root / "telemetry.jsonl"
     events = []

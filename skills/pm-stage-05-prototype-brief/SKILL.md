@@ -3,7 +3,7 @@ name: pm-stage-05-prototype-brief
 description: Generate the Prototype Brief for stage 05 from the approved design spec and upstream product artifacts.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md"]
 writes: ["05-prototype-brief.md", "05-prototype-mockup.html"]
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -116,7 +116,7 @@ log('stage_started', Path('.'), '05', {})
 
 # Output specification
 
-Write a Prototype Brief with exactly these sections. After writing the brief, stage 05 automatically invokes the `pm-prototype-html` skill to generate a working interactive HTML prototype alongside it (see step 8 in Write outputs).
+Write a Prototype Brief with exactly these sections. After writing the brief, stage 05 automatically invokes the `pm-prototype-html` skill to generate a working interactive HTML prototype alongside it (see step 9 in Write outputs).
 
 GenAI handling:
 - If `genai_flag=false`, write a conventional prototype brief focused on product flows, screens, states, interactions, and validation questions.
@@ -133,6 +133,10 @@ GenAI handling:
 
 <State the appropriate fidelity and why: wireframe, clickable mid-fidelity, polished visual mockup, static HTML, or another suitable format.>
 
+## Prototype Audience & Modes
+
+<Define participant mode as the unbiased default product experience and reviewer mode as a separate facilitator/stakeholder surface. Explain what reviewer-only navigation, journey IDs, research questions, and build metadata appear only in reviewer mode.>
+
 ## Screens to Include
 
 <Use bullets or a numbered list. List the screens, modals, panels, empty states, and error states needed for the prototype. Each item should follow: Screen name - purpose; primary content; key controls; states to show; source design/PRD reference.>
@@ -143,9 +147,21 @@ For each screen, include enough layout and state detail for the renderer to crea
 
 <Use bullets or a numbered list. List the interactions, transitions, decisions, state changes, and input/output behavior the prototype should make tangible. Each item should name the starting screen/state, user action, system response, resulting state, and source design/PRD reference.>
 
+## Prototype Data & Scenarios
+
+<Recommended. Define realistic, safe sample data and task scenarios for each target participant or journey. Identify prohibited sensitive or misleading sample content. If no sample data is needed, explain why.>
+
 ## Questions the Prototype Should Answer
 
 <Use bullets or a numbered list. List the product, usability, workflow, feasibility, or stakeholder-alignment questions this prototype should help answer. Each question should map to a screen or interaction and state what evidence would answer it.>
+
+## Validation Plan
+
+<Define participants, tasks/scenarios, comparator or current-state baseline, evidence and measures, decision thresholds or rules, facilitator/moderator guidance, and bias/priming risks. Keep research questions and test shortcuts out of participant mode.>
+
+## Known Limitations
+
+<Recommended. State what the prototype cannot validly test or demonstrate, including simulated behavior, unavailable integrations, fidelity limits, or artificial timing. If none, say so explicitly.>
 
 ## Non-Goals for Prototype
 
@@ -156,9 +172,13 @@ For each screen, include enough layout and state detail for the renderer to crea
 
 - Prototype the smallest slice that can answer the highest-risk product and design questions.
 - Anchor screens and interactions to the approved design spec and PRD.
+- Name the `UJ-###` journeys represented by the prototype slice and preserve their context, completion, and recovery behavior.
 - Include enough states to make the prototype useful, but avoid turning it into full product delivery.
 - Write screen, interaction, and question sections as concise bullets or numbered lists because the HTML renderer extracts list items from these sections.
 - Prefer concrete screen names, component names, state labels, and source references over abstract descriptions.
+- Distinguish actual screens and overlays from loading, empty, success, error, degraded, and hard-stop states. Do not turn states into wizard steps.
+- Write interaction descriptions as specifications, but give the renderer user-facing action language; never use internal interaction headings verbatim as button labels.
+- Keep participant mode free of research questions, test shortcuts, journey IDs, and reviewer navigation that would prime behavior.
 - Include only prototype-relevant states: enough to validate the experience, not every possible production state.
 - Make non-goals explicit so reviewers do not mistake omissions for forgotten requirements.
 - If `genai_flag=true`, include AI-specific states only if they are necessary to validate the intended experience.
@@ -198,14 +218,21 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   artifact_contract_version: 1
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-5. **Update `.meta.yaml`** - for stage 05, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+5. **Validate the artifact contract:**
+   ```bash
+   python3 ~/.pm-os/scripts/pm_validate_artifact.py 05 --mode strict
+   ```
+   If validation exits non-zero, repair the artifact and history snapshot, recompute the hash, and rerun validation before metadata or telemetry updates. Recommended-section warnings are non-blocking.
 
-6. **Log `stage_generated` event:**
+6. **Update `.meta.yaml`** - for stage 05, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+
+7. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -216,19 +243,19 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('05'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-7. **Print to PM:**
+8. **Print to PM:**
    ```text
    Stage 05 draft written to 05-prototype-brief.md
    Generating working HTML prototype next...
    ```
 
-8. **Auto-generate the working HTML prototype.** Immediately after printing the above, invoke the `pm-prototype-html` skill to generate `05-prototype-mockup.html`:
+9. **Auto-generate the working HTML prototype.** Immediately after printing the above, invoke the `pm-prototype-html` skill to generate `05-prototype-mockup.html`:
 
    - **Claude runtime:** use the Skill tool with `skill: "pm-prototype-html"`. Do not ask the PM for confirmation — this is an automatic step.
    - **Codex runtime:** use `$pm-prototype-html`.
@@ -274,16 +301,20 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Screens to Include must be list-form, renderer-friendly, and map to the approved design spec and critical user flows.
 - Interactions to Demonstrate must be list-form and include meaningful states, not just page-to-page navigation.
 - Questions the Prototype Should Answer must be specific enough to evaluate after review and must map to a screen or interaction.
+- Prototype Audience & Modes must make participant mode the unbiased default and keep reviewer chrome separate.
+- Validation Plan must define participants, tasks, comparator, measures, thresholds, facilitator guidance, and bias controls.
+- Prototype Data & Scenarios and Known Limitations should be present when applicable, with explicit non-applicability rather than silent omission.
 - Non-Goals for Prototype must protect the prototype from scope creep.
 - The output must follow the `genai_flag` path cleanly.
 
 # Self-check before writing
 
 1. Does this prototype brief focus on the highest-risk or highest-value flows?
-2. Are the included screens and interactions traceable to the design spec and PRD?
-3. Are Screens to Include, Interactions to Demonstrate, and Questions the Prototype Should Answer written as bullets or numbered lists?
-4. Does each screen item include purpose, primary content, controls, states, and source reference?
-5. Does each prototype question define what evidence would answer it?
-6. Are prototype non-goals explicit enough to prevent overbuilding?
-7. Would a designer or frontend engineer understand what to create first?
-8. Does the output match the `genai_flag` path without leaking irrelevant assumptions?
+2. Does the slice reference the relevant `UJ-###` journeys and their recovery paths?
+3. Are participant and reviewer modes separated so research questions cannot prime participants?
+4. Are Screens to Include, Interactions to Demonstrate, and Questions the Prototype Should Answer written as bullets or numbered lists?
+5. Does each screen item include purpose, primary content, controls, states, and source reference without treating states as steps?
+6. Does each prototype question define observable evidence, measures, and a decision threshold in the Validation Plan?
+7. Are prototype non-goals and known limitations explicit enough to prevent overbuilding or invalid conclusions?
+8. Would a designer, researcher, or frontend engineer understand what to create and test first?
+9. Does the output follow the PRD/design interaction model rather than adding generic GenAI UI?

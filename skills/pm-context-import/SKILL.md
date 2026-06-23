@@ -273,7 +273,7 @@ Do not continue until all present stage-00 docs are approved — the stage-01 ga
 
 After the PM approves the wiki and understanding, adopt and backfill **bottom-up** (lowest stage id first) so each commit's upstream hashes capture already-written upstreams:
 
-For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then commit using the status that matches the extraction quality:
+For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then commit using the status that matches the extraction quality. For stages 03–05, load the target stage skill's current required/recommended section contract, write `artifact_contract_version: 1`, and run `pm_validate_artifact.py <NN> --mode strict` before commit; repair required-section errors before continuing.
 
 **Faithful backfill with no unresolved stage-relevant conflicts:**
 ```bash
@@ -286,7 +286,7 @@ python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind backfilled --st
 ```
 Emit `FYI: <NN>-<name>.md is a lossy/conflicted backfill — committed as draft; PM must /pm-approve <NN> before the pipeline can proceed.`
 
-For each adopted artifact, normalize it into the stage's section template, write the slot, then:
+For each adopted artifact, load the target stage skill and normalize into its current section template while remaining faithful to the PM-authored source. Never invent a missing required or recommended section. Preserve the source coverage, run `pm_validate_artifact.py <NN> --mode warn` for stages 03–05, surface every finding, and continue with approval as requested:
 
 ```bash
 python3 ~/.pm-os/scripts/pm_context_import.py commit <NN> --kind imported --status approved --source-name <orig> --source-format md

@@ -35,6 +35,7 @@ from project import (
 from hashing import hash_artifact_body
 from frontmatter import read as fm_read, write as fm_write, update_status
 from telemetry import log
+from artifact_contracts import format_findings, validate_artifact
 
 
 def _now():
@@ -256,6 +257,13 @@ def cmd_commit(args):
         return
 
     # status == approved
+    validation_findings = []
+    if stage_id in {"03", "04", "05"}:
+        validation_findings = validate_artifact(root, stage_id, apath)
+        if validation_findings:
+            print(f"Warning: Stage {stage_id} has artifact contract findings; import approval will continue:")
+            print(format_findings(validation_findings))
+
     content_hash = hash_artifact_body(str(apath))
     ts = _now()
     fm["status"] = "approved"
@@ -290,6 +298,16 @@ def cmd_commit(args):
         log(event, root, stage_id, payload)
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
+
+    if validation_findings:
+        try:
+            log("artifact_validation_warning", root, stage_id, {
+                "contract_version": fm.get("artifact_contract_version"),
+                "origin": args.kind,
+                "findings": [finding.as_dict() for finding in validation_findings],
+            })
+        except Exception as e:
+            print(f"Warning: artifact validation telemetry failed: {e}")
 
     # Reuse post-approve for HTML companions (04/05), staleness cascade, push.
     hook = Path.home() / ".pm-os" / "hooks" / "post-approve.py"
