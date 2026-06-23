@@ -17,6 +17,7 @@ from hashing import hash_artifact_body
 from frontmatter import update_status, read as fm_read
 from telemetry import log, last_event
 from text_metrics import char_edit_distance, normalized_edit_distance
+from artifact_contracts import format_findings, validate_artifact
 
 
 def stage_command(stage_id: str) -> str:
@@ -81,6 +82,14 @@ def main():
         print(f"  Codex:  ${cmd}")
         sys.exit(1)
 
+    validation_findings = []
+    if stage_id in {"03", "04", "05"}:
+        validation_findings = validate_artifact(project_root, stage_id, apath)
+        if validation_findings:
+            print(f"Warning: Stage {stage_id} has artifact contract findings; approval will continue:")
+            print(format_findings(validation_findings))
+            print()
+
     content_hash = hash_artifact_body(str(apath))
     ts = datetime.now(timezone.utc).isoformat()
     try:
@@ -101,6 +110,16 @@ def main():
     stage_meta["content_hash"] = content_hash
     stage_meta["upstream_hashes_at_approval"] = upstream
     save_meta(meta, project_root)
+
+    if validation_findings:
+        try:
+            log("artifact_validation_warning", project_root, stage_id, {
+                "contract_version": fm.get("artifact_contract_version"),
+                "origin": stage_meta.get("origin", "generated"),
+                "findings": [finding.as_dict() for finding in validation_findings],
+            })
+        except Exception as e:
+            print(f"Warning: artifact validation telemetry failed: {e}")
 
     generated_hash = fm.get("generated_hash")
     regen_count = stage_meta.get("regeneration_count", 0)

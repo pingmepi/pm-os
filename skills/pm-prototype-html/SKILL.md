@@ -1,9 +1,9 @@
 ---
 name: pm-prototype-html
 description: Generate a working interactive HTML prototype from the approved prototype brief and design spec. Called automatically by stage 05 after the brief is written; also available standalone to regenerate the prototype without regenerating the brief.
-reads: ["04-design-spec.md", "05-prototype-brief.md"]
+reads: ["03-prd.md", "04-design-spec.md", "05-prototype-brief.md"]
 writes: "05-prototype-mockup.html"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -18,14 +18,20 @@ Check that `05-prototype-brief.md` exists in the project root. If it is missing,
 
 Read these inputs in order:
 
-1. **`04-design-spec.md`** — extract design tokens (colors, typography, spacing, component patterns) and design principles. Map them to CSS custom properties in the output.
-2. **`05-prototype-brief.md`** — read each section carefully:
+1. **`03-prd.md`** — extract the `UJ-###` journeys represented by the prototype, binding requirements, product failure/recovery behavior, and explicit AI behavior. The PRD is the source of truth for what the product does and does not do.
+2. **`04-design-spec.md`** — extract journey-to-flow mapping, information architecture, `Interaction model`, UX guardrails, design tokens, component patterns, content rules, and accessibility behavior. Map tokens to CSS custom properties.
+3. **`05-prototype-brief.md`** — read each section carefully:
+   - **Prototype Audience & Modes** — participant mode is the default; reviewer mode is enabled only by the `?review=1` query parameter.
    - **Screens to Include** — each bullet is one screen. Extract: screen name, purpose, primary content area, key controls, states to show.
    - **Interactions to Demonstrate** — each bullet is one user flow step. Extract: starting screen/state, user action, system response, resulting screen/state.
-   - **Questions the Prototype Should Answer** — surface these in the prototype footer so stakeholders keep them in mind while reviewing.
+   - **Questions the Prototype Should Answer** — expose only in reviewer mode; never prime participants with them.
+   - **Validation Plan** — use tasks, scenarios, measures, and bias controls to decide what must be reachable without facilitator hints.
+   - **Prototype Data & Scenarios** — use safe, realistic sample data without inventing regulated, clinical, financial, or other sensitive claims.
    - **Fidelity Level** — use this to calibrate visual polish vs. speed of generation.
    - **Non-Goals for Prototype** — do not build what is listed here.
-3. **`.meta.yaml`** — read `project_slug`, `project_name`, `genai_flag`.
+4. **`.meta.yaml`** — read `project_slug`, `project_name`, `genai_flag`.
+
+Before writing HTML, make a private source-of-truth map of: journeys → product screens/overlays → states → user actions → system responses → recovery. Do not render this planning map in participant mode.
 
 # Output specification
 
@@ -33,11 +39,17 @@ Generate `05-prototype-mockup.html` as a **single self-contained HTML file**. Al
 
 ## Structure requirements
 
-### Multi-screen navigation
-- Render one screen at a time. Each screen is a `<section id="screen-N" class="screen">`.
-- A `showScreen(id)` JavaScript function hides all `.screen` elements and shows the target. Call it on page load to show `screen-1`.
-- Include a top navigation bar that lists all screen names as clickable links (for stakeholder review — they should be able to jump to any screen).
-- Include a progress indicator (e.g. "Step 2 of 4") that updates when the active screen changes.
+### Product topology
+- Follow the design spec's information architecture. Do not impose a wizard or universal multi-screen shell.
+- Represent loading, empty, error, success, degraded, and hard-stop behavior as states inside their owning screen unless the design explicitly defines them as separate destinations.
+- Use progress indicators only for genuinely sequential journeys where users complete ordered steps.
+- Implement sheets/dialogs as overlays that preserve the underlying context and return focus to their invoking control when closed.
+
+### Participant and reviewer modes
+- Participant mode is the default and must look like the product: no screen-state navigator, journey IDs, research questions, test-path shortcuts, generation metadata, or facilitator instructions.
+- Read `new URLSearchParams(window.location.search).get('review') === '1'` (or equivalent) to enable reviewer mode.
+- Mark reviewer-only DOM with a `review-only` class and keep it hidden unless reviewer mode is active.
+- Reviewer mode may expose state navigation, journey/requirement references, validation questions, known limitations, and build metadata without changing product behavior.
 
 ### Product-specific UI — the most important requirement
 Do NOT use generic placeholder boxes or wireframe sketches. Build the real UI elements the product needs.
@@ -51,9 +63,9 @@ For each screen in the brief, examine what the screen is for and render the appr
 
 ### Simulated interactions
 - Form `submit` events must call `event.preventDefault()`.
-- After submit, show a loading state for 600–1000 ms (use `setTimeout`) then transition to the result screen or show an inline result within the same screen.
-- All buttons labeled with the exact interaction names from `05-prototype-brief.md`.
-- A "Start over" or "Back to start" button on the final screen that calls `showScreen('screen-1')` and resets any displayed results.
+- After submit, use a realistic simulated delay only when the design calls for processing feedback; preserve the owning screen's context.
+- Label buttons with concise user-facing actions derived from the desired outcome (for example, "Find approved content" or "View asset"), never the internal interaction heading copied verbatim.
+- Provide clear back, close, cancel, refine, or start-over behavior wherever the journey requires recovery.
 
 ### Sample data
 Hard-code realistic sample data that matches the product domain. If the product processes bills, use realistic line items with plausible prices. If it tracks tasks, use realistic task names. The sample data should make the prototype feel real, not like a demo placeholder.
@@ -65,13 +77,23 @@ Extract color values, font families, font sizes, border radius, and spacing from
 - All `<input>` and `<textarea>` elements must have a `<label>` with `for` attribute.
 - Use semantic elements: `<header>`, `<nav>`, `<main>`, `<section>`, `<footer>`, `<button>`.
 - Buttons must have meaningful text (not just an icon).
+- Meet the design spec's touch-target requirement, with 44×44 CSS pixels as the default minimum for primary controls.
+- Move focus when product context changes; for modal sheets/dialogs, trap focus, support Escape, and restore focus to the invoking control.
+- Use concise `role="status"` / `aria-live` announcements for loading, results, errors, and recorded actions. Do not stream word-by-word text into a live region.
+- Honor reduced motion in both CSS and JavaScript behavior.
+- Give repeated controls asset- or item-specific accessible names.
 
-## GenAI flag
+## AI interaction behavior
 
-- **`genai_flag=false`**: build conventional form → process → result flows. No AI-specific UI.
-- **`genai_flag=true`**: include a "Generating…" loading state with a CSS animation (spinner or progress bar), a streamed-looking result area that reveals text word-by-word using `setInterval`, a confidence/uncertainty indicator next to results, and a human-correction affordance ("Edit result" or "Override" button).
+- `genai_flag` signals that AI participates somewhere in the product; it does not define the user-facing interaction model.
+- Follow `Interaction model` from the design spec:
+  - **retrieval-only** — use search/find/match language; show approved or source-faithful results atomically; do not add generation, streaming, confidence, editing, or override controls unless a PRD requirement explicitly demands one.
+  - **generative** — include generation progress, review/correction, uncertainty, and fallback states only as specified upstream.
+  - **mixed** — clearly distinguish retrieved/source content from generated content and preserve the applicable review boundary for each.
+  - **non-AI** — render conventional product behavior with no AI-shaped UI.
+- Never introduce an AI affordance solely because `genai_flag=true`.
 
-## HTML skeleton (adapt structure to the actual screens, do not use this verbatim)
+## HTML skeleton (adapt structure to the product topology; do not use this verbatim)
 
 ```html
 <!DOCTYPE html>
@@ -83,45 +105,29 @@ Extract color values, font families, font sizes, border radius, and spacing from
   <style>
     :root { /* design tokens from 04-design-spec.md */ }
     body { font-family: ...; }
-    .screen { display: none; }
-    .screen.active { display: block; }
-    /* nav, form, result, loading, error styles */
+    .review-only { display: none; }
+    body.review-mode .review-only { display: block; }
+    /* product-specific layout, forms, states, overlays, and focus styles */
   </style>
 </head>
 <body>
   <header>
     <div class="project-name">[Project Name] <span class="badge">Prototype</span></div>
-    <div class="progress" id="progress-label">Step 1 of N</div>
+    <div class="review-only">Reviewer controls</div>
   </header>
-  <nav aria-label="Prototype screens">
-    <a href="#" onclick="showScreen('screen-1'); return false;">Screen 1 Name</a>
-    <!-- one link per screen -->
-  </nav>
   <main>
-    <section id="screen-1" class="screen active">
-      <!-- Real UI for this screen -->
-    </section>
-    <section id="screen-2" class="screen">
-      <!-- Real UI for this screen -->
-    </section>
-    <!-- one section per screen from the brief -->
+    <!-- Product screens, inline states, and overlays from the approved IA -->
   </main>
-  <footer>
+  <footer class="review-only">
     <h3>What this prototype should answer</h3>
     <ul>
       <!-- questions from 05-prototype-brief.md -->
     </ul>
   </footer>
   <script>
-    const screens = ['screen-1', 'screen-2', /* ... */];
-    function showScreen(id) {
-      screens.forEach(s => document.getElementById(s).classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-      const idx = screens.indexOf(id);
-      document.getElementById('progress-label').textContent =
-        `Step ${idx + 1} of ${screens.length}`;
-    }
-    // form submit handlers per screen
+    const reviewMode = new URLSearchParams(window.location.search).get('review') === '1';
+    document.body.classList.toggle('review-mode', reviewMode);
+    // Product-specific interaction, state, overlay, focus, and reset handlers
   </script>
 </body>
 </html>
@@ -130,6 +136,14 @@ Extract color values, font families, font sizes, border radius, and spacing from
 # Write output
 
 Write the generated HTML to `05-prototype-mockup.html` in the project root (the same directory as `.meta.yaml`).
+
+Then validate it:
+
+```bash
+python3 ~/.pm-os/scripts/pm_validate_artifact.py 05-html --mode strict
+```
+
+If validation exits non-zero, repair the HTML and rerun it. Surface non-blocking warnings to the PM; do not silently ignore them.
 
 Then print:
 
@@ -142,6 +156,9 @@ Open it in a browser to review the interactive flows before approving the brief.
 
 - Every screen in the brief must map to a `<section>` with real, interactive UI elements — no boxes labeled with component names.
 - Every interaction in the brief must be reachable by clicking a button in the prototype.
+- The default participant experience must contain no reviewer chrome or research-question priming; `?review=1` must expose the review surface.
+- Product screens and states must match the approved IA rather than a generic wizard shell.
+- AI behavior must match `Interaction model`; retrieval-only products must not look generative.
 - Sample data must be domain-realistic and specific to this product.
 - The file must open correctly in a browser with no server and no internet connection.
 - A non-technical stakeholder must be able to navigate the full flow without instruction.

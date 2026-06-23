@@ -204,6 +204,7 @@ one-line description. The matching docstring in code carries the same intent for
 ### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
 **Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
 - `test_skill_contracts`: every skill has frontmatter name/description **and a Codex `agents/openai.yaml` twin with well-formed interface metadata** (display name, short description, a `$skill` default prompt); no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints.
+- `test_product_artifact_skills_enforce_current_contracts`: Stages 03–05 contain their required/recommended section templates, current artifact-contract marker, and strict validator invocation; the HTML skill uses the explicit interaction model and separates `?review=1` reviewer chrome.
 - `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
 
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)
@@ -214,13 +215,14 @@ one-line description. The matching docstring in code carries the same intent for
 
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.
-- context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin).
+- context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
 - feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
 - `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path); `pm_sync` backfills all projects; `--verify` reports chains intact.
 
 ### T6 — Telemetry metrics (`tests/integration/test_telemetry_metrics.py`)
 **Purpose:** the computed approval metrics. **Pass:** metrics populate from real data and stay null where no generation snapshot exists.
 - time-to-approve recorded when generated; edit distance 0 unchanged / >0 edited / null without snapshot; `--semantic-distance` passthrough + out-of-range rejection; model id + config-derived tier captured; regeneration count surfaced.
+- artifact-contract warnings carry stable severity/code/message entries, contract version, and artifact origin.
 
 ### T7 — Negative/resilience + idempotency (`test_failure_recovery.py`, `test_idempotency.py`)
 **Purpose:** broken/hostile state fails safely; safe ops repeat cleanly.

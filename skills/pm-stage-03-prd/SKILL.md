@@ -3,7 +3,7 @@ name: pm-stage-03-prd
 description: Generate the Product Requirements Document for stage 03 from the approved brief and scope.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md"]
 writes: "03-prd.md"
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 model_tier: deep-reasoning
 ---
 
@@ -148,9 +148,13 @@ Write a Product Requirements Document with these base sections.
 
 <List the outcomes this release is meant to achieve, followed by the explicit non-goals for this version.>
 
+## User Journeys
+
+<Define the end-to-end journeys that establish the context for later stories and requirements. Use `### UJ-### — <journey name>` for each journey and include: **Primary user**, **Context and trigger**, **Goal**, **Preconditions**, **Happy path**, **Alternate/failure paths**, **Completion signal**, and **Traceability** to at least one `US-###` or `FR-###`. Cover pre-task context, recovery, and post-completion behavior where relevant; do not substitute UI flows for journeys.>
+
 ## User Stories with Acceptance Criteria
 
-<List the core user stories in priority order. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item, and clear acceptance criteria that can be validated by QA without guesswork.>
+<List the core user stories in priority order using stable IDs such as `US-001`. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item and journey, and clear acceptance criteria that can be validated by QA without guesswork.>
 
 ## Functional Requirements
 
@@ -163,6 +167,14 @@ Write a Product Requirements Document with these base sections.
 ## Data & Governance
 
 <Specify the data this product collects, stores, or processes: what data, its sensitivity classification (e.g. public, internal, confidential, PII/PHI), who owns it, how long it is retained, who may access it and under what permissions, and the consent or legal basis for collection. Name any data residency or regulatory regime that applies (e.g. GDPR, HIPAA) and any data shared with third parties or external services — including any sent to third-party model providers when `genai_flag=true`. If the product handles no sensitive data, state that explicitly rather than omitting the section.>
+
+## Journey–Requirement Traceability
+
+<Recommended. Map every `UJ-###` to the `US-###`, `FR-###`, relevant NFRs, and principal success or failure signal it exercises. If not applicable, state why.>
+
+## Assumptions & Open Decisions
+
+<Recommended. Record unresolved decisions or assumptions that materially affect journeys, requirements, compliance, or validation. Name the owner and consequence of each unresolved item. If none remain, say so explicitly.>
 
 ## Edge Cases
 
@@ -211,6 +223,8 @@ For the non-GenAI path, the PRD must still be complete using only the base secti
 - Every major requirement should trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - If a stage 02 open question blocks a concrete requirement, surface that dependency rather than inventing a decision. If it does not block generation, state the conservative assumption used.
 - User stories should cover the highest-value flows first and should map cleanly to functional requirements.
+- User journeys and user stories serve different purposes: journeys establish end-to-end context and recovery; stories define independently testable value. Do not collapse one into the other.
+- Every critical user story must appear in at least one journey, and every journey must trace to stable `US-###` or `FR-###` identifiers.
 - Acceptance criteria must be specific and testable. Avoid vague wording like "works well" or "is intuitive."
 - Functional requirements should state observable system behavior, not implementation guesses unless a constraint makes them necessary.
 - Non-functional requirements should only include concerns that are relevant to this product and its context, with measurable thresholds where possible.
@@ -252,14 +266,21 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   artifact_contract_version: 1
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-5. **Update `.meta.yaml`** — for stage 03, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+5. **Validate the artifact contract:**
+   ```bash
+   python3 ~/.pm-os/scripts/pm_validate_artifact.py 03 --mode strict
+   ```
+   If validation exits non-zero, repair `03-prd.md` and its history snapshot, recompute `generated_hash`, and rerun validation. Do not update metadata or log `stage_generated` until validation passes. Recommended-section warnings are visible but non-blocking.
 
-6. **Log `stage_generated` event:**
+6. **Update `.meta.yaml`** — for stage 03, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+
+7. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -270,13 +291,13 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('03'),
-       'prompt_version': '0.2.0',
+       'prompt_version': '0.3.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-7. **Print to PM:**
+8. **Print to PM:**
    ```
    Stage 03 draft written to 03-prd.md
 
@@ -305,6 +326,8 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch.
+- User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
+- Journey–Requirement Traceability and Assumptions & Open Decisions should be present when applicable; explain explicit non-applicability instead of silently omitting them.
 - Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and should use stable IDs.
 - Non-Functional Requirements must be relevant, not generic template filler, and should include measurable thresholds where possible.
 - Data & Governance must name concrete data and its sensitivity, ownership, retention, access rules, and any applicable compliance regime — or explicitly state that no sensitive data is handled. It must not defer these to implementation.
@@ -316,11 +339,12 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Self-check before writing
 
 1. Does every major requirement trace back to the approved scope and success hypothesis?
-2. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
-3. Do functional requirements use stable IDs and describe observable behavior?
-4. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
-5. Were scope open questions handled as blockers or explicit assumptions?
-6. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
-7. Are edge cases and risks concrete enough to shape design or delivery decisions?
-8. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
-9. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
+2. Does every critical user story appear in at least one structured `UJ-###` journey with context, recovery, completion, and traceability?
+3. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
+4. Do user stories and functional requirements use stable IDs and describe observable behavior?
+5. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
+6. Were scope open questions handled as blockers or explicit assumptions?
+7. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
+8. Are edge cases and risks concrete enough to shape design or delivery decisions?
+9. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
+10. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?

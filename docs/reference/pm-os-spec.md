@@ -183,6 +183,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
+artifact_contract_version: 1   # present on contract-validated Stage 03–05 generations
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---
@@ -205,7 +206,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -223,6 +224,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "pre_stage_hook" }` — emitted by `hooks/pre-stage.py` when it re-hashes an approved upstream and finds drift
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
+- `artifact_validation_warning`: `{ contract_version, origin, findings: [{ severity, code, message }] }` — logged when approval or imported/backfilled approval continues despite Stage 03–05 artifact-contract findings
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
 - `implicit_reapproval`: `{ stage, old_hash, new_hash }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
@@ -458,16 +460,23 @@ Output sections: Problem, Target user, Why now, Success hypothesis, Out of scope
 Output sections: In scope, Out of scope, Constraints, Assumptions, Dependencies, MVP boundary, Open questions.
 
 ### Stage 03 — PRD (use Opus)
-Output sections: Overview, Goals and non-goals, User stories with acceptance criteria, Functional requirements, Non-functional requirements, Edge cases, Risks.
+Required output sections: Overview, Goals and non-goals, **User journeys**, User stories with acceptance criteria, Functional requirements, Non-functional requirements, Data & governance, Edge cases, Risks. Journeys use stable `UJ-###` identifiers and trace to stable `US-###` / `FR-###` identifiers.
+Recommended sections: Journey–requirement traceability; Assumptions & open decisions.
 **When `genai_flag=true`:** add sections — Model selection rationale, Prompt/agent architecture, Tool/function inventory, Context window strategy, Fallback behavior, Output validation strategy.
 
 ### Stage 04 — Design Spec
-Output sections: Information architecture, Key user flows (narrative), Design principles, Component inventory, Typography, Color tokens, Spacing tokens, Iconography, Accessibility notes.
+Required output sections: Information architecture, **Journey-to-flow traceability**, Key user flows, **Product UX guardrails**, Design principles, Component inventory, Typography, Color tokens, Spacing tokens, Iconography, Accessibility notes. Product UX guardrails declare `Interaction model: retrieval-only | generative | mixed | non-AI`.
+Recommended sections: Responsive & platform behavior; UX content rules.
 **Companion HTML:** rendered from these tokens.
 
 ### Stage 05 — Prototype Brief
-Output sections: What to prototype, Fidelity level, Screens to include, Interactions to demonstrate, Questions the prototype should answer, Non-goals for prototype.
-**Companion HTML:** lo-fi static prototype rendered from both the approved design spec and prototype brief.
+Required output sections: What to prototype, Fidelity level, **Prototype audience & modes**, Screens to include, Interactions to demonstrate, Questions the prototype should answer, **Validation plan**, Non-goals for prototype.
+Recommended sections: Prototype data & scenarios; Known limitations.
+**Companion HTML:** interactive participant mode by default; reviewer navigation/questions/metadata appear only with `?review=1`. UI behavior follows the design's interaction model, not `genai_flag` alone.
+
+### Artifact contracts (Stages 03–05)
+
+`scripts/pm_validate_artifact.py <03|04|05|05-html> --mode strict|warn` validates required sections, recommended sections, journey traceability, prototype modes, and high-signal HTML guardrails. Stage skills run strict mode before generation telemetry; required-section errors must be repaired. Approval and context-import use warning mode: they surface and record findings but continue. Imported PM-authored documents are preserved rather than silently augmented with invented content. `pm-status` shows a warning count for any Stage 03–05 artifact that has contract findings.
 
 ### Stage 06 — QA Plan (use Opus)
 Output sections: Test strategy, Functional test cases, Non-functional tests, Edge cases, Acceptance criteria.

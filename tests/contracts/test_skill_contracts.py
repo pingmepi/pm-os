@@ -8,7 +8,7 @@ import yaml
 
 import project
 import frontmatter
-from helpers import skill_dirs, stage_skill_dir
+from helpers import REPO_ROOT, skill_dirs, stage_skill_dir
 
 pytestmark = pytest.mark.contract
 
@@ -93,3 +93,27 @@ def test_stage_skills_print_both_runtime_entrypoints():
     for sid in STAGE_IDS:
         body = (stage_skill_dir(sid) / "SKILL.md").read_text()
         assert "/pm-approve" in body and "$pm-approve" in body, f"stage {sid}: missing runtime entrypoints"
+
+
+def test_product_artifact_skills_enforce_current_contracts():
+    """Stages 03–05 carry the required/recommended product contracts and invoke strict
+    deterministic validation before generation completes."""
+    expected = {
+        "03": ("## User Journeys", "## Journey–Requirement Traceability", "artifact_contract_version: 1"),
+        "04": ("## Journey-to-Flow Traceability", "## Product UX Guardrails", "Interaction model:"),
+        "05": ("## Prototype Audience & Modes", "## Validation Plan", "## Known Limitations"),
+    }
+    for stage_id, markers in expected.items():
+        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text()
+        for marker in markers:
+            assert marker in body, f"stage {stage_id}: missing contract marker {marker!r}"
+        assert f"pm_validate_artifact.py {stage_id} --mode strict" in body
+
+
+def test_prototype_html_uses_interaction_model_not_genai_flag():
+    body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text()
+    assert "Interaction model" in body
+    assert "?review=1" in body
+    assert "review-only" in body
+    assert "Never introduce an AI affordance solely because `genai_flag=true`" in body
+    assert "pm_validate_artifact.py 05-html --mode strict" in body
