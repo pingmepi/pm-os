@@ -2,7 +2,7 @@
 name: pm-stage-05-prototype-brief
 description: Generate the Prototype Brief for stage 05 from the approved design spec and upstream product artifacts.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md"]
-writes: "05-prototype-brief.md"
+writes: ["05-prototype-brief.md", "05-prototype-mockup.html"]
 prompt_version: 0.1.0
 ---
 
@@ -116,7 +116,7 @@ log('stage_started', Path('.'), '05', {})
 
 # Output specification
 
-Write a Prototype Brief with exactly these sections. This skill writes Markdown only. After approval, the post-approve hook renders `05-prototype-mockup.html` as a lo-fi static HTML prototype from both `04-design-spec.md` and this brief.
+Write a Prototype Brief with exactly these sections. After writing the brief, stage 05 automatically invokes the `pm-prototype-html` skill to generate a working interactive HTML prototype alongside it (see step 8 in Write outputs).
 
 GenAI handling:
 - If `genai_flag=false`, write a conventional prototype brief focused on product flows, screens, states, interactions, and validation questions.
@@ -225,12 +225,34 @@ After generating, do the following in order:
 7. **Print to PM:**
    ```text
    Stage 05 draft written to 05-prototype-brief.md
+   Generating working HTML prototype next...
+   ```
 
-   Review the prototype brief, edit if needed, then use the entrypoint for your runtime:
+8. **Auto-generate the working HTML prototype.** Immediately after printing the above, invoke the `pm-prototype-html` skill to generate `05-prototype-mockup.html`:
+
+   - **Claude runtime:** use the Skill tool with `skill: "pm-prototype-html"`. Do not ask the PM for confirmation — this is an automatic step.
+   - **Codex runtime:** use `$pm-prototype-html`.
+
+   The skill reads `04-design-spec.md` and the `05-prototype-brief.md` you just wrote and generates a self-contained interactive HTML prototype. Let it run to completion.
+
+   If the skill fails or is unavailable, print a warning and continue — the brief was successfully written and the PM can regenerate the prototype separately:
+   ```text
+   WARNING: Could not auto-generate HTML prototype. Run /pm-prototype-html manually to generate 05-prototype-mockup.html.
+   ```
+
+   After the prototype skill completes, print the final PM message:
+   ```text
+   Stage 05 complete.
+     05-prototype-brief.md   — prototype planning doc (status: draft)
+     05-prototype-mockup.html — working interactive prototype (open in browser to review)
+
+   Review both files, then use the entrypoint for your runtime:
      Claude: /pm-approve 05                  - approve and proceed
      Codex:  $pm-approve 05                  - approve and proceed
-     Claude: /pm-stage-05-prototype-brief    - regenerate from scratch
-     Codex:  $pm-stage-05-prototype-brief    - regenerate from scratch
+     Claude: /pm-stage-05-prototype-brief    - regenerate brief + prototype from scratch
+     Codex:  $pm-stage-05-prototype-brief    - regenerate brief + prototype from scratch
+     Claude: /pm-prototype-html              - regenerate HTML prototype only (brief unchanged)
+     Codex:  $pm-prototype-html              - regenerate HTML prototype only (brief unchanged)
      Claude: /pm-feedback 05                 - capture notes
      Codex:  $pm-feedback 05                 - capture notes
    ```

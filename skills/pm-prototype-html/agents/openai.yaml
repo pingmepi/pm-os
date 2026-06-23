@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prototype HTML Generator"
+  short_description: "Generate a working interactive HTML prototype"
+  default_prompt: "Use $pm-prototype-html to generate a working interactive HTML prototype from my approved prototype brief and design spec."
