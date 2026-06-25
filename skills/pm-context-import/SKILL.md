@@ -2,8 +2,8 @@
 name: pm-context-import
 description: Ingest the context a PM already has (research, brief, scope, PRD, design…), build a gated context wiki + understanding doc, then adopt/backfill stage artifacts into the normal pipeline.
 reads: ["00-business-statement.md", ".meta.yaml", ".sources.yaml"]
-writes: ["00-context-wiki.md", "00-context-understanding.md", "<adopted/backfilled stage artifacts>"]
-prompt_version: 0.2.0
+writes: ["00-context-wiki.md", "00-context/manifest.yaml", "00-context/evidence.yaml", "00-context/sources.md", "00-context/views/", "00-context-understanding.md", "<adopted/backfilled stage artifacts>"]
+prompt_version: 0.3.0
 ---
 
 # Role and goal
