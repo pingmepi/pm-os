@@ -147,7 +147,7 @@ Write a QA Plan with these base sections.
 
 ## Functional Test Cases
 
-<List concrete test cases grouped by feature, flow, or requirement. Use stable IDs such as TC-001. For each case, include trace to PRD requirement/story/design state/prototype question, preconditions, test data, steps, expected results, priority, and pass/fail signal.>
+<List concrete test cases grouped by feature, flow, or requirement. Give every scenario a stable ID such as `TC-001`. In each test case, explicitly cite the PRD requirement id(s) it covers (`US-###`, `FR-###`, or `REQ-###`) so the traceability spine can link them — preconditions, test data, steps, expected results, priority, and pass/fail signal follow. These `TC-###` ids are stable traceability handles (bug triage and release readiness link by them): keep them constant across regenerations and only append new ids; never renumber existing ones.>
 
 ## Non-Functional Tests
 
@@ -160,6 +160,10 @@ Write a QA Plan with these base sections.
 ## Acceptance Criteria
 
 <Summarize the release-level acceptance criteria: must-pass conditions, should-pass conditions, known acceptable limitations, explicit no-go conditions, and who should approve exceptions.>
+
+## Requirement-Test Traceability
+
+<Recommended. Map each PRD requirement id (`US-###` / `FR-###` / `REQ-###`) to the `TC-###` scenarios that cover it, and flag any requirement left without coverage (with a reason). If every requirement is covered by a cited test case above, state that explicitly. PM-OS rebuilds a machine-readable `.traceability.yaml` from these ids on approval — this section is the human-readable mirror.>
 ```
 
 If `genai_flag=true`, append these additional sections after `## Acceptance Criteria`:
@@ -243,14 +247,21 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   artifact_contract_version: 1
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-5. **Update `.meta.yaml`** - for stage 06, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+5. **Validate the artifact contract:**
+   ```bash
+   python3 ~/.pm-os/scripts/pm_validate_artifact.py 06 --mode strict
+   ```
+   If validation exits non-zero, repair `06-qa-plan.md` and its history snapshot, recompute `generated_hash`, and rerun validation. The strict check requires every scenario to carry a stable `TC-###` id and to trace to at least one PRD requirement id. Do not update metadata or log `stage_generated` until validation passes. Coverage-gap and recommended-section warnings are visible but non-blocking.
 
-6. **Log `stage_generated` event:**
+6. **Update `.meta.yaml`** - for stage 06, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+
+7. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -267,7 +278,7 @@ After generating, do the following in order:
    "
    ```
 
-7. **Print to PM:**
+8. **Print to PM:**
    ```text
    Stage 06 draft written to 06-qa-plan.md
 
@@ -293,7 +304,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Quality bar
 
 - Test Strategy must explain how release confidence will be reached.
-- Functional Test Cases must use stable IDs, be specific, prioritized where useful, and traceable to PRD requirements, user stories, design states, prototype questions, or risks.
+- Functional Test Cases must use stable `TC-###` IDs (constant across regenerations), be specific, prioritized where useful, and each must cite the PRD requirement id(s) it covers (`US-###` / `FR-###` / `REQ-###`) so the traceability spine can link them.
 - Non-Functional Tests must include only relevant quality attributes.
 - If the PRD defines Data & Governance requirements, the QA plan must include concrete tests verifying access control, retention/deletion, audit logging, and data-leakage.
 - Edge Cases must cover meaningful failure paths and unusual states, with traceability to upstream requirements or risks.
@@ -304,7 +315,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Self-check before writing
 
 1. Does every critical PRD requirement have QA coverage?
-2. Do functional tests use stable IDs, traceability, preconditions, test data, steps, expected results, priority, and pass/fail signals?
+2. Do functional tests use stable `TC-###` IDs, cite the requirement id(s) they cover, and include preconditions, test data, steps, expected results, priority, and pass/fail signals?
 3. Are prototype validation questions covered where they affect release confidence?
 4. Do non-functional tests reflect real risks from the PRD and design spec?
 5. If the PRD has Data & Governance requirements, does the plan verify each with concrete tests (access, retention/deletion, audit, leakage)?
