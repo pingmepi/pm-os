@@ -193,6 +193,99 @@ Interaction model: retrieval-only
     assert not any(code.startswith("RETRIEVAL_USES_") for code in codes), codes
 
 
+def _valid_qa() -> str:
+    return """# QA Plan: Test
+## Test Strategy
+Risk-based manual and automated coverage.
+## Functional Test Cases
+### TC-001 — Complete the primary task (covers US-001, FR-001)
+Steps and expected results.
+### TC-002 — Recover from failure (covers FR-001)
+Steps and expected results.
+## Non-Functional Tests
+Performance and accessibility.
+## Edge Cases
+Invalid input handling.
+## Acceptance Criteria
+Must-pass gates and no-go conditions.
+## Requirement-Test Traceability
+US-001 → TC-001; FR-001 → TC-001, TC-002.
+"""
+
+
+def test_valid_qa_plan_contract_has_no_errors(tmp_path):
+    """A QA plan whose scenarios carry TC-### ids and trace to PRD requirement ids
+    passes the stage-06 contract with no errors (coverage gaps may still warn)."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    _write(root, "06-qa-plan.md", _valid_qa())
+    findings = contracts.validate_artifact(root, "06")
+    assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
+
+
+def test_qa_plan_without_tc_ids_is_an_error(tmp_path):
+    """A prose QA plan with no TC-### scenario ids fails strict validation so stable
+    test-case handles are required for newly generated plans."""
+    root = _project(tmp_path)
+    body = """# QA Plan
+## Test Strategy
+Risk-based coverage.
+## Functional Test Cases
+We will test login and the dashboard end to end.
+## Non-Functional Tests
+Performance.
+## Edge Cases
+Invalid input.
+## Acceptance Criteria
+Must-pass gates.
+"""
+    _write(root, "06-qa-plan.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "06")}
+    assert "TEST_CASE_IDS_MISSING" in codes
+
+
+def test_qa_plan_test_case_must_trace_to_a_requirement(tmp_path):
+    """A QA plan with TC-### ids but no requirement reference fails the trace check."""
+    root = _project(tmp_path)
+    body = """# QA Plan
+## Test Strategy
+s
+## Functional Test Cases
+### TC-001 — A scenario with no requirement link
+Steps.
+## Non-Functional Tests
+n
+## Edge Cases
+e
+## Acceptance Criteria
+a
+"""
+    _write(root, "06-qa-plan.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "06")}
+    assert "TEST_CASE_TRACE_MISSING" in codes
+
+
+def test_qa_plan_uncovered_requirement_warns_not_errors(tmp_path):
+    """A PRD requirement with no covering TC-### produces a WARNING coverage gap,
+    never a hard error — so partial coverage does not block approval."""
+    root = _project(tmp_path)
+    # PRD declares FR-002 but the QA plan only covers US-001/FR-001.
+    _write(root, "03-prd.md", _valid_prd().replace("- FR-001 — Complete the work.", "- FR-001 — Complete the work.\n- FR-002 — Audit the work."))
+    _write(root, "06-qa-plan.md", _valid_qa())
+    findings = contracts.validate_artifact(root, "06")
+    gap = [f for f in findings if f.code == "REQUIREMENT_COVERAGE_GAP"]
+    assert gap and gap[0].severity == "WARNING"
+    assert "FR-002" in gap[0].message
+    assert contracts.error_count(findings) == 0
+
+
+def test_requirement_and_test_case_id_extractors(tmp_path):
+    """The shared id extractors return unique upper-cased ids in first-seen order
+    and accept REQ/US/FR for requirements and TC for test cases."""
+    assert contracts.requirement_ids("US-001 and fr-002, REQ-003, US-001") == ["US-001", "FR-002", "REQ-003"]
+    assert contracts.test_case_ids("tc-001 TC-002 tc-001") == ["TC-001", "TC-002"]
+
+
 def test_generative_html_allows_generation_patterns(tmp_path):
     root = _project(tmp_path)
     _write(root, "04-design-spec.md", """# Design
