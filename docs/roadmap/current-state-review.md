@@ -1,6 +1,8 @@
 # PM-OS Current State Review and Roadmap
 
-**Date:** 2026-06-12 · **Updated:** 2026-06-18 (Phase 1 runtime parity and Phase 2 flexible intake shipped; the **context overlay** and richer **telemetry metrics** shipped in v0.5.3; the **deep-reasoning-tier expansion** (v0.5.4) and the **automated test suite** (v0.5.5) also landed — current VERSION is 0.5.5; §2/§3 below reflect this)
+**Date:** 2026-06-12 · **Updated:** 2026-06-24 (v0.6.0; see CHANGELOG for full history)
+
+> **Version summary:** Phase 1 runtime parity and Phase 2 flexible intake shipped in v0.4–v0.5.2; context overlay + telemetry metrics in v0.5.3; deep-reasoning tier expansion in v0.5.4; automated test suite in v0.5.5; telemetry/gate hardening in v0.5.6–v0.5.7; richer context intake in v0.5.8; **enhancement mode + `00c` codebase-understanding + offline install** in v0.5.9–v0.5.10; `pm-prototype-html` skill in v0.5.11; **artifact quality contracts (Stages 03–05) + research-safe prototypes** in v0.6.0. §2/§3 below reflect v0.6.0.
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -33,7 +35,7 @@ It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or futu
 
 ## 2. Current State Summary
 
-The current codebase (v0.5.5) is a strong **local-first product-definition MVP** with flexible intake and a pluggable company/team context overlay.
+The current codebase (v0.6.0) is a strong **local-first product-definition MVP** with flexible intake, enhancement mode, a pluggable company/team context overlay, and deterministic artifact quality contracts.
 
 It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; record telemetry/feedback; and export approved artifacts.
 
@@ -44,7 +46,7 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Area | Status | Evidence |
 |---|---:|---|
 | Local project scaffold | Implemented | `scripts/pm_new.py` creates `~/pm-projects/<slug>`, `.meta.yaml`, `00-business-statement.md`, `.history/`, telemetry, feedback |
-| Linear stage pipeline | Implemented | `lib/project.py` defines `STAGE_ORDER` = `00`, `00w`, `00u`, `01`–`09`: stage-00 understanding group (`00` business-statement always present; `00w` context-wiki + `00u` context-understanding only after `/pm-context-import`), `CORE_STAGE_ORDER` 01-07, plus optional 08 (TRD) and 09 (roadmap) capstones |
+| Linear stage pipeline | Implemented | `lib/project.py` defines `STAGE_ORDER` = `00`, `00c`, `00w`, `00u`, `01`–`09`: stage-00 understanding group (`00` business-statement always present; `00c` codebase-understanding only in enhancement mode; `00w` context-wiki + `00u` context-understanding only after `/pm-context-import`), `CORE_STAGE_ORDER` 01-07, plus optional 08 (TRD) and 09 (roadmap) capstones |
 | Human approval gates | Implemented | `scripts/pm_approve.py`, `hooks/pre-stage.py`, `hooks/post-approve.py` |
 | Artifact status model | Implemented | `pending`, `draft`, `approved`, `edited`, `stale` in `.meta.yaml` and frontmatter |
 | Hash-based drift detection | Implemented | `hooks/pre-stage.py` recomputes upstream hashes and marks edits |
@@ -74,15 +76,19 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Telemetry: intake events | Implemented | `context_ingested`, `stage_imported`, `stage_backfilled` kept distinct from `stage_approved` so quality signals are not polluted |
 | Context overlay | Implemented (v0.5.3) | `lib/context.py` (resolve/render/seed) injects a pluggable company/team/product knowledge layer into every stage prompt. Three apply modes — `augment`, `override`, `reference-only`; layering precedence project > stage > global; empty/TODO packs are a silent no-op. Seed lives in `context.example/` (global `company`/`team`/`glossary`/`guardrails.md` + per-stage `format.md`/`example.md` packs); all stage skills load it; seeded on install/update and self-seeds on first read |
 | Context overlay as user data | Implemented (v0.5.3) | live `~/.pm-os/context/` is **gitignored** and edited in place by the PM — the one engine-dir exception to the never-hand-modify rule; never diverges `main` or blocks `pm_os_update.py` |
+| Enhancement mode | Implemented (v0.5.9) | `/pm-new --mode enhancement --codebase <url-or-path>` scaffolds a project with `project_type: enhancement`, `codebase_path`, `codebase_ref` (schema v3). `pm_context_import.py prepare-codebase` clones or validates the codebase and records its git SHA. `/pm-status` shows mode and warns on codebase drift. Stage-01 brief in enhancement mode frames the request as a delta against the existing product |
+| Codebase-understanding stage (`00c`) | Implemented (v0.5.9) | Conditional pre-stage doc produced by `/pm-context-import` via a read-only codebase scan. Gates stage 01 when present. Contains TL;DR, current features & flows, architecture & modules, data model, tech stack, design language, integration points, known constraints — each section tagged with `<!-- stage-affinity -->` hints |
+| Richer context intake | Implemented (v0.5.8) | Context wiki gained 4 new sections (non-goals, success indicators, technical constraints, stakeholder authority), per-section confidence tiers, stage-affinity hints, and a PM annotation override convention. Understanding doc gained a source-trust table, assumption register, and conflict-resolution block. All 9 stage skills use a 5-rule wiki consumption block |
+| Offline / GitLab install | Implemented (v0.5.9) | `install.sh --source <zip-or-dir>` for air-gapped/offline installs; `--repo <url>` to clone from a GitLab mirror instead of GitHub. Auto-runs `pm_os_verify.py` after install. Documented in `docs/guides/offline-install.md` |
+| Standalone HTML prototype skill | Implemented (v0.5.11) | `pm-prototype-html` generates or regenerates `05-prototype-mockup.html` from approved prototype brief + design spec without re-running the full stage 05 brief. Auto-invoked by `pm-stage-05-prototype-brief`; also callable standalone. Prototype follows the approved interaction model — participant mode is clean by default; reviewer controls appear only via `?review=1` |
+| Artifact quality contracts (Stages 03–05) | Implemented (v0.6.0) | `lib/artifact_contracts.py` (CONTRACT_VERSION=1) + `scripts/pm_validate_artifact.py`. PRDs require `UJ-###` user journeys; design specs require journey-to-flow traceability and an interaction model declaration; prototype briefs require audience/mode separation and a validation plan. Strict mode blocks generation on required-section errors; warn mode at approval/import logs `artifact_validation_warning` telemetry and continues |
 
 ### Planned but Not Implemented
 
 | Area | Status | Source |
 |---|---:|---|
 | Gemini runtime support | Planned | `../plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Existing-product/enhancement mode | Planned | `../plans/pm-os-modes-and-handoff-plan.md` |
-| Codebase understanding stage | Planned | `../plans/pm-os-modes-and-handoff-plan.md` — should plug into the shipped stage-00 understanding framework as one more evidence source, not a separate pipeline |
-| Jira/Linear handoff | Planned | `../plans/pm-os-modes-and-handoff-plan.md` |
+| Jira/Linear handoff | Planned | `../plans/pm-os-modes-and-handoff-plan.md` Part B |
 | Figma/design-system integration | Planned later | `../plans/pm-os-modes-and-handoff-plan.md` |
 | QA bug analysis against codebase | Missing | part of expanded ask |
 | Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
@@ -112,10 +118,10 @@ The product now generates from a business statement **or** adopts existing PM-au
 Major gaps:
 
 1. **Scope mismatch (largely closed):** README, spec, and SOP were reframed (Phase 0) from "doc generator" to PM-led PDLC layer; the *implementation* still covers only product definition (stages 00–09), while the ask extends to dev, QA, release, and feedback.
-2. **Entry point (partly addressed):** PM-OS can start from a business statement *or* from existing PM-authored docs (research/brief/scope/PRD/design) via `/pm-context-import`. It still cannot start from a repo, Jira bug, QA report, or existing ticket.
+2. **Entry point (largely addressed):** PM-OS can start from a business statement, from existing PM-authored docs via `/pm-context-import`, or from an existing codebase (`--mode enhancement --codebase <url-or-path>`). It still cannot start from a Jira bug, QA report, or existing ticket.
 3. **Linear dependency model:** stages are hard-coded (stage-00 understanding group + core 01-07 + optional 08/09 capstones); no explicit lifecycle graph for optional/nonlinear paths.
 4. **Context-sufficiency layer (partly built):** for ingest, PM-OS now assesses whether provided inputs can faithfully reconstruct the missing upstream stages (the `resolve_backfill` feasibility map, surfaced in the understanding doc for approval). There is still no general recommendation layer across the wider PDLC.
-5. **No brownfield support:** existing-product modification and codebase-aware understanding are only planned (intended to reuse the stage-00 understanding framework).
+5. **Brownfield support is now live (Phase 3):** enhancement mode + `00c` codebase-understanding shipped in v0.5.9. No external integrations yet (Jira/Linear/Figma handoff is Phase 4, not built).
 6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
 7. **No dev/QA execution support:** PM-OS can draft a QA plan and TRD, but cannot yet analyze a QA bug, map it to requirements/code, classify it, and suggest a developer fix plan.
 8. **Runtime agnosticism is complete (Claude + Codex).** Install, skill interfaces, advisory model guidance, a real `AGENTS.md`, non-interactive-safe gates, and an install verifier are all shipped. Gate parity was confirmed: the gates run from `~/.pm-os/hooks` via skill bash and `pm_approve.py`, not native Claude hooks, so they behave identically on both runtimes. (Gemini remains a later runtime target.)
@@ -297,35 +303,9 @@ Blockers:
 - Need decide normalization versus verbatim default.
 - Need decide whether imported stages use status `approved` plus metadata marker, or a new status.
 
-### Phase 3: Product Mode and Brownfield Understanding
+### Phase 3: Product Mode and Brownfield Understanding — ✅ COMPLETE (v0.5.9)
 
-Goal: support new product development and existing product modification from the same install.
-
-Work:
-
-- Add `project_type: new_product | enhancement`.
-- Add `codebase_path` and `codebase_ref`.
-- Add enhancement-only `pm-stage-00-understand`.
-- Generate and approve `00-codebase-understanding.md`.
-- Add codebase drift signal to status.
-- Add enhancement-aware conditional blocks in stages 01-09.
-
-Checks:
-
-- `pm-new --mode enhancement --codebase <path>` creates a valid project.
-- Stage 01 is blocked until codebase understanding is approved.
-- Enhancement-mode PRD/design/QA are written as deltas against current product behavior.
-- New-product mode remains unchanged.
-
-Dependencies:
-
-- Runtime-agnostic install ideally completed first.
-- Need read-only codebase exploration pattern.
-
-Blockers:
-
-- Need choose local-path-only versus git URL for codebase source.
-- Need define minimum structure for codebase understanding.
+`/pm-new --mode enhancement --codebase <url-or-path>` scaffolds a project with `project_type: enhancement`, `codebase_path`, and `codebase_ref`. `pm_context_import.py prepare-codebase` clones (URL) or validates (local path) the codebase and records its git SHA. A conditional `00c` codebase-understanding doc is generated by `/pm-context-import` and gates stage 01 when present. `/pm-status` shows mode and warns on codebase SHA drift. Enhancement-aware conditional blocks land in the wiki consumption rules and stage-01 brief framing; downstream stages pick them up via the approved `00c` and context wiki. Both local-path and git URL are supported. See `docs/plans/pm-os-modes-and-handoff-plan.md` for the original plan and current status (Part B — handoff to Jira/Linear/Figma — remains unbuilt).
 
 **Sequencing principle for Phases 4–6.** Every phase ships a **connector-free, local-first version first**; each external integration is a separate, opt-in, **read-before-write, dry-run -> confirm** unit. This keeps the per-PM, local, file-based flavour intact and stops the hardest/riskiest pieces (live code analysis, tracker writes) from blocking the simple, high-value ones. The `a` sub-phases need zero integrations and ship real PDLC coverage on their own; the `b` sub-phases are independently shippable and skippable.
 
@@ -532,7 +512,7 @@ Recommended order:
 4. ~~Add `schema_version` and the migration path so existing projects survive new fields.~~ (done — `.meta.yaml` is `schema_version: 2` with in-place `migrate_meta`)
 5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `../plans/pm-os-ingest-plan.md` §0)
 6. ~~Ship the context overlay so company/team knowledge flows into every stage.~~ (done — v0.5.3, `lib/context.py` + `context.example/`, gitignored user data)
-7. Implement enhancement mode and codebase understanding (Phase 3).
+7. ~~Implement enhancement mode and codebase understanding (Phase 3).~~ — **DONE** (`/pm-new --mode enhancement --codebase`, `00c` stage, `prepare-codebase`, schema v3, codebase drift signal in `/pm-status`; shipped v0.5.9). Standalone HTML prototype (`pm-prototype-html`) and artifact quality contracts also shipped (v0.5.11 / v0.6.0).
 8. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
 9. ~~Stand up the automated test suite (Phase 3.6)~~ — **DONE** (pytest suite T0–T9 under `tests/`, CI at `.github/workflows/tests.yml`, reference in `docs/guides/testing.md`). Locks current behavior before the ID-linked phases land. The final phase **T10 — `/pm-check` consistency toolkit** (a PM-facing reuse of the suite's invariants) is specified in `../plans/pm-os-test-implementation-plan.md` §19 and is the next test-track item to build.
 10. Add the PM-OS quality, operations, usage, and self-improvement loop so telemetry/feedback turn into readable metrics, suggestions, PM decisions, and implementation plans without automatic source changes. See `../plans/pm-os-self-improvement-loop-plan.md`.

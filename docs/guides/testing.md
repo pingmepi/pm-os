@@ -79,11 +79,13 @@ tests/
 ├── unit/                  # T1 — in-process lib/ tests
 │   ├── test_project.py     test_hashing.py     test_frontmatter.py
 │   ├── test_config.py      test_telemetry.py   test_text_metrics.py
-│   └── test_context.py     test_git_sync.py    test_html_render.py
+│   ├── test_context.py     test_git_sync.py    test_html_render.py
+│   └── test_artifact_contracts.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
 │   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
+│   ├── test_artifact_contract_warnings.py
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
@@ -175,6 +177,13 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_markdownish_escapes_untrusted_html` / `test_inline_escapes_and_formats` — untrusted Markdown is HTML-escaped (XSS guard); bold/code still render.
 - `test_parse_sections_splits_on_h2` / `test_parse_sections_no_headings_defaults_overview` — sections split on `##`; no-heading body becomes one "Overview" section.
 
+**`test_artifact_contracts.py`** — Stage 03–05 artifact quality contracts (`lib/artifact_contracts.py`)
+- `test_valid_prd_passes` / `test_prd_missing_journeys_fails_strict` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
+- `test_prd_warn_mode_returns_findings_not_raises` — warn mode returns findings instead of raising; caller continues.
+- `test_design_spec_requires_journey_to_flow_and_interaction_model` — design spec must have Journey-to-flow traceability and a Product UX guardrails/interaction model declaration.
+- `test_prototype_brief_requires_audience_modes_and_validation_plan` — prototype brief must separate participant/reviewer modes and include a validation plan section.
+- `test_html_prototype_checks_review_only_class` — HTML validator checks that reviewer chrome uses `class="review-only"` so participant mode is clean by default.
+
 ### T2 — Lifecycle integration (`tests/integration/`)
 **Purpose:** exercise the real scripts + hooks end to end against the isolated temp install — the state machine as a PM drives it.
 **Pass:** scaffolding, gating, approval, staleness, and HTML rendering behave per spec and keep meta↔frontmatter in sync.
@@ -223,6 +232,13 @@ one-line description. The matching docstring in code carries the same intent for
 **Purpose:** the computed approval metrics. **Pass:** metrics populate from real data and stay null where no generation snapshot exists.
 - time-to-approve recorded when generated; edit distance 0 unchanged / >0 edited / null without snapshot; `--semantic-distance` passthrough + out-of-range rejection; model id + config-derived tier captured; regeneration count surfaced.
 - artifact-contract warnings carry stable severity/code/message entries, contract version, and artifact origin.
+
+### T6b — Artifact contract warnings at PM entrypoints (`tests/integration/test_artifact_contract_warnings.py`)
+**Purpose:** warning-only contract validation at every PM entrypoint — approval, import, status display, and the CLI validator. **Pass:** warnings surface and are recorded in telemetry; the workflow continues rather than blocking. **Fail:** warnings are silenced, block the workflow, or produce incorrect telemetry.
+- `test_approval_warns_records_and_continues` — approving a Stage 03 artifact without `UJ-###` journeys prints findings, logs `artifact_validation_warning` (with `stage_approved` still recorded), exits 0.
+- `test_import_approval_warns_and_continues` — `pm_context_import commit --kind imported` on an incomplete Stage 03 artifact warns, continues, records `origin: imported` in the warning payload.
+- `test_status_surfaces_contract_warning_count` — `pm_status` shows a "contract warnings:" line for any Stage 03–05 artifact that carries `artifact_contract_version` and has findings.
+- `test_validator_cli_strict_fails_and_warn_mode_succeeds` — `pm_validate_artifact.py 03 --mode strict` exits non-zero with `USER_JOURNEY_MISSING`; `--mode warn` exits 0 and prints findings.
 
 ### T7 — Negative/resilience + idempotency (`test_failure_recovery.py`, `test_idempotency.py`)
 **Purpose:** broken/hostile state fails safely; safe ops repeat cleanly.

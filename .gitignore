@@ -36,6 +36,7 @@ dist/
 .eggs/
 *.egg-info/
 pip-wheel-metadata/
+pm-os-offline.zip
 
 # Local temp and log files
 *.log

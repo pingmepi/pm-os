@@ -10,7 +10,7 @@
 - **Reorganized `docs/` into categorized folders** with lowercase filenames: `guides/` (`sop.md`, `testing.md`), `reference/` (`pm-os-spec.md`), `roadmap/` (`current-state-review.md`, `backlog.md`), `plans/` (now includes `context-intake-improvements.md` and `telemetry-fix-plan.md`), and `archive/`. Added a `docs/README.md` index. All inbound references (test docstrings, `CLAUDE.md`, `README.md`, `ARCHITECTURE.md`, the `test_documentation_drift` spec path, and intra-doc relative links) were updated in one pass.
 
 ### Fixed
-- Documentation alignment sweep: corrected the `deep_reasoning_stages` value (the 7-stage set) in README / CLAUDE.md / AGENTS.md / ARCHITECTURE.md; bumped stale `v0.5.3` "current version" references; annotated the spec's aspirational sections (`edit_distance.py`/`embeddings.py`/`post-tool-use.py`/`session-end.py`/`session_end` event) and added `origin`/`generation_notes` to the spec frontmatter schema; fixed a dead `AGENTS.md` link and a duplicate row in `docs/TESTING.md`.
+- Documentation alignment sweep: corrected the `deep_reasoning_stages` value (the 7-stage set) in README / CLAUDE.md / AGENTS.md / ARCHITECTURE.md; bumped stale `v0.5.3` "current version" references; annotated the spec's aspirational sections (`edit_distance.py`/`embeddings.py`/`post-tool-use.py`/`session-end.py`/`session_end` event) and added `origin`/`generation_notes` to the spec frontmatter schema; fixed a dead `AGENTS.md` link and a duplicate row in `docs/guides/testing.md`.
 - Removed the unused `gitpython` dependency (git operations shell out via `subprocess`).
 
 ### Added
@@ -22,7 +22,7 @@
 ## 0.5.5 — 2026-06-18
 
 ### Added
-- **Automated test suite.** A pytest suite under `tests/` (phases T0–T9) covering the `lib/` helpers, the full project lifecycle, the gate/approval/staleness machine, skill & documentation contracts, install/verify/update parity, context import, telemetry metrics, failure recovery, and local-first boundaries — fully isolated from the real `~/.pm-os` via temp-install fixtures. Config in `pyproject.toml`, central reference in `docs/TESTING.md`, CI in `.github/workflows/tests.yml`.
+- **Automated test suite.** A pytest suite under `tests/` (phases T0–T9) covering the `lib/` helpers, the full project lifecycle, the gate/approval/staleness machine, skill & documentation contracts, install/verify/update parity, context import, telemetry metrics, failure recovery, and local-first boundaries — fully isolated from the real `~/.pm-os` via temp-install fixtures. Config in `pyproject.toml`, central reference in `docs/guides/testing.md`, CI in `.github/workflows/tests.yml`.
 
 ## 0.5.4 — 2026-06-18
 

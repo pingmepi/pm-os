@@ -1,6 +1,6 @@
 # Enhancement Mode + Context Intake Improvements — Final Work Scope
 
-> Status: approved for implementation.
+> Status: ✅ **Implemented** (shipped in v0.5.8 / v0.5.9). All changes in this plan landed: four new wiki sections (non-goals, success indicators, technical constraints, stakeholder authority), confidence tiers, stage-affinity hints, understanding doc trust table / assumption register / conflict-resolution block, PM annotation convention, 5-rule wiki consumption block across all 9 stage skills, and the `00c` codebase-understanding stage.
 
 ## What this builds
 

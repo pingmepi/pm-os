@@ -86,7 +86,7 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 - **Reviewer** reads the draft and gives the go/no-go. Approval should follow review, not precede it.
 - One person can hold multiple hats on a small project — but the *roles* should still be conscious choices, not skipped.
 
-**Deep-reasoning stages (03, 04, 06, 08, 09 — plus the context-build docs 00w/00u from `/pm-context-import`)** carry the most downstream weight (requirements, design, quality bar, technical commitments, strategy, and synthesized context). They recommend your strongest available reasoning model. This is advisory, not a hard gate: if the runtime can tell it is on a lightweight model, switch before generating; if the model is unknown, proceed with a note and review carefully.
+**Deep-reasoning stages (03, 04, 06, 08, 09 — plus the context-build docs 00w/00u and, for enhancement projects, the codebase-understanding doc 00c, all from `/pm-context-import`)** carry the most downstream weight (requirements, design, quality bar, technical commitments, strategy, and synthesized context). They recommend your strongest available reasoning model. This is advisory, not a hard gate: if the runtime can tell it is on a lightweight model, switch before generating; if the model is unknown, proceed with a note and review carefully.
 
 ---
 
@@ -145,15 +145,18 @@ Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you a
 2. **Approval is explicit and follows review.** A draft is not a decision until someone runs `pm-approve` for that stage. Don't approve to "unblock" yourself.
 3. **Surface conflicts; don't silently override.** If a new note contradicts an approved upstream artifact, raise it and decide deliberately — re-open the upstream stage if the decision actually changed.
 4. **Edit drafts freely before approval.** The Markdown is yours to refine. History is snapshotted under `.history/` before each regeneration, so you can regenerate without fear.
+5. **Validate artifact quality before approving stages 03–05.** Run `/pm-validate-artifact 03` (or 04, 05) to check section completeness, user-journey coverage, and interaction-model consistency. Required-section errors block approval; warnings are advisory and recorded as `artifact_validation_warning` telemetry on approval — you can proceed, but review them with the same attention as a reviewer comment.
 
 ### 4.4 Check state and capture feedback any time
 ```text
 Claude: /pm-status               Codex: $pm-status
 Claude: /pm-feedback 03          Codex: $pm-feedback 03
+Claude: /pm-sync                 Codex: $pm-sync
 ```
 - `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
 - Run `pm-status` before resuming work to see which stages are drafted vs. approved.
 - Capture feedback while it's fresh — it's recorded locally in `feedback.jsonl` and feeds future improvement.
+- `pm-sync` pushes all projects' telemetry and feedback to the team repo (runs automatically on each approval; run it manually to backfill a machine that was offline, or pass `--verify` to validate every project's hash chain).
 
 ### 4.5 Share approved artifacts
 ```text
@@ -173,6 +176,8 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 - **Onboarding a new PM to a domain.** The staged pipeline is a teaching scaffold: it makes the *shape* of a complete product definition visible.
 - **Pre-build technical alignment.** The optional TRD (08) translates the approved product definition into technical requirements without re-litigating product decisions.
 - **Post-MVP product planning.** The optional Roadmap (09) scopes the path from MVP to a deliverable product and later horizons, using the TRD as technical context when it exists.
+- **Enhancement/brownfield work.** When you're extending an existing product, `--mode enhancement --codebase <url-or-path>` grounds the entire pipeline in what already exists — the codebase-understanding doc (`00c`) is produced before stage 01 and cited by every downstream stage, so requirements don't re-invent what the system already does.
+- **Research-driven prototype validation.** Stage 05 produces an interactive HTML prototype (`pm-prototype-html`) tuned to the approved information architecture and interaction model. Participant mode is clean by default; reviewer controls and research questions appear via `?review=1`, so the same file serves both user research and PM review without contaminating participant sessions.
 
 ---
 
@@ -190,6 +195,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | **Maintaining a parallel PRD elsewhere** | Two sources of truth diverge; nobody knows which is current. | Pick one home. If PM-OS owns it, link to it from your tracker rather than copying; once import exists, ingest the external artifact instead. |
 | **Editing `.meta.yaml` by hand** | Corrupts the state machine (status, hashes, approvals). | Let the helper commands manage state; edit Markdown bodies, not the meta file. |
 | **Ignoring `pm-status` before resuming** | You regenerate or approve the wrong stage. | Run `pm-status` first to ground yourself in the current state. |
+| **Dismissing artifact contract warnings on stages 03–05** | Warnings flag user-journey gaps or interaction-model conflicts that propagate into the QA plan and prototype brief. | Run `/pm-validate-artifact` before approval and review every warning with the same rigor as a reviewer comment — `artifact_validation_warning` events are recorded in telemetry for later audit. |
 
 ---
 
@@ -211,13 +217,16 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 | New enhancement | `/pm-new <slug> --mode enhancement --codebase <url-or-path>` | `$pm-new <slug> --mode enhancement --codebase <url-or-path>` |
 | Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
+| Validate artifact (03–05) | `/pm-validate-artifact 0N` | `$pm-validate-artifact 0N` |
 | Approve stage *N* | `/pm-approve 0N` | `$pm-approve 0N` |
 | Project status | `/pm-status` | `$pm-status` |
 | Capture feedback | `/pm-feedback 0N` | `$pm-feedback 0N` |
+| Sync telemetry/feedback | `/pm-sync` | `$pm-sync` |
+| Regenerate HTML prototype | `/pm-prototype-html` | `$pm-prototype-html` |
 | Share approved set | `/pm-share` | `$pm-share` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
-**Pipeline order:** 01 brief → 02 scope → 03 PRD* → 04 design spec* → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap*, optional; uses approved TRD when available).
-`*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully.
+**Pipeline order:** (00 business statement) → [00w context wiki* + 00u understanding doc* + 00c codebase understanding*, if using `/pm-context-import`] → 01 brief → 02 scope → 03 PRD* → 04 design spec* → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap*, optional; uses approved TRD when available).
+`*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully. Validate stages 03–05 with `/pm-validate-artifact` before approving.
 
 **The one rule to remember:** *generate, review, approve — in order, one stage at a time, on sanitized inputs.*
