@@ -50,9 +50,46 @@ def _pm():
 
 
 # Document-like extensions worth ingesting when a whole folder is handed in.
-# Anything else (images, archives, binaries, junk) is reported as skipped rather
-# than silently snapshotted — honoring the skill's "nothing is silent" rule.
-DOC_EXTS = {".md", ".markdown", ".txt", ".rst", ".pdf", ".docx", ".doc", ".rtf", ".csv"}
+# Anything else (archives, binaries, junk) is reported as skipped rather than
+# silently snapshotted — honoring the skill's "nothing is silent" rule.
+# v4 (adaptive context pack) adds images, PPTX, and XLSX: these are registered
+# and modality-tagged here, but their *content* extraction is the runtime's job
+# (multimodal reading or the pdf/pptx/xlsx skills) and may degrade explicitly.
+TEXT_EXTS = {".md", ".markdown", ".txt", ".rst"}
+PDF_EXTS = {".pdf"}
+DOC_OFFICE_EXTS = {".docx", ".doc", ".rtf"}
+SLIDE_EXTS = {".pptx", ".ppt"}
+SHEET_EXTS = {".xlsx", ".xls", ".csv", ".tsv"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg"}
+DOC_EXTS = TEXT_EXTS | PDF_EXTS | DOC_OFFICE_EXTS | SLIDE_EXTS | SHEET_EXTS | IMAGE_EXTS
+
+# Inferred modality from extension — recorded deterministically at registration so
+# the SKILL's synthesis knows what kind of source it is reading before it opens it.
+# (Authority/role/date/extraction-quality are judgment fields the SKILL fills in.)
+_MODALITY_BY_EXT = {}
+for _e in TEXT_EXTS:
+    _MODALITY_BY_EXT[_e] = "text"
+for _e in PDF_EXTS:
+    _MODALITY_BY_EXT[_e] = "pdf"
+for _e in DOC_OFFICE_EXTS:
+    _MODALITY_BY_EXT[_e] = "document"
+for _e in SLIDE_EXTS:
+    _MODALITY_BY_EXT[_e] = "slides"
+for _e in SHEET_EXTS:
+    _MODALITY_BY_EXT[_e] = "spreadsheet"
+for _e in IMAGE_EXTS:
+    _MODALITY_BY_EXT[_e] = "image"
+
+
+def _modality_for(path: Path) -> str:
+    return _MODALITY_BY_EXT.get(path.suffix.lower(), "unknown")
+
+
+# Modalities whose text extraction is lossy by default (no selectable text, or a
+# layout that scrambles on extraction). Registered, but the SKILL must not mark a
+# claim sourced from one High confidence without confirming a clean extraction.
+LOSSY_BY_DEFAULT = {"image", "slides", "spreadsheet"}
+
 # Never descend into these — engine/state dirs and OS cruft, not PM context.
 IGNORE_DIRS = {".history", ".git", "__pycache__", ".meta", "node_modules"}
 IGNORE_NAMES = {".DS_Store", "Thumbs.db", ".meta.yaml", ".sources.yaml"}
@@ -69,6 +106,7 @@ def _register_one(root, src, src_type, ts, sources):
         snapshot = history / f"source-{stamp}-{src_id}-{src.name}"
     snapshot.write_bytes(src.read_bytes())
 
+    modality = _modality_for(src)
     sources.append({
         "id": src_id,
         "type": src_type,
@@ -76,6 +114,18 @@ def _register_one(root, src, src_type, ts, sources):
         "captured_at": ts,
         "snapshot": str(snapshot.relative_to(root)),
         "summary_hash": None,
+        # v4 adaptive-context-pack inferred metadata. Modality is deterministic
+        # (from extension); the rest are judgment fields the SKILL fills in during
+        # synthesis and the PM confirms only when uncertain or consequential. They
+        # are seeded here so the shape is always present and never silently absent.
+        "modality": modality,
+        "inferred_role": None,        # brief | scope | prd | design | market-research | reviews | competitor | meeting-notes | ...
+        "author": None,               # person/org credited as the source's author
+        "document_date": None,        # the date the source itself carries, if any
+        "authority": None,            # authoritative | secondary | hearsay
+        "extraction_quality": ("lossy" if modality in LOSSY_BY_DEFAULT else None),
+        "uncertainty": ([f"{modality} content extracts lossily — confirm before High confidence"]
+                        if modality in LOSSY_BY_DEFAULT else []),
     })
     try:
         log("context_ingested", root, None, {
@@ -83,6 +133,7 @@ def _register_one(root, src, src_type, ts, sources):
             "source_type": src_type,
             "source_filename": src.name,
             "snapshot": str(snapshot.relative_to(root)),
+            "modality": modality,
         })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
@@ -324,6 +375,201 @@ def cmd_commit(args):
           f"(origin={args.kind}). Hash: {content_hash[:12]}")
 
 
+# --- Adaptive context pack (00-context/) mechanical operations -----------------
+#
+# The SKILL writes the wiki index, evidence ledger, source inventory, and views;
+# these commands only move bytes, compute hashes, and validate manifest safety.
+# Member order in the manifest is FIXED and canonical (it drives composite
+# hashing): wiki index, then evidence ledger, then source inventory, then views
+# in sorted filename order.
+
+PACK_DIR = "00-context"
+PACK_MANIFEST_REL = "00-context/manifest.yaml"
+WIKI_INDEX_REL = "00-context-wiki.md"
+EVIDENCE_REL = "00-context/evidence.yaml"
+SOURCES_REL = "00-context/sources.md"
+VIEWS_DIR_REL = "00-context/views"
+
+
+def _pack_member_kind(relpath: str) -> str:
+    return "yaml" if relpath.endswith((".yaml", ".yml")) else "markdown"
+
+
+def _discover_pack_members(root: Path) -> list:
+    """Enumerate context-pack members in FIXED canonical order, with computed hashes.
+
+    Order: wiki index → evidence ledger → source inventory → views (sorted). Only
+    files that exist are included; the wiki index is required. Never includes the
+    manifest itself (would be circular).
+    """
+    from hashing import composite_member_hash
+
+    ordered = []
+    if (root / WIKI_INDEX_REL).exists():
+        ordered.append(WIKI_INDEX_REL)
+    if (root / EVIDENCE_REL).exists():
+        ordered.append(EVIDENCE_REL)
+    if (root / SOURCES_REL).exists():
+        ordered.append(SOURCES_REL)
+    views_dir = root / VIEWS_DIR_REL
+    if views_dir.is_dir():
+        for v in sorted(views_dir.glob("*.md")):
+            ordered.append(str(v.relative_to(root)))
+
+    members = []
+    for rel in ordered:
+        kind = _pack_member_kind(rel)
+        m = {"path": rel, "kind": kind}
+        members.append(m)
+        # compute hash for the recorded table (validated separately from the
+        # composite input, which excludes this table to avoid circularity).
+        m["hash"] = composite_member_hash(root, m)
+    return members
+
+
+def cmd_pack_manifest(args):
+    """(Re)write 00-context/manifest.yaml from the files the SKILL populated.
+
+    Deterministic: fixed member order, computed per-member hashes, safety-validated
+    before write. Idempotent — re-running on an unchanged pack produces an
+    identical manifest.
+    """
+    root = resolve_project()
+    pack_dir = root / PACK_DIR
+    if not pack_dir.is_dir():
+        print(f"Error: {PACK_DIR}/ does not exist. The skill must write the pack "
+              f"files (wiki index + 00-context/...) before building the manifest.")
+        sys.exit(1)
+    if not (root / WIKI_INDEX_REL).exists():
+        print(f"Error: {WIKI_INDEX_REL} is required as the pack's index member.")
+        sys.exit(1)
+
+    members = _discover_pack_members(root)
+    manifest = {
+        "schema_version": 1,
+        "stage": "00w",
+        "members": members,
+        "stage_affinities": args_affinities(args),
+    }
+    manifest_path = root / PACK_MANIFEST_REL
+    manifest_path.write_text(
+        yaml.dump(manifest, default_flow_style=False, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    # Validate what we just wrote (catches a member the skill left unsafe).
+    from hashing import load_manifest_members, CompositeHashError
+    try:
+        load_manifest_members(root)
+    except CompositeHashError as e:
+        print(f"Error: manifest failed safety validation after write: {e}")
+        sys.exit(1)
+
+    # Record context_pack metadata in meta so readers know the pack exists.
+    meta = load_meta(root)
+    meta["context_pack"] = {
+        "manifest": PACK_MANIFEST_REL,
+        "member_count": len(members),
+    }
+    save_meta(meta, root)
+
+    print(f"Wrote {PACK_MANIFEST_REL} with {len(members)} member(s):")
+    for m in members:
+        print(f"  [{m['kind']}] {m['path']}  {m['hash'][:12]}")
+
+
+def args_affinities(args):
+    """Parse optional --affinity 'view.md=01,02' repeatable flags into a map."""
+    out = {}
+    for spec in (args.affinity or []):
+        if "=" not in spec:
+            continue
+        path, stages = spec.split("=", 1)
+        out[path.strip()] = [s.strip().zfill(2) for s in stages.split(",") if s.strip()]
+    return out
+
+
+def cmd_pack_validate(args):
+    """Validate context-pack manifest safety and report stale recorded hashes."""
+    root = resolve_project()
+    from hashing import load_manifest_members, validate_manifest_hashes, CompositeHashError
+    try:
+        members = load_manifest_members(root)
+    except CompositeHashError as e:
+        print(f"⛔ Manifest invalid: {e}")
+        sys.exit(1)
+    stale = validate_manifest_hashes(root)
+    print(f"Manifest OK — {len(members)} member(s), order fixed.")
+    if stale:
+        print("⚠️  Recorded hashes are stale for (pack edited since manifest build):")
+        for s in stale:
+            print(f"  {s}")
+        print("Re-run `pm_context_import.py pack-manifest` to refresh the manifest, "
+              "then re-approve 00w.")
+        sys.exit(2)
+    print("All recorded member hashes are current.")
+    sys.exit(0)
+
+
+def cmd_upgrade_pack(args):
+    """Snapshot an existing flat single-file wiki and scaffold the modular pack dir.
+
+    Preserves the old 00-context-wiki.md (and any PM annotations) in .history/,
+    creates 00-context/ + views/, and flips 00w back to draft so the SKILL can
+    rebuild the modular pack from the registered sources. The rebuilt 00w (and
+    00u) remain drafts pending explicit PM approval — this never re-approves.
+    """
+    root = resolve_project()
+    meta = load_meta(root)
+    try:
+        w = get_stage(meta, "00w")
+    except KeyError:
+        print("Error: this project has no 00w (context wiki) to upgrade. Run "
+              "/pm-context-import first.")
+        sys.exit(1)
+
+    wiki = root / WIKI_INDEX_REL
+    if not wiki.exists():
+        print(f"Error: {WIKI_INDEX_REL} not found — nothing to upgrade.")
+        sys.exit(1)
+    if (root / PACK_MANIFEST_REL).exists():
+        print("This project already has a modular context pack "
+              f"({PACK_MANIFEST_REL}). Nothing to upgrade.")
+        sys.exit(0)
+
+    # Snapshot the current flat wiki (content + PM annotations) into history.
+    hist = root / ".history"
+    hist.mkdir(exist_ok=True)
+    stamp = _now().replace(":", "").replace("-", "")[:15]
+    snap = hist / f"00-context-wiki.{stamp}.pre-upgrade.md"
+    snap.write_bytes(wiki.read_bytes())
+
+    # Scaffold the modular pack directory.
+    (root / PACK_DIR).mkdir(exist_ok=True)
+    (root / VIEWS_DIR_REL).mkdir(parents=True, exist_ok=True)
+
+    # Flip 00w back to draft so the rebuilt pack must be re-approved.
+    w["status"] = "draft"
+    w["content_hash"] = None
+    save_meta(meta, root)
+    try:
+        update_status(str(wiki), "draft")
+    except Exception:
+        pass
+
+    try:
+        log("context_pack_upgrade_started", root, "00w", {
+            "preserved_snapshot": str(snap.relative_to(root)),
+        })
+    except Exception as e:
+        print(f"Warning: telemetry logging failed: {e}")
+
+    print(f"Upgrade scaffolded. Old wiki preserved at {snap.relative_to(root)}.")
+    print(f"Created {PACK_DIR}/ and {VIEWS_DIR_REL}/.")
+    print("00w is now a draft. The skill should rebuild the modular pack from the")
+    print("registered sources, run `pack-manifest`, then the PM re-approves 00w + 00u.")
+
+
 def cmd_prepare_codebase(args):
     root = resolve_project()
     raw = args.path
@@ -425,6 +671,20 @@ def main():
                              help="Clone or validate a codebase and record its git SHA in meta.")
     p_prep.add_argument("path", help="GitHub URL (https://... or git@...) or local directory path.")
     p_prep.set_defaults(func=cmd_prepare_codebase)
+
+    p_man = sub.add_parser("pack-manifest",
+                           help="(Re)build 00-context/manifest.yaml from the pack files the skill wrote.")
+    p_man.add_argument("--affinity", action="append", default=[],
+                       help="Repeatable view affinity, e.g. --affinity 'views/voc.md=02,03'.")
+    p_man.set_defaults(func=cmd_pack_manifest)
+
+    p_pv = sub.add_parser("pack-validate",
+                          help="Validate context-pack manifest safety + report stale hashes.")
+    p_pv.set_defaults(func=cmd_pack_validate)
+
+    p_up = sub.add_parser("upgrade-pack",
+                          help="Snapshot an existing flat wiki and scaffold the modular pack (opt-in).")
+    p_up.set_defaults(func=cmd_upgrade_pack)
 
     args = parser.parse_args()
     args.func(args)
