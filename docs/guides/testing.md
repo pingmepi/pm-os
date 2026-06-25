@@ -219,7 +219,7 @@ one-line description. The matching docstring in code carries the same intent for
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)
 **Purpose:** the install lifecycle + runtime parity. **Pass:** install writes config & seeds context; verify passes on a healthy install and fails on tampering; update validates args and syncs per runtime.
 - install: writes config + model policy; missing pm_user fails non-interactively; seeds the overlay.
-- verify: passes on a complete install; fails on a missing hook / missing config.
+- verify: passes on a complete install; fails on a missing hook, missing config key, missing `projects_dir` on disk, `git` not on PATH, missing templates, or a lib module that won't import.
 - update: requires `--runtime`; rejects invalid runtime; **Claude gets skills+hooks, Codex skills only.**
 
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
