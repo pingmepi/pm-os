@@ -1,8 +1,6 @@
 # PM-OS User Guide
 
-*How to install, configure, and use PM-OS — from first setup to first approved artifact.*
-
-> **Who this is for:** PMs who attended the demo and received the PM-OS zip file, or anyone setting up PM-OS for the first time. This guide walks you through every step independently.
+This guide takes you from zero to a fully running PM-OS setup. Follow it top-to-bottom on your first run, then use it as a reference once you know the system.
 
 ---
 
@@ -14,452 +12,398 @@
 4. [Verify Your Install](#4-verify-your-install)
 5. [Recommended Setup](#5-recommended-setup)
 6. [Your First Project — End-to-End Walkthrough](#6-your-first-project--end-to-end-walkthrough)
-7. [The Stage Pipeline (Reference)](#7-the-stage-pipeline-reference)
+7. [The Stage Pipeline](#7-the-stage-pipeline)
 8. [Approval and the Gate Model](#8-approval-and-the-gate-model)
 9. [Context Customization](#9-context-customization)
 10. [Importing Existing Material](#10-importing-existing-material)
-11. [All Commands Quick Reference](#11-all-commands-quick-reference)
+11. [All Commands — Quick Reference](#11-all-commands--quick-reference)
 12. [Failure Modes and Recovery](#12-failure-modes-and-recovery)
 13. [Keeping PM-OS Up to Date](#13-keeping-pm-os-up-to-date)
-14. [Data and Privacy Notes](#14-data-and-privacy-notes)
+14. [Data and Privacy](#14-data-and-privacy)
 
 ---
 
 ## 1. What is PM-OS?
 
-PM-OS is a **PM-led product development operating layer** built as an agent skill suite. It is not a web app and has no backend service — it runs entirely on your machine as a set of commands you invoke inside Claude Code (or Codex).
+PM-OS is a **PM-led product development operating layer** — an agent skill suite that guides a product idea through a structured, gated pipeline of stages, from business statement through to metrics plan, TRD, and roadmap. It is not an app, not a backend service, and not a SaaS tool. It runs entirely on your machine, inside your existing AI coding agent (Claude Code or OpenAI Codex).
 
-A PM drives a product idea through a gated pipeline of stages. Each stage produces a Markdown artifact that you read, edit, and explicitly approve before the next stage can run. The agent (Claude) drafts each artifact; you make every decision.
+**What it does:** At each stage, the agent drafts a Markdown artifact (brief, PRD, design spec, etc.) based on all previously approved upstream artifacts. You review it, edit it as needed, and explicitly approve it. Only after approval does the gate allow the next stage to run.
+
+**What it does not do:** It never progresses autonomously. Nothing moves forward without your explicit `/pm-approve` (Claude) or `$pm-approve` (Codex). The agent drafts and validates; you decide.
 
 **The core loop:**
 
 ```
-  /pm-new  →  Stage 01 (Brief)  →  /pm-approve 01
-           →  Stage 02 (Scope)  →  /pm-approve 02
-           →  Stage 03 (PRD)    →  /pm-approve 03
-           →  ...all stages...
-           →  /pm-share
+Business Statement
+       ↓ approve
+   01 Brief → 02 Scope → 03 PRD → 04 Design Spec → 05 Prototype Brief
+                                                           ↓
+                              07 Metrics Plan ← 06 QA Plan
+                                                           ↓
+                              (optional) 08 TRD → 09 Roadmap
 ```
 
-**What PM-OS is NOT:**
-- Not a SaaS tool — no account, no login, no data sent to a server
-- Not autonomous — nothing progresses without your explicit `/pm-approve`
-- Not a template filler — the agent reasons from your approved upstream artifacts
+Each arrow is gated. You must approve each stage before the next one can generate.
 
-**Decision authority model:** The agent drafts and the gate enforces sequencing. You review, edit, and approve. Nothing moves forward unless you say so.
+**Decision authority:**
+
+| Who | Does what |
+|-----|-----------|
+| You (PM) | Decides scope, trade-offs, approvals — controls every gate |
+| PM-OS agent | Drafts artifacts, validates gates, detects drift |
+| Developers / QA | Execute against the approved artifacts |
 
 ---
 
 ## 2. Prerequisites
 
-Check each of the following before running the installer.
+| Requirement | Notes |
+|-------------|-------|
+| **Claude Code** (for Claude runtime) | Install from [claude.ai/code](https://claude.ai/code) |
+| **OpenAI Codex** (for Codex runtime) | Install via your org's Codex setup |
+| **Python 3.11 or higher** | Check with `python3 --version` |
+| **Git** | Required for the install and update path |
+| **Internet access** | Required for initial install from GitHub; see [offline path](#b-offline--from-zip) if blocked |
 
-### Claude Code
-
-Claude Code is the agent runtime that runs PM-OS skills. Install it from [claude.ai/code](https://claude.ai/code) if you don't have it already.
-
-To check: open a terminal and run:
-```bash
-claude --version
-```
-If you see a version number, you're good.
-
-### Python 3.11 or higher
-
-PM-OS gate logic runs in Python. You need version 3.11 or later.
-
-To check:
-```bash
-python3 --version
-```
-You should see `Python 3.11.x` or higher.
-
-**If Python is missing or too old:**
-- **Mac:** `brew install python@3.13` (requires [Homebrew](https://brew.sh))
-- **Ubuntu/WSL:** `sudo apt update && sudo apt install python3.13`
-- **Windows (native):** Download from [python.org](https://www.python.org/downloads/), check "Add to PATH"
-
-### Git
-
-Used by PM-OS to push telemetry and handle updates.
-
-To check:
-```bash
-git --version
-```
-If missing:
-- **Mac:** `brew install git`
-- **Ubuntu/WSL:** `sudo apt install git`
-- **Windows (native):** [git-scm.com](https://git-scm.com)
-
-### Internet access (for standard install)
-
-The standard install clones from GitHub and pip-installs `pyyaml` and `jinja2`. If you're in a network-restricted environment or installing from the zip, see the **Offline install** path in §3.
+You only need the runtime(s) you plan to use. `--runtime all` installs for both simultaneously.
 
 ---
 
 ## 3. Installation
 
-### A. Standard install (from GitHub)
+The same `install.sh` script handles all three paths. Pick the one that fits your environment.
 
-This is the recommended path if you have GitHub access.
+### A. Standard — from GitHub
 
 ```bash
-git clone https://github.com/pingmepi/pm-os.git
-cd pm-os
-./install.sh --runtime claude \
-  --pm-user <your-id> \
-  --feedback-repo <team-repo-url>
+# Claude only
+./install.sh --runtime claude --pm-user <your-id>
+
+# Codex only
+./install.sh --runtime codex --pm-user <your-id>
+
+# Both runtimes at once
+./install.sh --runtime all --pm-user <your-id>
 ```
 
-Replace the values:
-- `<your-id>` — your unique PM identifier. Use `firstname-lastname` or `fLastname`, all lowercase, no spaces. Example: `jane-smith`. **This is permanent** — it appears in team telemetry, so use the same ID forever.
-- `<team-repo-url>` — the shared feedback repo your team lead gives you. Example: `https://github.com/yourorg/pm-os-feedback.git`
+`<your-id>` is a short unique identifier for you (e.g. `kmandalam`). It labels your telemetry and is used in project paths.
 
-Optional flags:
-```bash
-  --projects-dir ~/work/pm-projects   # override default ~/pm-projects
-  --reconfigure                        # re-run config prompts if already installed
-```
+### B. Offline / from zip
 
-A successful install prints:
-```
-✓ PM-OS installed to ~/.pm-os
-✓ Skills synced to ~/.claude/skills (N skills)
-✓ Hooks installed to ~/.claude/hooks
-✓ Config written to ~/.pm-os/config.yaml
-✓ pm_os_verify passed all checks.
-PM-OS v0.x.x is ready.
-```
-
----
-
-### B. Offline install (from the demo zip)
-
-If you received `pm-os.zip` and don't have direct GitHub access:
+If you received PM-OS as a zip file (e.g. from a demo), use the `--source` flag to install from the extracted directory instead of cloning from GitHub:
 
 ```bash
 unzip pm-os.zip
 cd pm-os
-./install.sh --runtime claude --source . \
-  --pm-user <your-id> \
-  --feedback-repo <team-repo-url>
+./install.sh --runtime all --source . --pm-user <your-id>
 ```
 
-The `--source .` flag tells the installer to use the local directory instead of cloning from GitHub.
+This path requires no network access after unzipping. Note: there is no auto-update path from a zip install — see [Section 13](#13-keeping-pm-os-up-to-date) for how to get updates later.
 
-> For more complex scenarios (bundled Python wheels, GitLab mirrors, IT/MDM zero-touch deploy), see [`docs/guides/offline-install.md`](offline-install.md).
+### C. Flags reference
 
----
+| Flag | What it does | Default |
+|------|-------------|---------|
+| `--runtime claude\|codex\|all` | Which runtime(s) to install for | *(required)* |
+| `--pm-user <id>` | Your PM identifier | *(prompted if omitted)* |
+| `--projects-dir <path>` | Where your projects live | `~/pm-projects` |
+| `--source <dir>` | Install from a local directory instead of GitHub | *(not set — uses GitHub)* |
+| `--reconfigure` | Re-prompt all config values even if already set | `false` |
 
-### C. Config flags explained
+### What the installer does
 
-| Flag | Required? | Description |
-|---|---|---|
-| `--runtime claude` | **Yes** | Route skills to `~/.claude/skills`. Use `codex` for Codex. |
-| `--pm-user <id>` | Recommended | Your PM identifier for telemetry attribution |
-| `--feedback-repo <url>` | Recommended | Team git repo where ratings and telemetry are pushed |
-| `--projects-dir <path>` | Optional | Where PM-OS creates project folders (default: `~/pm-projects`) |
-| `--source <dir>` | Optional | Local directory to install from instead of GitHub |
-| `--reconfigure` | Optional | Overwrite an existing config interactively |
+1. Checks Python 3.11+ and installs `pyyaml` and `jinja2` (the only runtime dependencies)
+2. Clones (or copies) PM-OS to `~/.pm-os` — the canonical install location
+3. Creates your projects directory (`~/pm-projects` by default)
+4. Syncs skills to `~/.claude/skills` (Claude) and/or `~/.agents/skills` (Codex)
+5. Writes `~/.pm-os/config.yaml` with your settings
+6. Runs a self-verification pass to confirm everything is working
 
 ---
 
 ## 4. Verify Your Install
 
-Run the verifier right after install — and any time something feels wrong:
+After installing, run the verifier to confirm everything is healthy:
 
+**From the terminal:**
 ```bash
 python3 ~/.pm-os/scripts/pm_os_verify.py
 ```
 
-Or from inside Claude Code:
+**From inside Claude Code:**
 ```
 /pm-os-verify
 ```
 
-**What it checks (10 checks total):**
-1. PM-OS install directory present
-2. VERSION file readable
-3. Lib modules importable (`project`, `hashing`, `config`, `telemetry`, etc.)
-4. Gate hooks present (`pre-stage.py`, `post-approve.py`)
-5. Config valid and all required keys present
-6. Skills installed for your runtime
-7. Gate self-test (blocks unapproved upstream, allows first stage)
-8. Telemetry self-test (append, hash-chain, push status)
-9. Artifact contract self-test (detects missing required sections)
-10. Context overlay manifest parseable
+**From Codex:**
+```
+$pm-os-verify
+```
+
+The verifier checks:
+
+- Config file present and readable (`~/.pm-os/config.yaml`)
+- Python dependencies installed (`pyyaml`, `jinja2`)
+- Projects directory exists and is writable
+- All expected skills are synced to the runtime's skill directory
+- Gate self-test: scaffolds a throw-away project, runs the pre-stage gate, verifies it blocks an unapproved upstream and allows the first stage
 
 **A passing run looks like:**
+
 ```
-PM-OS Verify
-============
-Runtime: claude
-
-  ✓ PM-OS install present (~/.pm-os)
-  ✓ VERSION readable (0.x.x)
-  ✓ Shared lib imports
-  ✓ Gate hooks present (~/.pm-os/hooks)
-  ✓ Config valid (~/.pm-os/config.yaml)
-  ✓ claude skills installed (12/12)
-  ✓ Gate self-test (blocks unapproved upstream, allows first stage)
-  ✓ Telemetry self-test (append + hash chain + push status)
-  ✓ Artifact contract self-test (detects missing PRD journeys)
-  ✓ Context overlay manifest
-
-PASS: PM-OS install is healthy.
+[verify] Config OK
+[verify] Python deps OK (pyyaml 6.0.1, jinja2 3.1.2)
+[verify] Projects dir OK: /Users/kmandalam/pm-projects
+[verify] Skills OK: 19/19 installed
+[verify] Gate self-test: PASSED
+[verify] All checks passed.
 ```
 
-**If a check fails**, the verifier prints the problem and a fix. Common fixes:
-
-| Failure | Fix |
-|---|---|
-| `Config file not found` | Re-run `./install.sh` with all required flags |
-| `claude skills installed (8/12)` | Run `python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude` |
-| `pyyaml not found` | Run `pip3 install pyyaml jinja2` |
-| `Gate self-test failed` | Confirm Python version is 3.11+ with `python3 --version` |
+**If a check fails:** the verifier prints exactly what failed and why. Common fixes are in [Section 12](#12-failure-modes-and-recovery). When in doubt, re-run the installer with `--reconfigure`.
 
 ---
 
 ## 5. Recommended Setup
 
-### Where projects live
+**Projects directory:** Keep all projects under `~/pm-projects/<slug>/`. The `resolve_project()` function in PM-OS walks up from your current directory to find the nearest `.meta.yaml`, so all PM-OS commands must be run from inside a project directory.
 
-By default, PM-OS creates projects in `~/pm-projects/`. Each project gets its own subdirectory:
-```
-~/pm-projects/
-  onboarding-redesign/
-    .meta.yaml
-    00-business-statement.md
-    01-brief.md
-    ...
-  crm-export/
-    ...
-```
+**Runtime command syntax:**
 
-You don't need to create the project directory — `/pm-new` does it for you.
+| Runtime | Command prefix | Example |
+|---------|---------------|---------|
+| Claude Code | `/pm-*` | `/pm-approve 03` |
+| Codex | `$pm-*` | `$pm-approve 03` |
 
-### Model recommendations for deep-reasoning stages
+All examples in this guide use the Claude `/pm-*` syntax. Substitute `$pm-*` for Codex.
 
-Some stages carry the most downstream weight and benefit significantly from the strongest available model. These are stages **03 (PRD)**, **04 (Design Spec)**, **06 (QA Plan)**, **08 (TRD)**, and **09 (Roadmap)**.
+**Model recommendations:**
 
-Before generating these stages, toggle Opus in Claude Code:
-```
-/fast
-```
-This switches to Opus for the current session. Toggle it off after if needed.
+PM-OS stages are divided into two tiers:
 
-### GenAI flag
+| Tier | Stages | Recommendation |
+|------|--------|---------------|
+| **Deep-reasoning** | 03 PRD, 04 Design Spec, 06 QA Plan, 08 TRD, 09 Roadmap, context wiki/understanding (00w, 00u) | Use the strongest available model — Claude Opus (`/fast` in Claude Code) or o1/o3 in Codex |
+| **Standard** | 01 Brief, 02 Scope, 05 Prototype Brief, 07 Metrics Plan | Default model is fine |
 
-When starting a project, declare whether the product uses AI/ML:
-- `--genai` — the product uses a language model, recommendation engine, or AI agent. GenAI-specific sections are added to relevant stages (AI data sourcing, model governance, GenAI failure modes).
-- `--no-genai` — standard product. No AI-specific sections.
+Skimping on model quality for deep-reasoning stages produces shallower artifacts. The gate does not enforce this, but the output quality difference is significant.
 
-### Always run PM-OS commands from inside the project directory
+**GenAI flag:** Set at project creation and cannot be changed later.
+- Use `--genai` if the product involves AI models, agents, LLMs, or model-driven behaviour
+- Use `--no-genai` for everything else
 
-PM-OS finds the active project by walking up from your current directory to the nearest `.meta.yaml`. If you run a command from the wrong directory, it will error or act on the wrong project.
-
-```bash
-cd ~/pm-projects/onboarding-redesign
-# now run /pm-approve, /pm-stage-*, /pm-status etc.
-```
+With `--genai`, stages emit additional sections covering model selection, evaluation, hallucination mitigation, data governance, and responsible AI — sections that are suppressed for non-GenAI products.
 
 ---
 
 ## 6. Your First Project — End-to-End Walkthrough
 
-Use a real idea from your current work, or follow the example below.
+This walkthrough uses a GenAI product example: an AI-powered assistant that helps site coordinators at clinical research organizations match eligible patients to open clinical trials, cutting manual screening time by 60%.
 
----
+### Step 1: Create the project
 
-### Step 1 — Create the project
-
-In Claude Code:
 ```
-/pm-new onboarding-redesign "We need to redesign the PM onboarding flow to cut time-to-first-value from 2 weeks to 3 days" --no-genai
+/pm-new trial-match "We need an AI assistant that helps site coordinators match eligible patients to open clinical trials, reducing manual screening time by 60%" --genai
 ```
 
-Breaking this down:
-- `onboarding-redesign` — the **slug**. Lowercase, hyphenated, short. Becomes the folder name. Can't be changed later.
-- `"We need to redesign..."` — the **business statement**. One or two sentences: problem + goal. No PII, no customer names.
-- `--no-genai` — this product doesn't use AI/ML.
+PM-OS scaffolds the project and prints:
 
-**Expected output:**
 ```
-[pm-new] Scaffolded project: onboarding-redesign
-[pm-new] Created: ~/pm-projects/onboarding-redesign/
-[pm-new]   .meta.yaml
-[pm-new]   00-business-statement.md
-[pm-new] Stage 00 status: draft
-[pm-new] Next: review 00-business-statement.md, then run /pm-approve 00
+[pm-new] Scaffolded: /Users/kmandalam/pm-projects/trial-match
+  .meta.yaml
+  00-business-statement.md
 ```
 
----
+Move into the project directory — all subsequent commands run from here:
 
-### Step 2 — Review and approve the business statement
+```bash
+cd ~/pm-projects/trial-match
+```
 
-Open `~/pm-projects/onboarding-redesign/00-business-statement.md` in any editor or in Claude Code. Read it, edit the wording if needed, then:
+### Step 2: Review and approve the business statement
+
+Open `00-business-statement.md`. PM-OS has pre-populated it from your statement. Edit it to your satisfaction — add context, sharpen the problem, note constraints. When ready:
 
 ```
 /pm-approve 00
 ```
 
-**Expected output:**
+Output:
+
 ```
 [approve] Stage 00 (business-statement) approved.
-[approve] Content hash recorded.
-[approve] Telemetry: stage_approved logged.
-[approve] Ready to generate stage 01.
+  Content hash: a3f9c2...
+  Recorded in .meta.yaml and frontmatter.
 ```
 
-> **The rule:** approve only when you and your named reviewer are satisfied. Approving to unblock yourself defeats the gate.
-
----
-
-### Step 3 — Generate the Product Brief
+### Step 3: Generate the Product Brief
 
 ```
 /pm-stage-01-brief
 ```
 
-Claude reads your approved business statement and produces `01-brief.md`. Takes 20–60 seconds. Read the draft, edit freely, then:
+The agent reads your approved business statement, applies any context overlay (see [Section 9](#9-context-customization)), and generates `01-brief.md`. Read the output. Edit anything that doesn't reflect your intent. Then approve:
 
 ```
 /pm-approve 01
 ```
 
----
-
-### Step 4 — Generate the Scope
+### Step 4: Generate the Scope
 
 ```
 /pm-stage-02-scope
 ```
 
-Produces `02-scope.md`: what's in scope for MVP, explicit out-of-scope items, constraints, and assumptions. Review, edit, approve:
+Reads: approved business statement + brief. Produces `02-scope.md` covering MVP boundary, in-scope items, explicit exclusions, constraints, and assumptions.
+
+Review, edit, approve:
 
 ```
 /pm-approve 02
 ```
 
----
+### Step 5: Generate the PRD (deep-reasoning — switch to Opus first)
 
-### Step 5 — Check status mid-pipeline
-
-At any point:
-```
-/pm-status
-```
-
-**Expected output:**
-```
-Project: onboarding-redesign  [non-GenAI]
-────────────────────────────────────────────
-  00  business-statement  ✓ approved
-  01  brief               ✓ approved
-  02  scope               ✓ approved
-  03  prd                 ○ pending
-  04  design-spec         ○ pending
-  05  prototype-brief     ○ pending
-  06  qa-plan             ○ pending
-  07  metrics-plan        ○ pending
-  08  trd                 ○ (optional)
-  09  roadmap             ○ (optional)
-```
-
----
-
-### Step 6 — Generate the PRD (deep-reasoning stage)
-
-The PRD drives the design spec, QA plan, and metrics plan. Use the strongest model:
-
+**Claude Code:** Toggle fast mode before running:
 ```
 /fast
-```
-Then:
-```
 /pm-stage-03-prd
 ```
 
-This takes 1–3 minutes. The output includes user stories, acceptance criteria, edge cases, data governance, and success criteria. Review carefully — a weak PRD propagates downstream. When satisfied:
+**Codex:** Select o1 or o3 in your model settings, then:
+```
+$pm-stage-03-prd
+```
+
+This is the most complex artifact. Reads all approved upstream stages. Produces `03-prd.md` covering user stories, acceptance criteria, edge cases, GenAI-specific requirements (model selection rationale, eval strategy, data governance), and non-functional requirements.
+
+Review carefully. The PRD is the source of truth for stages 04–07. Approve when solid:
 
 ```
 /pm-approve 03
 ```
 
----
+### Step 6: Check your status mid-pipeline
 
-### Step 7 — Continue through the pipeline
-
-Repeat generate → review → edit → approve for each remaining stage. Stages 04 and 06 are also deep-reasoning stages; run them on Opus too.
+At any point:
 
 ```
-/pm-stage-04-design-spec     → /pm-approve 04
-/pm-stage-05-prototype-brief → /pm-approve 05
-/pm-stage-06-qa-plan         → /pm-approve 06
-/pm-stage-07-metrics-plan    → /pm-approve 07
+/pm-status
 ```
 
-After approving stage 04, PM-OS automatically renders `04-design-spec.html` — an HTML companion you can open in a browser and share with design/eng.
-
-After approving stage 05, PM-OS renders `05-prototype-mockup.html` — a clickable HTML prototype.
-
----
-
-### Step 8 — Optional capstone stages
-
-After all of 01–07 are approved:
+Sample output:
 
 ```
-/pm-stage-08-trd      → /pm-approve 08    (Technical Requirements Document)
-/pm-stage-09-roadmap  → /pm-approve 09    (Product Roadmap)
+Project: trial-match  [genai]
+─────────────────────────────────────────────
+  00 business-statement  approved  ✓
+  01 brief               approved  ✓
+  02 scope               approved  ✓
+  03 prd                 approved  ✓
+  04 design-spec         pending
+  05 prototype-brief     pending
+  06 qa-plan             pending
+  07 metrics-plan        pending
+─────────────────────────────────────────────
+Feedback entries: 0
 ```
 
-Stage 09 automatically uses the approved TRD (08) if it exists — generate and approve 08 before 09 if you want technical context in your roadmap.
+### Step 7: Continue through stages 04–07
 
----
+Repeat the same generate → review → approve pattern for each remaining stage:
 
-### Step 9 — Share approved artifacts
+| Stage | Command | Notable output |
+|-------|---------|---------------|
+| Design Spec | `/pm-stage-04-design-spec` | `04-design-spec.md` **+** `04-design-spec.html` (rendered on approval) |
+| Prototype Brief | `/pm-stage-05-prototype-brief` | `05-prototype-brief.md` **+** `05-prototype-mockup.html` (rendered on approval) |
+| QA Plan | `/pm-stage-06-qa-plan` | `06-qa-plan.md` — use Opus |
+| Metrics Plan | `/pm-stage-07-metrics-plan` | `07-metrics-plan.md` |
+
+### Step 8: Optional capstones
+
+Run either or both after stage 07 is approved:
+
+```
+# Technical Requirements Document (for engineering handoff)
+/pm-stage-08-trd        # use Opus
+
+# Product Roadmap (post-MVP sequencing)
+/pm-stage-09-roadmap    # use Opus; uses TRD as context if it is approved
+```
+
+### Step 9: Share approved artifacts
 
 ```
 /pm-share
 ```
 
-Exports the approved artifact chain in a clean, readable format suitable for stakeholders. Only approved stages appear in the output — drafts are excluded.
+Exports all approved stage artifacts to a single shareable text document for directors, stakeholders, or cross-functional teams.
+
+### Step 10: Leave feedback
+
+Capture a rating and note for any stage you want to flag:
+
+```
+/pm-feedback 03 --rating 4 --note "PRD was strong but the hallucination-mitigation section needs more depth"
+```
 
 ---
 
-## 7. The Stage Pipeline (Reference)
+## 7. The Stage Pipeline
 
-### Core pipeline (required)
+### Core pipeline (always required)
 
-| # | Stage name | Command | Output files | Deep-reasoning? |
-|---|---|---|---|---|
-| 00 | Business Statement | *(created by `/pm-new`)* | `00-business-statement.md` | No |
+| # | Stage | Command | Output file | Deep-reasoning |
+|---|-------|---------|-------------|---------------|
+| 00 | Business Statement | *(scaffolded by pm-new; edit manually)* | `00-business-statement.md` | No |
 | 01 | Product Brief | `/pm-stage-01-brief` | `01-brief.md` | No |
-| 02 | Scope | `/pm-stage-02-scope` | `02-scope.md` | No |
+| 02 | Product Scope | `/pm-stage-02-scope` | `02-scope.md` | No |
 | 03 | PRD | `/pm-stage-03-prd` | `03-prd.md` | **Yes** |
 | 04 | Design Spec | `/pm-stage-04-design-spec` | `04-design-spec.md` + `.html` | **Yes** |
 | 05 | Prototype Brief | `/pm-stage-05-prototype-brief` | `05-prototype-brief.md` + `.html` | No |
 | 06 | QA Plan | `/pm-stage-06-qa-plan` | `06-qa-plan.md` | **Yes** |
 | 07 | Metrics Plan | `/pm-stage-07-metrics-plan` | `07-metrics-plan.md` | No |
 
-### Optional capstone stages
+### Optional capstones (run after stage 07)
 
-| # | Stage name | Command | Output files | Deep-reasoning? |
-|---|---|---|---|---|
-| 08 | TRD | `/pm-stage-08-trd` | `08-trd.md` | **Yes** |
-| 09 | Roadmap | `/pm-stage-09-roadmap` | `09-roadmap.md` | **Yes** |
+| # | Stage | Command | Output file | Deep-reasoning |
+|---|-------|---------|-------------|---------------|
+| 08 | Technical Requirements Document | `/pm-stage-08-trd` | `08-trd.md` | **Yes** |
+| 09 | Product Roadmap | `/pm-stage-09-roadmap` | `09-roadmap.md` | **Yes** |
 
-### Context intake stages (run before the main pipeline when importing existing material)
+Stage 09 uses stage 08 as additional context if it is approved. You can run 09 without 08.
 
-| # | Stage name | How triggered | What it produces |
-|---|---|---|---|
-| 00c | Codebase Understanding | `/pm-context-scan-codebase` | `00-codebase-understanding.md` |
-| 00w | Context Wiki | `/pm-context-import` | `00-context-wiki.md` |
-| 00u | Context Understanding | `/pm-context-import` | `00-context-understanding.md` |
+### Context intake stages (optional, run before stage 01)
 
-See §10 for details on importing existing material.
+These run automatically when you use `/pm-context-import` (see [Section 10](#10-importing-existing-material)).
+
+| # | Stage | What it produces |
+|---|-------|-----------------|
+| 00w | Context Wiki | `00-context-wiki.md` — synthesized knowledge base from your imported docs |
+| 00u | Context Understanding | `00-context-understanding.md` — how your docs map to the pipeline |
+
+Both are deep-reasoning stages. They feed into all downstream stage generations as additional context.
+
+### Project structure
+
+```
+~/pm-projects/<slug>/
+├── .meta.yaml                    ← project state (do not edit by hand)
+├── 00-business-statement.md
+├── 01-brief.md
+├── 02-scope.md
+├── 03-prd.md
+├── 04-design-spec.md
+├── 04-design-spec.html           ← rendered on stage 04 approval
+├── 05-prototype-brief.md
+├── 05-prototype-mockup.html      ← rendered on stage 05 approval
+├── 06-qa-plan.md
+├── 07-metrics-plan.md
+├── 08-trd.md                     ← if run
+├── 09-roadmap.md                 ← if run
+├── telemetry.jsonl               ← append-only event log
+├── feedback.jsonl                ← ratings and notes
+└── .history/                     ← generation snapshots
+```
 
 ---
 
@@ -467,343 +411,346 @@ See §10 for details on importing existing material.
 
 ### What approval does
 
-Running `/pm-approve NN`:
-1. Hashes the artifact body and saves the hash to `.meta.yaml` and the artifact's YAML frontmatter
-2. Records who approved it and when
-3. Unlocks downstream generation (the pre-stage gate checks the hash)
-4. Triggers post-approval actions: HTML rendering for stages 04/05, telemetry push to the feedback repo
+When you run `/pm-approve <NN>`, PM-OS:
 
-### What happens if you edit an approved artifact
-
-If you edit the body of an approved artifact, the next generation attempt detects the hash mismatch and gives you a choice:
-
-1. **Implicit re-approval** — accept the edited version as the new approved content, cascade staleness to downstream approved stages, and continue
-2. **Explicit re-approval** — run `/pm-approve NN` again for the edited stage, then retry
-
-Either path is valid. Small edits (typo, rephrasing): use implicit. Decision changes: use explicit so there's a clear approval record.
-
-Re-approving upstream **cascades staleness** to all approved downstream stages — they'll need to be regenerated to reflect the change.
+1. Computes a deterministic hash of the artifact body
+2. Stamps `approved_at`, `approved_by`, and `content_hash` into `.meta.yaml` and the artifact's YAML frontmatter
+3. Records a snapshot of all upstream hashes at approval time
+4. Marks all downstream **already-approved** stages as `stale` (they were generated from a now-superseded upstream)
+5. Logs a `stage_approved` telemetry event
 
 ### Stage statuses
 
 | Status | Meaning |
-|---|---|
+|--------|---------|
 | `pending` | Not yet generated |
 | `draft` | Generated, not yet approved |
-| `approved` | Reviewed and approved — gate is open |
-| `edited` | Approved, but body changed since approval — gate will prompt |
-| `stale` | An upstream stage was re-approved after this stage — regeneration needed |
+| `approved` | Reviewed and locked by PM |
+| `edited` | Approved, but the artifact body was changed after approval (hash drift detected) |
+| `stale` | An upstream stage was re-approved; this stage's content may be out of date |
+
+### What happens if you edit an approved artifact
+
+Before the next stage generates, the gate re-hashes all upstream artifacts. If it detects that an approved artifact was edited (hash drift), it marks it `edited` and blocks generation. You will be asked:
+
+1. **Implicit re-approval:** Accept the edit as a re-approval. The gate marks downstream approved stages `stale` and continues.
+2. **Explicit re-approval:** Run `/pm-approve <NN>` on the edited stage yourself before continuing.
+3. **Cancel:** Abort — go back and decide what you want to do.
+
+In agent sessions (non-interactive), the gate always chooses option 2 — it blocks and tells you to re-approve explicitly.
+
+### Clearing staleness
+
+A `stale` stage means its content was generated from an older version of an upstream. To clear it:
+
+1. Re-generate: `/pm-stage-NN-<name>`
+2. Review the new output
+3. Re-approve: `/pm-approve NN`
+
+This cascades down: re-approving stage 03 after an edit marks stages 04–09 as stale — but only those that were already approved. Pending stages are unaffected.
 
 ---
 
 ## 9. Context Customization
 
-The **context overlay** teaches PM-OS your company's terminology, format standards, and constraints. Without it, every stage uses generic defaults. With it, every artifact reflects your org's language and structure.
+PM-OS generates artifacts using a default output spec for each stage. You can customize this spec — the required sections, tone, terminology, and format — by filling in a **context overlay** that lives at `~/.pm-os/context/`.
 
-The overlay lives at: `~/.pm-os/context/`
+This overlay is private to your machine and is never overwritten by PM-OS updates.
 
-The installer seeds this folder from the template in the repo. You edit files there directly — changes take effect on the next generation. Your edits are never overwritten by updates.
+### What to fill in
 
-### 9.1 Global context files
+**Global context** (applied to every stage, every project):
 
-These apply to every project, every stage:
+| File | What to put in it |
+|------|------------------|
+| `~/.pm-os/context/global/company.md` | Company mission, product surface, key audiences, how you build |
+| `~/.pm-os/context/global/team.md` | Team structure, roles, norms, stakeholder map |
+| `~/.pm-os/context/global/glossary.md` | Shared terminology, acronyms, product names to use consistently |
+| `~/.pm-os/context/global/guardrails.md` | Compliance posture, accessibility standards, data-handling rules, brand constraints |
 
-```
-~/.pm-os/context/global/
-  company.md    ← what the company does, domains, regulatory posture
-  team.md       ← PM team structure, engineering partners, approval flow
-  glossary.md   ← shared terminology, product names, acronyms
-  guardrails.md ← data handling, compliance, accessibility, brand rules
-```
+**Per-stage context** (applied to that stage only):
 
-Open each file and replace the `<!-- TODO: ... -->` placeholders with your real content. A few examples:
+Each stage has two optional files under `~/.pm-os/context/stages/<NN>-<name>/`:
 
-**`global/company.md` (example)**
-```markdown
-## Who we are
-Acme Corp builds B2B SaaS tools for enterprise sales teams. Our flagship product,
-SalesPilot, helps field reps log calls, track deals, and surface coaching recommendations.
+- `format.md` — the required/recommended sections for your organization's version of this artifact
+- `example.md` — one or two filled-in real examples (few-shot, for tone and depth)
 
-## Domains & product surfaces
-- SalesPilot web app (primary surface)
-- SalesPilot mobile app (iOS + Android)
-- Admin console for IT and RevOps
+### Apply modes
 
-## Regulatory & compliance posture
-SOC 2 Type II certified. GDPR compliance required for EU customers.
-No PHI/PII in product telemetry.
-```
+Set per-stage in `~/.pm-os/context/context.yaml`:
 
-**`global/glossary.md` (example)**
-```markdown
-## Product terminology
-- **SalesPilot** — flagship desktop + mobile sales tool (never "the app")
-- **Rep** — a sales representative using SalesPilot
-- **Manager** — has coaching view and team rollup access
-- **Coaching card** — AI-generated nudge shown to managers based on rep activity
+| Mode | Effect |
+|------|--------|
+| `augment` *(default)* | PM-OS keeps its default sections and folds your custom context in |
+| `override` | Your `format.md` sections replace the skill's default spec entirely |
+| `reference-only` | Your examples are shown for tone and depth; structure is unchanged |
 
-## Acronyms
-- **ACV** — Annual Contract Value
-- **ICP** — Ideal Customer Profile
-```
+### How changes take effect
 
-**`global/guardrails.md` (example)**
-```markdown
-## Data handling
-- Never include customer names, deal names, or email addresses in artifacts
-- Rep activity data is PII-adjacent — describe patterns, not individual records
+Edits to `~/.pm-os/context/` take effect immediately on the next stage generation. No restart or reinstall needed.
 
-## Compliance
-- All new features touching customer data require a Data & Privacy review
-- GDPR right-to-erasure must be addressed in any PRD that creates new data stores
+### Checking the manifest
 
-## Accessibility
-- WCAG 2.1 AA is the minimum bar for all new product surfaces
-```
-
-### 9.2 Per-stage format and examples
-
-For each stage you can provide:
-- **`format.md`** — required sections and structure for that stage
-- **`example.md`** — one or two real filled-in examples (few-shot reference)
-
-These live at:
-```
-~/.pm-os/context/stages/
-  01-brief/
-    format.md
-    example.md
-  03-prd/
-    format.md
-    example.md
-  ... (01 through 09)
-```
-
-**Fastest way to get started:** paste a real artifact your team previously approved into `example.md` for stages 03 and 04 (the highest-value stages). Strip confidential data first.
-
-**`apply` mode** in `~/.pm-os/context/context.yaml` controls how PM-OS uses your customization:
-
-| Mode | Behavior |
-|---|---|
-| `augment` *(default)* | PM-OS default sections + your custom ones |
-| `override` | Your `format.md` replaces the skill's default structure entirely |
-| `reference-only` | Your `example.md` guides tone only; structure unchanged |
-
-To change the mode for a specific stage, edit `~/.pm-os/context/context.yaml`:
-```yaml
-stages:
-  "03":
-    format:   stages/03-prd/format.md
-    examples: [stages/03-prd/example.md]
-    apply: override     # my PRD template is the complete spec
-  "01":
-    format:   stages/01-brief/format.md
-    apply: augment      # add my sections on top of defaults
-```
+The overlay manifest lives at `~/.pm-os/context/context.yaml`. Open it to see which stages have context configured and what apply mode each uses. Files containing only placeholder text (`TODO`) are silently skipped — they don't affect generation until you fill them in.
 
 ---
 
 ## 10. Importing Existing Material
 
-### Import existing documents
+If you already have material — a research brief, an old PRD, a design doc, user interview transcripts — you can import it before generating any stages. PM-OS will synthesize it into a context wiki and understanding doc, then adopt it into the pipeline where it fits rather than regenerating from scratch.
 
-If you already have a brief, PRD, or research notes:
+### Import documents
 
-```
-/pm-context-import ~/Documents/q3-brief.md ~/Documents/user-research-summary.pdf
-```
-
-PM-OS reads your documents and produces:
-- `00-context-wiki.md` — structured knowledge extracted from your docs
-- `00-context-understanding.md` — what PM-OS understood about your product intent and gaps
-
-Both are gated stages — you review and approve them before generation continues. Once approved, all downstream stages use them as additional context.
-
-### Scan a codebase (enhancement mode)
-
-When adding a feature to an existing product, scan the codebase first:
+Run from inside the project directory:
 
 ```
-/pm-context-scan-codebase https://github.com/acme/salespilot
+/pm-context-import ~/Documents/q3-research.pdf ~/Documents/old-prd.docx
 ```
 
-This produces `00-codebase-understanding.md` — a structured summary of the current system. All downstream stages use this to frame the **delta** (what's new), not re-describe the whole product.
+PM-OS:
+1. Classifies each document and maps it to the relevant pipeline stage
+2. Builds `00-context-wiki.md` — a synthesized, provenance-tagged knowledge base
+3. Builds `00-context-understanding.md` — how your docs map to the pipeline
+4. Shows you the mapping and asks for your approval
+5. Adopts the documents you authored directly into the relevant stage artifacts
+6. Faithfully backfills any upstream gaps
 
-Or start the project in enhancement mode directly:
+Use the strongest available model for this — it is deep-reasoning work.
+
+### Import with a codebase scan (enhancement projects)
 
 ```
-/pm-new feature-coaching-alerts "Add rep activity coaching alerts for managers" --no-genai --mode enhancement --codebase https://github.com/acme/salespilot
+/pm-context-import ~/Documents/brief.md --codebase https://github.com/acme/platform
+```
+
+### Map a document directly to a stage
+
+If you know exactly which stage a document belongs to:
+
+```
+/pm-context-import --as 01=~/Documents/existing-brief.md
+```
+
+### Enhancement mode
+
+For adding features to an existing product rather than building from scratch, create the project in enhancement mode:
+
+```
+/pm-new salespilot-export --mode enhancement --codebase https://github.com/acme/salespilot
+```
+
+PM-OS runs a read-only codebase scan (producing `00-codebase-understanding.md`) and frames all downstream stages as a *delta* — what is new or missing — rather than describing the entire existing product.
+
+If you don't have a codebase URL, omit it and describe the existing product in the business statement:
+
+```
+/pm-new salespilot-export --mode enhancement
 ```
 
 ---
 
-## 11. All Commands Quick Reference
+## 11. All Commands — Quick Reference
 
-### Project lifecycle
+### Starting projects
 
-| Command | Example | What it does |
-|---|---|---|
-| `/pm-new <slug> "<statement>" --genai\|--no-genai` | `/pm-new crm-export "Add bulk export for managers" --no-genai` | Create a new project |
-| `/pm-new ... --mode enhancement --codebase <url>` | `/pm-new coaching-v2 "Add coaching alerts" --no-genai --mode enhancement --codebase https://github.com/acme/salespilot` | Create an enhancement project with codebase scan |
-| `/pm-approve <NN>` | `/pm-approve 03` | Approve a stage after review |
-| `/pm-status` | `/pm-status` | Show all stage statuses for current project |
-| `/pm-share` | `/pm-share` | Export approved artifacts for stakeholders |
-| `/pm-feedback <NN>` | `/pm-feedback 03 --rating 4 --note "PRD was strong but missed admin persona"` | Rate a stage and leave a note |
-| `/pm-sync` | `/pm-sync` | Push pending telemetry/feedback to team repo |
-
-### Generation commands
-
-Run these in order, from inside your project directory:
-
-| Command | Stage | Use Opus? |
-|---|---|---|
-| `/pm-stage-01-brief` | Product Brief | No |
-| `/pm-stage-02-scope` | Scope | No |
-| `/pm-stage-03-prd` | PRD | **Yes — run `/fast` first** |
-| `/pm-stage-04-design-spec` | Design Spec | **Yes** |
-| `/pm-stage-05-prototype-brief` | Prototype Brief | No |
-| `/pm-stage-06-qa-plan` | QA Plan | **Yes** |
-| `/pm-stage-07-metrics-plan` | Metrics Plan | No |
-| `/pm-stage-08-trd` | TRD (optional) | **Yes** |
-| `/pm-stage-09-roadmap` | Roadmap (optional) | **Yes** |
-
-To toggle Opus before a deep-reasoning stage:
-```
-/fast
-```
-Run `/fast` again to toggle it off.
-
-### Context and import
-
-| Command | Example | What it does |
-|---|---|---|
-| `/pm-context-import <files>` | `/pm-context-import ~/Documents/brief.md ~/Documents/research.pdf` | Ingest existing docs into a context wiki |
-| `/pm-context-scan-codebase <url>` | `/pm-context-scan-codebase https://github.com/acme/salespilot` | Scan a codebase for enhancement mode |
-| `/pm-context-scan-docs <url>` | `/pm-context-scan-docs https://github.com/acme/salespilot` | Scan docs for context |
-| `/pm-prototype-html` | `/pm-prototype-html` | Re-render the HTML prototype for stage 05 |
-
-### Maintenance
-
-| Command | Example | What it does | When to run |
-|---|---|---|---|
-| `/pm-os-verify` | `/pm-os-verify` | Health check: config, deps, skills, gate | After install or when something feels wrong |
-| `/pm-os-update` | `/pm-os-update` | Pull latest PM-OS, resync skills + hooks | When team lead announces a new version |
-| `/pm-os-install` | `/pm-os-install --reconfigure` | Reconfigure an existing install | When changing pm-user or feedback-repo |
-
-Or from terminal (equivalent):
 ```bash
-python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude
-python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude
+# New GenAI product
+/pm-new trial-match "AI assistant for clinical trial patient matching" --genai
+
+# New non-GenAI product
+/pm-new onboarding-v2 "Redesign PM onboarding to cut time-to-value to 3 days" --no-genai
+
+# Enhancement to an existing product — with codebase scan
+/pm-new salespilot-export --mode enhancement --codebase https://github.com/acme/salespilot
+
+# Enhancement — no codebase URL, describe existing product in business statement
+/pm-new salespilot-export --mode enhancement
+```
+
+### Importing existing material
+
+```bash
+# Import documents before generating any stages
+/pm-context-import ~/Documents/q3-research.pdf ~/Documents/old-prd.docx
+
+# Import with a codebase scan at the same time
+/pm-context-import ~/Documents/brief.md --codebase https://github.com/acme/platform
+
+# Map a specific document directly to a stage (skip classification)
+/pm-context-import --as 01=~/Documents/existing-brief.md
+
+# Import multiple documents mapped to different stages
+/pm-context-import --as 01=~/Documents/brief.md --as 03=~/Documents/prd-draft.docx
+```
+
+### Generating stages
+
+```bash
+# Standard stages (default model)
+/pm-stage-01-brief
+/pm-stage-02-scope
+/pm-stage-05-prototype-brief
+/pm-stage-07-metrics-plan
+
+# Deep-reasoning stages — switch to Opus/strongest model first
+# Claude Code:
+/fast                         # toggles Opus
+/pm-stage-03-prd
+/pm-stage-04-design-spec
+/pm-stage-06-qa-plan
+/pm-stage-08-trd
+/pm-stage-09-roadmap
+
+# Codex: select o1/o3 in model settings, then:
+$pm-stage-03-prd
+$pm-stage-04-design-spec
+$pm-stage-06-qa-plan
+$pm-stage-08-trd
+$pm-stage-09-roadmap
+```
+
+### Approving stages
+
+```bash
+/pm-approve 00    # business statement
+/pm-approve 01    # brief
+/pm-approve 03    # PRD — use two-digit stage number throughout
+```
+
+### Checking project state
+
+```bash
+/pm-status        # full project status table
+```
+
+### Leaving feedback
+
+```bash
+# Rating + note
+/pm-feedback 03 --rating 4 --note "PRD missed the admin persona"
+
+# Note only, skip rating prompt
+/pm-feedback 04 --skip-rating --note "Design spec needs accessibility section expanded"
+
+# Rating only, skip note prompt
+/pm-feedback 06 --rating 5 --skip-note
+```
+
+### Sharing artifacts
+
+```bash
+/pm-share         # export all approved artifacts to shareable text
+```
+
+### Reconfigure
+
+```bash
+/pm-os-install --reconfigure    # re-prompt all config values
+```
+
+### Update PM-OS to the latest version
+
+```bash
+# From the terminal
+python3 ~/.pm-os/scripts/pm_os_update.py --runtime all
+
+# From inside Claude Code
+/pm-os-update --runtime all
+
+# From Codex
+$pm-os-update --runtime all
+```
+
+### Verify install health
+
+```bash
+# From the terminal
+python3 ~/.pm-os/scripts/pm_os_verify.py
+
+# From inside Claude Code
+/pm-os-verify
+
+# From Codex
+$pm-os-verify
+```
+
+### Prototype HTML
+
+```bash
+# Generate a standalone interactive prototype from an approved prototype brief
+/pm-prototype-html
 ```
 
 ---
 
 ## 12. Failure Modes and Recovery
 
-### Gate blocks
-
-**"Upstream stage(s) not approved"**
-
-A stage you're trying to generate has an unapproved upstream.
-
-Fix: Run `/pm-status` to see which stages are pending or draft. Approve them first with `/pm-approve NN`, then retry.
-
----
-
-**"Upstream stage was edited after approval"**
-
-You edited an approved artifact, and the gate detected the hash change.
-
-Fix: PM-OS will prompt you to choose:
-1. **Implicit re-approve** — accept the edit, cascade staleness, continue
-2. **Explicit re-approve** — run `/pm-approve NN` for the edited stage, then retry
-
----
-
-**"Stage is stale"**
-
-An upstream stage was re-approved after this stage was already approved.
-
-Fix: Regenerate the stale stage (`/pm-stage-NN-*`), then review and re-approve it.
-
----
-
-### Setup and path issues
-
 | Symptom | Cause | Fix |
-|---|---|---|
-| "Not inside a PM-OS project" | Running from wrong directory | `cd ~/pm-projects/<slug>` then retry |
-| "Config file not found" | Install incomplete or not run | Re-run `./install.sh` with all required flags |
-| Skills missing after update | Skills not synced | `python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude` |
-| Gate self-test failed | Python version or hook path issue | Check `python3 --version` (needs 3.11+) and re-run `./install.sh` |
-| "Central sync FAILED" | Network or repo access issue | Work is safe locally. Retry later with `/pm-sync` |
-| Local `main` diverged | Someone edited `~/.pm-os` directly | `python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude --reset-main` |
+|---------|-------|-----|
+| `BLOCKED: upstream stage(s) are not approved` | A stage upstream is still `draft` or `pending` | Approve the blocking upstream: `/pm-approve <NN>` |
+| `BLOCKED: upstream edited post-approval` | An approved artifact's body was changed after approval | Re-approve the edited upstream (`/pm-approve <NN>`), or confirm implicit re-approval when prompted |
+| Stage shows `stale` in `/pm-status` | An upstream stage was re-approved after this stage was generated | Re-run the stage (`/pm-stage-NN-<name>`), review, re-approve |
+| `Not inside a PM-OS project` | Running a command from a directory with no `.meta.yaml` ancestor | `cd ~/pm-projects/<slug>` first |
+| `Config file not found` | Install incomplete or `config.yaml` missing | Re-run: `./install.sh --runtime all --pm-user <id> --reconfigure` |
+| `pm_os_verify.py` fails — missing skills | Skills not synced to runtime dir | `python3 ~/.pm-os/scripts/pm_os_update.py --runtime all` |
+| `pm_os_verify.py` fails — missing deps | `pyyaml` or `jinja2` not installed | `pip3 install pyyaml jinja2` |
+| Gate self-test fails in verify | Hooks not found at `~/.pm-os/hooks/` | Reinstall: `./install.sh --runtime all` |
+| `pm_os_update.py` refuses to fast-forward | Local `~/.pm-os` main has diverged (someone edited `~/.pm-os` by hand) | `python3 ~/.pm-os/scripts/pm_os_update.py --runtime all --reset-main` |
+| HTML companion not generated after approving stage 04 or 05 | Post-approve hook failed silently | Run `/pm-os-verify` to check hook health; rerun `pm_os_update.py` if hooks are missing |
+| `genai_flag` wrong | Set at project creation, cannot be changed | Start a new project with the correct flag; copy the business statement over manually |
 
-### Common mistakes to avoid
+### The one rule you must never break
 
-| Mistake | What happens | How to avoid |
-|---|---|---|
-| Approving to unblock yourself | The gate becomes a rubber stamp; downstream stages build on an unreviewed decision | Approve only after the named reviewer has read the draft |
-| Editing `.meta.yaml` by hand | Corrupts the state machine | Only edit Markdown artifact files; let PM-OS commands manage state |
-| Running PM-OS commands outside the project directory | Acts on the wrong project (or fails) | Always `cd ~/pm-projects/<slug>` before running commands |
-| Using a lightweight model on deep-reasoning stages | The highest-leverage stages get under-reasoned output | Use `/fast` before stages 03, 04, 06, 08, 09 |
-| Sharing draft artifacts with stakeholders | Stakeholders act on unfinished content | Only run `/pm-share` after all relevant stages are approved |
-| Putting customer names or PII in the business statement | Sensitive data lands in local files and pushed telemetry | Use generic descriptions: "enterprise sales reps" not real customer names |
+**Never hand-edit `~/.pm-os/` directly** (except `~/.pm-os/context/`, which is yours to edit freely). The installed `~/.pm-os/` updates through exactly one path: `pm_os_update.py`. Manual edits to `lib/`, `hooks/`, or `skills/` inside `~/.pm-os` will diverge the local checkout and break future updates.
 
 ---
 
 ## 13. Keeping PM-OS Up to Date
 
-When your team lead announces a new PM-OS version:
+### Standard update (from GitHub remote)
 
-```
-/pm-os-update
-```
-
-Or from terminal:
 ```bash
-python3 ~/.pm-os/scripts/pm_os_update.py --runtime claude
+# Terminal
+python3 ~/.pm-os/scripts/pm_os_update.py --runtime all
+
+# Claude Code
+/pm-os-update --runtime all
+
+# Codex
+$pm-os-update --runtime all
 ```
 
-**What the update does:**
-1. Fast-forwards `~/.pm-os` to `origin/main`
-2. Resyncs all updated skills to `~/.claude/skills`
-3. Resyncs hooks to `~/.claude/hooks`
+This fast-forwards `~/.pm-os` to `origin/main` and re-syncs skills and hooks to the runtime directories. Your `~/.pm-os/context/` is never touched.
 
-After updating, run the verifier to confirm everything is healthy:
+### If you installed from a zip
+
+There is no auto-update path from a zip install. To update:
+
+1. Get the new zip from whoever maintains your PM-OS distribution
+2. Extract it and re-run: `./install.sh --runtime all --source . --pm-user <your-id>`
+
+### Checking your installed version
+
 ```bash
-python3 ~/.pm-os/scripts/pm_os_verify.py
+cat ~/.pm-os/VERSION
 ```
 
-> **Your context customization is never overwritten by updates.** The `~/.pm-os/context/` folder is user data. Updates may add new seed files for stages that didn't exist before, but your edits to `company.md`, `team.md`, stage examples, etc. are always preserved.
+### After any update
 
-**Important:** Never edit files directly inside `~/.pm-os/`. Manual edits there diverge the local checkout, which causes the update script to refuse to fast-forward. If this happens, recover with `--reset-main` (see §12).
+Run `/pm-os-verify` once to confirm the new version is healthy before starting new projects.
 
 ---
 
-## 14. Data and Privacy Notes
+## 14. Data and Privacy
 
-### What stays local
+**All artifacts are local by default.** Your project files, stage outputs, and `.meta.yaml` live entirely on your machine under `~/pm-projects/`. Nothing leaves your machine automatically.
 
-All PM-OS artifacts (`.md` files, `.meta.yaml`, `.html` companions) live on your machine under `~/pm-projects/<slug>/`. Nothing is uploaded to a cloud service.
+**What the event log captures:** stage timings, content hashes, model tier used, character edit distances between drafts and approvals, and optional ratings and notes you add via `/pm-feedback`. It does not capture the content of your artifacts.
 
-### What gets pushed to the feedback repo
+**Sanitize inputs before generation.** Treat your business statement and steering notes the same way you treat email: no raw PII, no confidential patient or customer data, no internal codenames that shouldn't leave your org's systems. Use placeholders (`[patient cohort A]`, `[internal product X]`) and replace them in the final approved document.
 
-After each `/pm-approve` and `/pm-feedback`, PM-OS pushes:
-- A hash-chained telemetry event (event type, stage, timestamp, project slug)
-- Your feedback rating and note (if you ran `/pm-feedback`)
-
-**No artifact content is ever pushed.** The feedback repo contains only structured metadata — no PRD text, no business statements, no user stories.
-
-### Sanitize inputs before generation
-
-PM-OS generates artifacts from what you give it. Before running any generation command:
-- Use generic descriptions, not real customer names, deal names, or project codes
-- Do not include email addresses, phone numbers, or internal system credentials in your business statement or imported docs
-- If you're in a regulated environment (HIPAA, GxP, etc.), fill in `global/guardrails.md` with your specific constraints — PM-OS will apply them at generation time
+**Abstract early, be specific late.** Describe features precisely in your business statement. Do not paste a patient list, a financial model, or a confidential term sheet into a prompt.
 
 ---
 
-*For process governance, decision authority, and best-fit use cases, see [`docs/guides/sop.md`](sop.md).*
-*For the full build specification and architecture, see [`docs/reference/pm-os-spec.md`](../reference/pm-os-spec.md).*
-*For offline/zip/MDM install variants, see [`docs/guides/offline-install.md`](offline-install.md).*
+*PM-OS v1 covers the product-definition phase (stages 01–09). Dev handoff, QA triage, release, and feedback loop phases are planned for future versions.*
