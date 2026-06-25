@@ -23,8 +23,17 @@ HOOKS_DIR = PM_OS_DIR / "hooks"
 CLAUDE_SKILLS_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))) / "skills"
 CODEX_SKILLS_DIR = Path(os.environ.get("CODEX_SKILLS_DIR", str(Path.home() / ".agents" / "skills")))
 
-REQUIRED_LIB_MODULES = ["project", "hashing", "frontmatter", "telemetry", "config", "artifact_contracts"]
+REQUIRED_LIB_MODULES = [
+    "project", "hashing", "frontmatter", "telemetry", "config",
+    "artifact_contracts", "html_render", "context", "text_metrics",
+]
 REQUIRED_HOOKS = ["pre-stage.py", "post-approve.py"]
+REQUIRED_TEMPLATES = [
+    "artifact-frontmatter.yaml.j2",
+    "design-spec.html.j2",
+    "meta.yaml.j2",
+    "prototype-mockup.html.j2",
+]
 
 
 class Result:
@@ -57,6 +66,12 @@ def check_version(r: Result):
         r.add(False, "VERSION readable", f"Missing {vpath}")
 
 
+def check_git(r: Result):
+    res = subprocess.run(["git", "--version"], capture_output=True, text=True)
+    r.add(res.returncode == 0, "git binary available",
+          "" if res.returncode == 0 else "git not found on PATH — /pm-sync will fail at runtime")
+
+
 def check_lib(r: Result):
     if not LIB_DIR.is_dir():
         r.add(False, "Installed lib present", f"Missing {LIB_DIR}")
@@ -78,6 +93,17 @@ def check_hooks(r: Result):
           "" if not missing else "Missing: " + ", ".join(missing))
 
 
+def check_templates(r: Result):
+    tdir = PM_OS_DIR / "templates"
+    if not tdir.is_dir():
+        r.add(False, f"Templates present ({tdir})", "Directory missing — re-run the installer")
+        return
+    missing = [t for t in REQUIRED_TEMPLATES if not (tdir / t).exists()]
+    r.add(not missing,
+          f"Templates present ({len(REQUIRED_TEMPLATES) - len(missing)}/{len(REQUIRED_TEMPLATES)})",
+          "" if not missing else "Missing: " + ", ".join(missing))
+
+
 def check_config(r: Result):
     try:
         from config import load_config  # imported from installed lib
@@ -86,6 +112,10 @@ def check_config(r: Result):
         missing = [k for k in keys if not cfg.get(k)]
         r.add(not missing, "Config valid (~/.pm-os/config.yaml)",
               "" if not missing else "Missing keys: " + ", ".join(missing))
+        if not missing:
+            pdir = Path(cfg["projects_dir"]).expanduser()
+            r.add(pdir.is_dir(), f"Projects dir exists ({pdir})",
+                  "" if pdir.is_dir() else f"Not found — run: mkdir -p {pdir}")
     except Exception as e:  # noqa: BLE001
         r.add(False, "Config valid (~/.pm-os/config.yaml)", str(e).splitlines()[0])
 
@@ -290,8 +320,10 @@ def main():
         print("\nFAIL: PM-OS is not installed.")
         sys.exit(1)
     check_version(r)
+    check_git(r)
     check_lib(r)
     check_hooks(r)
+    check_templates(r)
     check_config(r)
     check_skills(r, args.runtime)
     check_gate_selftest(r)
