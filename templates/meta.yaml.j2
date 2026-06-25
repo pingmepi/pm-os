@@ -1,12 +1,16 @@
 {# Reference template for .meta.yaml — NOT rendered by code. scripts/pm_new.py
    builds the meta dict inline and is the authoritative source; migrations live
    in lib/project.py:migrate_meta. Keep this in sync for documentation only. #}
-schema_version: 2
+schema_version: 4
 project_slug: {{ project_slug }}
 project_name: {{ project_name }}
 created_at: {{ created_at }}
 created_by: {{ created_by }}
 genai_flag: {{ genai_flag }}
+project_type: new_product
+codebase_path: null
+codebase_ref: null
+context_pack: null
 pm_os_version: {{ pm_os_version }}
 stages:
 {% for stage in stages %}

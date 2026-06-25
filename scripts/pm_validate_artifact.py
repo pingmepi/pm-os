@@ -2,9 +2,10 @@
 """Validate PM-OS stage artifacts and generated prototype HTML."""
 import argparse
 import sys
+import os
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from artifact_contracts import error_count, format_findings, validate_artifact, validate_prototype_html
 from project import resolve_project

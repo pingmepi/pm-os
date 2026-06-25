@@ -40,7 +40,7 @@ def save_meta(meta_dict: dict, project_root=None) -> None:
 
 # Current .meta.yaml shape. Bump (and extend migrate_meta) when the shape
 # changes. Independent of config.yaml's own schema_version.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 STAGE_NAMES = {
     "00": "business-statement",
@@ -190,11 +190,59 @@ def migrate_meta(meta: dict, project_root: Optional[Path] = None) -> bool:
         meta.setdefault("codebase_ref", None)
         changed = True
 
+    # v4: optional adaptive-context-pack metadata. `context_pack` is null for every
+    # existing project — including approved single-file wikis, which therefore keep
+    # their flat-file body hash and behavior untouched (dual-mode). It only becomes
+    # a dict when /pm-context-import builds (or --upgrade-pack rebuilds) the modular
+    # 00-context/ pack. The key is added unconditionally so the field is always
+    # present and readers never have to guess; it just defaults to None.
+    if meta.get("schema_version", 1) < 4:
+        if "context_pack" not in meta:
+            meta["context_pack"] = None
+            changed = True
+
     if meta.get("schema_version", 1) < SCHEMA_VERSION:
         meta["schema_version"] = SCHEMA_VERSION
         changed = True
 
     return changed
+
+
+# --- Adaptive context pack (stage 00w) ----------------------------------------
+#
+# Stage 00w can exist in two shapes (dual-mode):
+#   - flat:      a single 00-context-wiki.md file (legacy / pre-v4 / projects that
+#                never built a modular pack). Hashed body-only like any other stage.
+#   - composite: a modular pack under 00-context/ enumerated by a manifest. Hashed
+#                via hashing.hash_composite_artifact.
+# has_context_pack decides which path applies for a given project.
+
+CONTEXT_PACK_DIR = "00-context"
+CONTEXT_PACK_MANIFEST = "00-context/manifest.yaml"
+
+
+def context_pack_manifest_path(project_root) -> Path:
+    """Absolute path to the context-pack manifest (whether or not it exists)."""
+    return Path(project_root) / CONTEXT_PACK_MANIFEST
+
+
+def has_context_pack(project_root) -> bool:
+    """True when this project carries a modular context pack (composite 00w).
+
+    Presence is determined by the manifest file on disk — the single switch that
+    flips a project from flat-wiki hashing to composite hashing. Pre-v4 and
+    legacy single-file-wiki projects return False and stay on the flat path.
+    """
+    return context_pack_manifest_path(project_root).exists()
+
+
+def is_composite_stage(stage_id: str, project_root) -> bool:
+    """Whether `stage_id` must be hashed as a composite artifact in this project.
+
+    Only stage 00w is composite, and only when a manifest is present. Every other
+    stage — and a 00w with no manifest — uses body hashing.
+    """
+    return stage_id == "00w" and has_context_pack(project_root)
 
 
 # --- Backfill feasibility (the WHY -> WHAT -> HOW gradient) ---------------------

@@ -6,14 +6,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from config import load_config
 from project import (
     resolve_project, load_meta, save_meta, get_stage,
     artifact_path, upstream_stage_ids, downstream_stage_ids, STAGE_NAMES,
 )
-from hashing import hash_artifact_body
+from hashing import hash_artifact_body, stage_content_hash, CompositeHashError
 from frontmatter import update_status, read as fm_read
 from telemetry import log, last_event
 from text_metrics import char_edit_distance, normalized_edit_distance
@@ -90,7 +90,15 @@ def main():
             print(format_findings(validation_findings))
             print()
 
-    content_hash = hash_artifact_body(str(apath))
+    # Dual-mode: a 00w backed by a context-pack manifest is a composite artifact
+    # (hash spans every manifest-declared member); every other stage — and a flat
+    # single-file 00w — is body-hashed. A malformed/unsafe manifest must block
+    # approval rather than silently fall back to a partial hash.
+    try:
+        content_hash = stage_content_hash(project_root, stage_id, apath)
+    except CompositeHashError as e:
+        print(f"Error: cannot approve stage {stage_id} — context pack is invalid: {e}")
+        sys.exit(1)
     ts = datetime.now(timezone.utc).isoformat()
     try:
         pm = load_config()["pm_user"]

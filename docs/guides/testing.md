@@ -128,6 +128,8 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_migrate_meta_v1_to_v2` — adds `origin`, injects approved stage 00, sets `schema_version`; idempotent.
 - `test_00c_in_stage_tables` — `00c` is in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES, STAGE_ORDER; positioned between `00` and `00w`.
 - `test_migrate_v2_to_v3` — adds `project_type`, `codebase_path`, `codebase_ref` to existing meta; bumps to schema v3; idempotent.
+- `test_migrate_v3_to_v4_adds_context_pack` — adds optional `context_pack` (null) and bumps to schema v4; existing stages/hashes untouched; idempotent (flat wikis stay flat).
+- `test_has_context_pack_and_is_composite_stage` — `has_context_pack`/`is_composite_stage` flip on only when a `00-context/manifest.yaml` exists, and only for 00w (dual-mode switch).
 - `test_resolve_project_walks_up` / `test_resolve_project_not_found` — finds nearest `.meta.yaml`; raises when none.
 
 **`test_hashing.py`** — content addressing
@@ -136,6 +138,14 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_body_hash_crlf_normalized` — CRLF and LF inputs hash equal.
 - `test_hash_event_excludes_event_hash_and_chains` — `event_hash` field is excluded; `prev_hash` changes the link.
 - `test_hash_event_deterministic_and_unicode` — key order doesn't matter; unicode is stable.
+- `test_composite_hash_stable_and_member_order_fixed` — the adaptive-context-pack (00w) composite hash is reproducible and driven by the manifest's declared member order, not filesystem order.
+- `test_composite_markdown_frontmatter_inert` — editing a markdown member's frontmatter is inert (members hashed body-only).
+- `test_composite_yaml_cosmetic_reformat_inert` — reordering an id-keyed YAML list, reordering keys, and comments are inert (canonical YAML serialization).
+- `test_composite_detects_member_body_change` / `test_composite_yaml_value_change_detected` — a semantic change to any member moves the composite hash.
+- `test_stage_content_hash_dispatch_dual_mode` — `stage_content_hash` returns the composite hash for a 00w with a manifest and the flat body hash once the manifest is gone (legacy fallback).
+- `test_stage_content_hash_non_00w_always_body` — non-00w stages are body-hashed even when a pack exists.
+- `test_manifest_safety_rejections` — `load_manifest_members` rejects missing manifest, path traversal, duplicates, self-listing, and members missing on disk.
+- `test_validate_manifest_hashes_detects_stale` — recorded per-member hashes are validated against freshly computed ones; stale entries are reported.
 
 **`test_frontmatter.py`** — frontmatter I/O
 - `test_read_write_roundtrip` / `test_empty_frontmatter_roundtrip` — values survive a write→read cycle.
@@ -225,6 +235,7 @@ one-line description. The matching docstring in code carries the same intent for
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.
 - context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
+- adaptive context pack (v4): `register` ingests images/PPTX/XLSX with deterministic `modality` and lossy-by-default flags (`test_register_classifies_new_formats_with_modality`); `pack-manifest` builds a fixed-order manifest with per-member hashes and stamps `context_pack` into meta (`test_pack_manifest_builds_fixed_order_and_records_meta`); `pack-validate` detects a post-build member edit (`test_pack_validate_detects_post_build_edit`); committing/approving a 00w with a pack uses the composite hash, not the index body hash (`test_composite_00w_commit_and_approve_uses_composite_hash`); editing any pack member is drift through the real pre-stage gate (`test_editing_pack_member_is_drift_through_gate`); an unsafe manifest blocks approval (`test_invalid_pack_manifest_blocks_approval`); `upgrade-pack` snapshots the flat wiki, scaffolds `00-context/`, and drafts 00w without re-approving (`test_upgrade_pack_snapshots_flat_wiki_and_drafts`).
 - feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
 - `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path); `pm_sync` backfills all projects; `--verify` reports chains intact.
 

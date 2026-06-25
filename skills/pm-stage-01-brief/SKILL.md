@@ -36,6 +36,10 @@ If the hook exits non-zero, stop and surface the error message. Do not proceed.
 5. Do not introduce scope adjacent to a stated non-goal unless the PM has explicitly approved it in a `> **PM:** ...` annotation.
 Use `<!-- stage-affinity: NN -->` hints to weight which sections matter most for this stage.
 
+**Modular context pack (dual-mode).** Some projects carry a *modular* context pack instead of one flat file: a `00-context/manifest.yaml` plus an evidence ledger (`00-context/evidence.yaml`), a source inventory (`00-context/sources.md`), and adaptive views under `00-context/views/`. Read it adaptively:
+- **When `00-context/manifest.yaml` exists:** read the wiki index (`00-context-wiki.md`) first, then only the manifest modules/views whose `stage_affinities` include this stage. Consult `00-context/evidence.yaml` only when you need deeper traceability or to inspect a conflict (`contradicts`/`updates` relationships). Selective reading is an optimization — the rules above (PM annotations, locked decisions, non-goals, constraints) apply identically to pack content.
+- **When no manifest exists (legacy single-file wiki, or any pre-v4 project):** read `00-context-wiki.md` whole, exactly as before. A manifest is never a precondition for this stage to run.
+
 **`00-codebase-understanding.md` (if present).** If this file exists, read its `<!-- stage-affinity -->` hints to weight which sections are most relevant for the brief. The wiki already synthesizes the codebase substance — use `00c` for stage-affinity weighting only, not as a parallel knowledge source.
 
 **`00-business-statement.md`** — read the body (after frontmatter). This is the raw one-line or short-form business problem from the PM. Extract:
