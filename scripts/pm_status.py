@@ -82,7 +82,7 @@ def main():
                 gn = fm.get("generation_notes") or []
                 if gn:
                     notes_str = f"  · {len(gn)} note{'s' if len(gn) != 1 else ''}"
-                if s["id"] in {"03", "04", "05"}:
+                if s["id"] in {"03", "04", "05", "06"}:
                     findings = validate_artifact(root, s["id"], apath)
                     if findings:
                         contract_str = f"  · ⚠ contract warnings: {len(findings)}"
