@@ -11,9 +11,10 @@ one commit, reporting loudly on failure.
 """
 import argparse
 import sys
+import os
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from config import load_config
 from git_sync import push_all

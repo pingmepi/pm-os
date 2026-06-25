@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+import os
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from project import resolve_project, load_meta, artifact_path, STAGE_NAMES, STAGE_ORDER
 from frontmatter import read as fm_read

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 import yaml
 from config import load_config
@@ -144,7 +144,7 @@ def main():
         })
 
     meta = {
-        "schema_version": 3,
+        "schema_version": 4,
         "project_slug": args.slug,
         "project_name": project_name,
         "created_at": ts,
@@ -153,6 +153,7 @@ def main():
         "project_type": project_type,
         "codebase_path": args.codebase,
         "codebase_ref": None,
+        "context_pack": None,
         "pm_os_version": pm_os_version,
         "stages": stages,
     }
