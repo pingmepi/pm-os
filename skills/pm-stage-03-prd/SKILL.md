@@ -154,11 +154,11 @@ Write a Product Requirements Document with these base sections.
 
 ## User Stories with Acceptance Criteria
 
-<List the core user stories in priority order using stable IDs such as `US-001`. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item and journey, and clear acceptance criteria that can be validated by QA without guesswork.>
+<List the core user stories in priority order using stable IDs such as `US-001`. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item and journey, and clear acceptance criteria that can be validated by QA without guesswork. These `US-###` ids are the **stable traceability handles** for the whole pipeline (QA scenarios, handoff, triage all link by them) — never renumber an existing story across regenerations; only append new ids.>
 
 ## Functional Requirements
 
-<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as FR-001, state observable behavior, and map each major requirement to a user story or scope item.>
+<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
 
 ## Non-Functional Requirements
 
@@ -328,7 +328,8 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
 - Journey–Requirement Traceability and Assumptions & Open Decisions should be present when applicable; explain explicit non-applicability instead of silently omitting them.
-- Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and should use stable IDs.
+- Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and must use stable `FR-###` (or `REQ-###`) IDs that survive regeneration.
+- Stable IDs are the traceability spine: when regenerating, reuse the same `US-###`/`FR-###`/`REQ-###` id for the same requirement and only append ids for genuinely new ones — never renumber, so downstream QA/handoff links stay valid.
 - Non-Functional Requirements must be relevant, not generic template filler, and should include measurable thresholds where possible.
 - Data & Governance must name concrete data and its sensitivity, ownership, retention, access rules, and any applicable compliance regime — or explicitly state that no sensitive data is handled. It must not defer these to implementation.
 - Scope open questions must either be carried forward as requirement blockers or resolved with a clearly stated conservative assumption.
