@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from pathlib import Path
 from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES
-from hashing import hash_artifact_body
+from hashing import stage_content_hash, CompositeHashError
 from frontmatter import update_status
 from telemetry import log
 
@@ -122,14 +122,33 @@ def main():
     meta = load_meta(project_root)
     upstream_ids = upstream_stage_ids(stage_id, meta)
 
+    def _upstream_hash(uid, apath):
+        """Dual-mode hash for an upstream stage: composite for a 00w with a
+        manifest, body hash otherwise. A malformed/unsafe context-pack manifest
+        BLOCKS the gate (it cannot be approved and must not silently pass)."""
+        try:
+            return stage_content_hash(project_root, uid, apath)
+        except CompositeHashError as e:
+            print(
+                f"\n[pre-stage] ERROR: upstream stage {uid} has an invalid context "
+                f"pack and cannot be validated: {e}\n"
+                "Fix the 00-context/ pack (or re-run /pm-context-import --upgrade-pack) "
+                "before continuing.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     # --- Step 1: recompute hashes and detect drift ---
+    # A structurally broken/unsafe pack manifest is caught by _upstream_hash
+    # (blocks the gate). A pack whose member bodies changed since approval shows
+    # up here as a content_hash mismatch and is marked 'edited' like any stage.
     edited_stages = []
     for uid in upstream_ids:
         stage_meta = get_stage(meta, uid)
         apath = artifact_path(project_root, uid)
 
         if stage_meta["status"] == "approved" and apath.exists():
-            current_hash = hash_artifact_body(str(apath))
+            current_hash = _upstream_hash(uid, apath)
             if current_hash != stage_meta.get("content_hash"):
                 # Drift detected — mark as edited
                 stage_meta["status"] = "edited"
@@ -166,7 +185,7 @@ def main():
         for uid, name in edited:
             stage_meta = get_stage(meta, uid)
             apath = artifact_path(project_root, uid)
-            current_hash = hash_artifact_body(str(apath)) if apath.exists() else "?"
+            current_hash = _upstream_hash(uid, apath) if apath.exists() else "?"
             print(f"  Stage {uid} ({name})")
             print(f"    Approved hash: {stage_meta.get('content_hash', '?')}")
             print(f"    Current hash:  {current_hash}")
@@ -184,7 +203,7 @@ Options:
             for uid, name in edited:
                 stage_meta = get_stage(meta, uid)
                 apath = artifact_path(project_root, uid)
-                current_hash = hash_artifact_body(str(apath)) if apath.exists() else stage_meta.get("content_hash")
+                current_hash = _upstream_hash(uid, apath) if apath.exists() else stage_meta.get("content_hash")
                 old_hash = stage_meta.get("content_hash")
                 stage_meta["status"] = "approved"
                 stage_meta["content_hash"] = current_hash

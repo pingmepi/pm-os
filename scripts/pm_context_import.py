@@ -32,7 +32,7 @@ from project import (
     upstream_stage_ids, downstream_stage_ids, resolve_backfill,
     STAGE_NAMES, STAGE_ORDER, CORE_STAGE_ORDER,
 )
-from hashing import hash_artifact_body
+from hashing import hash_artifact_body, stage_content_hash, CompositeHashError
 from frontmatter import read as fm_read, write as fm_write, update_status
 from telemetry import log
 from artifact_contracts import format_findings, validate_artifact
@@ -264,7 +264,11 @@ def cmd_commit(args):
             print(f"Warning: Stage {stage_id} has artifact contract findings; import approval will continue:")
             print(format_findings(validation_findings))
 
-    content_hash = hash_artifact_body(str(apath))
+    try:
+        content_hash = stage_content_hash(root, stage_id, apath)
+    except CompositeHashError as e:
+        print(f"Error: cannot commit stage {stage_id} — context pack is invalid: {e}")
+        sys.exit(1)
     ts = _now()
     fm["status"] = "approved"
     fm["approved_at"] = ts
