@@ -84,17 +84,26 @@ def _read_body(path: Path) -> Optional[str]:
 def _split_tc_blocks(qa_body: str) -> dict[str, str]:
     """Map each TC-### id to the text block that introduces it.
 
-    A block runs from a TC id's first appearance to the next TC id (or end of
-    document). Requirement ids found inside a block are that scenario's coverage
-    links. This tolerates list-item, heading, and table-row styles because it
-    keys off the id token, not a fixed layout.
+    A block runs from a section-level TC-### declaration (heading, list item, or
+    standalone line) to the next such declaration (or end of document). Requirement
+    ids found inside a block are that scenario's coverage links.
+
+    We key off *section-level* occurrences only (line-start), not embedded table
+    cells or inline references, so a Requirement-Test Traceability table at the top
+    of the QA plan does not split blocks prematurely.
     """
-    matches = list(TEST_CASE_ID_RE.finditer(qa_body))
+    # Match TC-### only at the start of a line (heading prefix, list bullet, or
+    # bare): captures the id token after optional markdown markers.
+    section_re = re.compile(
+        r"^(?:#{1,6}\s+|[-*+]\s+)?(?P<id>TC-\d{3,})\b",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    matches = list(section_re.finditer(qa_body))
     blocks: dict[str, str] = {}
     for index, match in enumerate(matches):
-        tc_id = match.group(0).upper()
+        tc_id = match.group("id").upper()
         if tc_id in blocks:
-            # First occurrence wins as the defining block; later mentions are refs.
+            # First section-level declaration wins; later ones are re-runs or refs.
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(qa_body)
         blocks[tc_id] = qa_body[match.start():end]
