@@ -6,7 +6,7 @@ import yaml
 
 CONFIG_PATH = Path.home() / ".pm-os" / "config.yaml"
 REQUIRED_KEYS = ["pm_user", "feedback_repo", "projects_dir"]
-DEFAULT_FEEDBACK_REPO = "https://github.com/pingmepi/pm-os-feedback.git"
+DEFAULT_FEEDBACK_REPO = ""
 DEFAULT_MODEL_TIER = "standard"
 # Stages whose generation warrants the strongest available reasoning model: PRD, design
 # spec, QA plan, TRD, roadmap, and the context-build docs (context wiki + understanding).

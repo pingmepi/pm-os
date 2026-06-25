@@ -14,7 +14,7 @@ from config import DEFAULT_MODEL_TIER, DEEP_REASONING_STAGES
 PM_OS_DIR = Path.home() / ".pm-os"
 CONFIG_PATH = PM_OS_DIR / "config.yaml"
 PROJECTS_DIR = Path.home() / "pm-projects"
-DEFAULT_FEEDBACK_REPO = "https://github.com/pingmepi/pm-os-feedback.git"
+DEFAULT_FEEDBACK_REPO = ""
 
 
 def choose_value(label, current, provided, env_name, *, reconfigure=False, default=""):

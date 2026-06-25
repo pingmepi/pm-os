@@ -1,5 +1,23 @@
-CLAUDE.md        export-ignore
-AGENTS.md        export-ignore
-tests/           export-ignore
-.github/         export-ignore
-.gitattributes   export-ignore
+# dev agent instructions
+CLAUDE.md                    export-ignore
+AGENTS.md                    export-ignore
+.gitattributes               export-ignore
+
+# dev tooling / tests
+tests/                       export-ignore
+.github/                     export-ignore
+pyproject.toml               export-ignore
+scripts/pm_os_package.sh     export-ignore
+
+# developer docs
+ARCHITECTURE.md              export-ignore
+CHANGELOG.md                 export-ignore
+docs/archive/                export-ignore
+docs/plans/                  export-ignore
+docs/reference/              export-ignore
+docs/roadmap/                export-ignore
+docs/guides/testing.md       export-ignore
+docs/README.md               export-ignore
+
+# collateral (binary, internal-branded)
+collateral/                  export-ignore

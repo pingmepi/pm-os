@@ -15,7 +15,7 @@ PM-OS supports three install paths from the same `install.sh`:
 No changes needed. The existing install command works as-is:
 
 ```bash
-bash install.sh --runtime claude --pm-user karan \
+bash install.sh --runtime claude --pm-user <id> \
   --feedback-repo https://github.com/org/pm-os-feedback.git
 ```
 
@@ -42,7 +42,7 @@ git push --mirror https://gitlab.example.com/org/pm-os-feedback.git
 ```bash
 bash install.sh --runtime claude \
   --repo https://gitlab.example.com/org/pm-os.git \
-  --pm-user karan \
+  --pm-user <id> \
   --feedback-repo https://gitlab.example.com/org/pm-os-feedback.git
 ```
 
@@ -50,7 +50,7 @@ Or set `PM_OS_REPO` in the environment instead of passing `--repo`:
 
 ```bash
 export PM_OS_REPO=https://gitlab.example.com/org/pm-os.git
-bash install.sh --runtime claude --pm-user karan
+bash install.sh --runtime claude --pm-user <id>
 ```
 
 **Updates** (after a mirror refresh):
@@ -89,7 +89,7 @@ Push `pm-os-offline.zip` to a shared drive, internal artifact store, or MDM payl
 
 ```bash
 unzip pm-os-offline.zip
-bash pm-os/install.sh --runtime claude --source pm-os --pm-user karan \
+bash pm-os/install.sh --runtime claude --source pm-os --pm-user <id> \
   --feedback-repo https://gitlab.example.com/org/pm-os-feedback.git
 # PM-OS runs from ~/.pm-os — you can now delete the pm-os/ folder
 rm -rf pm-os/
