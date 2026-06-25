@@ -95,6 +95,12 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 > Commands are shown for both runtimes. Claude uses `/slash` commands; Codex uses `$skill` invocations or the `/skills` picker.
 
 ### 4.1 One-time setup (per machine)
+
+**Prerequisites:**
+- Python 3.11+
+- `git` — required for `/pm-sync` (telemetry push) and for GitHub/GitLab install paths; not needed for the offline zip install path
+- `pyyaml` and `jinja2` — auto-installed by `install.sh` if pip/PyPI is available; if pip is blocked, see `docs/guides/offline-install.md` for the `--with-wheels` zip option
+
 ```bash
 # Claude
 ./install.sh --runtime claude --pm-user <id> --feedback-repo <repo-url>
