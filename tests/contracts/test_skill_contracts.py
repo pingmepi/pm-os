@@ -112,6 +112,24 @@ def test_product_artifact_skills_enforce_current_contracts():
         assert f"pm_validate_artifact.py {stage_id} --mode strict" in body
 
 
+def test_context_import_skill_produces_modular_pack():
+    """The context-import skill must instruct producing the modular pack the engine
+    consumes (evidence ledger + source inventory + manifest assembly), and must NOT
+    revert to the single-page-only wiki that left the pack infrastructure dormant.
+    Guards the gap found in the end-to-end dogfood: composite hashing/dual-mode reads
+    only engage when the producer actually writes the pack and builds the manifest."""
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    # Producer must write the pack members and assemble the manifest.
+    for marker in ("00-context/evidence.yaml", "00-context/sources.md", "pack-manifest", "pack-validate"):
+        assert marker in body, f"context-import skill missing pack marker {marker!r}"
+    # Must not re-impose the single-page limitation the engine has outgrown.
+    assert "Keep it a **single page**" not in body, "single-page wiki limitation reintroduced"
+    # The writes: frontmatter must advertise the pack files it now produces.
+    fm, _ = frontmatter.read(str(REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md"))
+    writes = fm.get("writes") or []
+    assert "00-context/manifest.yaml" in writes and "00-context/evidence.yaml" in writes
+
+
 def test_prototype_html_uses_interaction_model_not_genai_flag():
     body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text()
     assert "Interaction model" in body

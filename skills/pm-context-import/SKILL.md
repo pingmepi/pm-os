@@ -2,8 +2,8 @@
 name: pm-context-import
 description: Ingest the context a PM already has (research, brief, scope, PRD, design…), build a gated context wiki + understanding doc, then adopt/backfill stage artifacts into the normal pipeline.
 reads: ["00-business-statement.md", ".meta.yaml", ".sources.yaml"]
-writes: ["00-context-wiki.md", "00-context-understanding.md", "<adopted/backfilled stage artifacts>"]
-prompt_version: 0.2.0
+writes: ["00-context-wiki.md", "00-context/manifest.yaml", "00-context/evidence.yaml", "00-context/sources.md", "00-context-understanding.md", "<adopted/backfilled stage artifacts>"]
+prompt_version: 0.3.0
 ---
 
 # Role and goal
@@ -62,6 +62,7 @@ Arguments are paths to the PM's source files and/or a folder. Read `$ARGUMENTS`.
 - **Read each source directly — including `.pdf` and `.docx`.** `.md` / `.txt` are read verbatim. For `.pdf` / `.docx`, read the file with your runtime's native file reading (Claude Code reads PDFs directly and has `pdf` / `docx` skills). If your runtime cannot read a binary format directly, convert it with an available tool (`pandoc`, `pdftotext`, or the `pdf`/`docx` skill); only as a last resort ask the PM to export to Markdown.
 - **Flag lossy extraction.** Text-based PDFs and `.docx` extract cleanly. A **scanned/image-only PDF** (no selectable text) or a **table-heavy / multi-column** layout extracts unreliably — order scrambles, tables merge, or OCR is needed. When a source looks like this, emit an `FYI:` calling it out and lean on the review gate: e.g. `FYI: payments-spec.pdf looks scanned/table-heavy — extraction may be imperfect; review the wiki section sourced from it carefully before approving.` Never silently treat a degraded extraction as faithful.
 - Optional override: `--as <NN>=<path>` forces a specific file to be adopted as a specific core stage (01–07). Without it, you classify each source yourself.
+- **`--upgrade-pack` mode.** If `$ARGUMENTS` contains `--upgrade-pack`, this is the migration flow for an existing single-file wiki, not a fresh import. Do not treat it as a source path. Run the `upgrade-pack` **subcommand** (`python3 ~/.pm-os/scripts/pm_context_import.py upgrade-pack` — note: a subcommand, not a `--upgrade-pack` script flag), then rebuild the pack from the already-registered sources via Steps 3–3c. See the upgrade note under Step 3c.
 
 # Step 1 — Register and preserve every source
 
@@ -121,13 +122,15 @@ python3 ~/.pm-os/scripts/pm_context_import.py commit 00c --kind generated --stat
 
 `FYI: wrote 00-codebase-understanding.md from codebase scan (stage 00c, draft).`
 
-# Step 3 — Build the context wiki (`00-context-wiki.md`)
+# Step 3 — Build the modular context pack (`00-context-wiki.md` + `00-context/`)
 
-Write **one** normalized knowledge base the model will read as grounding for every downstream stage. This is a *persistent, compounding artifact*, not a one-off summary — exhaustive but organized, source-grounded, and skimmable. Keep it a **single page**: do not split it into per-topic files; cross-reference sections by name instead.
+The context wiki is a **modular pack**, not a single page. The engine supports and hashes a pack made of: the **wiki index** (`00-context-wiki.md`), an **evidence ledger** (`00-context/evidence.yaml`), and a **source inventory** (`00-context/sources.md`). (Adaptive per-topic *views* under `00-context/views/` are a later phase — do not generate them yet.) You write these files; the `pack-manifest` command then assembles `00-context/manifest.yaml` and records the pack in `.meta.yaml` (Step 3c). Downstream stages read the index plus the modules whose stage-affinity matches; when no manifest exists they fall back to reading the index whole, so the pack is always safe.
+
+Write `00-context-wiki.md` as the **concise navigational index** — the persistent, skimmable summary a reader (human or model) grasps the project from. Keep the index lean: the exhaustive, per-claim provenance lives in the evidence ledger and source inventory (Step 3a), and the index cross-references them. Do **not** restate every claim in the index.
 
 Synthesize from **Subagent A's structured extraction** (the primary source). Where `00-codebase-understanding.md` exists (Subagent B ran), reference it for the `## Technical constraints` and `## Decisions already made` sections where the codebase reveals constraints the docs don't cover — but do not re-describe the codebase here; cross-reference `00c` instead (e.g. "See 00-codebase-understanding.md § Known constraints & tech debt").
 
-## Section template (use these `##` headings, in this order)
+## Index section template (use these `##` headings, in this order)
 
 - `## TL;DR` — the useful takeaway up front: what the product is, the core problem, who it's for, and the decisions already locked. A reader should grasp the project from this section alone.
 - `## Problem & context` — the problem space and why-now.
@@ -139,7 +142,7 @@ Synthesize from **Subagent A's structured extraction** (the primary source). Whe
 - `## Stakeholder authority` `<!-- stage-affinity: 01 02 03 -->` — decisions attributed to a named authority; format as a table: `Decision | Authority | Source | Binding?`. Treat entries as binding constraints unless a PM annotation overrides. Omit if absent.
 - `## Concepts & glossary` — normalized domain terms used across sources.
 - `## Open questions & uncertainties` — gaps, conflicts, and thin evidence (this is also where the self-lint findings land — see Step 3b).
-- `## Source map` — a provenance table: `src_NNN` → file → type → what it contributed.
+- `## Source map` — a brief pointer to the full source inventory: list each `src_NNN` → file → type in one line, and link to `00-context/sources.md` for the detailed inventory (extraction quality, authority, strengths/limitations). The exhaustive table lives in `sources.md`, not here.
 
 Omit a section only if no source touches it at all — and when you do, note the gap under Open questions rather than dropping it silently.
 
@@ -157,6 +160,47 @@ Omit a section only if no source touches it at all — and when you do, note the
 `> **PM:** ...` blockquotes added anywhere in this wiki are highest-priority overrides of the immediately preceding content. They are PM-authored corrections added after the draft is written — do not generate them yourself, and do not remove them when updating the wiki. If a PM annotation conflicts with a sourced claim, the annotation wins; preserve the original claim in `## Open questions & uncertainties` so the PM has a record.
 
 PM annotations are included in the body hash — the PM should be aware that editing them after approval triggers drift detection and cascades staleness downstream.
+
+# Step 3a — Write the evidence ledger and source inventory
+
+These two pack members carry the detail the index points to. Both are part of the composite `00w` hash, so write them before assembling the manifest (Step 3c).
+
+## `00-context/evidence.yaml` — structured evidence ledger
+
+The machine-readable backbone: every load-bearing claim and cross-source insight, with stable IDs, source locators, confidence, the stages it informs, and relationships between claims. Downstream stages consult it when they need traceability or to inspect a conflict. Use stable IDs (`clm-001`, `ins-001`) and **reuse them across regenerations** when the meaning is unchanged; only append new IDs — never renumber.
+
+```yaml
+schema_version: 1
+claims:
+  - id: clm-001
+    statement: "<a single sourced factual claim>"
+    sources: [src_001]            # src_NNN ids from .sources.yaml
+    confidence: high | medium | low
+    stage_affinity: ["01", "02"]  # stages this claim informs
+    relationships:                # optional; omit if none
+      - type: supports | contradicts | updates | depends_on
+        target: clm-002
+insights:                          # cross-source synthesis (not a raw source claim)
+  - id: ins-001
+    statement: "<an inference drawn across claims>"
+    derived_from: [clm-001, clm-003]
+    confidence: medium
+    stage_affinity: ["03"]
+```
+
+Rules: every `claims[].statement` must cite at least one `src_NNN`; insights cite the claim IDs they derive from (not sources directly). A `contradicts` relationship must also surface under the index's `## Open questions & uncertainties` — never silently reconcile. Keep confidence honest: a claim from a lossy source (scanned/table-heavy) cannot be `high`.
+
+## `00-context/sources.md` — source inventory
+
+The human-readable provenance table the index's `## Source map` points to. One row per `src_NNN`:
+
+```markdown
+| Source | File | Type | Modality | Extraction quality | Authority | Strengths | Limitations |
+|---|---|---|---|---|---|---|---|
+| src_001 | research.pdf | research | text-pdf | Clean | secondary | broad market view | dated 2024 |
+```
+
+Extraction quality: Clean / Lossy (scanned/table-heavy) / Unknown. Anything Lossy here must downgrade the confidence of every claim sourced from it in `evidence.yaml`.
 
 # Step 3b — Self-lint the wiki
 
@@ -176,13 +220,26 @@ Before scaffolding the draft, review the wiki for all of the following. Emit eac
 - Every inferred claim that drives a downstream stage should appear in the assumption register; flag any obvious gap as `FYI:`.
 - Any `⚠️` conflict in the wiki that affects a named stage must appear in the conflict resolution block of the understanding doc; flag preemptively if the conflict is clearly stage-relevant.
 
-Then scaffold the wiki as a draft stage:
+Then scaffold the wiki index as a draft stage (write `00-context-wiki.md` with a normal frontmatter block — `status: draft` — plus the index body first):
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.2.0
+python3 ~/.pm-os/scripts/pm_context_import.py commit 00w --kind generated --status draft --model "<the model id you are running as, e.g. claude-opus-4-8>" --prompt-version 0.3.0
 ```
 
-(The script creates the `00w` stage entry. Write the file with a normal frontmatter block — `status: draft` — plus the body before committing.)
+# Step 3c — Assemble the pack manifest
+
+With the index committed and `00-context/evidence.yaml` + `00-context/sources.md` written, build the manifest. This enumerates the pack members in fixed order, computes their composite hashes, writes `00-context/manifest.yaml`, and records `context_pack` in `.meta.yaml` so downstream stages know the pack exists. Pass a stage-affinity for any member that is stage-specific (the index and ledger apply broadly, so they need none):
+
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py pack-manifest
+python3 ~/.pm-os/scripts/pm_context_import.py pack-validate
+```
+
+`pack-validate` confirms the manifest is safe and its recorded hashes are current; if it reports stale hashes (you edited a member after building), re-run `pack-manifest`. The composite hash now covers the index + ledger + inventory together, so editing any member after approval is detected as drift and cascades staleness — exactly like a single-file artifact.
+
+`FYI: built the modular context pack — 00-context-wiki.md (index) + 00-context/evidence.yaml + 00-context/sources.md, assembled into 00-context/manifest.yaml.`
+
+> **Existing single-file project?** A PM migrates by running `/pm-context-import --upgrade-pack` (Codex: `$pm-context-import --upgrade-pack`). When you see that flag in `$ARGUMENTS`, run the script's `upgrade-pack` **subcommand** — `python3 ~/.pm-os/scripts/pm_context_import.py upgrade-pack` (the script takes a positional subcommand, not a `--upgrade-pack` option). It snapshots the old single-page `00-context-wiki.md` to `.history/`, scaffolds `00-context/`, and flips `00w` back to draft so you can rebuild it as a pack via Steps 3–3c. The rebuilt `00w`/`00u` remain drafts pending PM approval.
 
 # Step 4 — Run the feasibility preflight
 

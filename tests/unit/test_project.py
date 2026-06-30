@@ -138,6 +138,41 @@ def test_migrate_v2_to_v3():
     assert project.migrate_meta(meta) is False
 
 
+def test_migrate_v3_to_v4_adds_context_pack(tmp_path):
+    """v3→v4 migration adds the optional context_pack field (null) and bumps schema_version;
+    existing stages/hashes are untouched and the pass is idempotent. A null context_pack means
+    an existing single-file wiki stays on the flat-file hash path (dual-mode)."""
+    meta = {
+        "schema_version": 3,
+        "project_slug": "demo",
+        "project_type": "new_product",
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "abc123", "origin": "generated"},
+            {"id": "00w", "name": "context-wiki", "status": "approved",
+             "content_hash": "wikihash", "origin": "generated"},
+        ],
+    }
+    changed = project.migrate_meta(meta, tmp_path)
+    assert changed is True
+    assert meta["schema_version"] == 4 == project.SCHEMA_VERSION
+    assert meta["context_pack"] is None  # flat wiki stays flat
+    assert project.get_stage(meta, "00w")["content_hash"] == "wikihash"  # untouched
+    assert project.migrate_meta(meta, tmp_path) is False  # idempotent
+
+
+def test_has_context_pack_and_is_composite_stage(tmp_path):
+    """has_context_pack flips on only when a 00-context/manifest.yaml exists; is_composite_stage
+    is True only for 00w with a manifest present (every other stage / flat 00w stays body-hashed)."""
+    assert project.has_context_pack(tmp_path) is False
+    assert project.is_composite_stage("00w", tmp_path) is False
+    (tmp_path / "00-context").mkdir()
+    (tmp_path / "00-context" / "manifest.yaml").write_text("members: []\n", encoding="utf-8")
+    assert project.has_context_pack(tmp_path) is True
+    assert project.is_composite_stage("00w", tmp_path) is True
+    assert project.is_composite_stage("01", tmp_path) is False  # only 00w is composite
+
+
 def test_resolve_project_walks_up(tmp_path, monkeypatch):
     """resolve_project walks up from CWD to the nearest .meta.yaml (so commands work from a
     subdirectory of the project)."""
