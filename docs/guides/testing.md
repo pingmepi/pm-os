@@ -142,6 +142,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_composite_markdown_frontmatter_inert` — editing a markdown member's frontmatter is inert (members hashed body-only).
 - `test_composite_yaml_cosmetic_reformat_inert` — reordering an id-keyed YAML list, reordering keys, and comments are inert (canonical YAML serialization).
 - `test_composite_detects_member_body_change` / `test_composite_yaml_value_change_detected` — a semantic change to any member moves the composite hash.
+- `test_composite_detects_stage_affinity_change` — editing the manifest's `stage_affinities` (downstream module routing) moves the composite hash, so a routing change after approval is drift; cosmetic reordering of the affinity map stays inert.
 - `test_stage_content_hash_dispatch_dual_mode` — `stage_content_hash` returns the composite hash for a 00w with a manifest and the flat body hash once the manifest is gone (legacy fallback).
 - `test_stage_content_hash_non_00w_always_body` — non-00w stages are body-hashed even when a pack exists.
 - `test_manifest_safety_rejections` — `load_manifest_members` rejects missing manifest, path traversal, duplicates, self-listing, and members missing on disk.

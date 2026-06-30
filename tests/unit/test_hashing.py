@@ -117,6 +117,29 @@ def test_composite_detects_member_body_change(tmp_path):
     assert hashing.hash_composite_artifact(tmp_path) != h1
 
 
+def test_composite_detects_stage_affinity_change(tmp_path):
+    """Editing the manifest's stage_affinities (which decide what each downstream
+    stage reads) moves the composite hash, so a routing change after 00w approval is
+    detected as drift. Cosmetic reordering of the affinity map stays inert."""
+    _pack(tmp_path)
+    manifest = (
+        "members:\n"
+        "- path: 00-context-wiki.md\n  kind: markdown\n"
+        "- path: 00-context/sources.md\n  kind: markdown\n"
+        "- path: 00-context/evidence.yaml\n  kind: yaml\n"
+    )
+    base = hashing.hash_composite_artifact(tmp_path)
+    # Adding a routing affinity changes the hash.
+    (tmp_path / "00-context" / "manifest.yaml").write_text(
+        manifest + "stage_affinities:\n  00-context/evidence.yaml: ['03', '06']\n", encoding="utf-8")
+    with_aff = hashing.hash_composite_artifact(tmp_path)
+    assert with_aff != base
+    # Cosmetic reordering of keys/values in the affinity map is inert (canonical).
+    (tmp_path / "00-context" / "manifest.yaml").write_text(
+        manifest + "stage_affinities:\n  00-context/evidence.yaml:\n  - '03'\n  - '06'\n", encoding="utf-8")
+    assert hashing.hash_composite_artifact(tmp_path) == with_aff
+
+
 def test_composite_yaml_value_change_detected(tmp_path):
     """A real value change in a YAML member (not cosmetic) does move the hash."""
     h_a = hashing.hash_composite_artifact(_pack(tmp_path / "a", "claims:\n- id: c1\n  text: alpha\n"))

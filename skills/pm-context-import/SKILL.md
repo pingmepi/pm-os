@@ -62,6 +62,7 @@ Arguments are paths to the PM's source files and/or a folder. Read `$ARGUMENTS`.
 - **Read each source directly — including `.pdf` and `.docx`.** `.md` / `.txt` are read verbatim. For `.pdf` / `.docx`, read the file with your runtime's native file reading (Claude Code reads PDFs directly and has `pdf` / `docx` skills). If your runtime cannot read a binary format directly, convert it with an available tool (`pandoc`, `pdftotext`, or the `pdf`/`docx` skill); only as a last resort ask the PM to export to Markdown.
 - **Flag lossy extraction.** Text-based PDFs and `.docx` extract cleanly. A **scanned/image-only PDF** (no selectable text) or a **table-heavy / multi-column** layout extracts unreliably — order scrambles, tables merge, or OCR is needed. When a source looks like this, emit an `FYI:` calling it out and lean on the review gate: e.g. `FYI: payments-spec.pdf looks scanned/table-heavy — extraction may be imperfect; review the wiki section sourced from it carefully before approving.` Never silently treat a degraded extraction as faithful.
 - Optional override: `--as <NN>=<path>` forces a specific file to be adopted as a specific core stage (01–07). Without it, you classify each source yourself.
+- **`--upgrade-pack` mode.** If `$ARGUMENTS` contains `--upgrade-pack`, this is the migration flow for an existing single-file wiki, not a fresh import. Do not treat it as a source path. Run the `upgrade-pack` **subcommand** (`python3 ~/.pm-os/scripts/pm_context_import.py upgrade-pack` — note: a subcommand, not a `--upgrade-pack` script flag), then rebuild the pack from the already-registered sources via Steps 3–3c. See the upgrade note under Step 3c.
 
 # Step 1 — Register and preserve every source
 
@@ -238,7 +239,7 @@ python3 ~/.pm-os/scripts/pm_context_import.py pack-validate
 
 `FYI: built the modular context pack — 00-context-wiki.md (index) + 00-context/evidence.yaml + 00-context/sources.md, assembled into 00-context/manifest.yaml.`
 
-> **Existing single-file project?** If this project already has an approved single-page `00-context-wiki.md` and no `00-context/`, run `python3 ~/.pm-os/scripts/pm_context_import.py upgrade-pack` first. It snapshots the old wiki to `.history/`, scaffolds `00-context/`, and flips `00w` back to draft so you can rebuild it as a pack here. The rebuilt `00w`/`00u` remain drafts pending PM approval.
+> **Existing single-file project?** A PM migrates by running `/pm-context-import --upgrade-pack` (Codex: `$pm-context-import --upgrade-pack`). When you see that flag in `$ARGUMENTS`, run the script's `upgrade-pack` **subcommand** — `python3 ~/.pm-os/scripts/pm_context_import.py upgrade-pack` (the script takes a positional subcommand, not a `--upgrade-pack` option). It snapshots the old single-page `00-context-wiki.md` to `.history/`, scaffolds `00-context/`, and flips `00w` back to draft so you can rebuild it as a pack via Steps 3–3c. The rebuilt `00w`/`00u` remain drafts pending PM approval.
 
 # Step 4 — Run the feasibility preflight
 

@@ -143,11 +143,25 @@ def load_manifest_members(project_root) -> list:
     return members
 
 
+def _read_manifest_dict(project_root) -> dict:
+    """Parse the manifest YAML (already safety-validated by load_manifest_members)."""
+    manifest_path = Path(project_root) / MANIFEST_RELPATH
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+
+
 def hash_composite_artifact(project_root, manifest_relpath: str = MANIFEST_RELPATH) -> str:
-    """SHA-256 over the ordered per-member hashes enumerated by the manifest.
+    """SHA-256 over the ordered per-member hashes plus the manifest's routing fields.
 
     Used for stage 00w (the context pack). Dual-mode callers should fall back to
     hash_artifact_body when no manifest is present (legacy single-file wikis).
+
+    The manifest's `stage_affinities` are folded in because they decide which
+    modules each downstream stage reads: editing an affinity after 00w approval
+    changes downstream generation inputs, so it must register as drift. Only the
+    manifest's per-member `hash` table stays excluded (circular — the member bodies
+    are already covered by the per-member hashes above; member list and order are
+    covered by the line order).
     """
     members = load_manifest_members(project_root)
     lines = []
@@ -155,6 +169,8 @@ def hash_composite_artifact(project_root, manifest_relpath: str = MANIFEST_RELPA
         member_hash = composite_member_hash(project_root, m)
         kind = (m.get("kind") or "").lower()
         lines.append(f"{kind}:{m['path']}:{member_hash}")
+    affinities = _read_manifest_dict(project_root).get("stage_affinities") or {}
+    lines.append("affinities:" + _canonical_yaml_dump(_canonicalize(affinities)))
     return _sha256("\n".join(lines))
 
 
