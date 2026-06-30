@@ -17,6 +17,35 @@ from project import artifact_path
 
 CONTRACT_VERSION = 1
 
+# --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
+# Requirement IDs are the stable handles the traceability spine links against. The
+# PRD already emits user-story (US-###) and functional-requirement (FR-###) ids;
+# REQ-### is accepted as an explicit umbrella requirement id for projects that
+# prefer it. All three are "requirement ids" for traceability purposes.
+REQUIREMENT_ID_RE = re.compile(r"\b(?:REQ|US|FR)-\d{3,}\b", re.IGNORECASE)
+TEST_CASE_ID_RE = re.compile(r"\bTC-\d{3,}\b", re.IGNORECASE)
+USER_STORY_ID_RE = re.compile(r"\bUS-\d{3,}\b", re.IGNORECASE)
+FUNCTIONAL_REQ_ID_RE = re.compile(r"\b(?:FR|REQ)-\d{3,}\b", re.IGNORECASE)
+JOURNEY_ID_RE = re.compile(r"\bUJ-\d{3,}\b", re.IGNORECASE)
+
+
+def requirement_ids(text: str) -> list[str]:
+    """Return the unique, upper-cased requirement ids (REQ/US/FR-###) in ``text``,
+    in first-seen order. Used by both the contract checks and the resolver."""
+    seen: dict[str, None] = {}
+    for match in REQUIREMENT_ID_RE.findall(text or ""):
+        seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
+def test_case_ids(text: str) -> list[str]:
+    """Return the unique, upper-cased TC-### ids in ``text``, in first-seen order."""
+    seen: dict[str, None] = {}
+    for match in TEST_CASE_ID_RE.findall(text or ""):
+        seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
 _VOID_ELEMENTS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
     "link", "meta", "param", "source", "track", "wbr",
@@ -112,12 +141,20 @@ REQUIRED_SECTIONS = {
         "Validation Plan",
         "Non-Goals for Prototype",
     ],
+    "06": [
+        "Test Strategy",
+        "Functional Test Cases",
+        "Non-Functional Tests",
+        "Edge Cases",
+        "Acceptance Criteria",
+    ],
 }
 
 RECOMMENDED_SECTIONS = {
     "03": ["Journey-Requirement Traceability", "Assumptions & Open Decisions"],
     "04": ["Responsive & Platform Behavior", "UX Content Rules"],
     "05": ["Prototype Data & Scenarios", "Known Limitations"],
+    "06": ["Requirement-Test Traceability"],
 }
 
 _ALIASES = {
@@ -183,6 +220,38 @@ def _blocks(markdown: str, pattern: str) -> list[tuple[str, str]]:
     return result
 
 
+# A TC-### scenario can be declared as a heading (`### TC-001`), a bullet
+# (`- TC-001`), an ordered-list item (`1. TC-001`), or a bare line. We match all
+# of these at line start; a `##` section heading bounds a block so the last TC
+# does not absorb trailing sections. Shared by the contract validator and the
+# traceability resolver so they agree on what a "test case block" is.
+_TC_BLOCK_START_RE = re.compile(
+    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?(?P<id>TC-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+_TC_SECTION_BREAK_RE = re.compile(r"^##\s", re.MULTILINE)
+
+
+def split_test_case_blocks(text: str) -> dict[str, str]:
+    """Map each TC-### id to the text block that introduces it.
+
+    A block starts at a section-level TC declaration (heading, bullet, ordered-list
+    item, or bare line) and runs to the next such declaration or the next ``##``
+    section, whichever comes first. First declaration wins; later mentions are refs.
+    """
+    section_breaks = [m.start() for m in _TC_SECTION_BREAK_RE.finditer(text)]
+    matches = list(_TC_BLOCK_START_RE.finditer(text))
+    blocks: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        tc_id = match.group("id").upper()
+        if tc_id in blocks:
+            continue
+        next_tc = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        next_section = next((p for p in section_breaks if p > match.start()), len(text))
+        blocks[tc_id] = text[match.start():min(next_tc, next_section)]
+    return blocks
+
+
 def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
     journeys = _section(sections, "User Journeys") or ""
@@ -201,15 +270,57 @@ def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
                 "ERROR", "USER_JOURNEY_FIELDS_MISSING",
                 f"{journey_id} is missing fields: {', '.join(missing)}",
             ))
-        if not re.search(r"\b(?:US|FR)-\d{3}\b", block, re.IGNORECASE):
-            findings.append(Finding("ERROR", "USER_JOURNEY_TRACE_MISSING", f"{journey_id} does not reference a US-### or FR-### identifier."))
+        if not REQUIREMENT_ID_RE.search(block):
+            findings.append(Finding("ERROR", "USER_JOURNEY_TRACE_MISSING", f"{journey_id} does not reference a stable requirement id (REQ-### / US-### / FR-###)."))
 
     stories = _section(sections, "User Stories with Acceptance Criteria") or ""
-    if not re.search(r"\bUS-\d{3}\b", stories, re.IGNORECASE):
-        findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers."))
+    if not USER_STORY_ID_RE.search(stories):
+        findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers so traceability survives regeneration."))
     requirements = _section(sections, "Functional Requirements") or ""
-    if not re.search(r"\bFR-\d{3}\b", requirements, re.IGNORECASE):
-        findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### identifiers."))
+    if not FUNCTIONAL_REQ_ID_RE.search(requirements):
+        findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### (or REQ-###) identifiers so traceability survives regeneration."))
+    return findings
+
+
+def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
+    """Stage 06 (QA Plan) must give each scenario a stable TC-### id and tie the
+    test cases back to the requirement ids the PRD established, so the traceability
+    spine can answer "which scenarios cover requirement REQ-X" locally.
+
+    Coverage is reported as a WARNING (not a hard error) so prose QA plans on
+    existing projects degrade gracefully instead of failing approval/import.
+    """
+    findings: list[Finding] = []
+    test_section = _section(sections, "Functional Test Cases") or ""
+    tc_ids = test_case_ids(test_section) or test_case_ids(body)
+    if not tc_ids:
+        findings.append(Finding(
+            "ERROR", "TEST_CASE_IDS_MISSING",
+            "Functional Test Cases must use stable TC-### identifiers so each scenario can be linked to requirements.",
+        ))
+
+    # Traceability: EACH test case must cite at least one requirement id — not just
+    # "some id appears somewhere in the body" (which a traceability table would
+    # satisfy while individual scenarios stay unlinked). We split the same way the
+    # resolver does, so a TC the validator passes is exactly one the index links.
+    tc_blocks = split_test_case_blocks(test_section or body)
+    untraced = sorted(tc for tc, block in tc_blocks.items() if not REQUIREMENT_ID_RE.search(block))
+    if tc_blocks and untraced:
+        findings.append(Finding(
+            "ERROR", "TEST_CASE_TRACE_MISSING",
+            f"Test cases with no requirement id (REQ-### / US-### / FR-###): {', '.join(untraced)}",
+        ))
+
+    # Coverage against the upstream PRD's requirement ids (warn only).
+    upstream_reqs = _upstream_requirement_ids(project_root)
+    if tc_ids and upstream_reqs:
+        covered = {rid for rid in requirement_ids(body) if rid in upstream_reqs}
+        uncovered = sorted(upstream_reqs - covered)
+        if uncovered:
+            findings.append(Finding(
+                "WARNING", "REQUIREMENT_COVERAGE_GAP",
+                f"Requirements with no covering TC-### in the QA plan: {', '.join(uncovered)}",
+            ))
     return findings
 
 
@@ -221,7 +332,21 @@ def _upstream_journey_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    return {match.upper() for match in re.findall(r"\bUJ-\d{3}\b", body, re.IGNORECASE)}
+    return {match.upper() for match in JOURNEY_ID_RE.findall(body)}
+
+
+def _upstream_requirement_ids(project_root: Path) -> set[str]:
+    """Requirement ids (REQ/US/FR-###) declared in the approved PRD, used to check
+    QA-plan coverage. Empty when the PRD is absent or carries no stable ids — so
+    existing prose PRDs never trigger a false coverage gap."""
+    path = artifact_path(project_root, "03")
+    if not path.exists():
+        return set()
+    try:
+        _fm, body = fm_read(str(path))
+    except Exception:
+        return set()
+    return set(requirement_ids(body))
 
 
 def _validate_journey_references(project_root: Path, body: str, stage_id: str) -> list[Finding]:
@@ -317,6 +442,8 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
         findings.extend(_validate_stage_04(project_root, sections, body))
     elif stage_id == "05":
         findings.extend(_validate_stage_05(project_root, sections, body))
+    elif stage_id == "06":
+        findings.extend(_validate_stage_06(project_root, sections, body))
     return findings
 
 

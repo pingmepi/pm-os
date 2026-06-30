@@ -71,6 +71,26 @@ def main():
         save_meta(meta, project_root)
         print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
 
+    # --- Rebuild the traceability spine when an ID-bearing stage is approved ---
+    # Stage 03 (PRD) declares requirement ids; stage 06 (QA plan) declares the
+    # TC-### scenarios that link to them. Re-derive .traceability.yaml (a local,
+    # derived index) so the resolver answers coverage queries without rescanning.
+    if stage_id in {"03", "06"}:
+        try:
+            import traceability as trace
+            index = trace.rebuild(project_root)
+            reqs = len(index.get("requirements") or {})
+            tcs = len(index.get("test_cases") or {})
+            print(f"[post-approve] Rebuilt {trace.TRACEABILITY_FILENAME}: "
+                  f"{reqs} requirement(s), {tcs} test case(s).")
+            uncovered = trace.uncovered_requirements(project_root)
+            if uncovered:
+                print(f"[post-approve] Requirements with no covering scenario: "
+                      f"{', '.join(uncovered)}")
+        except Exception as e:
+            print(f"[post-approve] WARNING: Could not rebuild traceability: {e}",
+                  file=sys.stderr)
+
     # --- Push to feedback repo (report status clearly, never silently swallow) ---
     try:
         status = push_feedback_repo(project_root)

@@ -23,7 +23,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path.home() / ".pm-os" / "lib"))
+sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 import yaml
 from config import load_config, model_tier_for_stage
@@ -258,7 +258,7 @@ def cmd_commit(args):
 
     # status == approved
     validation_findings = []
-    if stage_id in {"03", "04", "05"}:
+    if stage_id in {"03", "04", "05", "06"}:
         validation_findings = validate_artifact(root, stage_id, apath)
         if validation_findings:
             print(f"Warning: Stage {stage_id} has artifact contract findings; import approval will continue:")

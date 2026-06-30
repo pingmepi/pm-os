@@ -80,9 +80,10 @@ tests/
 │   ├── test_project.py     test_hashing.py     test_frontmatter.py
 │   ├── test_config.py      test_telemetry.py   test_text_metrics.py
 │   ├── test_context.py     test_git_sync.py    test_html_render.py
-│   └── test_artifact_contracts.py
+│   ├── test_artifact_contracts.py     test_traceability.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
+│   ├── test_traceability_spine.py
 │   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
 │   ├── test_artifact_contract_warnings.py
@@ -177,12 +178,24 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_markdownish_escapes_untrusted_html` / `test_inline_escapes_and_formats` — untrusted Markdown is HTML-escaped (XSS guard); bold/code still render.
 - `test_parse_sections_splits_on_h2` / `test_parse_sections_no_headings_defaults_overview` — sections split on `##`; no-heading body becomes one "Overview" section.
 
-**`test_artifact_contracts.py`** — Stage 03–05 artifact quality contracts (`lib/artifact_contracts.py`)
-- `test_valid_prd_passes` / `test_prd_missing_journeys_fails_strict` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
-- `test_prd_warn_mode_returns_findings_not_raises` — warn mode returns findings instead of raising; caller continues.
-- `test_design_spec_requires_journey_to_flow_and_interaction_model` — design spec must have Journey-to-flow traceability and a Product UX guardrails/interaction model declaration.
-- `test_prototype_brief_requires_audience_modes_and_validation_plan` — prototype brief must separate participant/reviewer modes and include a validation plan section.
-- `test_html_prototype_checks_review_only_class` — HTML validator checks that reviewer chrome uses `class="review-only"` so participant mode is clean by default.
+**`test_artifact_contracts.py`** — Stage 03–06 artifact quality contracts (`lib/artifact_contracts.py`)
+- `test_valid_prd_contract_has_no_errors` / `test_prd_without_journeys_is_an_error` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
+- `test_recommended_prd_sections_warn_without_blocking` — recommended sections warn instead of erroring; caller continues.
+- `test_design_contract_checks_journey_mapping_and_interaction_model` — design spec must have Journey-to-flow traceability and a Product UX guardrails/interaction model declaration.
+- `test_prototype_brief_requires_modes_validation_and_a_journey` — prototype brief must separate participant/reviewer modes and include a validation plan section.
+- `test_retrieval_html_*` / `test_generative_html_*` — HTML validator flags generation patterns in retrieval-only participant UI, ignores reviewer-only subtrees, and allows them under a generative interaction model.
+- **Phase 3.5 stable ids:** `test_valid_qa_plan_contract_has_no_errors` (TC-### scenarios tracing to PRD requirement ids pass); `test_qa_plan_without_tc_ids_is_an_error` (`TEST_CASE_IDS_MISSING`); `test_qa_plan_test_case_must_trace_to_a_requirement` (`TEST_CASE_TRACE_MISSING`); `test_qa_plan_per_test_case_trace_is_enforced` (each TC must cite a requirement id — an unlinked TC fails even when a traceability table carries ids; finding names the untraced scenario); `test_prd_functional_requirements_accept_req_only_ids` (a REQ-### only Functional Requirements section passes — the FR check accepts FR or REQ); `test_split_test_case_blocks_handles_ordered_list_items` (shared splitter parses `1. TC-001` ordered-list scenarios and bounds blocks at the next `##`); `test_qa_plan_uncovered_requirement_warns_not_errors` (`REQUIREMENT_COVERAGE_GAP` is a WARNING, never blocks); `test_requirement_and_test_case_id_extractors` (shared `requirement_ids`/`test_case_ids` return unique upper-cased ids, accept REQ/US/FR and TC).
+
+**`test_traceability.py`** — Phase 3.5 traceability spine (`lib/traceability.py`)
+- `test_build_index_links_requirements_and_test_cases` — index extracts PRD requirement ids + QA TC-### ids and links each scenario to the requirement ids in its block.
+- `test_build_index_parses_ordered_list_test_cases` — ordered-list scenarios (`1. TC-001 — covers FR-001`) are parsed, so a valid plan in that format is not reported all-uncovered.
+- `test_last_tc_block_does_not_absorb_trailing_sections` — regression: the final TC block stops at the next `##` section, so a trailing Requirement-Test Traceability table / Acceptance Criteria section (naming every requirement id) is not swallowed into the last test case.
+- `test_rebuild_writes_dotfile_at_project_root` — rebuild writes a flat `.traceability.yaml` sibling dotfile (not a hidden dir).
+- `test_scenarios_for_requirement_both_directions` — resolver answers requirement→scenarios and scenario→requirements, case-insensitively.
+- `test_uncovered_requirements_reports_gaps` — a requirement no scenario references is reported uncovered.
+- `test_missing_artifacts_degrade_gracefully` — no PRD/QA → empty index, queries return empties (existing prose projects never break).
+- `test_qa_referencing_undeclared_requirement_is_kept` — a QA-only requirement id is recorded (source=None), not dropped.
+- `test_rebuild_preserves_reserved_external_refs` — reserved ticket/bug/code_ref slots survive a rebuild; derived links are re-derived.
 
 ### T2 — Lifecycle integration (`tests/integration/`)
 **Purpose:** exercise the real scripts + hooks end to end against the isolated temp install — the state machine as a PM drives it.
@@ -209,6 +222,11 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_reapproving_upstream_cascades_downstream_stale` — re-approving 01 marks approved 02 stale + logs `stage_marked_stale`.
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
+
+**`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
+- `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.
+- `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
+- `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
 
 ### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
 **Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
