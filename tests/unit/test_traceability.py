@@ -58,6 +58,24 @@ def test_build_index_links_requirements_and_test_cases(tmp_path):
     assert index["test_cases"]["TC-001"]["requirements"] == ["US-001", "FR-001"]
 
 
+def test_build_index_parses_ordered_list_test_cases(tmp_path):
+    """build_index recognizes ordered-list test cases (`1. TC-001 — covers FR-001`),
+    not only headings/bullets — so a valid QA plan in that format is not reported as
+    all-uncovered. Uses the shared splitter, keeping resolver and validator in sync."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    qa = """# QA Plan
+## Functional Test Cases
+1. TC-001 — covers FR-001
+2. TC-002 — covers FR-002
+"""
+    _write(root, "06-qa-plan.md", qa)
+    index = trace.build_index(root)
+    assert set(index["test_cases"]) == {"TC-001", "TC-002"}
+    assert index["requirements"]["FR-001"]["test_cases"] == ["TC-001"]
+    assert index["requirements"]["FR-002"]["test_cases"] == ["TC-002"]
+
+
 def test_last_tc_block_does_not_absorb_trailing_sections(tmp_path):
     """Regression: the final TC block must stop at the next ## section, not run to
     end of document. Otherwise a trailing Requirement-Test Traceability table or

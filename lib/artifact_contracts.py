@@ -25,7 +25,7 @@ CONTRACT_VERSION = 1
 REQUIREMENT_ID_RE = re.compile(r"\b(?:REQ|US|FR)-\d{3,}\b", re.IGNORECASE)
 TEST_CASE_ID_RE = re.compile(r"\bTC-\d{3,}\b", re.IGNORECASE)
 USER_STORY_ID_RE = re.compile(r"\bUS-\d{3,}\b", re.IGNORECASE)
-FUNCTIONAL_REQ_ID_RE = re.compile(r"\bFR-\d{3,}\b", re.IGNORECASE)
+FUNCTIONAL_REQ_ID_RE = re.compile(r"\b(?:FR|REQ)-\d{3,}\b", re.IGNORECASE)
 JOURNEY_ID_RE = re.compile(r"\bUJ-\d{3,}\b", re.IGNORECASE)
 
 
@@ -220,6 +220,38 @@ def _blocks(markdown: str, pattern: str) -> list[tuple[str, str]]:
     return result
 
 
+# A TC-### scenario can be declared as a heading (`### TC-001`), a bullet
+# (`- TC-001`), an ordered-list item (`1. TC-001`), or a bare line. We match all
+# of these at line start; a `##` section heading bounds a block so the last TC
+# does not absorb trailing sections. Shared by the contract validator and the
+# traceability resolver so they agree on what a "test case block" is.
+_TC_BLOCK_START_RE = re.compile(
+    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?(?P<id>TC-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+_TC_SECTION_BREAK_RE = re.compile(r"^##\s", re.MULTILINE)
+
+
+def split_test_case_blocks(text: str) -> dict[str, str]:
+    """Map each TC-### id to the text block that introduces it.
+
+    A block starts at a section-level TC declaration (heading, bullet, ordered-list
+    item, or bare line) and runs to the next such declaration or the next ``##``
+    section, whichever comes first. First declaration wins; later mentions are refs.
+    """
+    section_breaks = [m.start() for m in _TC_SECTION_BREAK_RE.finditer(text)]
+    matches = list(_TC_BLOCK_START_RE.finditer(text))
+    blocks: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        tc_id = match.group("id").upper()
+        if tc_id in blocks:
+            continue
+        next_tc = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        next_section = next((p for p in section_breaks if p > match.start()), len(text))
+        blocks[tc_id] = text[match.start():min(next_tc, next_section)]
+    return blocks
+
+
 def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
     journeys = _section(sections, "User Journeys") or ""
@@ -267,11 +299,16 @@ def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) 
             "Functional Test Cases must use stable TC-### identifiers so each scenario can be linked to requirements.",
         ))
 
-    # Traceability: at least some test cases should reference a requirement id.
-    if tc_ids and not REQUIREMENT_ID_RE.search(body):
+    # Traceability: EACH test case must cite at least one requirement id — not just
+    # "some id appears somewhere in the body" (which a traceability table would
+    # satisfy while individual scenarios stay unlinked). We split the same way the
+    # resolver does, so a TC the validator passes is exactly one the index links.
+    tc_blocks = split_test_case_blocks(test_section or body)
+    untraced = sorted(tc for tc, block in tc_blocks.items() if not REQUIREMENT_ID_RE.search(block))
+    if tc_blocks and untraced:
         findings.append(Finding(
             "ERROR", "TEST_CASE_TRACE_MISSING",
-            "Test cases must trace to at least one requirement id (REQ-### / US-### / FR-###).",
+            f"Test cases with no requirement id (REQ-### / US-### / FR-###): {', '.join(untraced)}",
         ))
 
     # Coverage against the upstream PRD's requirement ids (warn only).

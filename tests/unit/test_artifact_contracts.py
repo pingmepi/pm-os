@@ -279,6 +279,62 @@ def test_qa_plan_uncovered_requirement_warns_not_errors(tmp_path):
     assert contracts.error_count(findings) == 0
 
 
+def test_prd_functional_requirements_accept_req_only_ids(tmp_path):
+    """A PRD that uses only REQ-### (umbrella) ids in Functional Requirements passes
+    strict validation — the contract text and error message both say REQ is accepted,
+    so the FR-### check must not reject a REQ-only requirements section."""
+    root = _project(tmp_path)
+    prd = _valid_prd().replace("- FR-001 — Complete the work.", "- REQ-001 — Complete the work.")
+    # Keep the journey/story trace ids resolvable (UJ traces to US-001 still present).
+    _write(root, "03-prd.md", prd)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "FUNCTIONAL_REQUIREMENT_IDS_MISSING" not in codes
+
+
+def test_qa_plan_per_test_case_trace_is_enforced(tmp_path):
+    """Each TC must cite a requirement id, not just 'some id appears in the body'. A
+    plan where TC-002 has no link must fail even though TC-001 (and a traceability
+    table) carry requirement ids — and the finding names the untraced scenario."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    body = """# QA Plan
+## Test Strategy
+s
+## Functional Test Cases
+### TC-001 — Linked scenario (covers FR-001)
+Steps.
+### TC-002 — Unlinked scenario
+Steps.
+## Non-Functional Tests
+n
+## Edge Cases
+e
+## Acceptance Criteria
+a
+## Requirement-Test Traceability
+FR-001 → TC-001.
+"""
+    _write(root, "06-qa-plan.md", body)
+    trace = [f for f in contracts.validate_artifact(root, "06") if f.code == "TEST_CASE_TRACE_MISSING"]
+    assert trace, "expected TEST_CASE_TRACE_MISSING for the unlinked TC-002"
+    assert "TC-002" in trace[0].message and "TC-001" not in trace[0].message
+
+
+def test_split_test_case_blocks_handles_ordered_list_items(tmp_path):
+    """The shared splitter recognizes ordered-list test cases (`1. TC-001`), not only
+    headings/bullets, so build_index and the contract validator agree on them."""
+    text = """## Functional Test Cases
+1. TC-001 — covers FR-001
+2. TC-002 — covers FR-002
+## Acceptance Criteria
+FR-001, FR-002 must pass.
+"""
+    blocks = contracts.split_test_case_blocks(text)
+    assert set(blocks) == {"TC-001", "TC-002"}
+    # The last TC must not absorb the trailing Acceptance Criteria section.
+    assert "FR-002" in blocks["TC-002"] and "must pass" not in blocks["TC-002"]
+
+
 def test_requirement_and_test_case_id_extractors(tmp_path):
     """The shared id extractors return unique upper-cased ids in first-seen order
     and accept REQ/US/FR for requirements and TC for test cases."""

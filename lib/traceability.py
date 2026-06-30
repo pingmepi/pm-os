@@ -34,7 +34,6 @@ requirement id mentioned in the block is treated as a covering link).
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -43,8 +42,8 @@ import yaml
 
 from artifact_contracts import (
     REQUIREMENT_ID_RE,
-    TEST_CASE_ID_RE,
     requirement_ids,
+    split_test_case_blocks,
 )
 from frontmatter import read as fm_read
 from project import artifact_path
@@ -81,43 +80,6 @@ def _read_body(path: Path) -> Optional[str]:
     return body
 
 
-def _split_tc_blocks(qa_body: str) -> dict[str, str]:
-    """Map each TC-### id to the text block that introduces it.
-
-    A block runs from a section-level TC-### declaration (heading, list item, or
-    standalone line) to the next such declaration, the next ``##`` section heading,
-    or end of document — whichever comes first. Requirement ids found inside a
-    block are that scenario's coverage links.
-
-    We key off *section-level* occurrences only (line-start), not embedded table
-    cells or inline references, so a Requirement-Test Traceability table does not
-    split blocks prematurely. We also stop a block at the next ``##`` section so the
-    last test case does not absorb trailing sections (e.g. a Requirement-Test
-    Traceability table or Acceptance Criteria) that mention every requirement id.
-    """
-    # Match TC-### only at the start of a line (heading prefix, list bullet, or
-    # bare): captures the id token after optional markdown markers.
-    section_re = re.compile(
-        r"^(?:#{1,6}\s+|[-*+]\s+)?(?P<id>TC-\d{3,})\b",
-        re.MULTILINE | re.IGNORECASE,
-    )
-    # Level-2 (``## ``) headings bound the Functional Test Cases section: a block
-    # cannot run past one. (``### TC-001`` is level-3, so a TC heading never matches.)
-    section_break_re = re.compile(r"^##\s", re.MULTILINE)
-    section_breaks = [m.start() for m in section_break_re.finditer(qa_body)]
-
-    matches = list(section_re.finditer(qa_body))
-    blocks: dict[str, str] = {}
-    for index, match in enumerate(matches):
-        tc_id = match.group("id").upper()
-        if tc_id in blocks:
-            # First section-level declaration wins; later ones are re-runs or refs.
-            continue
-        next_tc = matches[index + 1].start() if index + 1 < len(matches) else len(qa_body)
-        next_section = next((p for p in section_breaks if p > match.start()), len(qa_body))
-        end = min(next_tc, next_section)
-        blocks[tc_id] = qa_body[match.start():end]
-    return blocks
 
 
 def build_index(project_root: Path | str) -> dict:
@@ -145,7 +107,7 @@ def build_index(project_root: Path | str) -> dict:
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
-        for tc_id, block in _split_tc_blocks(qa_body).items():
+        for tc_id, block in split_test_case_blocks(qa_body).items():
             linked = requirement_ids(block)
             test_cases[tc_id] = {
                 "source": artifact_path(project_root, "06").name,
