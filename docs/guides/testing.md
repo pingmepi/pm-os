@@ -188,6 +188,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 **`test_traceability.py`** — Phase 3.5 traceability spine (`lib/traceability.py`)
 - `test_build_index_links_requirements_and_test_cases` — index extracts PRD requirement ids + QA TC-### ids and links each scenario to the requirement ids in its block.
+- `test_last_tc_block_does_not_absorb_trailing_sections` — regression: the final TC block stops at the next `##` section, so a trailing Requirement-Test Traceability table / Acceptance Criteria section (naming every requirement id) is not swallowed into the last test case.
 - `test_rebuild_writes_dotfile_at_project_root` — rebuild writes a flat `.traceability.yaml` sibling dotfile (not a hidden dir).
 - `test_scenarios_for_requirement_both_directions` — resolver answers requirement→scenarios and scenario→requirements, case-insensitively.
 - `test_uncovered_requirements_reports_gaps` — a requirement no scenario references is reported uncovered.

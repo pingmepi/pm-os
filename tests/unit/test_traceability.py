@@ -58,6 +58,37 @@ def test_build_index_links_requirements_and_test_cases(tmp_path):
     assert index["test_cases"]["TC-001"]["requirements"] == ["US-001", "FR-001"]
 
 
+def test_last_tc_block_does_not_absorb_trailing_sections(tmp_path):
+    """Regression: the final TC block must stop at the next ## section, not run to
+    end of document. Otherwise a trailing Requirement-Test Traceability table or
+    Acceptance Criteria section (which name every requirement id) gets swallowed
+    into the last test case, linking it to requirements it does not cover."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    qa = """# QA Plan
+## Functional Test Cases
+### TC-001 — Primary (covers FR-001)
+steps
+### TC-002 — Audit (covers FR-002)
+steps
+
+## Requirement-Test Traceability
+| Requirement | Covering Test Cases |
+|---|---|
+| FR-001 | TC-001 |
+| FR-002 | TC-002 |
+
+## Acceptance Criteria
+All of FR-001 and FR-002 must pass.
+"""
+    _write(root, "06-qa-plan.md", qa)
+    index = trace.build_index(root)
+    # TC-002 must NOT absorb the trailing table/criteria mentioning FR-001.
+    assert index["test_cases"]["TC-002"]["requirements"] == ["FR-002"]
+    assert index["requirements"]["FR-001"]["test_cases"] == ["TC-001"]
+    assert index["requirements"]["FR-002"]["test_cases"] == ["TC-002"]
+
+
 def test_rebuild_writes_dotfile_at_project_root(tmp_path):
     """rebuild writes a flat .traceability.yaml sibling dotfile (not a hidden dir)."""
     root = _project(tmp_path)
