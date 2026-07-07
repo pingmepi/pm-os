@@ -161,6 +161,18 @@ def main():
                 stage_meta["content_hash"] = current_hash
                 save_meta(meta, project_root)
 
+    # --- Step 1.5: non-blocking consistency advisory (read-only, best-effort) ---
+    # Purely informational — never affects the gate decision below. A bug here
+    # must not be able to break or block generation, so it is swallowed silently.
+    try:
+        from consistency import check_project, summary_line
+        advisory_issues = check_project(project_root)
+        if advisory_issues:
+            print(f"[pre-stage] {summary_line(advisory_issues)}")
+            print("[pre-stage] Run /pm-check for details before continuing, if unsure.")
+    except Exception:
+        pass
+
     # --- Step 2: gate check ---
     blocking = []
     edited = []

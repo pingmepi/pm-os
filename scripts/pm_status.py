@@ -10,6 +10,7 @@ sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os
 from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
 from artifact_contracts import validate_artifact
+from consistency import check_project, summary_line
 
 STAGE_LABELS = {
     "00": "Business Statement", "00c": "Codebase Understanding",
@@ -124,6 +125,12 @@ def main():
     print()
     print(f"Feedback captured: {fc} entries")
     print(f"Telemetry events:  {tc}")
+
+    print()
+    try:
+        print(summary_line(check_project(root)))
+    except Exception as e:
+        print(f"Consistency: check failed ({e})")
 
 
 if __name__ == "__main__":
