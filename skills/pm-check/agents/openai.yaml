@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Consistency"
+  short_description: "Check PM-OS project consistency"
+  default_prompt: "Use $pm-check to check this PM-OS project's internal consistency."
