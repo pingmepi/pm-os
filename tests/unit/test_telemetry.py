@@ -57,6 +57,11 @@ def test_verify_chain_ok_and_tamper(tmp_path):
     assert res["break_at"] == 2
     assert res["reason"]
 
+    # T10: the shared consistency checker surfaces the same break via check_project.
+    import consistency
+    issues = consistency.check_project(root)
+    assert any(i.code == consistency.CODE_TELEMETRY_CHAIN_BROKEN for i in issues)
+
 
 def test_verify_chain_no_file(tmp_path):
     """A project with no telemetry file verifies ok with 0 events (absence is not corruption)."""

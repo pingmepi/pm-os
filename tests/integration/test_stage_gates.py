@@ -45,6 +45,14 @@ def test_editing_approved_upstream_marks_edited(pmos, new_project):
     assert any(e["event_type"] == "stage_edited_post_approval" and e["stage"] == "01"
                for e in read_events(proj))
 
+    # T10: once drift flips a stage to 'edited', invariant 2 no longer re-flags it as
+    # drifted (edited IS the settled "drift already surfaced" state) — and invariant 3
+    # allows an 'edited' upstream on principle (nothing downstream was approved here).
+    import consistency
+    issues = consistency.check_project(proj)
+    assert not any(i.code == consistency.CODE_BODY_HASH_DRIFT and i.stage == "01" for i in issues)
+    assert not any(i.code == consistency.CODE_APPROVED_UPSTREAM_NOT_READY for i in issues)
+
 
 def test_non_tty_without_choice_routes_to_pm(pmos, new_project):
     """In non-interactive mode an edited upstream with no PM_OS_EDITED_UPSTREAM_CHOICE blocks

@@ -22,6 +22,13 @@ def test_approval_syncs_frontmatter_and_meta(pmos, new_project):
     assert meta_stage["status"] == fmd["status"] == "approved"
     assert meta_stage["content_hash"] == fmd["content_hash"]
 
+    # T10: the shared checker agrees the freshly approved, in-sync project is healthy
+    # on this invariant.
+    import consistency
+    issues = consistency.check_project(proj)
+    assert not any(i.code in (consistency.CODE_META_FRONTMATTER_STATUS_MISMATCH,
+                              consistency.CODE_META_FRONTMATTER_HASH_MISMATCH) for i in issues)
+
 
 def test_reapproving_upstream_cascades_downstream_stale(pmos, new_project):
     """Re-approving an upstream stage marks its downstream approved stages stale (so they get

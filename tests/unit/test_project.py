@@ -101,6 +101,13 @@ def test_migrate_meta_v1_to_v2(tmp_path):
     assert project.get_stage(meta, "00")["status"] == "approved"
     assert project.migrate_meta(meta, tmp_path) is False
 
+    # T10: a freshly migrated meta passes the shared shape invariant with no complaints
+    # once persisted (check_project reads .meta.yaml fresh, not this in-memory dict).
+    import consistency
+    project.save_meta(meta, tmp_path)
+    issues = consistency.check_project(tmp_path)
+    assert not any(i.code == consistency.CODE_STAGE_SHAPE_INVALID for i in issues)
+
 
 def test_00c_in_stage_tables():
     """00c (codebase-understanding) is registered in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES,

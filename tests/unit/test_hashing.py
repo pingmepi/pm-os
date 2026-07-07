@@ -154,6 +154,18 @@ def test_stage_content_hash_dispatch_dual_mode(tmp_path):
     wiki = tmp_path / "00-context-wiki.md"
     composite = hashing.stage_content_hash(tmp_path, "00w", wiki)
     assert composite == hashing.hash_composite_artifact(tmp_path)
+
+    # T10: the shared consistency checker's drift invariant (invariant 2) reuses
+    # stage_content_hash too — a recorded hash matching the current composite hash
+    # must not be flagged, while the manifest is still present.
+    import consistency
+    (tmp_path / ".meta.yaml").write_text(
+        "schema_version: 4\nproject_slug: hash-drift\nstages:\n"
+        "- id: '00w'\n  status: approved\n"
+        f"  content_hash: '{composite}'\n  origin: generated\n", encoding="utf-8")
+    issues = consistency.check_project(tmp_path)
+    assert not any(i.code == consistency.CODE_BODY_HASH_DRIFT for i in issues)
+
     (tmp_path / "00-context" / "manifest.yaml").unlink()
     flat = hashing.stage_content_hash(tmp_path, "00w", wiki)
     assert flat == hashing.hash_artifact_body(str(wiki))
