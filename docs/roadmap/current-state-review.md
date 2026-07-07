@@ -1,8 +1,8 @@
 # PM-OS Current State Review and Roadmap
 
-**Date:** 2026-06-12 · **Updated:** 2026-06-24 (v0.6.0; see CHANGELOG for full history)
+**Date:** 2026-06-12 · **Updated:** 2026-07-06 (v1.0.6; see CHANGELOG for full history)
 
-> **Version summary:** Phase 1 runtime parity and Phase 2 flexible intake shipped in v0.4–v0.5.2; context overlay + telemetry metrics in v0.5.3; deep-reasoning tier expansion in v0.5.4; automated test suite in v0.5.5; telemetry/gate hardening in v0.5.6–v0.5.7; richer context intake in v0.5.8; **enhancement mode + `00c` codebase-understanding + offline install** in v0.5.9–v0.5.10; `pm-prototype-html` skill in v0.5.11; **artifact quality contracts (Stages 03–05) + research-safe prototypes** in v0.6.0. §2/§3 below reflect v0.6.0.
+> **Version summary:** Phase 1 runtime parity and Phase 2 flexible intake shipped in v0.4–v0.5.2; context overlay + telemetry metrics in v0.5.3; deep-reasoning tier expansion in v0.5.4; automated test suite in v0.5.5; telemetry/gate hardening in v0.5.6–v0.5.7; richer context intake in v0.5.8; **enhancement mode + `00c` codebase-understanding + offline install** in v0.5.9–v0.5.10; `pm-prototype-html` skill in v0.5.11; **artifact quality contracts (Stages 03–05) + research-safe prototypes** in v0.6.0; **Phase 3.5 traceability spine** (stable `REQ`/`TC` IDs, `.traceability.yaml` resolver) and **adaptive context pack** (composite hashing, schema v4, modular pack across stages 01–09) in v1.0.5–v1.0.6. §2/§3 below reflect v1.0.6.
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -35,7 +35,7 @@ It should be **agent/runtime agnostic**. Claude Code, Codex, Gemini CLI, or futu
 
 ## 2. Current State Summary
 
-The current codebase (v0.6.0) is a strong **local-first product-definition MVP** with flexible intake, enhancement mode, a pluggable company/team context overlay, and deterministic artifact quality contracts.
+The current codebase (v1.0.6) is a strong **local-first product-definition MVP** with flexible intake, enhancement mode, a pluggable company/team context overlay, deterministic artifact quality contracts, and a requirements-to-test-case traceability spine.
 
 It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; record telemetry/feedback; and export approved artifacts.
 
@@ -72,7 +72,7 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Flexible context intake | Implemented | `/pm-context-import` (`scripts/pm_context_import.py` + `skills/pm-context-import/`): ingest existing research/brief/scope/PRD/design, register sources in `.sources.yaml`, preserve raw in `.history/` |
 | Gated stage-00 understanding | Implemented | context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`); the business statement is now a normal gated stage `00`. All three must be approved before stage 01 |
 | Adopt + backfill | Implemented | PM-authored artifacts adopted as stage artifacts (`origin: imported`); upstream gaps reverse-generated (`origin: backfilled`) per the feasibility map in `lib/project.resolve_backfill` |
-| Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 3`; `lib/project.migrate_meta` upgrades older projects in place (v2 added `00` stage + per-stage `origin`; v3 added `project_type`/`codebase_path`/`codebase_ref`) without disturbing approvals |
+| Schema versioning + migration | Implemented | `.meta.yaml` `schema_version: 4`; `lib/project.migrate_meta` upgrades older projects in place (v2 added `00` stage + per-stage `origin`; v3 added `project_type`/`codebase_path`/`codebase_ref`; v4 added the composite-hash adaptive context pack) without disturbing approvals |
 | Telemetry: intake events | Implemented | `context_ingested`, `stage_imported`, `stage_backfilled` kept distinct from `stage_approved` so quality signals are not polluted |
 | Context overlay | Implemented (v0.5.3) | `lib/context.py` (resolve/render/seed) injects a pluggable company/team/product knowledge layer into every stage prompt. Three apply modes — `augment`, `override`, `reference-only`; layering precedence project > stage > global; empty/TODO packs are a silent no-op. Seed lives in `context.example/` (global `company`/`team`/`glossary`/`guardrails.md` + per-stage `format.md`/`example.md` packs); all stage skills load it; seeded on install/update and self-seeds on first read |
 | Context overlay as user data | Implemented (v0.5.3) | live `~/.pm-os/context/` is **gitignored** and edited in place by the PM — the one engine-dir exception to the never-hand-modify rule; never diverges `main` or blocks `pm_os_update.py` |
@@ -82,6 +82,8 @@ It is not yet the full PDLC operating system described above (no brownfield code
 | Offline / GitLab install | Implemented (v0.5.9) | `install.sh --source <zip-or-dir>` for air-gapped/offline installs; `--repo <url>` to clone from a GitLab mirror instead of GitHub. Auto-runs `pm_os_verify.py` after install. Documented in `docs/guides/offline-install.md` |
 | Standalone HTML prototype skill | Implemented (v0.5.11) | `pm-prototype-html` generates or regenerates `05-prototype-mockup.html` from approved prototype brief + design spec without re-running the full stage 05 brief. Auto-invoked by `pm-stage-05-prototype-brief`; also callable standalone. Prototype follows the approved interaction model — participant mode is clean by default; reviewer controls appear only via `?review=1` |
 | Artifact quality contracts (Stages 03–05) | Implemented (v0.6.0) | `lib/artifact_contracts.py` (CONTRACT_VERSION=1) + `scripts/pm_validate_artifact.py`. PRDs require `UJ-###` user journeys; design specs require journey-to-flow traceability and an interaction model declaration; prototype briefs require audience/mode separation and a validation plan. Strict mode blocks generation on required-section errors; warn mode at approval/import logs `artifact_validation_warning` telemetry and continues |
+| Traceability spine | Implemented (v1.0.5) | `lib/traceability.py` + stable `REQ-###`/`US-###`/`FR-###` IDs in the PRD contract and `TC-###` IDs in the QA plan contract; `.traceability.yaml` records the `REQ` ↔ `TC` link table and a resolver answers "which scenarios cover requirement REQ-X" locally; links rebuild automatically on stage approval |
+| Adaptive context pack | Implemented (v1.0.6) | `lib/hashing.py` composite hashing + `.meta.yaml` `schema_version: 4`; `/pm-context-import` produces a modular context pack (per-source hash + stage-affinity tags) consumed dual-mode across stages 01–09 and import; `--upgrade-pack` flag migrates older single-blob context wikis in place |
 
 ### Planned but Not Implemented
 
@@ -309,24 +311,16 @@ Blockers:
 
 **Sequencing principle for Phases 4–6.** Every phase ships a **connector-free, local-first version first**; each external integration is a separate, opt-in, **read-before-write, dry-run -> confirm** unit. This keeps the per-PM, local, file-based flavour intact and stops the hardest/riskiest pieces (live code analysis, tracker writes) from blocking the simple, high-value ones. The `a` sub-phases need zero integrations and ship real PDLC coverage on their own; the `b` sub-phases are independently shippable and skippable.
 
-### Phase 3.5: Traceability Spine (foundational — do this before Phase 4)
+### Phase 3.5: Traceability Spine — ✅ COMPLETE (v1.0.5)
 
 Goal: give requirements and QA scenarios machine-stable IDs and local links, so everything downstream can reference them. No integrations.
 
-Work:
+Shipped: stable `REQ-###`/`US-###`/`FR-###` IDs in the PRD contract and `TC-###` IDs in the QA plan contract, formalized in `lib/artifact_contracts.py`; a local `.traceability.yaml` link file connecting `REQ` ↔ `TC`; a resolver (`lib/traceability.py`) that answers "which scenarios cover requirement REQ-X" locally; and automatic link-table rebuild on stage approval. Landed alongside the adaptive context pack (schema v4) — see [PR #29](https://github.com/pingmepi/pm-os/pull/29).
 
-- Add stable IDs to requirements (`REQ-…`) in the PRD and to QA scenarios (`TC-…`) in the QA plan.
-- Add a local link record connecting `REQ` <-> `TC` (and later bug/ticket/code refs).
-- Keep it in the existing flat-file flavour (see Section 8) — no new hidden directories.
-
-Checks:
+Checks (met):
 
 - Each requirement and QA scenario has a stable ID that survives regeneration.
 - PM-OS can resolve "which scenarios cover requirement REQ-X" locally.
-
-Blockers:
-
-- Current PRD/QA artifacts are prose; IDs must be introduced without breaking existing projects (needs `schema_version`).
 
 ### Phase 3.6: Automated Test Suite (foundational — infra alongside Phase 3.5)
 
@@ -513,7 +507,7 @@ Recommended order:
 5. ~~Implement artifact ingest for existing scope/PRD (Phase 2).~~ (done — shipped as `/pm-context-import`: gated context wiki + understanding doc, adopt + feasibility-governed backfill; see `../plans/pm-os-ingest-plan.md` §0)
 6. ~~Ship the context overlay so company/team knowledge flows into every stage.~~ (done — v0.5.3, `lib/context.py` + `context.example/`, gitignored user data)
 7. ~~Implement enhancement mode and codebase understanding (Phase 3).~~ — **DONE** (`/pm-new --mode enhancement --codebase`, `00c` stage, `prepare-codebase`, schema v3, codebase drift signal in `/pm-status`; shipped v0.5.9). Standalone HTML prototype (`pm-prototype-html`) and artifact quality contracts also shipped (v0.5.11 / v0.6.0).
-8. Add stable IDs to requirements and QA scenarios (Phase 3.5) — foundational before the handoff, triage, and release phases that link by ID.
+8. ~~Add stable IDs to requirements and QA scenarios (Phase 3.5)~~ — **DONE** (`REQ-`/`US-`/`FR-` IDs in the PRD, `TC-` IDs in the QA plan, `.traceability.yaml` link file + resolver, shipped v1.0.5). Foundational before the handoff, triage, and release phases that link by ID. Shipped alongside the **adaptive context pack** (composite hashing, schema v4, modular pack across stages 01–09; v1.0.6).
 9. ~~Stand up the automated test suite (Phase 3.6)~~ — **DONE** (pytest suite T0–T9 under `tests/`, CI at `.github/workflows/tests.yml`, reference in `docs/guides/testing.md`). Locks current behavior before the ID-linked phases land. The final phase **T10 — `/pm-check` consistency toolkit** (a PM-facing reuse of the suite's invariants) is specified in `../plans/pm-os-test-implementation-plan.md` §19 and is the next test-track item to build.
 10. Add the PM-OS quality, operations, usage, and self-improvement loop so telemetry/feedback turn into readable metrics, suggestions, PM decisions, and implementation plans without automatic source changes. See `../plans/pm-os-self-improvement-loop-plan.md`.
 11. Ship local handoff packet (4a), then one opt-in tracker export (4b).
@@ -526,6 +520,6 @@ Recommended order:
 
 PM-OS today is a useful and coherent **stage-gated product-definition tool with flexible intake**.
 
-It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, PM-visible review points, and — as of Phase 2 — the ability to adopt existing PM-authored context through a gated understanding step instead of regenerating it. The v0.5.3 **context overlay** adds a second instinct worth keeping: company/team/product knowledge flows into every stage's generation as gitignored, edit-in-place user data — the first thread of the PDLC context graph the target product needs.
+It already has the right instincts: local-first state, explicit approvals, artifact hashes, staleness checks, PM-visible review points, and — as of Phase 2 — the ability to adopt existing PM-authored context through a gated understanding step instead of regenerating it. The v0.5.3 **context overlay** adds a second instinct worth keeping: company/team/product knowledge flows into every stage's generation as gitignored, edit-in-place user data. The v1.0.5 **traceability spine** adds a third: requirements and QA scenarios now carry stable IDs with a local, resolvable link table — the first concrete thread of the PDLC context graph the target product needs.
 
-To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase is the kernel, and flexible intake (from PM-authored documents) now exists; the next major work is not simply "add more stages." The larger remaining move is to add external artifact ingestion (repos/trackers/design files), brownfield/codebase awareness, traceability links, dev/QA support workflows, release readiness, and feedback loops while preserving PM authority and human execution.
+To meet the expanded ask, it needs to evolve into a **PM-led PDLC context graph and recommendation system**. The current codebase is the kernel, and flexible intake (from PM-authored documents) and requirements traceability now exist; the next major work is not simply "add more stages." The larger remaining move is to add external artifact ingestion (repos/trackers/design files), dev/QA support workflows, release readiness, and feedback loops — extending the traceability spine to link bug/ticket/code refs — while preserving PM authority and human execution.
