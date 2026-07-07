@@ -14,6 +14,32 @@
   `/pm-status`. Never mutates state — points to the remediation command
   (e.g. `/pm-approve <NN>`) instead.
 
+## 1.0.6 — 2026-06-30
+
+### Added
+- **Adaptive context pack.** Context intake now produces a modular pack that stages 01–09 and the import flow read directly, instead of one flat wiki document — richer per-source metadata and pack operations in `pm_context_import.py`, dual-mode reads wired into every stage skill, and a `--upgrade-pack` flag for migrating existing projects.
+- **Composite hashing + schema v4.** `.meta.yaml` composite-hashes the context pack so drift on any pack section is caught; the pre-stage gate and approval path both dispatch stage `00w` through the new composite hash.
+
+### Fixed
+- Traceability: bounded `TC` blocks at the next `##` section instead of running to end-of-document; addressed Codex review — `REQ`-only `FR`, per-`TC` trace, ordered lists; hash-affinity and three smoke-test fixes found during an end-to-end run ([PR #28](https://github.com/pingmepi/pm-os/pull/28)).
+
+## 1.0.5 — 2026-06-25/30
+
+### Added
+- **Traceability spine (Phase 3.5).** Stable `REQ-###`/`US-###`/`FR-###` IDs formalized in the PRD contract and `TC-###` IDs in the QA plan contract (`lib/artifact_contracts.py`), so requirements and test cases survive regeneration. A new `.traceability.yaml` local link file wires `REQ` ↔ `TC`, with a resolver (`lib/traceability.py`) that answers "which scenarios cover requirement REQ-X" entirely locally. The link table rebuilds automatically on stage approval. Test coverage: stable-id contracts, resolver behavior, end-to-end spine ([PR #29](https://github.com/pingmepi/pm-os/pull/29)).
+
+## 1.0.2 – 1.0.4 — 2026-06-25
+
+### Fixed
+- **Install verifier false negatives.** `pm_os_verify.py` closed gaps where health checks could report success despite being silently skipped.
+
+### Changed
+- Verifier description updated to reflect the new checks; SOP docs (§4.1) gained a prerequisites block for one-time setup.
+
+## 1.0.1 — 2026-06-25
+
+Version renumbering only (0.6.x → 1.0.x); no functional change beyond the 0.6.0 content below.
+
 ## 0.6.0 — 2026-06-24
 
 ### Added
