@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **`/pm-check` — read-only project consistency toolkit (T10).** A single "is this
+  project internally consistent right now?" check (`lib/consistency.py` →
+  `check_project`), reusing the invariant logic already enforced piecemeal by
+  approval/gating/telemetry. Checks meta↔frontmatter sync, approved-stage body
+  drift, upstream approval shape, the telemetry hash chain, `.meta.yaml`
+  schema/stage shape, missing artifacts, and `context.yaml`/`.sources.yaml`
+  parseability. Surfaced via the new `/pm-check` skill (exit 1 on any error),
+  a non-blocking advisory in the pre-stage gate, and a one-line verdict in
+  `/pm-status`. Never mutates state — points to the remediation command
+  (e.g. `/pm-approve <NN>`) instead.
+
 ## 0.6.0 — 2026-06-24
 
 ### Added

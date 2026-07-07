@@ -1,6 +1,6 @@
 # PM-OS Test Implementation Plan
 
-**Status:** ✅ **T0–T9 implemented** (shipped in v0.5.5; CI at `.github/workflows/tests.yml`). T10 — `/pm-check` consistency toolkit — is the next planned phase (see §19).
+**Status:** ✅ **T0–T10 implemented** (T0–T9 shipped in v0.5.5; T10 — the `/pm-check` consistency toolkit — shipped alongside this update; CI at `.github/workflows/tests.yml`). See §19 for the T10 design.
 **Scope:** Add a comprehensive automated test suite for PM-OS covering health, local-first lifecycle behavior, deliverable contracts, runtime parity, connection boundaries, and failure recovery.
 
 PM-OS is not a service with one API boundary. It is a local filesystem state machine plus a skill/document contract. The test suite must therefore protect both halves:
@@ -856,7 +856,7 @@ restructuring. Conventions that make that cheap:
 
 ---
 
-## 19. T10 — PM consistency toolkit (final phase)
+## 19. T10 — PM consistency toolkit (final phase) ✅ Implemented
 
 > **Built last — only after T0–T9 are complete and verified.** It leans on the matured harness
 > and the T7 negative fixtures, and it reuses the invariant logic the earlier phases assert.

@@ -81,6 +81,7 @@ tests/
 │   ├── test_config.py      test_telemetry.py   test_text_metrics.py
 │   ├── test_context.py     test_git_sync.py    test_html_render.py
 │   ├── test_artifact_contracts.py     test_traceability.py
+│   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
 │   ├── test_traceability_spine.py
@@ -296,25 +297,48 @@ preserves user data, and that `git archive` produces a clean distribution zip.
 | `test_offline_reinstall_preserves_user_data` | `context/` marker file and `config.yaml` sentinel key survive a second `--source` install (rsync/cp excludes work). |
 | `test_package_excludes_dev_files` | `git archive HEAD` omits `CLAUDE.md`, `AGENTS.md`, `tests/`, `.github/` but includes `install.sh`, `lib/`, `skills/`. |
 
-### Planned suites (not yet built)
-Tracked in the implementation plan; this catalog grows as each lands.
+### T10 — Consistency toolkit (`tests/unit/test_consistency.py` + `/pm-check`)
+**Purpose:** a single read-only "is this project internally consistent right now?" check
+(`lib/consistency.py` → `check_project`), reusing the invariant-style logic the T1/T2 suites
+already assert on throwaway fixtures, so the runtime check and the test apparatus share one
+implementation instead of drifting apart. Surfaced via the `/pm-check` skill (exit 1 on any
+error), a non-blocking advisory in the pre-stage gate, and a one-line verdict in `/pm-status`
+— never mutates state. See the test-implementation plan §19.
+**Pass:** `check_project` returns `[]` for a healthy project and the exact expected issue code
+for each corrupted-state fixture. **Fail:** an invariant misses real drift/corruption, or a
+healthy project reports a false positive.
 
-| Phase | Suite | Will cover |
-|---|---|---|
-| T10 | `lib/consistency.py` + `/pm-check` | **Final phase, built after T9** — reusable live consistency checker (see "Reused as a live consistency check" below + test-plan §19). |
+| Test | Checks |
+|---|---|
+| `test_missing_schema_version_is_an_error` | A `schema_version` that isn't an int is `SCHEMA_VERSION_MISSING`. |
+| `test_stage_missing_required_field_is_an_error` | A stage entry missing `id`/`status`/`origin` is `STAGE_SHAPE_INVALID`. |
+| `test_unknown_stage_id_is_an_error` | A stage id outside the STAGE_NAMES catalog is `STAGE_SHAPE_INVALID`. |
+| `test_invalid_status_value_is_an_error` / `test_invalid_origin_value_is_an_error` | An out-of-enum `status`/`origin` is `STAGE_SHAPE_INVALID`. |
+| `test_healthy_meta_has_no_shape_issues` | A fully valid meta produces zero shape issues. |
+| `test_non_pending_stage_missing_artifact_is_an_error` | An approved/draft/edited/stale stage with no artifact file is `ARTIFACT_MISSING`. |
+| `test_pending_stage_missing_artifact_is_not_an_error` | A `pending` stage with no file is not flagged. |
+| `test_absent_context_and_sources_yaml_is_healthy` / `test_valid_context_and_sources_yaml_is_healthy` | Missing or well-formed `context/context.yaml`/`.sources.yaml` produce no issues. |
+| `test_malformed_context_yaml_is_an_error` / `test_malformed_sources_yaml_is_an_error` | Broken YAML in either file is `CONTEXT_YAML_UNPARSEABLE`/`SOURCES_YAML_UNPARSEABLE`. |
+| `test_healthy_project_returns_empty_list` | A fully consistent project (matching hashes, synced frontmatter, real files) returns `[]`. |
+| `test_format_report_empty_is_healthy_message` / `test_format_report_groups_errors_and_warnings` | Report text is a healthy message when empty, and groups/labels errors vs. warnings otherwise. |
+| `test_summary_line_variants` | The one-line verdict distinguishes healthy / warnings-only / has-errors. |
+| `test_issue_as_dict_shape` | `Issue.as_dict()` carries exactly the 5 spec fields (`code`, `severity`, `stage`, `message`, `remediation`). |
 
-### Reused as a live consistency check (planned — final phase, T10)
+The schema-shape tests call the private `_check_schema_and_stage_shape` helper directly rather
+than the full `check_project` — `project.load_meta()` auto-migrates a missing/stale
+`schema_version` in memory (and persists the fix) before `check_project` ever sees it, so that
+invariant can't be exercised end-to-end through a disk fixture.
 
-The invariant-style suites here aren't just tests — once T0–T9 are done, their checks get lifted
-into a single shared `lib/consistency.py` → `check_project(project_root)` so a PM can audit a
-**live** project ("something feels wrong") with the exact logic the tests assert. The tests then
-assert that shared function against healthy + corrupted fixtures, and it's surfaced to the PM via
-`/pm-check`, a non-blocking advisory in the pre-stage gate, and a one-line verdict in `/pm-status`
-— read-only (diagnose + point to the fix, never mutate). See the test-implementation plan §19.
-
-The suites that **correlate** (encode at-rest invariants → feed the checker): `test_telemetry`,
-`test_hashing`, `test_project`, `test_approval_and_staleness`, `test_stage_gates`. The rest are
-behavior-only and stay as they are.
+Also asserted (one `# T10:`-commented block apiece, reusing each test's own fixture rather than
+duplicating it) in the suites that already encode these invariants at rest: `test_telemetry.py`
+(`test_verify_chain_ok_and_tamper` — the shared checker flags the same tampered chain),
+`test_hashing.py` (`test_stage_content_hash_dispatch_dual_mode` — a recorded hash matching the
+current composite hash isn't flagged as drift), `test_project.py` (`test_migrate_meta_v1_to_v2`
+— a freshly migrated, persisted meta has no shape issues), `test_approval_and_staleness.py`
+(`test_approval_syncs_frontmatter_and_meta` — a freshly approved project has no sync-mismatch
+issues), and `test_stage_gates.py` (`test_editing_approved_upstream_marks_edited` — once drift
+flips a stage to `edited`, the checker stops flagging it as drifted, and no approved stage here
+is flagged against it as an unready upstream).
 
 ---
 
