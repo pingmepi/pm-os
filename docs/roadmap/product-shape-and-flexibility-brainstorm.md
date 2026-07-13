@@ -1,6 +1,6 @@
 # PM-OS — Product Shape & Flexibility: Brainstorm Notes
 
-**Date:** 2026-07-06 · **Status:** OPEN DISCUSSION — not a decision, not a committed plan.
+**Date:** 2026-07-06 · **Updated:** 2026-07-09 (Figma MCP prototyping validated empirically — see §5.5) · **Status:** OPEN DISCUSSION — not a decision, not a committed plan.
 **Participants:** Karan (PM, Indegene) + Claude. Prompted by a conversation with another PM about working styles.
 **Standing caveat:** Karan is **not yet convinced** of any direction here. This is a captured thinking thread, deliberately preserving open tensions rather than resolving them.
 
@@ -146,20 +146,22 @@ Prompted by: where does Figma fit, and how do design spec / Figma screens / HTML
 - So **`05` bundles two different concerns**: (a) a *validation plan* (research; renderer-agnostic; closer to the QA/metrics family) and (b) *prototype production* (pick slice + fidelity, emit the surface — hard-wired to HTML today). **That fusion — not the `04`/`05` split, which is sound — is the seam worth questioning** for cleaner separation (`05a` surface / `05b` validation plan).
 - Consequence: **`04` covers all journeys; the HTML prototype covers only a slice.** Want the *complete* screen set as a deliverable → generate from `04`. Want *cheap interactive validation* → the `05` HTML slice. Different scopes, by design.
 
-**Division of labour (confirmed against Figma MCP capabilities):**
+**Division of labour:**
 | Job | Tool | Status |
 |---|---|---|
-| Complete, DS-accurate **screens** | Figma MCP from **`04`** | ✅ generation + design-system resolution both supported |
-| Cheap **interactive validation** (a slice) | **HTML** from **`05`** | ✅ already auto-wired |
-| **Clickable Figma** prototype | **human** wires it natively in Figma | ⚠️ MCP can't — open feature request (Feb 2026) |
+| Complete, DS-accurate **screens** | Figma MCP from **`04`** | ✅ generation + design-system resolution |
+| **High-fidelity clickable prototype** | Figma MCP from **`04`** | ✅ **validated on a real project (2026-07-09)** — screens *and* prototype, one tool |
+| Cheap, throwaway **interactive validation** (a slice) | **HTML** from **`05`** | ✅ auto-wired, repo-native, no Figma/auth |
 
-**Figma MCP is a screen generator + design-system resolver, not a prototyper** (sourced, July 2026): `use_figma` / `generate_figma_design` generate/capture screens; `search_design_system` / `get_libraries` / `get_variable_defs` resolve a real company library; but the MCP **cannot read or wire prototype interactions** (open feature request; current workaround = manual button annotations). Figma Make is the separate AI-prototyping surface the MCP mostly *reads*. So interactivity = the HTML prototype (already have it) or a human in Figma.
+**Update (2026-07-09): Figma MCP prototypes well — this supersedes the earlier forum-sourced finding.** Karan validated on a real project that Figma MCP generates DS-accurate screens **and** wires a working clickable prototype from `04`. This overturns the prior claim (from a Feb 2026 Figma Forum feature request) that prototype interactions were unsupported — Figma likely shipped it since, or the agent drives it via `use_figma` scripting the Plugin API's reaction primitives. Either way the empirical result stands: **one tool covers screens + interactive prototype + design-system fidelity.** The earlier three-way split (HTML / Figma screens / human-wired Figma) collapses; the only open question is the renderer fork below.
+
+**The HTML-vs-Figma fork.** With Figma covering high-fidelity *and* interactive, the stage-`05` HTML prototype's role narrows to the *fast, throwaway, zero-dependency* lane. Two clean choices: (a) **keep both** — HTML as the *exploration/research* renderer (repo-native, no auth, disposable — the natural fit for the exploration lane in §2/§5), Figma as the *committed-design* deliverable for client/dev review; or (b) **standardize on Figma** and retire the HTML prototype. Either path is what finally makes the `05a` surface / `05b` validation-plan split worthwhile — you now genuinely have two renderers worth making pluggable.
 
 **Ownership boundary (the anti-drift rule):** `04` owns *intent / behavior / flows*; the surface owns *visuals / pixels*. Spec change → regenerate/refresh the surface (staleness handles it). Visual tweak → stays in the surface. **Behavior changed directly in Figma → must round-trip into `04`**, or it's silent drift. Figma generation is *seed-then-diverge*, not keep-in-sync; the spec→Figma link is a soft advisory trace (reference `UJ-###`), never a hard hash — don't over-promise prose↔pixel sync.
 
 **Design system = context, not per-project output.** A standardized company DS is stable across every product, so it belongs in the **context overlay** (the rulebook + pointer) with the company **Figma library** as the asset source of truth. When a DS exists, **`04` shifts from token-*author* to token-*consumer*** — it references system components/tokens and specifies only composition + net-new/deviations. Figma MCP then resolves those references to the real library components. Same reference-don't-duplicate rule — and it *simplifies* `04`.
 
-**Current state (verified):** PM-OS has **no first-class design-system reference.** `04` authors tokens from scratch (`lib/artifact_contracts.py` requires "Color Tokens", "Spacing Tokens", "Component Inventory" as things to *define*). The only DS awareness is *inbound* brownfield scanning (`skills/pm-context-scan-codebase` → `00c`). The context overlay is the only injection point today, and it's **unstructured prose — advisory, no component IDs, no library resolution.** A real reference convention (component/token IDs the overlay defines and Figma MCP resolves) is **net-new plumbing** that the whole Figma workflow depends on.
+**Current state (verified):** PM-OS has **no first-class design-system reference.** `04` authors tokens from scratch (`lib/artifact_contracts.py` requires "Color Tokens", "Spacing Tokens", "Component Inventory" as things to *define*). The only DS awareness is *inbound* brownfield scanning (`skills/pm-context-scan-codebase` → `00c`). The context overlay is the only injection point today, and it's **unstructured prose — advisory, no component IDs, no library resolution.** A real reference convention (component/token IDs the overlay defines and Figma MCP resolves) is **net-new plumbing** that the whole Figma workflow depends on. The successful Figma test (2026-07-09) *raises* this to keystone priority — the DS-reference is what turns a working manual demo into repeatable, DS-accurate output rather than generic boxes.
 
 ---
 
@@ -215,7 +217,7 @@ Deliberately left open:
 - Prototype the **edge-aware `.traceability.yaml`** + derived roadmap sequencing.
 - Spec the **exploration lane + `/pm-graduate`** flow end to end.
 - Step back and weigh **regulatory gate / multi-approver** against all of the above for Indegene priority.
-- Sketch a **design-system reference convention in `04`** (component/token IDs the overlay defines and Figma MCP resolves) — the plumbing the Figma workflow depends on — and consider splitting `05` into **surface** (HTML|Figma renderer) + **validation plan**.
+- Sketch a **design-system reference convention in `04`** (component/token IDs the overlay defines and Figma MCP resolves) — now the **keystone**, since Figma-as-renderer is de-risked (validated 2026-07-09). Then decide the **HTML-vs-Figma fork** (keep HTML as the exploration lane vs standardize on Figma) and, if keeping both, split `05` into **surface** (HTML|Figma renderer) + **validation plan**.
 - **Context overlay** (§5.6): add stage-affinity to globals (#1), fix the seed-drift leak (#2), make `_clean` blockquote-safe (#3); later, coordinate overlay vs `00-context` pack and host the design-system pack there.
 
 ## 9. Grounding references (anchors for re-entry)
@@ -227,5 +229,5 @@ Deliberately left open:
 - `lib/context.py` — context overlay (per-project only; no cross-project inheritance). `context.example/` (global guardrails + per-stage packs) is the only lever to inject a company design system today — as prose.
 - `scripts/pm_context_import.py` + `skills/pm-context-import/` — adopt/backfill/source-registration.
 - `skills/pm-stage-04-design-spec` vs `skills/pm-stage-05-prototype-brief` — complete design contract (all `UJ-###`) vs deliberate validation slice; `04` authors tokens (no DS reference). `skills/pm-prototype-html` renders only the brief's slice into HTML. `skills/pm-context-scan-codebase` — the only (inbound, brownfield) design-system awareness.
-- Figma MCP (external): Dev Mode server is design-to-code + design-system resolution; prototype-interaction read/wiring is unsupported (open Figma Forum feature request, Feb 2026). Figma Make is the separate AI-prototyping surface.
+- Figma MCP (external): generates DS-accurate screens (design-system resolution via `get_libraries` / `search_design_system` / `get_variable_defs`) **and prototypes** — validated on a real project 2026-07-09 (supersedes the Feb 2026 Figma Forum finding that prototype interactions were unsupported; likely via `use_figma` Plugin-API reactions or a Figma update since). Figma Make is a separate AI-prototyping surface.
 - `docs/roadmap/current-state-review.md` — the canonical roadmap (Phases 0–6); this brainstorm extends its §3/§5/§7.
