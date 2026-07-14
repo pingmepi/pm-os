@@ -158,7 +158,14 @@ Write a Product Requirements Document with these base sections.
 
 ## User Stories with Acceptance Criteria
 
-<List the core user stories in priority order using stable IDs such as `US-001`. For each story, include the actor, trigger, happy path, key edge case, trace to the relevant scope item and journey, and clear acceptance criteria that can be validated by QA without guesswork. These `US-###` ids are the **stable traceability handles** for the whole pipeline (QA scenarios, handoff, triage all link by them) — never renumber an existing story across regenerations; only append new ids.>
+<List the core user stories in priority order using stable IDs such as `US-001`. Write each story as a **self-contained mini-spec** so the readable handoff package can render it per story without inventing content. For each `US-###` include:
+- **Story** — actor, trigger, happy path (`As a <role>, I want <capability>, so that <outcome>`).
+- **Data fields** — the fields the story touches (name, type, mandatory?), where a screen or grid is involved. Omit only if the story has no data surface.
+- **Key UI steps** — the ordered user↔system interactions. For **each** step, give the **System process** (background behaviour; for grids, name the sort field), the **Acceptance (Done)** definition, at least one **corner case** traced to a QA `TC-###`, and any **Exceptions** (where the system should not behave as described).
+- **Acceptance criteria** — testable, QA-verifiable conditions (may be expressed as the per-step Done items above).
+- **Traceability** — the relevant scope item, `UJ-###` journey, and `FR-###`/`REQ-###`.
+
+These `US-###` ids are the **stable traceability handles** for the whole pipeline (QA scenarios, handoff, triage all link by them) — never renumber an existing story across regenerations; only append new ids. Keep this section additive to the flat `## User Journeys` and `## Functional Requirements` sections below — do not move journeys or requirements inside the story blocks.>
 
 ## Functional Requirements
 
@@ -171,6 +178,10 @@ Write a Product Requirements Document with these base sections.
 ## Data & Governance
 
 <Specify the data this product collects, stores, or processes: what data, its sensitivity classification (e.g. public, internal, confidential, PII/PHI), who owns it, how long it is retained, who may access it and under what permissions, and the consent or legal basis for collection. Name any data residency or regulatory regime that applies (e.g. GDPR, HIPAA) and any data shared with third parties or external services — including any sent to third-party model providers when `genai_flag=true`. If the product handles no sensitive data, state that explicitly rather than omitting the section.>
+
+## Impact Analysis
+
+<Recommended. Identify what this MVP touches beyond its own new surface: impacted shared/common components, impacted existing functionality across the product(s) or apps, third-party integration impacts, and any jurisdiction or regulatory-regime impacts. If the change is fully self-contained, state that explicitly rather than omitting the section. Keep it product-level; deep technical impact belongs in the TRD (stage 08).>
 
 ## Journey–Requirement Traceability
 
@@ -270,7 +281,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 1
+   artifact_contract_version: 2
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
@@ -329,7 +340,8 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - The PRD must stay inside the stage-02 MVP boundary.
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
-- User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch.
+- User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec (data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions) so the handoff can render it without invention.
+- Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
 - Journey–Requirement Traceability and Assumptions & Open Decisions should be present when applicable; explain explicit non-applicability instead of silently omitting them.
 - Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and must use stable `FR-###` (or `REQ-###`) IDs that survive regeneration.
@@ -346,7 +358,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 1. Does every major requirement trace back to the approved scope and success hypothesis?
 2. Does every critical user story appear in at least one structured `UJ-###` journey with context, recovery, completion, and traceability?
 3. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
-4. Do user stories and functional requirements use stable IDs and describe observable behavior?
+4. Do user stories and functional requirements use stable IDs and describe observable behavior? Is each story a self-contained mini-spec (data fields, per-step UI/system/acceptance/corner-cases) so the handoff can render it faithfully?
 5. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
 6. Were scope open questions handled as blockers or explicit assumptions?
 7. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?

@@ -15,7 +15,13 @@ from frontmatter import read as fm_read
 from project import artifact_path
 
 
-CONTRACT_VERSION = 1
+CONTRACT_VERSION = 2
+
+# Contract versions this validator still accepts without a drift warning. v2 added
+# recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
+# feed the readable handoff package; every v2 check is WARNING-only, so a v1 PRD on
+# disk keeps passing untouched (CLAUDE.md: existing projects must keep working).
+SUPPORTED_CONTRACT_VERSIONS = {1, 2}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -151,7 +157,7 @@ REQUIRED_SECTIONS = {
 }
 
 RECOMMENDED_SECTIONS = {
-    "03": ["Journey-Requirement Traceability", "Assumptions & Open Decisions"],
+    "03": ["Journey-Requirement Traceability", "Assumptions & Open Decisions", "Impact Analysis"],
     "04": ["Responsive & Platform Behavior", "UX Content Rules"],
     "05": ["Prototype Data & Scenarios", "Known Limitations"],
     "06": ["Requirement-Test Traceability"],
@@ -252,6 +258,45 @@ def split_test_case_blocks(text: str) -> dict[str, str]:
     return blocks
 
 
+# A US-### story can be declared as a heading (`### US-001`), a bullet
+# (`- US-001`), an ordered-list item (`1. US-001`), or a bare line — the same
+# shapes `split_test_case_blocks` accepts. Shared by the contract's per-story
+# checks and the handoff assembler so both agree on what "a user-story block" is.
+_US_BLOCK_START_RE = re.compile(
+    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?(?P<id>US-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def split_user_story_blocks(text: str) -> dict[str, str]:
+    """Map each US-### id to the text block that introduces it.
+
+    A block starts at a section-level US declaration and runs to the next such
+    declaration or the next ``##`` section, whichever comes first. First
+    declaration wins; later mentions are treated as references. Mirrors
+    ``split_test_case_blocks`` so the handoff and the validator stay in lockstep.
+    """
+    section_breaks = [m.start() for m in _TC_SECTION_BREAK_RE.finditer(text)]
+    matches = list(_US_BLOCK_START_RE.finditer(text))
+    blocks: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        us_id = match.group("id").upper()
+        if us_id in blocks:
+            continue
+        next_us = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        next_section = next((p for p in section_breaks if p > match.start()), len(text))
+        blocks[us_id] = text[match.start():min(next_us, next_section)]
+    return blocks
+
+
+# Cues that a user-story block carries testable acceptance criteria. Kept broad so
+# the check nudges rather than nags: any of these satisfies it.
+_ACCEPTANCE_CUE_RE = re.compile(
+    r"\bacceptance\b|\bdone\b|\bgiven\b.*\bthen\b|\bmust\b|\bshould\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
     journeys = _section(sections, "User Journeys") or ""
@@ -276,6 +321,17 @@ def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     stories = _section(sections, "User Stories with Acceptance Criteria") or ""
     if not USER_STORY_ID_RE.search(stories):
         findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers so traceability survives regeneration."))
+    # v2 (WARNING-only): each story block should carry acceptance criteria so the
+    # handoff can render a Done/acceptance section per story instead of a blank.
+    unacc = sorted(
+        us_id for us_id, block in split_user_story_blocks(stories).items()
+        if not _ACCEPTANCE_CUE_RE.search(block)
+    )
+    if unacc:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_ACCEPTANCE_MISSING",
+            f"User stories with no visible acceptance criteria: {', '.join(unacc)}",
+        ))
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):
         findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### (or REQ-###) identifiers so traceability survives regeneration."))
@@ -429,10 +485,11 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
         return [Finding("ERROR", "ARTIFACT_UNREADABLE", f"Could not read artifact: {exc}")]
 
     findings: list[Finding] = []
-    if fm.get("artifact_contract_version") != CONTRACT_VERSION:
+    if fm.get("artifact_contract_version") not in SUPPORTED_CONTRACT_VERSIONS:
         findings.append(Finding(
             "WARNING", "CONTRACT_VERSION_MISSING",
-            f"Artifact does not declare artifact_contract_version: {CONTRACT_VERSION}.",
+            f"Artifact does not declare a supported artifact_contract_version "
+            f"(latest: {CONTRACT_VERSION}).",
         ))
     sections = _sections(body)
     findings.extend(_missing_sections(stage_id, sections))
