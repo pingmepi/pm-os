@@ -355,3 +355,57 @@ const review = new URLSearchParams(window.location.search).get('review') === '1'
 </script></body></html>""", encoding="utf-8")
     codes = {finding.code for finding in contracts.validate_prototype_html(root)}
     assert not any(code.startswith("RETRIEVAL_USES_") for code in codes)
+
+
+# --- v2 enrichments feeding the readable handoff package -----------------------
+
+def test_split_user_story_blocks_bounds_by_declaration_and_section(tmp_path):
+    """US-### blocks split on the next US declaration or the next ## section, so a
+    story's block is exactly what the handoff assembler will render for it."""
+    text = """### US-001 — Add
+As a user, I want add.
+### US-002 — List
+As a user, I want list.
+## Functional Requirements
+FR-001 — stuff.
+"""
+    blocks = contracts.split_user_story_blocks(text)
+    assert list(blocks) == ["US-001", "US-002"]
+    assert "want add" in blocks["US-001"] and "want list" not in blocks["US-001"]
+    assert "FR-001" not in blocks["US-002"]  # the ## section bounds the last block
+
+
+def test_user_story_without_acceptance_warns_not_errors(tmp_path):
+    """A story block carrying no acceptance cue is a WARNING (so the handoff can flag
+    the gap) — never a hard error that would block approval of existing projects."""
+    root = _project(tmp_path)
+    body = _valid_prd().replace(
+        "### US-001 — Complete work\nAcceptance criteria are observable.\n",
+        "### US-001 — Complete work\nThe operator opens the item.\n",
+    )
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    assert any(f.code == "USER_STORY_ACCEPTANCE_MISSING" for f in findings)
+    assert contracts.error_count(findings) == 0
+
+
+def test_contract_version_1_is_still_supported(tmp_path):
+    """Bumping CONTRACT_VERSION to 2 must not make existing v1 PRDs warn about their
+    contract version — v1 and v2 are both supported (backward compatibility)."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd(), contract_version=1)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "CONTRACT_VERSION_MISSING" not in codes
+
+
+def test_impact_analysis_is_a_recommended_prd_section(tmp_path):
+    """Impact Analysis missing warns (feeds the handoff's impact-analysis.md) but
+    never blocks."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())  # _valid_prd has no Impact Analysis
+    findings = contracts.validate_artifact(root, "03")
+    assert any(
+        f.code == "RECOMMENDED_SECTION_MISSING" and "Impact Analysis" in f.message
+        for f in findings
+    )
+    assert contracts.error_count(findings) == 0
