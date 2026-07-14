@@ -240,6 +240,15 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
 - `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
 
+**`test_handoff_package.py`** — Phase 4a readable handoff package (`scripts/pm_handoff.py`)
+- `test_handoff_generates_per_story_files_with_traceability` — approving 01/02/03/06 then running `pm_handoff.py` assembles per-story files in the boss house-format by walking US-### → FR-### → UJ-### → covering TC-###; the story lists both covering test cases, carries the authored story body, and is stamped with source provenance + a "DO NOT EDIT HERE" banner.
+- `test_handoff_flags_unsourced_sections_instead_of_fabricating` — a story with no covering TC / no FR shows `— not captured in source —` rather than invented content (the blank doubles as a coverage checklist).
+- `test_handoff_overview_and_reference_docs` — `00-overview.md` carries Who/What&Why/How from the brief+scope; `reference/impact-analysis.md` and `nfrs.md` carry the PRD's Impact Analysis and NFR sections.
+- `test_handoff_is_read_only_and_does_not_touch_state_machine` — generating the package leaves `.meta.yaml` and `03-prd.md` byte-identical (read-only projection, never gated/hashed).
+- `test_handoff_requires_a_prd` — with no approved PRD the generator exits non-zero instead of emitting an empty package.
+
+The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_split_user_story_blocks_bounds_by_declaration_and_section`, `test_user_story_without_acceptance_warns_not_errors`, `test_contract_version_1_is_still_supported`, `test_impact_analysis_is_a_recommended_prd_section`) — all WARNING-only, so existing `artifact_contract_version: 1` PRDs keep passing.
+
 ### T3 — Contracts (`tests/contracts/test_skill_contracts.py`, `test_documentation_drift.py`)
 **Purpose:** skills/docs/spec can't silently drift from the code. **Pass:** structural facts hold (asserted from source-of-truth constants). **Fail:** a skill/doc diverges from the code.
 - `test_skill_contracts`: every skill has frontmatter name/description **and a Codex `agents/openai.yaml` twin with well-formed interface metadata** (display name, short description, a `$skill` default prompt); no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints.
