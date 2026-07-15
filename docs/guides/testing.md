@@ -249,6 +249,10 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_package_overview_and_reference_docs` — `00-overview.md` carries Who/What&Why/How from the brief+scope; `reference/impact-analysis.md` and `nfrs.md` carry the PRD's Impact Analysis and NFR sections.
 - `test_package_is_read_only_and_does_not_touch_state_machine` — generating the package leaves `.meta.yaml` and `03-prd.md` byte-identical (read-only projection, never gated/hashed).
 - `test_package_requires_a_prd` — with no approved PRD the generator exits non-zero instead of emitting an empty package.
+- `test_package_refuses_a_draft_prd` — a PRD that exists but is only `draft` is refused, so unreviewed product decisions can't be published as canonical handoff (Codex PR #31 finding).
+- `test_package_refuses_an_edited_prd` — an `edited` PRD (body drifted after approval) is also refused: the changes are unreviewed and the traceability index is stale relative to the edited body, so re-approval is required before packaging (Codex PR #32 finding).
+- `test_package_refuses_destructive_output_dir` — `--output .` (the project root/cwd) is rejected before any `rmtree`, so a stray target can never erase `.meta.yaml`/approved artifacts (Codex PR #30/#31 P1 finding).
+- `test_package_refuses_existing_unmarked_dir` — an existing non-empty directory lacking the `.pm-os-handoff` marker is not deleted; only a prior package (which carries the marker) is regenerated in place.
 - `test_raw_mode_unchanged_by_the_merge` — the pre-existing single-stage/all-approved raw text export is untouched by folding `--package` in alongside it, and raw mode never creates a `handoff/` package as a side effect.
 
 The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_split_user_story_blocks_bounds_by_declaration_and_section`, `test_user_story_without_acceptance_warns_not_errors`, `test_contract_version_1_is_still_supported`, `test_impact_analysis_is_a_recommended_prd_section`) — all WARNING-only, so existing `artifact_contract_version: 1` PRDs keep passing.
