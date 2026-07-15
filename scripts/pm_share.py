@@ -216,11 +216,14 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # The package projects *approved* product decisions. A draft/stale/pending PRD
-    # must not be published as a canonical handoff (mirrors raw mode, which only
-    # exports approved/edited stages).
+    # The package projects *approved* product decisions, so stage 03 must be
+    # exactly `approved` — not draft/stale/pending, and deliberately not `edited`.
+    # `edited` means the PRD body drifted after approval (unreviewed changes), and
+    # the traceability index (rebuilt only at approval, in post-approve.py) is then
+    # stale relative to that body, so covering-test-case resolution would mix a
+    # current body with a pre-edit index. Re-approve to refresh both.
     prd_status = _stage_status(meta, "03")
-    if prd_status not in ("approved", "edited"):
+    if prd_status != "approved":
         raise SystemExit(
             f"Error: stage 03 (PRD) is '{prd_status or 'not present'}', not "
             "approved — the handoff package projects approved decisions only. "

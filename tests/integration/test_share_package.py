@@ -175,14 +175,38 @@ def test_package_requires_a_prd(pmos, new_project):
 
 
 def test_package_refuses_a_draft_prd(pmos, new_project):
-    """A PRD that exists but is only 'draft' (not approved/edited) must be refused —
-    the package projects approved decisions only, so an unreviewed PRD must not be
+    """A PRD that exists but is only 'draft' (not approved) must be refused — the
+    package projects approved decisions only, so an unreviewed PRD must not be
     published as canonical handoff."""
     proj = new_project("handoff-draftprd", "A problem")
     for stage, body in (("01", _BRIEF), ("02", _SCOPE)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     make_draft(proj, "03", body=_PRD)  # draft, never approved
+
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode != 0
+    assert "approved" in (res.stdout + res.stderr).lower()
+    assert not (proj / "handoff").exists()
+
+
+def test_package_refuses_an_edited_prd(pmos, new_project):
+    """`edited` (PRD body drifted after approval) must also be refused, not just
+    draft: the changes are unreviewed and the traceability index — rebuilt only at
+    approval — is stale relative to the edited body, so covering-test-case
+    resolution would mix a current body with a pre-edit index. Re-approval is
+    required (Codex PR #32 finding)."""
+    import project
+    import frontmatter as fm_mod
+
+    proj = new_project("handoff-editedprd", "A problem")
+    _approve_pipeline(pmos, proj)
+
+    # Simulate post-approval drift: flip stage 03 to `edited` in both sources of truth.
+    meta = project.load_meta(proj)
+    project.get_stage(meta, "03")["status"] = "edited"
+    project.save_meta(meta, proj)
+    fm_mod.update_status(str(project.artifact_path(proj, "03")), "edited")
 
     res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
     assert res.returncode != 0
