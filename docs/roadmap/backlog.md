@@ -106,10 +106,10 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 ---
 
-## 7. 🟠 Editing an already-approved artifact requires a clunky "drift dance" (IMP-004)
+## 7. 🟢 Editing an already-approved artifact requires a clunky "drift dance" (IMP-004)
 
 **Severity:** P1 — UX friction on a core, frequently-used workflow (revising an approved stage).
-**Status:** 🟠 Open.
+**Status:** **Fixed** (this change), pending release.
 
 **Symptom:** `pm_approve` refuses to act on a stage that's already `approved`, so re-approving an intentional PM edit requires first running a *downstream* stage's `pre-stage.py` gate to flip the edited stage's status to `edited` before `/pm-approve` will accept it. Compounding this, the gate's non-interactive message (see entry #1's fix) tells the agent to "STOP — do not re-approve on the PM's behalf" — appropriate when the agent detects the edit unprompted, but the same wording fires even when the PM has explicitly and directly authorized the edit in the current conversation.
 
@@ -117,18 +117,25 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 **Proposed fix:** Add a direct `/pm-approve --reapprove` path that detects hash drift against the stage's own last-approved snapshot *within* `pm_approve.py` itself, without requiring a downstream stage's gate to run first. Also soften the STOP wording to distinguish "agent detected this unprompted, stop and ask the PM" from "the PM already sanctioned this edit in this session" — the latter shouldn't require the same friction.
 
+**Fixed (this change):**
+- `scripts/pm_approve.py` gains `--reapprove`: on an already-`approved` stage, it recomputes the body's content hash and compares it to the stored `content_hash`. Unchanged → no-op ("already approved and unchanged since approval"). Drifted → proceeds through the normal approval flow (validation, hash write, cascade) directly, with no downstream gate required first. The `stage_approved` telemetry payload gains `reapproved_from_approved: true/false` so this path is distinguishable from a normal draft→approved transition and from the pre-existing `implicit_reapproval` (pre-stage.py cascade) path.
+- `hooks/pre-stage.py`'s non-TTY STOP message (from entry #1's fix) now distinguishes "you (the agent) noticed this drift unprompted — STOP and ask the PM" from "the PM already told you, in this conversation, to treat the edit as authorized — go ahead and run `/pm-approve <NN>` yourself," and points at `/pm-approve <NN> --reapprove` for a still-`approved` stage the PM edited directly. All 9 stage `SKILL.md` gate notes carry the same clarified wording (identical text was duplicated across all 9 files; updated in one pass).
+- Tests: `test_reapprove_rejects_without_flag`, `test_reapprove_with_flag_reapproves_direct_edit`, `test_reapprove_noop_when_unchanged` in `tests/integration/test_approval_and_staleness.py`. `docs/guides/testing.md` updated to match.
+
 ---
 
-## 8. 🟡 Telemetry stamps the project-pinned `pm_os_version`, not the runtime version (IMP-005)
+## 8. 🟢 Telemetry stamps the project-pinned `pm_os_version`, not the runtime version (IMP-005)
 
 **Severity:** P3 — provenance/observability nuance, not correctness-blocking.
-**Status:** 🟡 Confirmed behavior this session; fix agreed but not yet implemented.
+**Status:** **Fixed** (this change), pending release.
 
 **Symptom:** Telemetry events for a demo-project run recorded `pm_os_version: 0.5.12` (the project's "created-with" version) while the installed runtime was actually `1.0.8`.
 
 **Evidence:** `lib/telemetry.py:33` stamps every event from `meta.get("pm_os_version", "0.1.0")` — a value written once at `pm-new`/install time (`scripts/pm_new.py:89-90,157`) and never refreshed thereafter. Confirmed live drift on disk: `~/pm-projects/bill-checker/.meta.yaml` shows `pm_os_version: 0.3.0` against an installed `VERSION` of `1.0.8`. `scripts/pm_status.py:34-37` already computes a live-vs-pinned comparison, but only for human-facing display output — it's never wired into telemetry.
 
 **Proposed fix (agreed this session, not yet implemented):** Add a second field, `pm_os_version_runtime`, to the telemetry payload — read from `~/.pm-os/VERSION` at log time — alongside the existing `pm_os_version` (kept as-is, as pinned "created-with" provenance). Additive, backward-compatible, no schema break.
+
+**Fixed (this change):** `lib/telemetry.py` reads `VERSION` from `PM_OS_DIR` (env var, defaulting to `~/.pm-os`) at log time via a new `_runtime_version()` helper, and every logged event now carries `pm_os_version_runtime` alongside the unchanged, pinned `pm_os_version`. Test: `test_log_stamps_runtime_version_distinct_from_pinned` in `tests/unit/test_telemetry.py`.
 
 ---
 
@@ -168,10 +175,10 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 ---
 
-## 11. 🔴 Validator and traceability builder disagree on what counts as a `TC-###` declaration (IMP-007)
+## 11. 🟢 Validator and traceability builder disagree on what counts as a `TC-###` declaration (IMP-007)
 
 **Severity:** P1 — a QA plan that passes every contract check can still silently contribute nothing to `.traceability.yaml`. The failure is invisible: no error, no warning, just an empty spine.
-**Status:** 🔴 Open. Verified against the current codebase (not just observed).
+**Status:** **Fixed** (this change), pending release.
 
 **Symptom:** `lib/artifact_contracts.py` has two different extractors for `TC-###` ids that disagree on what "declares" a test case:
 - `test_case_ids()` — the **loose** extractor (`TEST_CASE_ID_RE = r"\bTC-\d{3,}\b"`), used by stage-06's `TEST_CASE_IDS_MISSING` check. It matches a `TC-###` anywhere in the text, including inside Markdown bold (`**TC-001**`), since `\b` word boundaries sit on either side regardless of the `*` characters.
@@ -191,6 +198,8 @@ split_test_case_blocks(qa_text) # -> {}            (traceability + trace-check: 
 **Evidence:** `lib/artifact_contracts.py` — `TEST_CASE_ID_RE` (loose), `_TC_BLOCK_START_RE`/`_TC_SECTION_BREAK_RE` (strict), `_validate_stage_06`; `lib/traceability.py:build_index()` (shares the strict extractor with the validator, not the loose one the "is this QA plan valid" gate actually uses).
 
 **Proposed fix:** Make the strict, line-anchored extractor tolerant of a bold-wrapped id immediately after a bullet/heading marker (`[-*+]\s+\*{0,2}TC-\d{3,}` style), and make `TEST_CASE_IDS_MISSING` use the **same** extractor `split_test_case_blocks` uses — one extractor, not two, so "the contract says valid" and "the spine actually links it" can never disagree. Separately, make `_TC_SECTION_BREAK_RE` also stop at `###` headings so non-TC subsections never get absorbed into an adjacent TC's block.
+
+**Fixed (this change):** `lib/artifact_contracts.py` — `_TC_BLOCK_START_RE` (and `_US_BLOCK_START_RE`, same bug class) now accepts an optional bold wrapper (`\*{0,2}`) before the id. `_TC_SECTION_BREAK_RE` widened from `^##\s` to `^#{2,6}\s` so any heading level 2-6 ends a block, closing the interleaved-`###`-subsection absorption bug too. `_validate_stage_06` now derives `tc_ids` from `split_test_case_blocks(...).keys()` (falling back to scanning the full body only if the named section has no recognizable declarations) instead of the loose `TEST_CASE_ID_RE`-based `test_case_ids()`, so `TEST_CASE_IDS_MISSING`, `TEST_CASE_TRACE_MISSING`, and `traceability.build_index()` all agree on what a QA plan declares. Both verified reproductions in this entry now behave correctly. Tests: `test_qa_plan_bold_wrapped_bullet_ids_are_declared`, `test_split_test_case_blocks_stops_at_any_heading_level` (`tests/unit/test_artifact_contracts.py`), `test_bold_wrapped_bullet_tc_ids_still_populate_the_spine` (`tests/integration/test_traceability_spine.py`, end-to-end through real approval). `docs/guides/testing.md` updated to match.
 
 ---
 
@@ -280,13 +289,15 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 17. 🟢 `test_telemetry.py` reads the real installed `config.yaml` (from codex-pr-audit)
 
 **Severity:** P3 — test-isolation gap; fails or leaks real data on machines with a real PM-OS install, not a product bug.
-**Status:** 🟢 Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — still present.
+**Status:** **Fixed** (this change), pending release. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — was still present until now.
 
 **Symptom:** `tests/unit/test_telemetry.py`'s four tests (`test_log_appends_chained_events`, `test_last_event_filters`, `test_verify_chain_ok_and_tamper`, `test_verify_chain_no_file`) take only `tmp_path`, never the `pmos` fixture. `telemetry.log()` calls `load_config()`, which reads the real `~/.pm-os/config.yaml` when the isolating fixture isn't requested — `pmos` (`tests/conftest.py`) monkeypatches `HOME`/`PM_OS_DIR` but is opt-in per test, not `autouse`.
 
 **Evidence:** `tests/unit/test_telemetry.py` test signatures vs. `tests/conftest.py:pmos` fixture definition — confirmed the fixture is never requested in this file.
 
 **Proposed fix:** Add the `pmos` fixture to each test in `test_telemetry.py` (matching the pattern already used across the rest of `tests/`), or add a lightweight `autouse` fixture scoped to this module that monkeypatches `telemetry.load_config` to a stub.
+
+**Fixed (this change):** All four tests in `tests/unit/test_telemetry.py` now request the `pmos` fixture, matching the rest of the suite. `tests/conftest.py`'s `_repoint_lib_modules()` also gained a `telemetry` reload + `PM_OS_DIR` monkeypatch (needed alongside entry #8's fix, since `telemetry.PM_OS_DIR` is a module-level constant baked at import time, same pattern as `context.PM_OS_DIR`).
 
 ---
 
