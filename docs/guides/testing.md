@@ -5,8 +5,9 @@ understand the whole suite; jump to a suite section to understand one test you'r
 reviewing. Every test also carries a docstring saying what it checks and why — this
 doc and those docstrings are kept in lockstep (see [Conventions](#conventions-for-adding-tests)).
 
-The implementation roadmap (which phases exist, exit criteria) lives in
-[`docs/plans/pm-os-test-implementation-plan.md`](../plans/pm-os-test-implementation-plan.md).
+The original implementation roadmap (which phases exist, exit criteria — now
+fully shipped, T0–T10) lives in
+[`docs/archive/pm-os-test-implementation-plan.md`](../archive/pm-os-test-implementation-plan.md).
 This doc describes what is **built**.
 
 ---
