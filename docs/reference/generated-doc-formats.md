@@ -222,7 +222,7 @@ Base sections:
 - **`## Overview`** — The product, the user problem, the MVP boundary, and what this PRD covers.
 - **`## Goals and Non-Goals`** — The outcomes this release targets, followed by the explicit non-goals for this version.
 - **`## User Journeys`** — End-to-end journeys (`### UJ-###`): primary user, trigger, goal, preconditions, happy path, failure paths, completion signal, and traceability to US/FR.
-- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor, trigger, happy path, key edge case, scope/journey trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
+- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor/trigger/outcome, explicit happy path, edge cases / alternate paths, data fields, key UI steps with system behavior and Done criteria, scope/journey/requirement trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
 - **`## Functional Requirements`** — Required system behaviors, workflows, states, rules, and integrations (`FR-###`/`REQ-###`), each mapped to a story or scope item.
 - **`## Non-Functional Requirements`** — Performance, reliability, security, privacy, accessibility, auditability, maintainability, and operations — with measurable thresholds.
 - **`## Data & Governance`** — What data is collected/stored/processed, its sensitivity, owner, retention, access, consent/legal basis, residency/regime, and any third-party or model-provider sharing.

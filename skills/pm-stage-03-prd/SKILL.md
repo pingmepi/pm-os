@@ -159,9 +159,11 @@ Write a Product Requirements Document with these base sections.
 ## User Stories with Acceptance Criteria
 
 <List the core user stories in priority order using stable IDs such as `US-001`. Write each story as a **self-contained mini-spec** so the readable handoff package can render it per story without inventing content. For each `US-###` include:
-- **Story** — actor, trigger, happy path (`As a <role>, I want <capability>, so that <outcome>`).
+- **Story** — actor, trigger, and outcome (`As a <role>, I want <capability>, so that <outcome>`).
+- **Happy path** — the primary success flow from trigger to completion, written clearly enough that a developer can implement the normal path and QA can identify the positive test case.
+- **Edge cases / alternate paths** — meaningful failure modes, unusual states, invalid inputs, permission gaps, empty/loading/error states, and recovery behavior. Trace each to a QA `TC-###` when a matching test case exists or is expected.
 - **Data fields** — the fields the story touches (name, type, mandatory?), where a screen or grid is involved. Omit only if the story has no data surface.
-- **Key UI steps** — the ordered user↔system interactions. For **each** step, give the **System process** (background behaviour; for grids, name the sort field), the **Acceptance (Done)** definition, at least one **corner case** traced to a QA `TC-###`, and any **Exceptions** (where the system should not behave as described).
+- **Key UI steps** — the ordered user↔system interactions. For **each** step, give the **System process** (background behaviour; for grids, name the sort field), the **Acceptance (Done)** definition, any step-level **corner cases** traced to a QA `TC-###`, and any **Exceptions** (where the system should not behave as described).
 - **Acceptance criteria** — testable, QA-verifiable conditions (may be expressed as the per-step Done items above).
 - **Traceability** — the relevant scope item, `UJ-###` journey, and `FR-###`/`REQ-###`.
 
@@ -340,7 +342,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - The PRD must stay inside the stage-02 MVP boundary.
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
-- User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec (data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions) so the handoff can render it without invention.
+- User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions, and traceability so the handoff can render it without invention.
 - Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
 - Journey–Requirement Traceability and Assumptions & Open Decisions should be present when applicable; explain explicit non-applicability instead of silently omitting them.
@@ -358,7 +360,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 1. Does every major requirement trace back to the approved scope and success hypothesis?
 2. Does every critical user story appear in at least one structured `UJ-###` journey with context, recovery, completion, and traceability?
 3. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
-4. Do user stories and functional requirements use stable IDs and describe observable behavior? Is each story a self-contained mini-spec (data fields, per-step UI/system/acceptance/corner-cases) so the handoff can render it faithfully?
+4. Do user stories and functional requirements use stable IDs and describe observable behavior? Is each story a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, per-step UI/system/acceptance/corner-cases, and traceability so the handoff can render it faithfully?
 5. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
 6. Were scope open questions handled as blockers or explicit assumptions?
 7. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?

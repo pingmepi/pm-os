@@ -48,6 +48,8 @@ Goal and exclusions.
 **Traceability:** US-001, FR-001.
 ## User Stories with Acceptance Criteria
 ### US-001 — Complete work
+Happy path: The operator opens the item, reviews it, and completes it.
+Edge cases / alternate paths: If required data is unavailable, show recovery guidance.
 Acceptance criteria are observable.
 ## Functional Requirements
 - FR-001 — Complete the work.
@@ -380,12 +382,32 @@ def test_user_story_without_acceptance_warns_not_errors(tmp_path):
     the gap) — never a hard error that would block approval of existing projects."""
     root = _project(tmp_path)
     body = _valid_prd().replace(
-        "### US-001 — Complete work\nAcceptance criteria are observable.\n",
+        "### US-001 — Complete work\n"
+        "Happy path: The operator opens the item, reviews it, and completes it.\n"
+        "Edge cases / alternate paths: If required data is unavailable, show recovery guidance.\n"
+        "Acceptance criteria are observable.\n",
         "### US-001 — Complete work\nThe operator opens the item.\n",
     )
     _write(root, "03-prd.md", body)
     findings = contracts.validate_artifact(root, "03")
     assert any(f.code == "USER_STORY_ACCEPTANCE_MISSING" for f in findings)
+    assert contracts.error_count(findings) == 0
+
+
+def test_user_story_without_happy_path_or_edge_cases_warns_not_errors(tmp_path):
+    """Per-story happy path and edge cases are explicit handoff cues, but missing
+    cues warn only so existing PRDs remain approvable."""
+    root = _project(tmp_path)
+    body = _valid_prd().replace(
+        "Happy path: The operator opens the item, reviews it, and completes it.\n"
+        "Edge cases / alternate paths: If required data is unavailable, show recovery guidance.\n",
+        "",
+    )
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    codes = {f.code for f in findings}
+    assert "USER_STORY_HAPPY_PATH_MISSING" in codes
+    assert "USER_STORY_EDGE_CASES_MISSING" in codes
     assert contracts.error_count(findings) == 0
 
 
