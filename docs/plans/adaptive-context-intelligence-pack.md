@@ -1,6 +1,6 @@
 # Adaptive Context Intelligence Pack
 
-> Status: approved for implementation.
+> **Status (corrected 2026-07-15):** 🟡 **Partially implemented.** Phase 0 (spec lock), Phase 1 (format registration — images/PPTX/XLSX added to `pm_context_import.py`'s `DOC_EXTS`), and Phase 2 (modular `00-context/` pack, composite hashing, schema v4, dual-mode downstream reading, `--upgrade-pack`) are shipped — see `current-state-review.md`'s "Adaptive context pack | Implemented (v1.0.6)" entry. **Phase 3 (evidence ledger + claim relationships), Phase 4 (type-specific extraction + adaptive views), and Phase 5 (thin-context discovery interview) are not shipped** — confirmed independently by `backlog.md` entry #9 (IMP-006): the manifest's `stage_affinities` field is empty and `views/` is unpopulated in practice, meaning the per-stage routing this plan's Phase 2/4 design describes isn't actually happening yet. Do not read the original "approved for implementation" line below as current status.
 
 ## Summary
 
@@ -229,10 +229,11 @@ run from Phase 1 onward.
   runtime exposes existing document skills (`pdf`, `pptx`, `xlsx`), prefer them
   over assuming raw multimodal reading; the degrade-and-request-export path is
   expected to be exercised regularly across runtimes, not rarely.
-- This plan and `docs/plans/context-intake-improvements.md` both touch the
-  `pm-context-import` skill and `pm_context_import.py`; sequence them so they do
-  not collide on the same files, with this pack's phases layered on top of the
-  intake-quality work.
+- This plan and `docs/archive/context-intake-improvements.md` (shipped v0.5.8/
+  v0.5.9, archived) both touch the `pm-context-import` skill and
+  `pm_context_import.py`; this pack's phases are layered on top of that
+  already-shipped intake-quality work. (No longer a live sequencing concern —
+  noted here for history.)
 - Rich modules appear only when evidence supports them; sparse projects retain
   a concise pack.
 - Approval remains explicit, and context import never approves drafts on the
