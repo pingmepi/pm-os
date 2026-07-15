@@ -240,7 +240,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 14. 🟠 Deep-reasoning model gate is advisory only, no enforced confirmation (from codex-pr-audit)
 
 **Severity:** P2 — quality gate can be silently bypassed with a bare re-run; not data-destructive.
-**Status:** 🟠 Open. Re-verified against current code 2026-07-15 (originally flagged in `docs/reference/codex-pr-audit.md` #8, PR #9, dated 2026-06-22).
+**Status:** 🟠 Open. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #8, PR #9, dated 2026-06-22).
 
 **Symptom:** Stages 03 (PRD), 06 (QA plan), and 08 (TRD) print a model-tier warning when the session appears to be on a lightweight model, but the override path is just "re-run this stage and explicitly say to continue with the current model" — no flag, no distinct confirmation step, no record that the PM (rather than the agent, expedience-motivated) made that call.
 
@@ -253,7 +253,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 15. 🟡 `migrate_meta()` does not backfill missing `STAGE_ORDER` stages (from codex-pr-audit)
 
 **Severity:** P3 — low impact today (all new projects scaffold every stage), but upgrade correctness is broken for any project older than the current scaffolding.
-**Status:** 🟡 Open, low priority. Re-verified against current code 2026-07-15 (originally flagged in `docs/reference/codex-pr-audit.md` #9, PR #14, dated 2026-06-22).
+**Status:** 🟡 Open, low priority. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #9, PR #14, dated 2026-06-22).
 
 **Symptom:** `lib/project.py:migrate_meta()` handles schema v2→v4 field additions (`origin`, stage-00 injection, `project_type`/`codebase_path`/`codebase_ref`, `context_pack`) but never inserts a missing `STAGE_ORDER` entry generically. A pre-v0.4 project whose `stages[]` list predates later stages (e.g. 09) would still hit a `KeyError` in `pm_approve.py` trying to approve a stage `migrate_meta()` never backfilled.
 
@@ -266,7 +266,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 16. 🟡 Approving a backfilled artifact logs a generic `stage_approved`, losing origin (from codex-pr-audit)
 
 **Severity:** P3 — telemetry/provenance-analytics gap, not correctness-blocking.
-**Status:** 🟡 Open. Re-verified against current code 2026-07-15 (originally flagged in `docs/reference/codex-pr-audit.md` #10, PR #24, dated 2026-06-22).
+**Status:** 🟡 Open. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #10, PR #24, dated 2026-06-22).
 
 **Symptom:** `scripts/pm_context_import.py`'s `cmd_commit()` correctly logs `stage_backfilled_draft` with provenance, but once the PM later runs `/pm-approve`, `scripts/pm_approve.py` logs a plain `stage_approved` event with no `origin`/`derived_from` reference — an approved backfilled artifact becomes indistinguishable from a generated-then-approved one in telemetry.
 
@@ -279,7 +279,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 17. 🟢 `test_telemetry.py` reads the real installed `config.yaml` (from codex-pr-audit)
 
 **Severity:** P3 — test-isolation gap; fails or leaks real data on machines with a real PM-OS install, not a product bug.
-**Status:** 🟢 Re-verified against current code 2026-07-15 (originally flagged in `docs/reference/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — still present.
+**Status:** 🟢 Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — still present.
 
 **Symptom:** `tests/unit/test_telemetry.py`'s four tests (`test_log_appends_chained_events`, `test_last_event_filters`, `test_verify_chain_ok_and_tamper`, `test_verify_chain_no_file`) take only `tmp_path`, never the `pmos` fixture. `telemetry.log()` calls `load_config()`, which reads the real `~/.pm-os/config.yaml` when the isolating fixture isn't requested — `pmos` (`tests/conftest.py`) monkeypatches `HOME`/`PM_OS_DIR` but is opt-in per test, not `autouse`.
 
@@ -289,4 +289,4 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/reference/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
+_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
