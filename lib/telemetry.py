@@ -1,10 +1,25 @@
+from __future__ import annotations
+
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from hashing import hash_event
 from config import load_config
+
+PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
+
+
+def _runtime_version() -> str | None:
+    """Installed ~/.pm-os VERSION at log time, distinct from the project's pinned
+    'created-with' pm_os_version — lets telemetry tell provenance from runtime."""
+    vpath = PM_OS_DIR / "VERSION"
+    try:
+        return vpath.read_text().strip()
+    except OSError:
+        return None
 
 
 def log(event_type: str, project_root: Path, stage, payload: dict) -> None:
@@ -31,6 +46,7 @@ def log(event_type: str, project_root: Path, stage, payload: dict) -> None:
         "pm": pm,
         "project": meta["project_slug"],
         "pm_os_version": meta.get("pm_os_version", "0.1.0"),
+        "pm_os_version_runtime": _runtime_version(),
         "event_type": event_type,
         "stage": stage,
         "payload": payload,
