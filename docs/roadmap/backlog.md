@@ -145,4 +145,27 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 ---
 
-_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006). All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
+## 10. 🟠 Stage-05 prototype slice selection is not auditable (non-deterministic, judgment-only)
+
+**Severity:** P2 — traceability/reproducibility gap. Not a correctness bug; the slice picked is always *valid*, just not *auditable* or repeatable.
+**Status:** 🔴 Open.
+
+**Symptom:** Stage 05 chooses *which* slice of the approved design to prototype by LLM judgment against a prose objective — "smallest slice that can answer the highest-risk product and design questions" (`skills/pm-stage-05-prototype-brief/SKILL.md:13,177`). "Highest-risk" is nowhere declared: there is no `risk`/`prototype-priority` field on `UJ-###` journeys, so the model *infers* risk from upstream prose each run. Two runs on the same inputs can pick different slices, and there is no recorded, rankable basis for why one journey made the slice and another didn't.
+
+**Evidence:**
+- `skills/pm-stage-05-prototype-brief/SKILL.md:13,177` — the selection objective is prose ("smallest useful slice" / "highest-risk questions"), no scoring input.
+- `skills/pm-stage-05-prototype-brief/SKILL.md:132-134,158-160` — the brief must *justify* the slice ("state why this slice is the right one") and map questions to screens, but this is free-text rationale, not a machine-checkable link to a declared priority.
+- `scripts/pm_validate_artifact.py 05` + self-check (`SKILL.md:303,317`) — validates the slice is **bounded** and **references `UJ-###`**, i.e. checks *shape, not correctness of the choice*. Nothing asserts the slice covers the highest-priority journeys.
+- No `risk`/`priority` field exists on journeys in the PRD (03) or design-spec (04) contracts (`lib/artifact_contracts.py`).
+
+**Proposed fix (spine, not state machine):** Make risk a *declared, upstream* attribute the slice selection can be audited against — additive to the traceability spine, no gate/hash/status change:
+1. Add an optional `prototype_priority` (or `validation_risk`: high/med/low) tag to `UJ-###` journeys in the 03/04 contracts.
+2. Stage 05 sorts the candidate pool by that tag and records, in "What to Prototype," the explicit inclusion/exclusion decision per journey (`UJ-003 included — high risk; UJ-007 excluded — low risk, deferred`).
+3. Extend the 05 self-check / `pm_validate_artifact.py` to assert every high-priority journey is either in the slice or has a stated exclusion reason — turning "smallest slice answering highest-risk questions" from a judgment into a rankable, checkable selection.
+4. PM `--note` remains the override lever; overrides get logged as provenance.
+
+**Note:** Surfaced 2026-07-14 while reviewing how 05 decides the slice. Keeps PM authority (priority is a PM-set upstream signal); makes the slice decision reproducible and auditable. Consistent with the product-shape principle "grow the traceability spine, not the state machine."
+
+---
+
+_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
