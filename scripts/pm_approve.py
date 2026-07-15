@@ -43,6 +43,11 @@ def main():
     parser.add_argument("--semantic-distance", dest="semantic_distance", type=float, default=None,
                         help="Optional agent-estimated semantic drift 0..1 (subjective judgment; "
                              "defaults to null when not supplied).")
+    parser.add_argument("--reapprove", action="store_true",
+                        help="Re-approve an already-approved stage whose body was directly "
+                             "edited since approval, without requiring a downstream stage's "
+                             "gate to first demote it to 'edited'. No-ops if the body is "
+                             "unchanged since the last approval.")
     args = parser.parse_args()
 
     if args.semantic_distance is not None and not (0.0 <= args.semantic_distance <= 1.0):
@@ -71,9 +76,27 @@ def main():
     fm, body = fm_read(str(apath))
     current_status = fm.get("status", "pending")
 
-    if current_status == "approved":
+    if current_status == "approved" and not args.reapprove:
         print(f"Stage {stage_id} is already approved. No action taken.")
+        print("If you directly edited this artifact and the PM wants to re-approve it "
+              "without running a downstream stage first, run:")
+        print(f"  Claude: /pm-approve {stage_id} --reapprove")
+        print(f"  Codex:  $pm-approve {stage_id} --reapprove")
         sys.exit(0)
+
+    reapproved_from_approved = False
+    if current_status == "approved" and args.reapprove:
+        try:
+            drift_hash = stage_content_hash(project_root, stage_id, apath)
+        except CompositeHashError as e:
+            print(f"Error: cannot check stage {stage_id} for drift — context pack is invalid: {e}")
+            sys.exit(1)
+        if drift_hash == fm.get("content_hash"):
+            print(f"Stage {stage_id} is already approved and unchanged since approval. No action taken.")
+            sys.exit(0)
+        # Body has drifted from the last approved snapshot — fall through to the
+        # normal approval flow below, same as the draft/edited path.
+        reapproved_from_approved = True
 
     if current_status == "pending":
         cmd = stage_command(stage_id)
@@ -166,6 +189,7 @@ def main():
             "time_to_approve_seconds": time_to_approve,
             "regeneration_count": regen_count,
             "implicit_reapproval": False,
+            "reapproved_from_approved": reapproved_from_approved,
         })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
