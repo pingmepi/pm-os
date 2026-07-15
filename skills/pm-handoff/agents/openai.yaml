@@ -1,4 +1,0 @@
-interface:
-  display_name: "Handoff Package"
-  short_description: "Build a readable dev/QA handoff package"
-  default_prompt: "Use $pm-handoff to generate a readable handoff package (per-story files + reference docs) from the approved PM-OS pipeline."
