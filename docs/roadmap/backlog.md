@@ -194,10 +194,10 @@ split_test_case_blocks(qa_text) # -> {}            (traceability + trace-check: 
 
 ---
 
-## 12. 🔴 `pm_handoff.py` mis-renders contract-valid PRD/QA formats (IMP-008)
+## 12. 🟢 `pm_handoff.py` mis-renders contract-valid PRD/QA formats (IMP-008)
 
 **Severity:** P1 — pre-merge (found dogfooding the branch behind [PR #30](https://github.com/pingmepi/pm-os/pull/30), not yet installed anywhere). Two distinct, verified bugs in the new handoff generator; both make a fully-traceable pipeline render `— not captured in source —` for content that genuinely exists upstream — exactly the honesty-signal the generator is supposed to preserve, now giving false negatives instead.
-**Status:** 🔴 Open.
+**Status:** 🟢 **Fixed**, landed while merging the handoff generator into `pm-share` (`scripts/pm_share.py --package`; `pm_handoff.py` no longer exists — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B). Both bugs below now reference the merged file for history; both have regression tests in `tests/integration/test_share_package.py`.
 
 **Bug A — single-line TC bodies get stripped to empty.** `scripts/pm_handoff.py`'s `_strip_decl_line()` assumes every `split_test_case_blocks()` block has its declaration on its own line and body text on the lines that follow (`lines[1:]`) — true for a `### TC-001` heading block, false for the equally contract-valid single-line-bullet style QA plans commonly use (`- TC-001: <description>. Covers REQ-001.`), where the entire scenario is one line. `lines[1:]` on a one-line block is `[]` — the body vanishes.
 
@@ -214,9 +214,10 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 **Note on the dogfood run:** neither bug surfaced during the `~/pm-projects/repassist` run because that PRD (regenerated under the new stage-03 skill) happens to repeat every story's full requirement/journey trace inline, and its QA plan uses heading-style (not single-line) TCs. Both bugs are real and contract-valid, just not triggered by that particular artifact shape — a genuinely fully-traceable pipeline can still hit either one depending on authoring style.
 
-**Proposed fix:**
-- Bug A: only strip a leading declaration line when the block actually has more than one line; for a single-line block, treat the whole line (minus the leading id/marker) as the body instead of discarding it.
-- Bug B: resolve a story's requirements/journeys from the **traceability index** (`.traceability.yaml`, already reverse-built from the QA plan) rather than re-deriving them by re-scanning the story's own prose — the index already has the authoritative link graph; `pm_handoff.py` should consume it, not reimplement a weaker version of it.
+**Fix as landed** (differs slightly from the originally-proposed Bug B fix below — kept for history):
+- Bug A: `_strip_decl_line()` now only strips a leading declaration line when the block has more than one line; a single-line block instead has just the leading marker + id stripped from that one line, preserving the rest as body.
+- Bug B: `.traceability.yaml`'s index only links `REQ ↔ TC`, not `REQ ↔ REQ` — it can't tell you which FR/UJ a story belongs to, so consuming it as originally proposed wouldn't have closed this gap. The actual fix scans the PRD's own "Functional Requirements" and "User Journeys" sections for blocks that name the story (the reverse direction), in addition to the existing forward scan of the story's own block — both directions are now merged before resolving covering test cases.
+- Original proposed fix (superseded by the above): resolve a story's requirements/journeys from the traceability index rather than re-deriving them by re-scanning the story's own prose.
 
 ---
 

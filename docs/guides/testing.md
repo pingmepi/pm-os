@@ -241,12 +241,15 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
 - `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
 
-**`test_handoff_package.py`** — Phase 4a readable handoff package (`scripts/pm_handoff.py`)
-- `test_handoff_generates_per_story_files_with_traceability` — approving 01/02/03/06 then running `pm_handoff.py` assembles per-story files in the boss house-format by walking US-### → FR-### → UJ-### → covering TC-###; the story lists both covering test cases, carries the authored story body, and is stamped with source provenance + a "DO NOT EDIT HERE" banner.
-- `test_handoff_flags_unsourced_sections_instead_of_fabricating` — a story with no covering TC / no FR shows `— not captured in source —` rather than invented content (the blank doubles as a coverage checklist).
-- `test_handoff_overview_and_reference_docs` — `00-overview.md` carries Who/What&Why/How from the brief+scope; `reference/impact-analysis.md` and `nfrs.md` carry the PRD's Impact Analysis and NFR sections.
-- `test_handoff_is_read_only_and_does_not_touch_state_machine` — generating the package leaves `.meta.yaml` and `03-prd.md` byte-identical (read-only projection, never gated/hashed).
-- `test_handoff_requires_a_prd` — with no approved PRD the generator exits non-zero instead of emitting an empty package.
+**`test_share_package.py`** — Phase 4a readable handoff package, `pm-share --package` (`scripts/pm_share.py`; merged from the former `scripts/pm_handoff.py` — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B)
+- `test_package_generates_per_story_files_with_traceability` — approving 01/02/03/06 then running `pm_share.py --package` assembles per-story files in the boss house-format by walking US-### → FR-### → UJ-### → covering TC-###; the story lists both covering test cases, carries the authored story body, and is stamped with source provenance + a "DO NOT EDIT HERE" banner.
+- `test_package_flags_unsourced_sections_instead_of_fabricating` — a story with no covering TC / no FR shows `— not captured in source —` rather than invented content (the blank doubles as a coverage checklist).
+- `test_package_resolves_reverse_declared_fr_and_uj_links` — a story that never self-cites its own FR/UJ ids (only the FR/journey block names the story, the reverse direction) still resolves them and pulls in the TCs that trace only to that FR — regression test for backlog #12 (IMP-008) Bug B.
+- `test_package_keeps_full_body_for_single_line_test_cases` — a single-line-bullet QA scenario (the whole TC on one line) still renders its full description instead of being stripped to empty — regression test for backlog #12 (IMP-008) Bug A.
+- `test_package_overview_and_reference_docs` — `00-overview.md` carries Who/What&Why/How from the brief+scope; `reference/impact-analysis.md` and `nfrs.md` carry the PRD's Impact Analysis and NFR sections.
+- `test_package_is_read_only_and_does_not_touch_state_machine` — generating the package leaves `.meta.yaml` and `03-prd.md` byte-identical (read-only projection, never gated/hashed).
+- `test_package_requires_a_prd` — with no approved PRD the generator exits non-zero instead of emitting an empty package.
+- `test_raw_mode_unchanged_by_the_merge` — the pre-existing single-stage/all-approved raw text export is untouched by folding `--package` in alongside it, and raw mode never creates a `handoff/` package as a side effect.
 
 The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_split_user_story_blocks_bounds_by_declaration_and_section`, `test_user_story_without_acceptance_warns_not_errors`, `test_contract_version_1_is_still_supported`, `test_impact_analysis_is_a_recommended_prd_section`) — all WARNING-only, so existing `artifact_contract_version: 1` PRDs keep passing.
 
