@@ -108,8 +108,10 @@ approve, then adopts the artifacts you authored and faithfully backfills the
 upstream stages below them before handing back to the normal pipeline.
 
 Day to day you'll also use `/pm-status` (project state), `/pm-feedback <NN>` (rate a
-stage), `/pm-share` (export approved artifacts), and `/pm-sync` (push every project's
-telemetry/feedback to the team repo; `--verify` checks each hash chain).
+stage), `/pm-share` (export approved artifacts as raw text, or `--package` to build a
+readable, decomposed handoff package of per-story files + reference docs under
+`handoff/`), and `/pm-sync` (push every project's telemetry/feedback to the team repo;
+`--verify` checks each hash chain).
 
 Approve the business statement, then generate and approve stages. The business
 statement is stage `00` — gated like any other stage, so approve it first:
