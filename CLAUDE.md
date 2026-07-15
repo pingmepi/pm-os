@@ -51,9 +51,11 @@ python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude   # or codex, or all (
 Runtime dependencies (installed inline by `install.sh`, no `requirements.txt`): `pyyaml`, `jinja2`. Python 3.11+. (Git operations shell out to `git` via `subprocess`.)
 
 PM-facing workflow runs through skills, not direct CLI — Claude uses `/pm-*`, Codex uses `$pm-*`:
-`/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`.
+`/pm-new <slug> "<statement>"` → `/pm-stage-01-brief` → `/pm-approve 01` → … → `/pm-status`, `/pm-feedback <NN>`, `/pm-share`. `/pm-share` covers both a raw text export (single stage or all approved) and, via `--package`, the decomposed per-story handoff package (`scripts/pm_share.py`) — there is no separate `/pm-handoff` skill; that name is reserved, unbuilt, for a later external-tracker/design export (see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B).
 
 **Tests:** there is a pytest suite under `tests/` (config in `pyproject.toml`) — run `python3 -m pytest` (deps: `pytest`, `pyyaml`, `jinja2`). It is fully isolated from the real `~/.pm-os` via temp-install fixtures, so it's safe to run on the working copy. **`docs/guides/testing.md` is the central reference** — what every suite/test checks, success/fail criteria, the harness, and the convention that every test carries a docstring and is cataloged there. `pm_os_verify.py` (above) remains the install health check; for end-to-end confidence beyond the suite, run the skill/script flow against a scratch project under `~/pm-projects/`. (No linter; CI beyond `.github/workflows/version-bump.yml` is added in the test suite's T9 phase.)
+
+**Known gaps and bugs:** `docs/roadmap/backlog.md` is the live, actively-maintained tracker for verified-but-unfixed issues (numbered entries, severity-flagged) — check it before starting new work in an area to avoid rediscovering a known gap, and log new findings there once you've verified them against the actual code, not just observed behavior.
 
 ## Architecture
 
@@ -85,3 +87,5 @@ Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/ope
 - **`schema_version`** exists in both `.meta.yaml` and `config.yaml`; bump it and provide migration when changing those shapes (existing projects on disk must keep working).
 - Skills carry instructions and prompts; Python carries mechanical state. Keep generation/judgment in the `SKILL.md`, not in Python.
 - The `docs/reference/pm-os-spec.md` repo/lib listing is partly aspirational (it references `edit_distance.py`, `embeddings.py`, `post-tool-use.py`, `session-end.py` that don't exist yet). Trust the actual files in `lib/` and `hooks/` over the spec.
+- **Before naming a new skill or command, grep `docs/plans/` and `docs/roadmap/current-state-review.md` for that name.** A future-phase plan can reserve a command name (e.g. a sub-command family) long before it's built. A local handoff-package generator once shipped as its own `/pm-handoff` skill and collided with a name `docs/plans/pm-os-modes-and-handoff-plan.md` had already reserved for a later external-tracker/design-export phase — it had to be merged into `/pm-share --package` and the skill deleted. Check first; it's cheaper than rebuilding.
+- **`docs/archive/`** holds plans/audits that are fully shipped or fully re-verified (see `docs/README.md`) — check there, not just `docs/plans/`, when looking for the design intent behind an already-built feature.

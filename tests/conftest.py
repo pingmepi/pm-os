@@ -151,7 +151,6 @@ def requires_feature(name: str):
     """
     FEATURES = {
         # "enhancement_mode": (REPO_ROOT / "skills" / "pm-stage-00-understand").exists(),
-        # "handoff": (REPO_ROOT / "skills" / "pm-handoff").exists(),
     }
     return pytest.mark.skipif(not FEATURES.get(name, False),
                               reason=f"feature '{name}' not built yet")

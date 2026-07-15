@@ -296,6 +296,17 @@ _ACCEPTANCE_CUE_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+_HAPPY_PATH_CUE_RE = re.compile(
+    r"\bhappy path\b|\bprimary flow\b|\bsuccess path\b|\bnormal path\b",
+    re.IGNORECASE,
+)
+
+_EDGE_CASE_CUE_RE = re.compile(
+    r"\bedge cases?\b|\balternate paths?\b|\bfailure paths?\b|"
+    r"\bcorner cases?\b|\bexceptions?\b|\brecovery\b",
+    re.IGNORECASE,
+)
+
 
 def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
@@ -331,6 +342,24 @@ def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
         findings.append(Finding(
             "WARNING", "USER_STORY_ACCEPTANCE_MISSING",
             f"User stories with no visible acceptance criteria: {', '.join(unacc)}",
+        ))
+    missing_happy = sorted(
+        us_id for us_id, block in split_user_story_blocks(stories).items()
+        if not _HAPPY_PATH_CUE_RE.search(block)
+    )
+    if missing_happy:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_HAPPY_PATH_MISSING",
+            f"User stories with no explicit happy path: {', '.join(missing_happy)}",
+        ))
+    missing_edges = sorted(
+        us_id for us_id, block in split_user_story_blocks(stories).items()
+        if not _EDGE_CASE_CUE_RE.search(block)
+    )
+    if missing_edges:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_EDGE_CASES_MISSING",
+            f"User stories with no explicit edge cases / alternate paths: {', '.join(missing_edges)}",
         ))
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):

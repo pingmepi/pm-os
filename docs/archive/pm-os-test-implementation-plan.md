@@ -1,6 +1,6 @@
 # PM-OS Test Implementation Plan
 
-**Status:** ✅ **T0–T10 implemented** (T0–T9 shipped in v0.5.5; T10 — the `/pm-check` consistency toolkit — shipped alongside this update; CI at `.github/workflows/tests.yml`). See §19 for the T10 design.
+**Status:** ✅ **T0–T10 implemented** (T0–T9 shipped in v0.5.5; T10 — the `/pm-check` consistency toolkit — shipped alongside this update; CI at `.github/workflows/tests.yml`). See §19 for the T10 design. Moved to `docs/archive/` 2026-07-15 (nothing left actionable) — retained for provenance. The live reference for the test suite is [`docs/guides/testing.md`](../guides/testing.md).
 **Scope:** Add a comprehensive automated test suite for PM-OS covering health, local-first lifecycle behavior, deliverable contracts, runtime parity, connection boundaries, and failure recovery.
 
 PM-OS is not a service with one API boundary. It is a local filesystem state machine plus a skill/document contract. The test suite must therefore protect both halves:

@@ -11,6 +11,10 @@
 > self-contained mini-spec carrying, at minimum:
 >
 > - **Story** — As a `<role>`, I want `<capability>`, so that `<outcome>`.
+> - **Happy path** — the normal success flow from trigger to completion.
+> - **Edge cases / alternate paths** — failure modes, invalid inputs, permission
+>   gaps, empty/loading/error states, and recovery behavior; tie each to a
+>   `TC-###` in the QA plan where possible.
 > - **Data fields** — the superset of fields the story touches (name, type,
 >   mandatory?), where a screen/grid is involved.
 > - **Key UI steps** — the ordered user↔system interactions. For **each** step,
@@ -18,7 +22,8 @@
 >   - **System process** — the background behaviour for that step (for grids,
 >     name the sort field).
 >   - **Acceptance (Done)** — the completion definition for that step.
->   - **Corner cases** — at least two, each tied to a `TC-###` in the QA plan.
+>   - **Corner cases** — step-level variants, each tied to a `TC-###` in the QA
+>     plan where possible.
 >   - **Exceptions** — where the system should *not* behave as described.
 > - **Wireframes** — reference the screen(s); mandatory for new screens.
 
