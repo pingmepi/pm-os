@@ -1,6 +1,6 @@
 # Offline / GitLab-friendly install for PM-OS trials
 
-**Status:** ✅ **Implemented** (shipped in v0.5.9, commit `81f64f1`). `install.sh` now supports `--source <zip-or-dir>` for offline/zip installs and a configurable `--repo` for GitLab mirrors, without breaking the existing GitHub default path. Auto-runs `pm_os_verify.py` after install. Covered by `tests/integration/test_offline_install.py` and documented in `docs/guides/offline-install.md`.
+**Status:** ✅ **Implemented** (shipped in v0.5.9, commit `81f64f1`). `install.sh` now supports `--source <zip-or-dir>` for offline/zip installs and a configurable `--repo` for GitLab mirrors, without breaking the existing GitHub default path. Auto-runs `pm_os_verify.py` after install. Covered by `tests/integration/test_offline_install.py` and documented in `docs/guides/offline-install.md`. Moved to `docs/archive/` 2026-07-15 (nothing left actionable) — retained for provenance.
 
 ## Context
 

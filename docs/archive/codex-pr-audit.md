@@ -4,6 +4,8 @@ Audit of all inline review comments left by `chatgpt-codex-connector[bot]` acros
 
 **Result: 11 open · 10 resolved.**
 
+> **Re-verified 2026-07-15, moved to `docs/archive/`.** Of the 11 originally-open items, **7 are now fixed** (#1 pre-stage.py re-checks blocking after cascade; #2 00c is in the approval handoff; #3 prepare-codebase validates the existing checkout's remote; #4/#5 pm-new/pm-feedback give non-interactive flag guidance; #6 install.sh fast-forwards via `merge --ff-only`; #7 the --note path leaves the edited upstream's hash unchanged so drift is caught downstream). **4 are still open** and have been migrated to `docs/roadmap/backlog.md` entries 14–17 (#8 advisory-only deep-reasoning gate, #9 `migrate_meta()` not backfilling missing stages, #10 backfilled-origin lost on approval telemetry, #11 `test_telemetry.py` not using the `pmos` isolation fixture) — track them there, not here. Retained for provenance/audit-trail only.
+
 ---
 
 ## Open Issues
