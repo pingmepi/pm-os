@@ -233,30 +233,46 @@ def _blocks(markdown: str, pattern: str) -> list[tuple[str, str]]:
 # absorb trailing subsections. Shared by the contract validator and the
 # traceability resolver so they agree on what a "test case block" is.
 _TC_BLOCK_START_RE = re.compile(
-    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>TC-\d{3,})\b",
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>TC-\d{3,})\b",
     re.MULTILINE | re.IGNORECASE,
 )
-_TC_SECTION_BREAK_RE = re.compile(r"^#{2,6}\s", re.MULTILINE)
+# Any markdown heading, capturing its level so a block breaks only at a heading
+# at or above the declaration's own level (a nested subsection does NOT end it).
+_HEADING_LEVEL_RE = re.compile(r"^(#{1,6})\s", re.MULTILINE)
+
+
+def _split_id_blocks(text: str, start_re: "re.Pattern") -> dict[str, str]:
+    """Map each id declared by ``start_re`` to the text block that introduces it.
+
+    A block runs from its declaration to the earliest of: the next such
+    declaration, or the next heading at a level **<= the declaration's own heading
+    level**. So a TC/US declared as a heading (``### TC-001``) keeps its nested
+    ``#### Steps`` / ``#### Coverage`` detail but ends at a sibling/ancestor
+    heading; one declared as a bullet/ordered-list/bare line (no heading level, so
+    treated as level 7, deeper than any heading) ends at the next heading of any
+    level — which is what stops an interleaved non-TC ``###`` subsection from being
+    absorbed. First declaration wins; later mentions are references. Shared by the
+    contract validator, the traceability resolver, and the handoff assembler so
+    they all agree on what a "block" is.
+    """
+    headings = [(m.start(), len(m.group(1))) for m in _HEADING_LEVEL_RE.finditer(text)]
+    matches = list(start_re.finditer(text))
+    blocks: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        _id = match.group("id").upper()
+        if _id in blocks:
+            continue
+        start = match.start()
+        level = len(match.group("hashes")) if match.group("hashes") else 7
+        next_decl = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        next_break = next((pos for pos, lvl in headings if pos > start and lvl <= level), len(text))
+        blocks[_id] = text[start:min(next_decl, next_break)]
+    return blocks
 
 
 def split_test_case_blocks(text: str) -> dict[str, str]:
-    """Map each TC-### id to the text block that introduces it.
-
-    A block starts at a section-level TC declaration (heading, bullet, ordered-list
-    item, or bare line) and runs to the next such declaration or the next ``##``
-    section, whichever comes first. First declaration wins; later mentions are refs.
-    """
-    section_breaks = [m.start() for m in _TC_SECTION_BREAK_RE.finditer(text)]
-    matches = list(_TC_BLOCK_START_RE.finditer(text))
-    blocks: dict[str, str] = {}
-    for index, match in enumerate(matches):
-        tc_id = match.group("id").upper()
-        if tc_id in blocks:
-            continue
-        next_tc = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        next_section = next((p for p in section_breaks if p > match.start()), len(text))
-        blocks[tc_id] = text[match.start():min(next_tc, next_section)]
-    return blocks
+    """Map each TC-### id to the text block that introduces it. See ``_split_id_blocks``."""
+    return _split_id_blocks(text, _TC_BLOCK_START_RE)
 
 
 # A US-### story can be declared as a heading (`### US-001`), a bullet
@@ -265,30 +281,15 @@ def split_test_case_blocks(text: str) -> dict[str, str]:
 # contract's per-story checks and the handoff assembler so both agree on what
 # "a user-story block" is.
 _US_BLOCK_START_RE = re.compile(
-    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>US-\d{3,})\b",
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>US-\d{3,})\b",
     re.MULTILINE | re.IGNORECASE,
 )
 
 
 def split_user_story_blocks(text: str) -> dict[str, str]:
-    """Map each US-### id to the text block that introduces it.
-
-    A block starts at a section-level US declaration and runs to the next such
-    declaration or the next ``##`` section, whichever comes first. First
-    declaration wins; later mentions are treated as references. Mirrors
-    ``split_test_case_blocks`` so the handoff and the validator stay in lockstep.
-    """
-    section_breaks = [m.start() for m in _TC_SECTION_BREAK_RE.finditer(text)]
-    matches = list(_US_BLOCK_START_RE.finditer(text))
-    blocks: dict[str, str] = {}
-    for index, match in enumerate(matches):
-        us_id = match.group("id").upper()
-        if us_id in blocks:
-            continue
-        next_us = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        next_section = next((p for p in section_breaks if p > match.start()), len(text))
-        blocks[us_id] = text[match.start():min(next_us, next_section)]
-    return blocks
+    """Map each US-### id to its introducing block. Mirrors ``split_test_case_blocks``
+    (via ``_split_id_blocks``) so the handoff and the validator stay in lockstep."""
+    return _split_id_blocks(text, _US_BLOCK_START_RE)
 
 
 # Cues that a user-story block carries testable acceptance criteria. Kept broad so
