@@ -54,6 +54,29 @@ def test_deferred_approval_sync_does_not_block(pmos, new_project):
     assert _wait_for_commits(pmos), "deferred background push should still reach the feedback repo"
 
 
+def test_concurrent_syncs_serialize_via_cache_lock(pmos, new_project):
+    """Two syncs racing on the single shared cache (the deferred-push scenario, backlog #34)
+    are serialized by the cache lock: both land their project's telemetry centrally instead of
+    colliding on clone/index-lock/non-fast-forward."""
+    from concurrent.futures import ThreadPoolExecutor
+    import git_sync
+
+    p1 = new_project("race-a", "A")
+    p2 = new_project("race-b", "B")  # both carry unpushed project_created telemetry
+
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f1 = ex.submit(git_sync.push_feedback_repo, p1)
+        f2 = ex.submit(git_sync.push_feedback_repo, p2)
+        r1, r2 = f1.result(timeout=60), f2.result(timeout=60)
+
+    assert r1["ok"], r1
+    assert r2["ok"], r2
+    for slug in ("race-a", "race-b"):
+        assert (pmos.home / ".pm-os-feedback-cache" / "telemetry" / "tester" / slug
+                / "telemetry.jsonl").exists(), f"{slug} telemetry should have reached the cache"
+    assert _bare_has_commits(pmos)
+
+
 def test_pm_sync_backfills_all_and_verify(pmos, new_project):
     """pm_sync pushes every project, then --verify reports all telemetry chains intact."""
     p1 = new_project("proj-a", "A")
