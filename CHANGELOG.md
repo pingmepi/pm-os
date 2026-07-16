@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Fixed
+- **Approval no longer waits on the central sync ([PR #34](https://github.com/pingmepi/pm-os/pull/34), backlog #6/IMP-003).** `/pm-approve` used to print its confirmation only after `post-approve.py` finished a synchronous feedback-repo `git push`, so approval could appear to hang for minutes even though the state was already saved locally. The central push now defers to a detached background process by default; approval returns immediately and `/pm-sync` remains the catch-up/retry path. `PM_OS_SYNC_BLOCKING=1` forces the old inline push (CI/tests use it).
+- **Concurrent syncs serialize via a portable cache lock (Codex review on #34).** Because the deferred push is backgrounded, two approvals seconds apart could collide on the single shared `~/.pm-os-feedback-cache`. `lib/git_sync.py` now guards the cache with an atomic `mkdir` lock (portable — holds under Git Bash on Windows, no `fcntl`) that waits for the holder and steals a crashed process's stale lock.
+- **`TC-###`/`US-###` block splitting is level-aware (Codex review on #33).** The `#{2,6}`-heading break introduced in 1.0.14 truncated a heading-style test case (`### TC-001`) at its own nested `#### Coverage`/`#### Steps` subsection, dropping requirement ids cited below it. The shared splitter (`_split_id_blocks`) now breaks only at a heading at or above the declaration's own level, preserving nested detail while still ending at a sibling/interleaved heading.
+
+## 1.0.14 — 2026-07-16
+
+### Fixed
+- **Reliability + traceability hardening batch ([PR #33](https://github.com/pingmepi/pm-os/pull/33)).**
+  - **Unified `TC-###` extractors (backlog #11/IMP-007).** The stage-06 validator and `traceability.build_index()` used two different extractors that disagreed on what "declares" a test case, so a bold-wrapped-bullet QA plan (`- **TC-001:** …`) could pass every contract check while contributing nothing to `.traceability.yaml`. Both now share one line-anchored, bold-tolerant extractor.
+  - **`/pm-approve <NN> --reapprove` (backlog #7).** Re-approve a stage the PM edited directly while it was still `approved`, without first running a downstream stage's gate to demote it to `edited`. No-ops if the body is unchanged.
+  - **Telemetry stamps the runtime version (backlog #8).** Events now record `pm_os_version_runtime` (the installed `~/.pm-os/VERSION`) alongside the project's pinned "created-with" `pm_os_version`, so drift is visible.
+  - **Telemetry test isolation (backlog #17).** `test_telemetry.py` no longer reads the real installed `config.yaml`.
+
+## 1.0.10 – 1.0.13 — 2026-07-14 … 2026-07-15
+
+### Added
+- **Readable handoff package via `/pm-share --package` ([PR #30](https://github.com/pingmepi/pm-os/pull/30) → [#31](https://github.com/pingmepi/pm-os/pull/31)).** Generates a decomposed per-story handoff package (`scripts/pm_share.py --package`) — per-story files plus reference docs — from the approved pipeline. Merged into `/pm-share` rather than a standalone skill; the `pm-handoff` name is reserved for a later external-tracker/design export.
+- **Stage-03 PRD contract v2.** Per-story mini-specs and impact analysis, with an explicit happy path + edge cases required per user story (`lib/artifact_contracts.py`).
+
+### Fixed
+- **`--package` safety guards ([PR #32](https://github.com/pingmepi/pm-os/pull/32)).** Requires an *approved* (not merely `edited`) PRD and guards against overwriting existing handoff output.
+
+## 1.0.7 — 2026-07-07
+
 ### Added
 - **`/pm-check` — read-only project consistency toolkit (T10).** A single "is this
   project internally consistent right now?" check (`lib/consistency.py` →

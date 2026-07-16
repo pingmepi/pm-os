@@ -162,7 +162,7 @@ Claude: /pm-sync                 Codex: $pm-sync
 - `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
 - Run `pm-status` before resuming work to see which stages are drafted vs. approved.
 - Capture feedback while it's fresh — it's recorded locally in `feedback.jsonl` and feeds future improvement.
-- `pm-sync` pushes all projects' telemetry and feedback to the team repo (runs automatically on each approval; run it manually to backfill a machine that was offline, or pass `--verify` to validate every project's hash chain).
+- `pm-sync` pushes all projects' telemetry and feedback to the team repo. Each approval triggers this automatically **in the background** (so approval never waits on the network push); run `pm-sync` manually to verify or retry a backgrounded sync, backfill a machine that was offline, or pass `--verify` to validate every project's hash chain.
 
 ### 4.5 Share approved artifacts
 ```text
