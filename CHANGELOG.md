@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-07-16
 
 ### Fixed
 - **Approval no longer waits on the central sync ([PR #34](https://github.com/pingmepi/pm-os/pull/34), backlog #6/IMP-003).** `/pm-approve` used to print its confirmation only after `post-approve.py` finished a synchronous feedback-repo `git push`, so approval could appear to hang for minutes even though the state was already saved locally. The central push now defers to a detached background process by default; approval returns immediately and `/pm-sync` remains the catch-up/retry path. `PM_OS_SYNC_BLOCKING=1` forces the old inline push (CI/tests use it).
