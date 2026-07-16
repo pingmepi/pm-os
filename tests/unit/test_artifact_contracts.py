@@ -322,6 +322,53 @@ FR-001 → TC-001.
     assert "TC-002" in trace[0].message and "TC-001" not in trace[0].message
 
 
+def test_qa_plan_bold_wrapped_bullet_ids_are_declared(tmp_path):
+    """Backlog IMP-007: a bold-wrapped bullet id (`- **TC-001:** ...`) is a single
+    Markdown style choice, not a different test case. The validator's
+    TEST_CASE_IDS_MISSING check and split_test_case_blocks (which feeds both
+    TEST_CASE_TRACE_MISSING and traceability.build_index) must agree it declares
+    TC-001 — previously the loose validator regex saw it while the strict
+    splitter returned an empty dict, so a QA plan could pass validation while
+    contributing nothing to .traceability.yaml."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    body = """# QA Plan
+## Test Strategy
+s
+## Functional Test Cases
+- **TC-001:** Verify ranked results exclude expired assets. Covers FR-001.
+## Non-Functional Tests
+n
+## Edge Cases
+e
+## Acceptance Criteria
+a
+"""
+    _write(root, "06-qa-plan.md", body)
+    findings = contracts.validate_artifact(root, "06")
+    assert not any(f.code in ("TEST_CASE_IDS_MISSING", "TEST_CASE_TRACE_MISSING") for f in findings)
+
+    blocks = contracts.split_test_case_blocks("- **TC-001:** Verify ranked results exclude expired assets. Covers FR-001.")
+    assert "TC-001" in blocks, "strict splitter must also recognize the bold-wrapped bullet id"
+
+
+def test_split_test_case_blocks_stops_at_any_heading_level(tmp_path):
+    """Backlog IMP-007 (related bug): a non-TC ### subsection interleaved between two
+    test cases must end the preceding TC's block, not get silently absorbed into it —
+    previously the section-break regex only matched literal ## headings."""
+    text = """## Functional Test Cases
+### TC-017
+Covers FR-001. Some scenario text.
+### Metrics and compliance evidence
+Editorial subsection with no TC id.
+### TC-018
+Covers FR-002. Another scenario.
+"""
+    blocks = contracts.split_test_case_blocks(text)
+    assert "Metrics and compliance" not in blocks["TC-017"]
+    assert "Covers FR-002" in blocks["TC-018"]
+
+
 def test_split_test_case_blocks_handles_ordered_list_items(tmp_path):
     """The shared splitter recognizes ordered-list test cases (`1. TC-001`), not only
     headings/bullets, so build_index and the contract validator agree on them."""

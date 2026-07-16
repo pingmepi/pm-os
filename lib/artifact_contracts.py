@@ -227,15 +227,16 @@ def _blocks(markdown: str, pattern: str) -> list[tuple[str, str]]:
 
 
 # A TC-### scenario can be declared as a heading (`### TC-001`), a bullet
-# (`- TC-001`), an ordered-list item (`1. TC-001`), or a bare line. We match all
-# of these at line start; a `##` section heading bounds a block so the last TC
-# does not absorb trailing sections. Shared by the contract validator and the
+# (`- TC-001`), an ordered-list item (`1. TC-001`), or a bare line — any of these
+# with the id optionally bold-wrapped (`- **TC-001:**`). We match all of these at
+# line start; any `##`-`######` heading bounds a block so the last TC does not
+# absorb trailing subsections. Shared by the contract validator and the
 # traceability resolver so they agree on what a "test case block" is.
 _TC_BLOCK_START_RE = re.compile(
-    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?(?P<id>TC-\d{3,})\b",
+    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>TC-\d{3,})\b",
     re.MULTILINE | re.IGNORECASE,
 )
-_TC_SECTION_BREAK_RE = re.compile(r"^##\s", re.MULTILINE)
+_TC_SECTION_BREAK_RE = re.compile(r"^#{2,6}\s", re.MULTILINE)
 
 
 def split_test_case_blocks(text: str) -> dict[str, str]:
@@ -259,11 +260,12 @@ def split_test_case_blocks(text: str) -> dict[str, str]:
 
 
 # A US-### story can be declared as a heading (`### US-001`), a bullet
-# (`- US-001`), an ordered-list item (`1. US-001`), or a bare line — the same
-# shapes `split_test_case_blocks` accepts. Shared by the contract's per-story
-# checks and the handoff assembler so both agree on what "a user-story block" is.
+# (`- US-001`), an ordered-list item (`1. US-001`), or a bare line, id optionally
+# bold-wrapped — the same shapes `split_test_case_blocks` accepts. Shared by the
+# contract's per-story checks and the handoff assembler so both agree on what
+# "a user-story block" is.
 _US_BLOCK_START_RE = re.compile(
-    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?(?P<id>US-\d{3,})\b",
+    r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>US-\d{3,})\b",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -377,7 +379,14 @@ def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) 
     """
     findings: list[Finding] = []
     test_section = _section(sections, "Functional Test Cases") or ""
-    tc_ids = test_case_ids(test_section) or test_case_ids(body)
+    # Both checks below — "are there declared TC ids?" and "does each TC cite a
+    # requirement?" — must agree on what counts as a declared TC, and that must be
+    # the same extractor the traceability resolver uses (split_test_case_blocks),
+    # not the looser TEST_CASE_ID_RE — otherwise a QA plan can pass validation while
+    # contributing nothing to .traceability.yaml. Fall back to scanning the whole
+    # body only if the named section has no recognizable TC declarations.
+    tc_blocks = split_test_case_blocks(test_section) or split_test_case_blocks(body)
+    tc_ids = list(tc_blocks.keys())
     if not tc_ids:
         findings.append(Finding(
             "ERROR", "TEST_CASE_IDS_MISSING",
@@ -386,9 +395,7 @@ def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) 
 
     # Traceability: EACH test case must cite at least one requirement id — not just
     # "some id appears somewhere in the body" (which a traceability table would
-    # satisfy while individual scenarios stay unlinked). We split the same way the
-    # resolver does, so a TC the validator passes is exactly one the index links.
-    tc_blocks = split_test_case_blocks(test_section or body)
+    # satisfy while individual scenarios stay unlinked).
     untraced = sorted(tc for tc, block in tc_blocks.items() if not REQUIREMENT_ID_RE.search(block))
     if tc_blocks and untraced:
         findings.append(Finding(

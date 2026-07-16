@@ -164,6 +164,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 **`test_telemetry.py`** — hash-chained log
 - `test_log_appends_chained_events` — events append and link `prev_event_hash`→`event_hash`.
+- `test_log_stamps_runtime_version_distinct_from_pinned` — events carry both the project's pinned `pm_os_version` and the installed runtime's `pm_os_version_runtime`, so drift between them is visible.
 - `test_last_event_filters` — most-recent event by type/stage filter.
 - `test_verify_chain_ok_and_tamper` — intact chain passes; a tampered line is caught with line number + reason.
 - `test_verify_chain_no_file` — absent telemetry is `ok` with 0 events.
@@ -198,6 +199,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_prototype_brief_requires_modes_validation_and_a_journey` — prototype brief must separate participant/reviewer modes and include a validation plan section.
 - `test_retrieval_html_*` / `test_generative_html_*` — HTML validator flags generation patterns in retrieval-only participant UI, ignores reviewer-only subtrees, and allows them under a generative interaction model.
 - **Phase 3.5 stable ids:** `test_valid_qa_plan_contract_has_no_errors` (TC-### scenarios tracing to PRD requirement ids pass); `test_qa_plan_without_tc_ids_is_an_error` (`TEST_CASE_IDS_MISSING`); `test_qa_plan_test_case_must_trace_to_a_requirement` (`TEST_CASE_TRACE_MISSING`); `test_qa_plan_per_test_case_trace_is_enforced` (each TC must cite a requirement id — an unlinked TC fails even when a traceability table carries ids; finding names the untraced scenario); `test_prd_functional_requirements_accept_req_only_ids` (a REQ-### only Functional Requirements section passes — the FR check accepts FR or REQ); `test_split_test_case_blocks_handles_ordered_list_items` (shared splitter parses `1. TC-001` ordered-list scenarios and bounds blocks at the next `##`); `test_qa_plan_uncovered_requirement_warns_not_errors` (`REQUIREMENT_COVERAGE_GAP` is a WARNING, never blocks); `test_requirement_and_test_case_id_extractors` (shared `requirement_ids`/`test_case_ids` return unique upper-cased ids, accept REQ/US/FR and TC).
+- **IMP-007 fix — one TC extractor, not two:** `test_qa_plan_bold_wrapped_bullet_ids_are_declared` (a bold-wrapped bullet id `- **TC-001:** ...` is recognized by both `TEST_CASE_IDS_MISSING`'s check and the strict `split_test_case_blocks` splitter that feeds `traceability.build_index` — previously the loose validator regex accepted it while the strict splitter returned nothing, so a QA plan could pass validation while contributing nothing to `.traceability.yaml`); `test_split_test_case_blocks_stops_at_any_heading_level` (a non-TC `###` subsection interleaved between two test cases ends the preceding TC's block instead of being silently absorbed into it — previously the section-break regex only matched literal `##`).
 
 **`test_traceability.py`** — Phase 3.5 traceability spine (`lib/traceability.py`)
 - `test_build_index_links_requirements_and_test_cases` — index extracts PRD requirement ids + QA TC-### ids and links each scenario to the requirement ids in its block.
@@ -233,11 +235,15 @@ one-line description. The matching docstring in code carries the same intent for
 **`test_approval_and_staleness.py`** — `post-approve.py` side effects
 - `test_approval_syncs_frontmatter_and_meta` — approval records identical hash/status in both sources of truth.
 - `test_reapproving_upstream_cascades_downstream_stale` — re-approving 01 marks approved 02 stale + logs `stage_marked_stale`.
+- `test_reapprove_rejects_without_flag` — approving an already-approved stage without `--reapprove` is a no-op that points the PM at the flag.
+- `test_reapprove_with_flag_reapproves_direct_edit` — `--reapprove` re-approves a stage the PM edited directly while still `approved` (no downstream gate needed first), cascades stale downstream, and logs `reapproved_from_approved: true`.
+- `test_reapprove_noop_when_unchanged` — `--reapprove` on an approved stage with no body drift is a true no-op: no new telemetry, no downstream staleness.
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 
 **`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
 - `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.
+- `test_bold_wrapped_bullet_tc_ids_still_populate_the_spine` — IMP-007 end-to-end: a QA plan using bold-wrapped bullet TC ids passes stage-06 approval AND populates `.traceability.yaml` (previously approved silently with an empty spine).
 - `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
 - `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
 

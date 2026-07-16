@@ -49,6 +49,29 @@ def test_approval_builds_traceability_dotfile(pmos, new_project):
     assert data["requirements"]["FR-001"]["test_cases"] == ["TC-001"]
 
 
+def test_bold_wrapped_bullet_tc_ids_still_populate_the_spine(pmos, new_project):
+    """Backlog IMP-007: a QA plan that formats scenarios as bold-wrapped bullets
+    (`- **TC-001:** ...`) must pass stage-06 validation AND populate
+    .traceability.yaml — previously the loose validator regex accepted this style
+    while the strict splitter (shared with build_index) returned nothing for it,
+    so approval succeeded but the spine silently stayed empty."""
+    proj = new_project("trace-bold", "A problem")
+    make_draft(proj, "03", body=_PRD_BODY)
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+
+    qa_body = """## Functional Test Cases
+- **TC-001:** Primary scenario, covers US-001, FR-001.
+- **TC-002:** Audit scenario, covers FR-002.
+"""
+    make_draft(proj, "06", body=qa_body)
+    res = run_script(pmos, "pm_approve.py", "06", cwd=proj)
+    assert res.returncode == 0, res.stderr
+
+    import yaml
+    data = yaml.safe_load((proj / ".traceability.yaml").read_text())
+    assert set(data["test_cases"]) == {"TC-001", "TC-002"}, "spine must not be empty"
+
+
 def test_resolver_answers_coverage_query(pmos, new_project):
     """pm_trace.py resolves which scenarios cover a requirement and which requirements
     are uncovered, locally from the approved artifacts."""

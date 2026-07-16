@@ -15,7 +15,7 @@ def _project(tmp_path, slug="demo"):
     return tmp_path
 
 
-def test_log_appends_chained_events(tmp_path):
+def test_log_appends_chained_events(pmos, tmp_path):
     """Each logged event appends one JSONL line and links prev_event_hash→event_hash, and
     the payload is preserved verbatim."""
     root = _project(tmp_path)
@@ -28,7 +28,17 @@ def test_log_appends_chained_events(tmp_path):
     assert lines[1]["payload"]["model"] == "claude-opus-4-8"
 
 
-def test_last_event_filters(tmp_path):
+def test_log_stamps_runtime_version_distinct_from_pinned(pmos, tmp_path):
+    """Events carry both the project's pinned 'created-with' pm_os_version and the
+    installed runtime's pm_os_version_runtime, so drift between them is visible."""
+    root = _project(tmp_path)
+    telemetry.log("stage_started", root, "01", {})
+    line = json.loads((root / "telemetry.jsonl").read_text().splitlines()[0])
+    assert line["pm_os_version"] == "0.0.0-test"
+    assert line["pm_os_version_runtime"] == (pmos.install / "VERSION").read_text().strip()
+
+
+def test_last_event_filters(pmos, tmp_path):
     """last_event returns the most recent event matching the type/stage filter (used e.g.
     to find the matching stage_generated when computing time-to-approve)."""
     root = _project(tmp_path)
@@ -40,7 +50,7 @@ def test_last_event_filters(tmp_path):
     assert telemetry.last_event(root, "nonexistent") is None
 
 
-def test_verify_chain_ok_and_tamper(tmp_path):
+def test_verify_chain_ok_and_tamper(pmos, tmp_path):
     """An intact chain verifies ok; tampering with a middle event's payload is detected and
     reported with the 1-based break line and a reason — the integrity guarantee."""
     root = _project(tmp_path)
@@ -63,7 +73,7 @@ def test_verify_chain_ok_and_tamper(tmp_path):
     assert any(i.code == consistency.CODE_TELEMETRY_CHAIN_BROKEN for i in issues)
 
 
-def test_verify_chain_no_file(tmp_path):
+def test_verify_chain_no_file(pmos, tmp_path):
     """A project with no telemetry file verifies ok with 0 events (absence is not corruption)."""
     res = telemetry.verify_chain(_project(tmp_path))
     assert res["ok"] is True

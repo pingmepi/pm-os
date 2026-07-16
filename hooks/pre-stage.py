@@ -57,11 +57,17 @@ def read_edited_choice(stage_id: str) -> str:
         print(
             f"[pre-stage] BLOCKED: upstream stage(s) were edited after approval, so "
             f"stage {stage_id} cannot be generated yet.\n"
-            "Re-approving an edited stage is the PM's decision. Agent: STOP — do not "
-            "re-approve on the PM's behalf. Tell the PM which stage changed, then ask "
-            "them to either:\n"
-            "  - re-approve it explicitly:  /pm-approve <NN>   (Codex: $pm-approve <NN>)\n"
-            "  - or confirm in their own words that you should continue.\n"
+            "Re-approving an edited stage is the PM's decision, not the agent's to infer.\n"
+            "  - If YOU (the agent) noticed this drift on your own — the PM did not ask "
+            "for it in this conversation — STOP. Tell the PM which stage changed and wait "
+            "for them to act.\n"
+            "  - If the PM already told you, in this conversation, to treat this edit as "
+            "authorized: no further confirmation is needed — go ahead and run "
+            "/pm-approve <NN> (Codex: $pm-approve <NN>) yourself.\n"
+            "For a stage the PM edited directly while it was still 'approved' (not yet "
+            "demoted to 'edited' by any gate), the PM can re-approve it in one step "
+            "without running a downstream stage first: /pm-approve <NN> --reapprove — "
+            "it no-ops if the body is unchanged.\n"
             "Re-run this stage only after the PM has acted.",
             file=sys.stderr,
         )

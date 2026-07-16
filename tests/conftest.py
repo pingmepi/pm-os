@@ -116,11 +116,14 @@ def _repoint_lib_modules(h: SimpleNamespace, monkeypatch):
     """Monkeypatch home-derived constants in already-importable lib modules."""
     import config
     import git_sync
+    import telemetry
     importlib.reload(config)
     importlib.reload(git_sync)
+    importlib.reload(telemetry)
     monkeypatch.setattr(config, "CONFIG_PATH", h.install / "config.yaml", raising=False)
     config._config_cache = None  # drop any cached config
     monkeypatch.setattr(git_sync, "CACHE_DIR", h.home / ".pm-os-feedback-cache", raising=False)
+    monkeypatch.setattr(telemetry, "PM_OS_DIR", h.install, raising=False)
 
     import context
     importlib.reload(context)
