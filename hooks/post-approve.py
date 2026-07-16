@@ -4,9 +4,10 @@ post-approve hook - runs after pm-approve completes.
 
 1. Render companion HTML for stages 04 and 05.
 2. Cascade staleness: downstream approved stages -> stale.
-3. Push telemetry + feedback JSONL to feedback repo.
+3. Sync telemetry + feedback JSONL to feedback repo (deferred by default).
 """
 
+import subprocess
 import sys
 import os
 
@@ -17,6 +18,38 @@ from frontmatter import update_status
 from html_render import render_design_spec, render_prototype_mockup
 from telemetry import log
 from git_sync import push_feedback_repo
+
+
+def _truthy(value) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _spawn_background_sync(project_root) -> None:
+    """Fire the central feedback-repo push as a detached background process.
+
+    A network push must never gate the PM's perceived approval completion
+    (backlog #6). The approval state is already durably written locally by the
+    time we get here; the push only propagates it to the central repo, and
+    /pm-sync is the catch-up + retry path. Output goes to a per-project log so a
+    background failure is inspectable rather than lost.
+    """
+    lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "lib"))
+    child_env = os.environ.copy()
+    child_env["PM_OS_LIB_PATH"] = lib_dir
+    child_env["PM_OS_SYNC_PROJECT"] = str(project_root)
+    code = (
+        "import os, sys; from pathlib import Path; "
+        "sys.path.insert(0, os.environ['PM_OS_LIB_PATH']); "
+        "from git_sync import push_feedback_repo; "
+        "push_feedback_repo(Path(os.environ['PM_OS_SYNC_PROJECT']))"
+    )
+    log_path = os.path.join(str(project_root), ".pm-os-sync.log")
+    logf = open(log_path, "ab")
+    subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdout=logf, stderr=logf, stdin=subprocess.DEVNULL,
+        start_new_session=True, cwd=str(project_root), env=child_env,
+    )
 
 
 def main():
@@ -91,16 +124,30 @@ def main():
             print(f"[post-approve] WARNING: Could not rebuild traceability: {e}",
                   file=sys.stderr)
 
-    # --- Push to feedback repo (report status clearly, never silently swallow) ---
-    try:
-        status = push_feedback_repo(project_root)
-        if status.get("ok"):
-            print(f"[post-approve] Central sync: {status.get('reason')}.")
-        else:
-            print(f"[post-approve] Central sync FAILED — {status.get('reason')}. "
-                  f"Retry with /pm-sync.", file=sys.stderr)
-    except Exception as e:
-        print(f"[post-approve] WARNING: Could not push to feedback repo: {e}", file=sys.stderr)
+    # --- Sync to feedback repo ---
+    # By default this is DEFERRED to a detached background process so the
+    # network push never gates the PM's perceived approval completion (backlog
+    # #6). The approval is already saved locally at this point. Set
+    # PM_OS_SYNC_BLOCKING=1 (CI/tests, or a PM who wants a synchronous confirm)
+    # to push inline and report status. Either way, /pm-sync is the catch-up path.
+    if _truthy(os.environ.get("PM_OS_SYNC_BLOCKING")):
+        try:
+            status = push_feedback_repo(project_root)
+            if status.get("ok"):
+                print(f"[post-approve] Central sync: {status.get('reason')}.")
+            else:
+                print(f"[post-approve] Central sync FAILED — {status.get('reason')}. "
+                      f"Retry with /pm-sync.", file=sys.stderr)
+        except Exception as e:
+            print(f"[post-approve] WARNING: Could not push to feedback repo: {e}", file=sys.stderr)
+    else:
+        try:
+            _spawn_background_sync(project_root)
+            print("[post-approve] Central sync started in the background — your approval "
+                  "is already saved locally. Run /pm-sync to verify or retry it.")
+        except Exception as e:
+            print(f"[post-approve] WARNING: Could not start background sync: {e}. "
+                  f"Run /pm-sync to push manually.", file=sys.stderr)
 
     sys.exit(0)
 

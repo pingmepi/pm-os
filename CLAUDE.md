@@ -68,7 +68,7 @@ Stage state lives in **both** `.meta.yaml` (`stages[]` list) **and** each artifa
 ### Gate flow (where approval is enforced)
 1. Before generating, a stage `SKILL.md` runs `PM_OS_STAGE=<NN> python3 ~/.pm-os/hooks/pre-stage.py`. The gate (`hooks/pre-stage.py`) blocks if any upstream stage is `pending/draft/stale`, re-hashes upstream artifacts to catch post-approval edits (marking them `edited`), and prompts for implicit re-approval if upstreams were edited. On implicit re-approval it cascades `stale` to downstream approved stages (including intermediate ones), mirroring `post-approve.py`.
 2. `scripts/pm_approve.py` validates status, writes the approval (frontmatter + meta + `stage_approved` telemetry), then shells out to `hooks/post-approve.py` with `PM_OS_STAGE` set.
-3. `hooks/post-approve.py` renders HTML companions for stages 04/05 (`lib/html_render.py`), cascades `stale` to downstream approved stages, and pushes telemetry/feedback via `lib/git_sync.py`.
+3. `hooks/post-approve.py` renders HTML companions for stages 04/05 (`lib/html_render.py`), cascades `stale` to downstream approved stages, and syncs telemetry/feedback via `lib/git_sync.py`. The central push is **deferred to a detached background process by default** so a slow/failed network push never gates the PM's perceived approval completion (backlog #6); set `PM_OS_SYNC_BLOCKING=1` (CI/tests do) to push inline and report status. Either way `/pm-sync` is the catch-up/retry path.
 
 State flows between hooks and scripts via the `PM_OS_STAGE` environment variable, not arguments.
 

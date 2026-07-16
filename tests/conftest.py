@@ -98,6 +98,11 @@ def pmos(tmp_path, monkeypatch):
         "PM_OS_PROJECTS_DIR": str(h.projects),
         "PM_OS_USER": "tester",
         "PM_OS_FEEDBACK_REPO": str(h.feedback),
+        # Force the central feedback-repo push to run inline (not the deferred
+        # background process the interactive default now uses, backlog #6) so
+        # the suite's post-approval sync assertions stay deterministic. Tests
+        # exercising the deferred path override this per-call.
+        "PM_OS_SYNC_BLOCKING": "1",
         "PYTHONPATH": pythonpath,
         "GIT_AUTHOR_NAME": "tester", "GIT_AUTHOR_EMAIL": "tester@example.com",
         "GIT_COMMITTER_NAME": "tester", "GIT_COMMITTER_EMAIL": "tester@example.com",

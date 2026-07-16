@@ -93,16 +93,21 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 ---
 
-## 6. 🟠 `pm_approve` is slow and CPU-heavy (IMP-003)
+## 6. 🟢 `pm_approve` is slow and CPU-heavy (IMP-003)
 
 **Severity:** P1 — UX; re-approvals took ~3 minutes at 99% CPU during a demo run.
-**Status:** 🟠 Open.
+**Status:** 🟢 **Fixed** (this change), pending release.
 
 **Symptom:** Re-approvals were dominated by the git + central-sync push step. When backgrounded, the process looked hung, and a partial-output read made it look like something had failed — even though the underlying approval state was actually correct by the time the sync finished.
 
-**Evidence:** PM-observed during a demo run; the sync push is invoked from `hooks/post-approve.py` via `lib/git_sync.py` (per `CLAUDE.md`'s architecture notes on the gate flow) — the exact hot path (git operations vs. Python overhead) hasn't been profiled in this session.
+**Root cause (confirmed this session):** `hooks/post-approve.py` ran `push_feedback_repo()` **synchronously** as its last step, and `scripts/pm_approve.py` only printed its `Stage NN approved` confirmation *after* the whole hook (including that network push) returned. So the PM's approval was durably written to disk minutes before the confirmation appeared — the local approval never actually needed the push, but the perceived completion was gated behind it.
 
-**Proposed fix:** Make the telemetry/feedback sync push async or deferred relative to the approval itself, or surface progress output so a slow sync doesn't read as a hang. A network push should not gate the perceived completion of `/pm-approve`.
+**Fixed (this change):**
+- The central feedback-repo push in `post-approve.py` is now **deferred to a detached background process by default** (`_spawn_background_sync` → `subprocess.Popen(..., start_new_session=True)`, output to a per-project `.pm-os-sync.log`). Approval returns immediately after the local work (HTML render, stale cascade, traceability rebuild) with a message that the sync is backgrounded and `/pm-sync` verifies/retries it.
+- `PM_OS_SYNC_BLOCKING=1` forces the old inline, status-reporting push (CI/tests set it via the `pmos` fixture so the suite's sync assertions stay deterministic; a PM who wants a synchronous confirm can set it too).
+- Test: `tests/integration/test_git_sync_local.py::test_deferred_approval_sync_does_not_block` asserts the deferred approval returns fast, reports the backgrounding, keeps local state approved, and that the detached push still lands a commit centrally. `docs/guides/testing.md`, `CLAUDE.md`, and `ARCHITECTURE.md` updated to match.
+
+**Note:** This fixes the *perceived-hang* UX (a network push no longer gates `/pm-approve`). It does not itself explain *why* the push took ~3 min at 99% CPU on that machine (a large/growing feedback-cache repo or slow network is the likely cause) — that underlying git cost, if it recurs, is a separate profiling task, but it no longer blocks the PM.
 
 ---
 
