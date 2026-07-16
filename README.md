@@ -107,7 +107,8 @@ PM-OS builds a context wiki and an understanding doc for you to review and
 approve, then adopts the artifacts you authored and faithfully backfills the
 upstream stages below them before handing back to the normal pipeline.
 
-Day to day you'll also use `/pm-status` (project state), `/pm-feedback <NN>` (rate a
+Day to day you'll also use `/pm-status` (project state), `/pm-check` (read-only
+consistency check for a project), `/pm-feedback <NN>` (rate a
 stage), `/pm-share` (export approved artifacts as raw text, or `--package` to build a
 readable, decomposed handoff package of per-story files + reference docs under
 `handoff/`), and `/pm-sync` (push every project's telemetry/feedback to the team repo;

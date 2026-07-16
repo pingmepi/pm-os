@@ -23,17 +23,23 @@ def stage_skill_dir(stage_id: str):
     return REPO_ROOT / "skills" / f"pm-stage-{stage_id}-{project.STAGE_NAMES[stage_id]}"
 
 
-def run_script(pmos, script: str, *args: str, cwd: Path | None = None, stdin: str | None = None):
+def run_script(pmos, script: str, *args: str, cwd: Path | None = None,
+               stdin: str | None = None, extra_env: dict | None = None):
     """Run scripts/<script> from the temp install with the isolated env.
 
     Returns the CompletedProcess (capture_output, text). `cwd` defaults to the
     projects dir; pass a project path for commands that resolve_project().
+    `extra_env` overrides individual env keys (e.g. to exercise the deferred
+    background sync by clearing PM_OS_SYNC_BLOCKING).
     """
+    env = pmos.env
+    if extra_env:
+        env = {**pmos.env, **extra_env}
     script_path = pmos.install / "scripts" / script
     return subprocess.run(
         ["python3", str(script_path), *args],
         cwd=str(cwd or pmos.projects),
-        env=pmos.env,
+        env=env,
         input=stdin,
         capture_output=True,
         text=True,

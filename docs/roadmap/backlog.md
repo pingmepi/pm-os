@@ -93,16 +93,21 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 ---
 
-## 6. 🟠 `pm_approve` is slow and CPU-heavy (IMP-003)
+## 6. 🟢 `pm_approve` is slow and CPU-heavy (IMP-003)
 
 **Severity:** P1 — UX; re-approvals took ~3 minutes at 99% CPU during a demo run.
-**Status:** 🟠 Open.
+**Status:** 🟢 **Fixed** (this change), pending release.
 
 **Symptom:** Re-approvals were dominated by the git + central-sync push step. When backgrounded, the process looked hung, and a partial-output read made it look like something had failed — even though the underlying approval state was actually correct by the time the sync finished.
 
-**Evidence:** PM-observed during a demo run; the sync push is invoked from `hooks/post-approve.py` via `lib/git_sync.py` (per `CLAUDE.md`'s architecture notes on the gate flow) — the exact hot path (git operations vs. Python overhead) hasn't been profiled in this session.
+**Root cause (confirmed this session):** `hooks/post-approve.py` ran `push_feedback_repo()` **synchronously** as its last step, and `scripts/pm_approve.py` only printed its `Stage NN approved` confirmation *after* the whole hook (including that network push) returned. So the PM's approval was durably written to disk minutes before the confirmation appeared — the local approval never actually needed the push, but the perceived completion was gated behind it.
 
-**Proposed fix:** Make the telemetry/feedback sync push async or deferred relative to the approval itself, or surface progress output so a slow sync doesn't read as a hang. A network push should not gate the perceived completion of `/pm-approve`.
+**Fixed (this change):**
+- The central feedback-repo push in `post-approve.py` is now **deferred to a detached background process by default** (`_spawn_background_sync` → `subprocess.Popen(..., start_new_session=True)`, output to a per-project `.pm-os-sync.log`). Approval returns immediately after the local work (HTML render, stale cascade, traceability rebuild) with a message that the sync is backgrounded and `/pm-sync` verifies/retries it.
+- `PM_OS_SYNC_BLOCKING=1` forces the old inline, status-reporting push (CI/tests set it via the `pmos` fixture so the suite's sync assertions stay deterministic; a PM who wants a synchronous confirm can set it too).
+- Test: `tests/integration/test_git_sync_local.py::test_deferred_approval_sync_does_not_block` asserts the deferred approval returns fast, reports the backgrounding, keeps local state approved, and that the detached push still lands a commit centrally. `docs/guides/testing.md`, `CLAUDE.md`, and `ARCHITECTURE.md` updated to match.
+
+**Note:** This fixes the *perceived-hang* UX (a network push no longer gates `/pm-approve`). It does not itself explain *why* the push took ~3 min at 99% CPU on that machine (a large/growing feedback-cache repo or slow network is the likely cause) — that underlying git cost, if it recurs, is a separate profiling task, but it no longer blocks the PM.
 
 ---
 
@@ -200,6 +205,8 @@ split_test_case_blocks(qa_text) # -> {}            (traceability + trace-check: 
 **Proposed fix:** Make the strict, line-anchored extractor tolerant of a bold-wrapped id immediately after a bullet/heading marker (`[-*+]\s+\*{0,2}TC-\d{3,}` style), and make `TEST_CASE_IDS_MISSING` use the **same** extractor `split_test_case_blocks` uses — one extractor, not two, so "the contract says valid" and "the spine actually links it" can never disagree. Separately, make `_TC_SECTION_BREAK_RE` also stop at `###` headings so non-TC subsections never get absorbed into an adjacent TC's block.
 
 **Fixed (this change):** `lib/artifact_contracts.py` — `_TC_BLOCK_START_RE` (and `_US_BLOCK_START_RE`, same bug class) now accepts an optional bold wrapper (`\*{0,2}`) before the id. `_TC_SECTION_BREAK_RE` widened from `^##\s` to `^#{2,6}\s` so any heading level 2-6 ends a block, closing the interleaved-`###`-subsection absorption bug too. `_validate_stage_06` now derives `tc_ids` from `split_test_case_blocks(...).keys()` (falling back to scanning the full body only if the named section has no recognizable declarations) instead of the loose `TEST_CASE_ID_RE`-based `test_case_ids()`, so `TEST_CASE_IDS_MISSING`, `TEST_CASE_TRACE_MISSING`, and `traceability.build_index()` all agree on what a QA plan declares. Both verified reproductions in this entry now behave correctly. Tests: `test_qa_plan_bold_wrapped_bullet_ids_are_declared`, `test_split_test_case_blocks_stops_at_any_heading_level` (`tests/unit/test_artifact_contracts.py`), `test_bold_wrapped_bullet_tc_ids_still_populate_the_spine` (`tests/integration/test_traceability_spine.py`, end-to-end through real approval). `docs/guides/testing.md` updated to match.
+
+**Follow-up (Codex PR #33 review — nested headings, fixed):** the `^#{2,6}\s` break above over-corrected: a TC declared as a heading (`### TC-001`) with its own nested `#### Coverage`/`#### Steps` subsections got truncated at the first `####`, so requirement ids cited below it were dropped — the same false-`TEST_CASE_TRACE_MISSING`/empty-spine failure, for a different authoring style. Replaced the flat break regex with a shared, **level-aware** splitter (`_split_id_blocks` + `_HEADING_LEVEL_RE`, used by both `split_test_case_blocks` and `split_user_story_blocks`): a block breaks only at a heading whose level is **<= the declaration's own heading level** (a bullet/bare-line declaration is treated as level 7, deeper than any heading, so it still breaks at any heading — preserving the interleaved-`###` fix). Test: `test_split_test_case_blocks_preserves_nested_subheadings` (`tests/unit/test_artifact_contracts.py`).
 
 ---
 

@@ -369,6 +369,33 @@ Covers FR-002. Another scenario.
     assert "Covers FR-002" in blocks["TC-018"]
 
 
+def test_split_test_case_blocks_preserves_nested_subheadings(tmp_path):
+    """A heading-style TC (`### TC-001`) with its own nested `#### Coverage`/`#### Steps`
+    subsections must keep that detail in its block — the break fires only at a heading at
+    or above the TC's own level, not at a deeper nested one. Regression for the level-aware
+    splitter: an earlier fix broke at *any* `##`-`######` heading, truncating such a TC at
+    its first `####` and dropping requirement ids cited below it (false TEST_CASE_TRACE_MISSING
+    + empty .traceability.yaml links even though the TC cites FR/US ids)."""
+    text = """## Functional Test Cases
+### TC-001
+Verify ranked results exclude expired assets.
+#### Coverage
+Covers REQ-001 and FR-003.
+#### Steps
+1. Run the query. 2. Assert exclusion.
+
+### TC-002
+Covers REQ-002. Another scenario.
+"""
+    blocks = contracts.split_test_case_blocks(text)
+    # The nested subsections (and the ids they carry) stay inside TC-001's block.
+    assert "REQ-001" in blocks["TC-001"] and "FR-003" in blocks["TC-001"]
+    assert "#### Steps" in blocks["TC-001"]
+    # …but TC-001 still ends at the sibling TC-002 heading, not bleeding into it.
+    assert "REQ-002" not in blocks["TC-001"]
+    assert "REQ-002" in blocks["TC-002"]
+
+
 def test_split_test_case_blocks_handles_ordered_list_items(tmp_path):
     """The shared splitter recognizes ordered-list test cases (`1. TC-001`), not only
     headings/bullets, so build_index and the contract validator agree on them."""

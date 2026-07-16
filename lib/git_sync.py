@@ -1,5 +1,8 @@
+import os
 import shutil
 import subprocess
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +13,49 @@ from config import load_config
 
 CACHE_DIR = Path.home() / ".pm-os-feedback-cache"
 SYNCED_FILES = ["telemetry.jsonl", "feedback.jsonl"]
+
+
+def _lock_dir() -> Path:
+    # Sibling of the cache (never inside it — the cache is cloned/managed by git).
+    return CACHE_DIR.parent / ".pm-os-feedback-cache.lock"
+
+
+@contextmanager
+def _cache_lock(timeout: float = 600.0, stale_after: float = 900.0, poll: float = 0.1):
+    """Serialize access to the single shared feedback-repo cache.
+
+    Two syncs must never interleave clone/add/commit/push on one working copy —
+    e.g. two backgrounded post-approve pushes fired seconds apart (backlog #6/#34)
+    would otherwise collide on clone/index-lock/non-fast-forward. Uses an atomic
+    ``mkdir`` lock (portable — holds under Git Bash on Windows, where ``fcntl`` is
+    unavailable), waits up to ``timeout`` for a holder to finish, and steals a
+    lock older than ``stale_after`` (left by a crashed process). Yields True if
+    acquired, False if it timed out — the caller reports and defers to /pm-sync.
+    """
+    lock = _lock_dir()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout
+    acquired = False
+    while True:
+        try:
+            os.mkdir(lock)
+            acquired = True
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > stale_after:
+                    shutil.rmtree(lock, ignore_errors=True)
+                    continue
+            except FileNotFoundError:
+                continue  # holder released between the mkdir and the stat — retry
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(poll)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            shutil.rmtree(lock, ignore_errors=True)
 
 
 def push_feedback_repo(project_root) -> dict:
@@ -71,40 +117,45 @@ def _sync(roots, label: str) -> dict:
         print("[git_sync] SKIPPED — feedback_repo not configured.")
         return {"ok": False, "reason": "feedback_repo not configured", "synced": []}
 
-    try:
-        _ensure_repo(feedback_repo_url)
-    except subprocess.CalledProcessError as e:
-        return _fail("clone/fetch", e)
+    with _cache_lock() as acquired:
+        if not acquired:
+            print("[git_sync] SKIPPED — another sync holds the cache lock; /pm-sync will catch up.")
+            return {"ok": False, "reason": "cache busy (another sync in progress)", "synced": []}
 
-    synced = []
-    failed = []
-    for root in roots:
-        root = Path(root)
-        if not (root / ".meta.yaml").exists():
-            # Local project dir deleted/moved — skip, don't crash the whole sync.
-            print(f"[git_sync] skipping {root} (no .meta.yaml — deleted?)")
-            continue
         try:
-            if _copy_project(root, pm):
-                synced.append(_project_slug(root))
-        except Exception as e:
-            # A project we *meant* to sync but couldn't stage (bad .meta.yaml,
-            # unreadable JSONL). This is the recovery path, so don't bury it —
-            # record it and fail the overall result while still pushing the rest.
-            print(f"[git_sync] WARNING — could not stage {root.name}: {e}")
-            failed.append(root.name)
+            _ensure_repo(feedback_repo_url)
+        except subprocess.CalledProcessError as e:
+            return _fail("clone/fetch", e)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    try:
-        _git(["add", "-A"], cwd=CACHE_DIR)
-        staged = _git(["diff", "--cached", "--quiet"], cwd=CACHE_DIR, check=False)
-        if staged.returncode == 0:
-            print("[git_sync] Nothing new to push.")
-            return _result(failed, "nothing to push", synced)
-        _git(["commit", "-m", f"telemetry: {pm} {label} {timestamp}"], cwd=CACHE_DIR)
-        _git(["push"], cwd=CACHE_DIR)
-    except subprocess.CalledProcessError as e:
-        return _fail("commit/push", e)
+        synced = []
+        failed = []
+        for root in roots:
+            root = Path(root)
+            if not (root / ".meta.yaml").exists():
+                # Local project dir deleted/moved — skip, don't crash the whole sync.
+                print(f"[git_sync] skipping {root} (no .meta.yaml — deleted?)")
+                continue
+            try:
+                if _copy_project(root, pm):
+                    synced.append(_project_slug(root))
+            except Exception as e:
+                # A project we *meant* to sync but couldn't stage (bad .meta.yaml,
+                # unreadable JSONL). This is the recovery path, so don't bury it —
+                # record it and fail the overall result while still pushing the rest.
+                print(f"[git_sync] WARNING — could not stage {root.name}: {e}")
+                failed.append(root.name)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        try:
+            _git(["add", "-A"], cwd=CACHE_DIR)
+            staged = _git(["diff", "--cached", "--quiet"], cwd=CACHE_DIR, check=False)
+            if staged.returncode == 0:
+                print("[git_sync] Nothing new to push.")
+                return _result(failed, "nothing to push", synced)
+            _git(["commit", "-m", f"telemetry: {pm} {label} {timestamp}"], cwd=CACHE_DIR)
+            _git(["push"], cwd=CACHE_DIR)
+        except subprocess.CalledProcessError as e:
+            return _fail("commit/push", e)
 
     print(f"[git_sync] Pushed {len(synced)} project(s): {', '.join(synced) or '(none)'}")
     return _result(failed, "pushed", synced)
