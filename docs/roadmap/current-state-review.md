@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-12 · **Updated:** 2026-07-16 (v1.1.0; see CHANGELOG for full history)
 
-> **Version summary:** Phase 1 runtime parity and Phase 2 flexible intake shipped in v0.4–v0.5.2; context overlay + telemetry metrics in v0.5.3; deep-reasoning tier expansion in v0.5.4; automated test suite in v0.5.5; telemetry/gate hardening in v0.5.6–v0.5.7; richer context intake in v0.5.8; **enhancement mode + `00c` codebase-understanding + offline install** in v0.5.9–v0.5.10; `pm-prototype-html` skill in v0.5.11; **artifact quality contracts (Stages 03–05) + research-safe prototypes** in v0.6.0; **Phase 3.5 traceability spine** (stable `REQ`/`TC` IDs, `.traceability.yaml` resolver) and **adaptive context pack** (composite hashing, schema v4, modular pack across stages 01–09) in v1.0.5–v1.0.6; **`/pm-check` consistency toolkit** in v1.0.7; **PRD contract v2 + readable handoff package (`/pm-share --package`)** in v1.0.10–v1.0.12; **reliability + traceability hardening** (unified `TC` extractors, `--reapprove`, runtime-version telemetry) in v1.0.14; **deferred non-blocking central sync + portable cache lock** (#6) in v1.1.0. §2/§3 below reflect v1.1.0.
+> **Version summary:** Phase 1 runtime parity and Phase 2 flexible intake shipped in v0.4–v0.5.2; context overlay + telemetry metrics in v0.5.3; deep-reasoning tier expansion in v0.5.4; automated test suite in v0.5.5; telemetry/gate hardening in v0.5.6–v0.5.7; richer context intake in v0.5.8; **enhancement mode + `00c` codebase-understanding + offline install** in v0.5.9–v0.5.10; `pm-prototype-html` skill in v0.5.11; **artifact quality contracts (Stages 03–05) + research-safe prototypes** in v0.6.0; **Phase 3.5 traceability spine** (stable `REQ`/`TC` IDs, `.traceability.yaml` resolver) and **adaptive context pack** (composite hashing, schema v4, modular pack across stages 01–09) in v1.0.5–v1.0.6; **`/pm-check` consistency toolkit** in v1.0.7; **PRD contract v2 + readable handoff package (`/pm-share --package`)** in v1.0.10–v1.0.12; **reliability + traceability hardening** (unified `TC` extractors, `--reapprove`, runtime-version telemetry) in v1.0.14; **deferred non-blocking central sync + portable cache lock** (#6) in v1.1.0; **Phase 3.5b TRD task IDs (`TSK-###`, traceability schema v2) + Phase 4b Jira handoff export (`/pm-handoff`)** in v1.2.0. §2/§3 below reflect v1.2.0.
 **Purpose:** Review the current PM-OS codebase against the expanded product ask: an end-to-end, PM-led, agent-agnostic PDLC operating layer.
 **Status:** Working product/architecture review. This document distinguishes implemented behavior from draft plans already present in the repo.
 
@@ -365,32 +365,26 @@ Out of scope (this phase): LLM prose-quality evaluation, real Claude/Codex skill
 
 Goal: connect approved product intent to the systems dev/QA actually use — value first, connectors second.
 
-**Phase 4a — Local handoff packet (zero integrations).**
+**Phase 4a — Local handoff packet (zero integrations). — ✅ COMPLETE (v1.0.12)**
 
-- Generate a dev-ready handoff doc from approved PRD/TRD/QA using the Phase 3.5 stable IDs.
-- Pure local Markdown; no auth, no network. This is most of Phase 4's value with none of the connector risk.
+- Shipped as `/pm-share --package` (`scripts/pm_share.py`): a decomposed per-story handoff package assembled offline from the approved pipeline by walking the traceability spine (`US-### → FR-### → UJ-### → covering TC-###`). Pure local Markdown; no auth, no network.
 
-Checks:
-- Handoff packet lists each requirement with its acceptance criteria and covering `TC` IDs.
+Checks (met):
+- Handoff package lists each story with its requirements, journey, and covering `TC` IDs.
 - Generated entirely offline from approved artifacts.
 
-**Phase 4b — One tracker, export-only (opt-in, dry-run -> confirm -> create).**
+**Phase 4b — One tracker, export-only (opt-in, dry-run -> confirm -> create). — ✅ COMPLETE**
 
-- Pick the single tracker the PM actually uses (Linear *or* Jira, not both).
-- Export tickets in dry-run -> PM confirm -> create flow; read ticket IDs back into local state.
-- GitHub/GitLab PR/commit refs and Figma source links are **separate, later, read-only "reference capture" units** — not bundled here.
+Shipped as `/pm-handoff jira` (`skills/pm-handoff/` + `scripts/pm_handoff.py`), gated on approved status and built on the Phase 3.5/3.5b stable IDs. The tracker is **Jira** (the single tracker chosen per the roadmap principle — not both). `pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a tracker-agnostic ticket map — each `US-###` → epic, its `FR-###`/`REQ-###` → child story, each approved `TSK-###` → child task under the owning epic — and writes a PM-readable dry-run (`handoff/jira-plan.md`) plus a machine map (`.json`), fully offline. The skill then runs **dry-run → PM confirms → create via the Atlassian MCP → `pm_handoff.py record`**, which writes each returned ticket key into the matching requirement's/task's `tickets: []` slot in `.traceability.yaml` and logs a `handoff_exported` telemetry event. GitHub/GitLab PR/commit refs and Figma source links remain **separate, later, read-only "reference capture" units** — not bundled here.
 
-Checks:
-- Tickets map to requirements and acceptance criteria via stable IDs.
-- PM confirms before any external object is created or updated.
+Checks (met):
+- Tickets map to requirements/tasks via stable IDs (`US`/`FR`/`REQ`/`TSK`), recorded back locally.
+- PM confirms before any external object is created (the skill enforces dry-run → confirm → create).
 - Only references/IDs/summaries are stored locally — never bulk copies of external data.
 
-Dependencies:
-- Phase 3.5 stable IDs.
-- Local CLI/token access for the one chosen tracker.
+Dependencies (met): Phase 3.5 stable IDs + Phase 3.5b TRD task IDs.
 
-Blockers:
-- Need connector/auth policy (tokens from env/local config; see Section 8 and Risks).
+**Connector/auth policy:** tickets are created through the runtime's Atlassian MCP connector, authorized in the connector settings (claude.ai) or `/mcp` (interactive) — PM-OS never handles tokens. A non-interactive session cannot run the OAuth flow, so the actual create step requires an interactive, authorized session; `plan`/`record` are offline and testable without it.
 
 ### Phase 5: QA Bug Triage and Dev Fix Guidance
 

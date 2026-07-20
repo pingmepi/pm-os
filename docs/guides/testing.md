@@ -249,6 +249,13 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
 - `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
 
+**`test_handoff.py`** — Phase 4b Jira handoff export (`scripts/pm_handoff.py`)
+- `test_plan_blocks_when_prd_not_approved` — `plan` exits non-zero and writes nothing while the PRD is not approved (the export projects approved decisions only).
+- `test_plan_maps_stories_requirements_and_tasks` — `plan` maps each `US-###`→epic, its `FR-###`→child story, each approved `TSK-###`→child task under the owning epic; unowned FR/TSK go to an Unassigned bucket; a `TSK-###` outside the Work Breakdown is excluded.
+- `test_plan_without_trd_exports_prd_only` — with no approved TRD, `plan` still exports PRD stories + functional requirements and carries zero tasks (`source_stamps.trd` is null).
+- `test_plan_excludes_tasks_when_trd_no_longer_approved` — Codex PR #36 P1 regression: when stage 08 is cascaded to stale (implicit re-approval of an edited PRD) *without* the derived `.traceability.yaml` being rebuilt, `plan` must not export the stale tasks — it rebuilds the index fresh and gates tasks on the live meta status.
+- `test_record_writes_ticket_keys_and_logs_telemetry` — `record` writes created ticket keys into the matching requirement's/task's `tickets` slot, skips ids absent from the index, survives a later `pm_trace.py rebuild`, and logs a `handoff_exported` event carrying refs/counts/keys only.
+
 **`test_share_package.py`** — Phase 4a readable handoff package, `pm-share --package` (`scripts/pm_share.py`; merged from the former `scripts/pm_handoff.py` — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B)
 - `test_package_generates_per_story_files_with_traceability` — approving 01/02/03/06 then running `pm_share.py --package` assembles per-story files in the boss house-format by walking US-### → FR-### → UJ-### → covering TC-###; the story lists both covering test cases, carries the authored story body, and is stamped with source provenance + a "DO NOT EDIT HERE" banner.
 - `test_package_flags_unsourced_sections_instead_of_fabricating` — a story with no covering TC / no FR shows `— not captured in source —` rather than invented content (the blank doubles as a coverage checklist).

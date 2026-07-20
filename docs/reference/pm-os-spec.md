@@ -206,7 +206,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -228,6 +228,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
 - `implicit_reapproval`: `{ stage, old_hash, new_hash }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
+- `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data
 - `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
 
 ### 5.4 Feedback entry (JSONL line)
