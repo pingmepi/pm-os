@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff to Jira"
+  short_description: "Export the approved pipeline to Jira, with a confirm gate"
+  default_prompt: "Use $pm-handoff jira to export my approved PM-OS pipeline to Jira — show me the dry-run plan first and wait for my confirmation before creating anything."

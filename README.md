@@ -111,8 +111,10 @@ Day to day you'll also use `/pm-status` (project state), `/pm-check` (read-only
 consistency check for a project), `/pm-feedback <NN>` (rate a
 stage), `/pm-share` (export approved artifacts as raw text, or `--package` to build a
 readable, decomposed handoff package of per-story files + reference docs under
-`handoff/`), and `/pm-sync` (push every project's telemetry/feedback to the team repo;
-`--verify` checks each hash chain).
+`handoff/`), `/pm-handoff jira` (export the approved pipeline to Jira as
+epics/stories/tasks via the Atlassian connector — dry-run → confirm → create, with
+ticket keys recorded back into the traceability spine), and `/pm-sync` (push every
+project's telemetry/feedback to the team repo; `--verify` checks each hash chain).
 
 Approve the business statement, then generate and approve stages. The business
 statement is stage `00` — gated like any other stage, so approve it first:
