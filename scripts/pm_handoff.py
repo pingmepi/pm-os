@@ -182,12 +182,19 @@ def build_plan(root: Path) -> dict:
     story_blocks = split_user_story_blocks(stories_section or prd_body)
     fr_blocks = _split_blocks(fr_section, _FR_BLOCK_START_RE)
 
-    # Approved-TRD tasks come from the traceability index, which already excludes a
-    # draft/stale TRD (Phase 3.5b). Descriptions come from the Work Breakdown body.
-    index = traceability.load_index(root) or traceability.build_index(root)
-    index_tasks = index.get("tasks") or {}
+    # Build the traceability view *fresh* rather than trusting the on-disk index.
+    # An implicit re-approval (hooks/pre-stage.py) can re-approve the edited PRD and
+    # cascade the TRD to stale *without* rebuilding .traceability.yaml, so load_index
+    # could hand back stale requirement/task entries the export would then create.
+    # build_index re-derives from the current artifact bodies (and already excludes a
+    # non-approved TRD's tasks — Phase 3.5b).
+    index = traceability.build_index(root)
+    # Belt-and-suspenders: tasks are exportable only when the TRD is currently
+    # approved. Gate on the live meta status (the cascade updates it reliably), so a
+    # stale/edited TRD contributes no tasks even if its frontmatter status lagged.
     trd_status = _stage_status(meta, "08")
-    trd_stamp = _stamp(root, "08") if (index_tasks and trd_status == "approved") else None
+    index_tasks = (index.get("tasks") or {}) if trd_status == "approved" else {}
+    trd_stamp = _stamp(root, "08") if index_tasks else None
     _trd_fm, trd_body = _read_artifact(root, "08") if trd_stamp else (None, None)
     task_blocks = split_task_blocks(work_breakdown_section(trd_body)) if trd_body else {}
 

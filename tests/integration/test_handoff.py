@@ -100,6 +100,39 @@ def test_plan_without_trd_exports_prd_only(pmos, new_project):
     assert plan["counts"]["stories"] == 3
 
 
+def test_plan_excludes_tasks_when_trd_no_longer_approved(pmos, new_project):
+    """Regression (Codex PR #36 P1): after the TRD is approved, an implicit
+    re-approval of an edited PRD cascades stage 08 to stale *without* rebuilding
+    .traceability.yaml — leaving task entries on disk. `plan` must not export those:
+    it rebuilds the index fresh and gates tasks on the live meta status."""
+    import project
+    proj = new_project("ho-stale", "A problem")
+    _approve(pmos, proj, "03", _PRD_BODY)
+    _approve(pmos, proj, "08", _TRD_BODY)
+    # The on-disk index has tasks after approving 08.
+    data = yaml.safe_load((proj / ".traceability.yaml").read_text())
+    assert data.get("tasks"), "precondition: approved TRD populated the index"
+
+    # Simulate the implicit-reapproval cascade: stage 08 -> stale in meta (and its
+    # frontmatter), but the derived .traceability.yaml is deliberately left unchanged.
+    meta = project.load_meta(proj)
+    project.get_stage(meta, "08")["status"] = "stale"
+    project.save_meta(meta, proj)
+    import frontmatter as fm_mod
+    fm, body = fm_mod.read(str(project.artifact_path(proj, "08")))
+    fm["status"] = "stale"
+    fm_mod.write(str(project.artifact_path(proj, "08")), fm, body)
+    assert yaml.safe_load((proj / ".traceability.yaml").read_text()).get("tasks"), \
+        "precondition: stale index still on disk"
+
+    res = run_script(pmos, "pm_handoff.py", "plan", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    plan = json.loads((proj / "handoff" / "jira-plan.json").read_text())
+    assert plan["counts"]["tasks"] == 0, "must not export tasks from a stale TRD"
+    assert plan["source_stamps"]["trd"] is None
+    assert not any(i["type"] == "Task" for i in plan["items"])
+
+
 def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
     """`record` writes each created ticket key into the matching requirement's/task's
     `tickets` slot in .traceability.yaml, skips ids not in the index, and logs a
