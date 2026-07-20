@@ -182,3 +182,92 @@ def test_summary_line_variants():
 def test_issue_as_dict_shape():
     issue = consistency.Issue("CODE", "error", "01", "message", "remediation")
     assert set(issue.as_dict().keys()) == {"code", "severity", "stage", "message", "remediation"}
+
+
+# --- TRD task-id consistency (Phase 3.5b) --------------------------------------
+
+_PRD_FOR_TRD = """# PRD
+## User Stories with Acceptance Criteria
+### US-001 — story one
+### US-002 — story two
+## Functional Requirements
+- FR-010 — do a thing
+"""
+
+
+def _project_with_trd(tmp_path: Path, trd_body: str, *, trd_status="draft") -> Path:
+    """Build a project with an approved PRD and a stage-08 TRD carrying trd_body."""
+    _write_meta(tmp_path, [
+        _stage("03", status="approved", content_hash="x"),
+        _stage("08", status=trd_status),
+    ])
+    frontmatter.write(str(tmp_path / "03-prd.md"),
+                      {"stage": "03-prd", "status": "approved", "content_hash": "x"}, _PRD_FOR_TRD)
+    frontmatter.write(str(tmp_path / "08-trd.md"),
+                      {"stage": "08-trd", "status": trd_status}, trd_body)
+    return tmp_path
+
+
+def _trd_codes(tmp_path: Path) -> list[str]:
+    return [i.code for i in consistency.check_project(tmp_path) if i.code.startswith("TRD_")]
+
+
+def test_trd_duplicate_task_id_is_error(tmp_path):
+    """Two tasks sharing a TSK-### id is an ERROR — reused ids collide on ticket export."""
+    root = _project_with_trd(tmp_path,
+        "## Work Breakdown\n### TSK-001 — a\n- **Implements:** US-001\n"
+        "### TSK-001 — dup\n- **Implements:** US-002\n")
+    issues = [i for i in consistency.check_project(root) if i.code == consistency.CODE_TRD_TASK_DUPLICATE]
+    assert issues and issues[0].severity == "error"
+
+
+def test_trd_task_gap_orphan_unknown_and_coverage_are_warnings(tmp_path):
+    """Gaps, orphan tasks, unknown-requirement traces, and uncovered PRD requirements
+    are all reported as WARNINGs so a work-in-progress TRD still passes the check."""
+    root = _project_with_trd(tmp_path,
+        "## Work Breakdown\n"
+        "### TSK-001 — implements a real story\n- **Implements:** US-001\n"
+        "### TSK-003 — gap + unknown req\n- **Implements:** FR-999\n"
+        "### TSK-004 — orphan\n- **Description:** no implements line.\n")
+    codes = _trd_codes(root)
+    assert consistency.CODE_TRD_TASK_ID_GAP in codes          # missing TSK-002
+    assert consistency.CODE_TRD_TASK_UNKNOWN_REQ in codes     # FR-999 not in PRD
+    assert consistency.CODE_TRD_TASK_ORPHAN in codes          # TSK-004 no trace
+    assert consistency.CODE_TRD_REQ_NOT_IMPLEMENTED in codes  # US-002, FR-010 uncovered
+    # None of the TRD findings for a draft work-in-progress escalate to error.
+    trd_issues = [i for i in consistency.check_project(root) if i.code.startswith("TRD_")]
+    assert all(i.severity == "warning" for i in trd_issues)
+
+
+def test_trd_without_work_breakdown_warns_once(tmp_path):
+    """A TRD authored before the Work Breakdown contract (no TSK-### tasks) yields a
+    single WORK_BREAKDOWN_MISSING warning — existing projects degrade gracefully."""
+    root = _project_with_trd(tmp_path, "## Architecture\nSome prose, no tasks.\n")
+    codes = _trd_codes(root)
+    assert codes == [consistency.CODE_TRD_WORK_BREAKDOWN_MISSING]
+
+
+def test_clean_trd_has_no_task_findings(tmp_path):
+    """A TRD whose sequential tasks cover every PRD requirement produces no TRD findings."""
+    root = _project_with_trd(tmp_path,
+        "## Work Breakdown\n"
+        "### TSK-001 — one\n- **Implements:** US-001\n"
+        "### TSK-002 — two\n- **Implements:** US-002\n"
+        "### TSK-003 — three\n- **Implements:** FR-010\n")
+    assert _trd_codes(root) == []
+
+
+def test_trd_check_skipped_when_stage_pending(tmp_path):
+    """No TRD findings when stage 08 is still pending (nothing generated yet)."""
+    root = _project_with_trd(tmp_path, "## Work Breakdown\n### TSK-001 — x\n- **Implements:** US-001\n",
+                             trd_status="pending")
+    assert _trd_codes(root) == []
+
+
+def test_trd_task_outside_work_breakdown_does_not_count(tmp_path):
+    """A TSK-### only under a non-Work-Breakdown section is not a delivery task: the
+    check reports WORK_BREAKDOWN_MISSING rather than treating it as a real task."""
+    root = _project_with_trd(tmp_path,
+        "## Architecture\nProse.\n"
+        "## Open Technical Questions\n- TSK-001 investigate migration risk\n")
+    assert _trd_codes(root) == [consistency.CODE_TRD_WORK_BREAKDOWN_MISSING]

@@ -1,6 +1,6 @@
 ---
 name: pm-check
-description: Check a PM-OS project for internal consistency — meta/frontmatter sync, hash drift, upstream approval shape, telemetry chain integrity, schema shape, and artifact presence. Read-only.
+description: Check a PM-OS project for internal consistency — meta/frontmatter sync, hash drift, upstream approval shape, telemetry chain integrity, schema shape, artifact presence, and TRD task-id consistency (unique/sequential TSK-### tracing to PRD requirements). Read-only.
 model_tier: utility
 ---
 

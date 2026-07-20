@@ -197,6 +197,24 @@ Write a Technical Requirements Document with these base sections.
 
 <How this ships: environments, migration/backfill needs, feature flags, rollback strategy, observability checks, go/no-go criteria tied to QA and metrics, and any phased rollout.>
 
+## Work Breakdown
+
+<A build-ready decomposition of the approved product into discrete engineering tasks. This is the section dev picks up and the tracker export (`/pm-handoff`) turns into tickets — each task becomes one issue, traced by stable ID back to the PRD requirement it delivers. Enumerate tasks as a flat, globally sequential list (`TSK-001`, `TSK-002`, …); you may note the component each touches, but keep the IDs global and sequential, not per-component.>
+
+<Use this exact shape for every task so it is machine-parsable:>
+
+### TSK-001 — <imperative task title>
+
+- **Implements:** <one or more PRD requirement IDs this task delivers — e.g. `US-003`, `FR-012`. For cross-cutting foundational work that no single user story owns, cite the NFR target or Data & Governance requirement it serves. Never leave this empty.>
+- **Description:** <what an engineer actually builds, concretely — tie it to a component in Architecture and a contract in API / Interface Contracts where relevant.>
+- **Definition of Done:** <the checkable conditions that mark this task complete, including the QA test cases (`TC-###`) that must pass where they exist.>
+- **Depends on:** <other `TSK-###` IDs that must land first, or `none`.>
+
+Task-ID rules:
+- IDs are `TSK-###`, **unique** and **sequentially numbered from `TSK-001`** within this TRD — no gaps, no reuse.
+- Every `TSK-###` must **Implements** at least one requirement ID that actually exists in the approved PRD (`US-###` / `FR-###` / `REQ-###`) or an explicitly cited NFR/governance requirement — an orphan task that traces to nothing is invalid.
+- Every functional requirement in the approved PRD (`US-###` / `FR-###`) should be delivered by at least one task, so the work breakdown fully covers the approved scope. Note any deliberate deferral inline rather than silently dropping a requirement.
+
 ## Open Technical Questions
 
 <Unresolved technical decisions that could change the design, including any product decision that technical reality calls into question.>
@@ -239,6 +257,7 @@ The TRD is the technical home: go deeper here than the PRD did. For GenAI produc
 - Treat scope and PRD as binding. The TRD designs how to build the approved product, not a different one.
 - Every architectural choice should trace to a requirement (functional, NFR target, QA, or metrics) — not to preference.
 - Use stable IDs for major technical requirements and decisions where useful, such as `TR-001` or `ADR-001`, so implementation and review can trace them.
+- The **Work Breakdown** is mandatory: decompose the build into `TSK-###` tasks, each tracing (`Implements:`) to a real PRD requirement ID (`US-###` / `FR-###` / `REQ-###`) or a cited NFR/governance requirement. These IDs are the handoff spine — the tracker export keys tickets off them, so keep them unique, sequential, and honestly traced.
 - Prefer concrete, implementable detail over abstraction. An engineer should be able to start building from this.
 - API/interface contracts should include request/response shape, auth, errors, idempotency, rate limits, versioning, and compatibility where relevant.
 - "Trade-offs & Alternatives Considered" must show real alternatives and reasoning, not a single foregone choice.
@@ -337,6 +356,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - The TRD must implement the approved scope and PRD without expanding or re-scoping them.
 - Architecture and Data Model must be concrete enough for an engineer to begin implementation.
 - Major technical requirements and decisions should use stable IDs where helpful and trace to scope, PRD, QA, metrics, or explicit constraints.
+- The Work Breakdown must enumerate `TSK-###` tasks that are unique, sequentially numbered, and each traced via `Implements:` to an existing PRD requirement (or a cited NFR/governance requirement); together they must cover every functional requirement in the approved PRD.
 - API / Interface Contracts must include auth, error semantics, idempotency, rate limits, versioning, and compatibility where relevant.
 - Non-Functional Implementation must tie each choice to a specific PRD NFR target.
 - Data Governance & Compliance Implementation must specify concrete controls (access, encryption, audit, retention/deletion) tied to PRD governance requirements, and for GenAI must state what data leaves to third-party model providers.
@@ -356,5 +376,6 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 6. Do rollout and deployment plans define feature flags, rollback, observability, and go/no-go criteria tied to QA and metrics?
 7. Do the Trade-offs show real alternatives, not a single foregone conclusion?
 8. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
-9. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
-10. If `genai_flag=false`, is the TRD complete without any AI-specific content?
+9. Does the Work Breakdown enumerate unique, sequential `TSK-###` tasks, each `Implements:`-traced to a real PRD requirement (or cited NFR/governance requirement), with every functional requirement covered by at least one task?
+10. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
+11. If `genai_flag=false`, is the TRD complete without any AI-specific content?

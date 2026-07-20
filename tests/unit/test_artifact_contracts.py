@@ -505,3 +505,68 @@ def test_impact_analysis_is_a_recommended_prd_section(tmp_path):
         for f in findings
     )
     assert contracts.error_count(findings) == 0
+
+
+# --- TRD Work Breakdown task parsing (Phase 3.5b) ------------------------------
+
+_TRD_WORK_BREAKDOWN = """# TRD
+## Work Breakdown
+### TSK-001 — Build retrieval index
+- **Implements:** US-003, FR-012
+- **Definition of Done:** TC-004 passes.
+### TSK-002 — Wire audit logging
+- **Implements:** FR-020 and the audit NFR
+- **Depends on:** TSK-001
+
+- **TSK-003:** orphan task
+- **Description:** mentions FR-099 in prose but declares no Implements line.
+
+## Open Technical Questions
+Nothing here should be absorbed into TSK-003.
+"""
+
+
+def test_task_ids_and_split_task_blocks():
+    """task_ids and split_task_blocks find every TSK-### declared as heading,
+    bullet, or ordered-list item, in first-seen order, deduped."""
+    assert contracts.task_ids(_TRD_WORK_BREAKDOWN) == ["TSK-001", "TSK-002", "TSK-003"]
+    blocks = contracts.split_task_blocks(_TRD_WORK_BREAKDOWN)
+    assert list(blocks) == ["TSK-001", "TSK-002", "TSK-003"]
+
+
+def test_task_block_does_not_absorb_trailing_section():
+    """A bullet-declared final task ends at the next heading, so TSK-003 does not
+    swallow the Open Technical Questions section that follows it."""
+    blocks = contracts.split_task_blocks(_TRD_WORK_BREAKDOWN)
+    assert "Open Technical Questions" not in blocks["TSK-003"]
+
+
+def test_task_implements_reads_only_the_implements_line():
+    """task_implements trusts only the `Implements:` line — prose mentions of a
+    requirement id elsewhere in the block are not counted (TSK-002 keeps FR-020
+    but not 'the audit NFR'; TSK-003's prose FR-099 is ignored → orphan)."""
+    blocks = contracts.split_task_blocks(_TRD_WORK_BREAKDOWN)
+    assert contracts.task_implements(blocks["TSK-001"]) == ["US-003", "FR-012"]
+    assert contracts.task_implements(blocks["TSK-002"]) == ["FR-020"]
+    assert contracts.task_implements(blocks["TSK-003"]) == []
+
+
+def test_task_id_declarations_keeps_duplicates():
+    """task_id_declarations returns block-start ids including duplicates (so
+    /pm-check can flag a reused id), unlike split_task_blocks which collapses them."""
+    text = "### TSK-001 — a\n- x\n### TSK-001 — dup\n- y\n### TSK-002 — b\n- z\n"
+    assert contracts.task_id_declarations(text) == ["TSK-001", "TSK-001", "TSK-002"]
+    assert list(contracts.split_task_blocks(text)) == ["TSK-001", "TSK-002"]
+
+
+def test_work_breakdown_section_scopes_task_parsing():
+    """work_breakdown_section returns only the text under ## Work Breakdown, so a
+    stray TSK-### under another heading is excluded; '' when the section is absent."""
+    body = (
+        "## Work Breakdown\n### TSK-001 — real\n- **Implements:** US-001\n"
+        "## Open Technical Questions\n- TSK-999 not a delivery task\n"
+    )
+    section = contracts.work_breakdown_section(body)
+    assert "TSK-001" in section and "TSK-999" not in section
+    assert list(contracts.split_task_blocks(section)) == ["TSK-001"]
+    assert contracts.work_breakdown_section("## Architecture\nNo breakdown here.\n") == ""

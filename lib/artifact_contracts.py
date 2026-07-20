@@ -33,6 +33,9 @@ TEST_CASE_ID_RE = re.compile(r"\bTC-\d{3,}\b", re.IGNORECASE)
 USER_STORY_ID_RE = re.compile(r"\bUS-\d{3,}\b", re.IGNORECASE)
 FUNCTIONAL_REQ_ID_RE = re.compile(r"\b(?:FR|REQ)-\d{3,}\b", re.IGNORECASE)
 JOURNEY_ID_RE = re.compile(r"\bUJ-\d{3,}\b", re.IGNORECASE)
+# TRD (stage 08) Work Breakdown tasks. TSK-### is the stable handle the tracker
+# export keys tickets off; each task declares the requirement ids it implements.
+TASK_ID_RE = re.compile(r"\bTSK-\d{3,}\b", re.IGNORECASE)
 
 
 def requirement_ids(text: str) -> list[str]:
@@ -48,6 +51,14 @@ def test_case_ids(text: str) -> list[str]:
     """Return the unique, upper-cased TC-### ids in ``text``, in first-seen order."""
     seen: dict[str, None] = {}
     for match in TEST_CASE_ID_RE.findall(text or ""):
+        seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
+def task_ids(text: str) -> list[str]:
+    """Return the unique, upper-cased TSK-### ids in ``text``, in first-seen order."""
+    seen: dict[str, None] = {}
+    for match in TASK_ID_RE.findall(text or ""):
         seen.setdefault(match.upper(), None)
     return list(seen)
 
@@ -290,6 +301,60 @@ def split_user_story_blocks(text: str) -> dict[str, str]:
     """Map each US-### id to its introducing block. Mirrors ``split_test_case_blocks``
     (via ``_split_id_blocks``) so the handoff and the validator stay in lockstep."""
     return _split_id_blocks(text, _US_BLOCK_START_RE)
+
+
+# A TSK-### task can be declared as a heading (`### TSK-001`), a bullet, an
+# ordered-list item, or a bare line, id optionally bold-wrapped — the same shapes
+# the US/TC splitters accept. Shared by the traceability index and /pm-check so
+# both agree on what "a TRD task block" is.
+_TSK_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>TSK-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# The `Implements:` line inside a task block, tolerating list/bold markers and an
+# optional colon (`- **Implements:** US-003, FR-012`). Only this line is trusted as
+# the task's requirement trace.
+_IMPLEMENTS_LINE_RE = re.compile(
+    r"^[\s>*+\-]*\*{0,2}\s*implements\b\s*:?\**\s*(?P<rest>.*)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def split_task_blocks(text: str) -> dict[str, str]:
+    """Map each TSK-### id to its introducing block. Mirrors ``split_user_story_blocks``
+    (via ``_split_id_blocks``) so the traceability index and /pm-check stay in lockstep."""
+    return _split_id_blocks(text, _TSK_BLOCK_START_RE)
+
+
+def work_breakdown_section(body: str) -> str:
+    """Return the text under the TRD's ``## Work Breakdown`` heading (up to the next
+    ``##``), or '' if absent. Task parsing is scoped to this section so a stray
+    ``TSK-###`` mentioned elsewhere in the TRD (e.g. under Open Technical Questions)
+    is neither indexed as a delivery task nor counted by /pm-check."""
+    return _section(_sections(body or ""), "Work Breakdown") or ""
+
+
+def task_id_declarations(text: str) -> list[str]:
+    """Return every TSK-### id *as declared at a block start*, including duplicates,
+    in document order. ``split_task_blocks`` collapses duplicates (first wins); this
+    keeps them so /pm-check can flag a reused id."""
+    return [match.group("id").upper() for match in _TSK_BLOCK_START_RE.finditer(text or "")]
+
+
+def task_implements(block: str) -> list[str]:
+    """Return the requirement ids a TRD task declares it implements, read from the
+    task block's ``Implements:`` line(s), unique and upper-cased in first-seen order.
+
+    Only the ``Implements:`` line is trusted — a requirement id mentioned elsewhere in
+    the block's prose is *not* counted as implemented. Empty when the block has no
+    ``Implements:`` line or it cites no requirement id, which is exactly the
+    orphan-task signal /pm-check flags."""
+    seen: dict[str, None] = {}
+    for match in _IMPLEMENTS_LINE_RE.finditer(block or ""):
+        for rid in REQUIREMENT_ID_RE.findall(match.group("rest")):
+            seen.setdefault(rid.upper(), None)
+    return list(seen)
 
 
 # Cues that a user-story block carries testable acceptance criteria. Kept broad so

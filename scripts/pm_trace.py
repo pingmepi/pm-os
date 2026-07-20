@@ -2,9 +2,10 @@
 """Resolve and (re)build the local traceability spine (Phase 3.5).
 
 Subcommands:
-  rebuild                      Rebuild .traceability.yaml from the PRD + QA plan.
-  requirement REQ-001          Show the TC-### scenarios covering a requirement.
+  rebuild                      Rebuild .traceability.yaml from the PRD + QA plan + TRD.
+  requirement REQ-001          Show the TC-### scenarios + TSK-### tasks for a requirement.
   scenario TC-001              Show the requirement ids a test case covers.
+  task TSK-001                 Show the requirement ids a TRD task implements.
   coverage                     List requirements with no covering scenario.
   show                         Print the whole index as JSON.
 """
@@ -29,6 +30,8 @@ def main():
     p_req.add_argument("req_id")
     p_tc = sub.add_parser("scenario", help="Requirements a test case covers.")
     p_tc.add_argument("tc_id")
+    p_task = sub.add_parser("task", help="Requirements a TRD task implements.")
+    p_task.add_argument("tsk_id")
     sub.add_parser("coverage", help="Requirements with no covering scenario.")
     sub.add_parser("show", help="Print the whole traceability index as JSON.")
 
@@ -44,8 +47,9 @@ def main():
         index = trace.rebuild(root)
         reqs = index.get("requirements") or {}
         tcs = index.get("test_cases") or {}
+        tasks = index.get("tasks") or {}
         print(f"Rebuilt {trace.TRACEABILITY_FILENAME}: "
-              f"{len(reqs)} requirement(s), {len(tcs)} test case(s).")
+              f"{len(reqs)} requirement(s), {len(tcs)} test case(s), {len(tasks)} task(s).")
         uncovered = trace.uncovered_requirements(root)
         if uncovered:
             print(f"Requirements with no covering scenario: {', '.join(uncovered)}")
@@ -53,10 +57,13 @@ def main():
 
     if args.command == "requirement":
         scenarios = trace.scenarios_for_requirement(root, args.req_id)
+        tasks = trace.tasks_for_requirement(root, args.req_id)
         if scenarios:
             print(f"{args.req_id.upper()} is covered by: {', '.join(scenarios)}")
         else:
             print(f"{args.req_id.upper()} has no covering scenarios.")
+        if tasks:
+            print(f"{args.req_id.upper()} is implemented by: {', '.join(tasks)}")
         return
 
     if args.command == "scenario":
@@ -65,6 +72,14 @@ def main():
             print(f"{args.tc_id.upper()} covers: {', '.join(reqs)}")
         else:
             print(f"{args.tc_id.upper()} covers no requirements (or is unknown).")
+        return
+
+    if args.command == "task":
+        reqs = trace.requirements_for_task(root, args.tsk_id)
+        if reqs:
+            print(f"{args.tsk_id.upper()} implements: {', '.join(reqs)}")
+        else:
+            print(f"{args.tsk_id.upper()} implements no requirements (or is unknown).")
         return
 
     if args.command == "coverage":

@@ -326,6 +326,18 @@ Checks (met):
 - Each requirement and QA scenario has a stable ID that survives regeneration.
 - PM-OS can resolve "which scenarios cover requirement REQ-X" locally.
 
+### Phase 3.5b: TRD Task IDs — ✅ COMPLETE
+
+Goal: extend the traceability spine down into the TRD so engineering work is machine-addressable — the prerequisite for exporting tickets in Phase 4b. No integrations.
+
+Shipped: a mandatory **Work Breakdown** section in the stage-08 TRD contract that enumerates discrete tasks with stable `TSK-###` ids, each declaring `Implements:` the PRD requirement(s) it delivers; a `TSK-###` parser (`split_task_blocks`, `task_implements`, `task_id_declarations`) in `lib/artifact_contracts.py`; a `tasks:` map in `.traceability.yaml` (schema **v2**) with reverse requirement↔task links and a reserved `tickets: []` slot, rebuilt on stage-08 approval; resolver queries (`tasks_for_requirement`, `requirements_for_task`) + a `pm_trace.py task` subcommand; and `/pm-check` validation (unique/sequential ids as error/warning, orphan/unknown-requirement/coverage as warnings). The traceability schema is a derived index, so a v1 file on disk upgrades transparently on the next rebuild.
+
+Checks (met):
+
+- Every TRD task has a stable `TSK-###` id that traces to an approved PRD requirement.
+- `.traceability.yaml` resolves "which tasks implement requirement REQ-X" (and back) locally.
+- `/pm-check` flags duplicate/gap/orphan task ids and PRD requirements no task implements.
+
 ### Phase 3.6: Automated Test Suite (foundational — infra alongside Phase 3.5)
 
 Goal (met — see status above): give a contributor **one repo-level command** that yields real confidence in both halves of PM-OS — the deterministic Python state machine *and* the Markdown skill/doc contract — without ever touching the installed `~/.pm-os`, `~/.agents/skills`, or `~/.claude/skills`. Originally the only smoke test was `pm_os_verify.py` against the install, with no `pytest`, linter, or CI beyond version-bump. Design was captured in `docs/archive/pm-os-test-implementation-plan.md` (drafted 2026-06-18, now archived); the live reference is `docs/guides/testing.md`.

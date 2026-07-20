@@ -10,16 +10,17 @@ This module is the local resolver: it (re)builds the link file from the approved
 PRD (stage 03) and QA plan (stage 06) artifact bodies, and answers questions like
 "which scenarios cover requirement REQ-X" without any network or external system.
 
-Format (``schema_version: 1``)::
+Format (``schema_version: 2``)::
 
-    schema_version: 1
+    schema_version: 2
     generated_at: <iso8601>
     requirements:
       REQ-001:            # or US-001 / FR-001
         kind: requirement | user_story | functional_requirement
         source: 03-prd.md
         test_cases: [TC-001, TC-002]
-        tickets: []       # reserved for Phase 4b
+        tasks: [TSK-001]  # TRD tasks that implement this requirement (reverse link)
+        tickets: []       # populated by Phase 4b (/pm-handoff)
         bugs: []          # reserved for Phase 5a
         code_refs: []     # reserved for Phase 5b
     test_cases:
@@ -27,6 +28,11 @@ Format (``schema_version: 1``)::
         source: 06-qa-plan.md
         requirements: [REQ-001]
         bugs: []          # reserved for Phase 5a
+    tasks:                # Phase 3.5b — TRD (stage 08) Work Breakdown
+      TSK-001:
+        source: 08-trd.md
+        implements: [US-003, FR-012]
+        tickets: []       # populated by Phase 4b (/pm-handoff)
 
 The file is a *derived* index: it is safe to delete and regenerate. The ``links``
 inside test cases are extracted from each TC-### block in the QA plan (every
@@ -43,18 +49,26 @@ import yaml
 from artifact_contracts import (
     REQUIREMENT_ID_RE,
     requirement_ids,
+    split_task_blocks,
     split_test_case_blocks,
+    task_implements,
+    work_breakdown_section,
 )
 from frontmatter import read as fm_read
 from project import artifact_path
 
 TRACEABILITY_FILENAME = ".traceability.yaml"
-TRACEABILITY_SCHEMA_VERSION = 1
+# v2 (Phase 3.5b) adds a `tasks:` map (TRD Work Breakdown, TSK-###) and a reverse
+# `tasks: []` link on each requirement. The file is a *derived* index, so a v1 file
+# on disk upgrades transparently on the next rebuild — reserved req/tc slots are
+# still preserved; the tasks map is simply populated for the first time.
+TRACEABILITY_SCHEMA_VERSION = 2
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
 _REQ_REF_SLOTS = ("tickets", "bugs", "code_refs")
 _TC_REF_SLOTS = ("bugs",)
+_TASK_REF_SLOTS = ("tickets",)
 
 
 def traceability_path(project_root: Path | str) -> Path:
@@ -67,6 +81,7 @@ def _id_kind(req_id: str) -> str:
         "REQ": "requirement",
         "US": "user_story",
         "FR": "functional_requirement",
+        "TSK": "task",
     }.get(prefix, "requirement")
 
 
@@ -78,6 +93,22 @@ def _read_body(path: Path) -> Optional[str]:
     except Exception:
         return None
     return body
+
+
+def _read_body_if_approved(path: Path) -> Optional[str]:
+    """Return the artifact body only when its frontmatter status is ``approved``.
+
+    Used for the TRD so a draft/stale/edited TRD's tasks never enter the derived
+    index a handoff/export consumes. The stale cascade in post-approve.py demotes
+    the TRD's frontmatter status (not just meta), so re-approving an upstream stage
+    correctly drops its now-obsolete task links on the next rebuild."""
+    if not path.exists():
+        return None
+    try:
+        fm, body = fm_read(str(path))
+    except Exception:
+        return None
+    return body if (fm or {}).get("status") == "approved" else None
 
 
 
@@ -92,18 +123,27 @@ def build_index(project_root: Path | str) -> dict:
     prd_body = _read_body(artifact_path(project_root, "03"))
     qa_body = _read_body(artifact_path(project_root, "06"))
 
+    # Only an *approved* TRD's tasks are authoritative for the index a handoff
+    # export consumes; a draft/stale/edited TRD contributes nothing.
+    trd_body = _read_body_if_approved(artifact_path(project_root, "08"))
+
     requirements: dict[str, dict] = {}
     test_cases: dict[str, dict] = {}
+    tasks: dict[str, dict] = {}
+
+    def _new_requirement(req_id: str, source: Optional[str]) -> dict:
+        return {
+            "kind": _id_kind(req_id),
+            "source": source,
+            "test_cases": [],
+            "tasks": [],
+            **{slot: [] for slot in _REQ_REF_SLOTS},
+        }
 
     # Requirements come from the PRD.
     if prd_body:
         for req_id in requirement_ids(prd_body):
-            requirements[req_id] = {
-                "kind": _id_kind(req_id),
-                "source": artifact_path(project_root, "03").name,
-                "test_cases": [],
-                **{slot: [] for slot in _REQ_REF_SLOTS},
-            }
+            requirements[req_id] = _new_requirement(req_id, artifact_path(project_root, "03").name)
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
@@ -117,20 +157,34 @@ def build_index(project_root: Path | str) -> dict:
             for req_id in linked:
                 # A QA plan may reference a requirement the PRD did not stably id
                 # (e.g. prose PRD). Record it so the link is not silently dropped.
-                entry = requirements.setdefault(req_id, {
-                    "kind": _id_kind(req_id),
-                    "source": None,
-                    "test_cases": [],
-                    **{slot: [] for slot in _REQ_REF_SLOTS},
-                })
+                entry = requirements.setdefault(req_id, _new_requirement(req_id, None))
                 if tc_id not in entry["test_cases"]:
                     entry["test_cases"].append(tc_id)
+
+    # Tasks (TRD Work Breakdown) + the requirements they implement come from stage 08.
+    # Scoped to the ## Work Breakdown section so a stray TSK-### elsewhere in the TRD
+    # is not indexed as a delivery task.
+    if trd_body:
+        for tsk_id, block in split_task_blocks(work_breakdown_section(trd_body)).items():
+            implemented = task_implements(block)
+            tasks[tsk_id] = {
+                "source": artifact_path(project_root, "08").name,
+                "implements": implemented,
+                **{slot: [] for slot in _TASK_REF_SLOTS},
+            }
+            for req_id in implemented:
+                # As with QA links, a task may implement a requirement the PRD did
+                # not stably id; record it so the reverse link is not dropped.
+                entry = requirements.setdefault(req_id, _new_requirement(req_id, None))
+                if tsk_id not in entry["tasks"]:
+                    entry["tasks"].append(tsk_id)
 
     return {
         "schema_version": TRACEABILITY_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "requirements": requirements,
         "test_cases": test_cases,
+        "tasks": tasks,
     }
 
 
@@ -149,6 +203,12 @@ def _merge_reserved(old: dict, new: dict) -> dict:
     for tc_id, entry in new.get("test_cases", {}).items():
         prior = old_tcs.get(tc_id) or {}
         for slot in _TC_REF_SLOTS:
+            if prior.get(slot):
+                entry[slot] = prior[slot]
+    old_tasks = (old or {}).get("tasks") or {}
+    for tsk_id, entry in new.get("tasks", {}).items():
+        prior = old_tasks.get(tsk_id) or {}
+        for slot in _TASK_REF_SLOTS:
             if prior.get(slot):
                 entry[slot] = prior[slot]
     return new
@@ -215,6 +275,29 @@ def requirements_for_scenario(project_root: Path | str, tc_id: str) -> list[str]
     index = _index_for_query(project_root)
     entry = (index.get("test_cases") or {}).get(tc_id)
     return list(entry.get("requirements") or []) if entry else []
+
+
+def tasks_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
+    """Return the TSK-### ids that implement ``req_id`` (case-insensitive)."""
+    req_id = req_id.upper()
+    index = _index_for_query(project_root)
+    entry = (index.get("requirements") or {}).get(req_id)
+    if entry and entry.get("tasks"):
+        return list(entry.get("tasks") or [])
+    # Fall back to scanning task links (covers ids the PRD didn't declare).
+    return sorted(
+        tsk_id
+        for tsk_id, tsk in (index.get("tasks") or {}).items()
+        if req_id in (tsk.get("implements") or [])
+    )
+
+
+def requirements_for_task(project_root: Path | str, tsk_id: str) -> list[str]:
+    """Return the requirement ids that task ``tsk_id`` implements."""
+    tsk_id = tsk_id.upper()
+    index = _index_for_query(project_root)
+    entry = (index.get("tasks") or {}).get(tsk_id)
+    return list(entry.get("implements") or []) if entry else []
 
 
 def uncovered_requirements(project_root: Path | str) -> list[str]:
