@@ -178,3 +178,96 @@ def test_rebuild_preserves_reserved_external_refs(tmp_path):
     assert rebuilt["test_cases"]["TC-001"]["bugs"] == ["BUG-7"]
     # Derived link still correct.
     assert rebuilt["requirements"]["FR-001"]["test_cases"] == ["TC-001"]
+
+
+# --- TRD Work Breakdown tasks (Phase 3.5b, schema v2) --------------------------
+
+_TRD = """# TRD
+## Work Breakdown
+### TSK-001 — Build the index
+- **Implements:** US-001, FR-001
+### TSK-002 — Audit logging
+- **Implements:** FR-002
+"""
+
+
+def test_index_is_schema_v2_with_tasks_map(tmp_path):
+    """The index declares schema_version 2 and always carries a tasks map."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    index = trace.build_index(root)
+    assert index["schema_version"] == 2
+    assert "tasks" in index
+
+
+def test_build_index_links_tasks_and_requirements(tmp_path):
+    """build_index extracts TSK-### tasks from the TRD, records what each implements,
+    and back-links each requirement to the tasks that implement it."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "08-trd.md", _TRD)
+    index = trace.build_index(root)
+    assert set(index["tasks"]) == {"TSK-001", "TSK-002"}
+    assert index["tasks"]["TSK-001"]["implements"] == ["US-001", "FR-001"]
+    assert index["tasks"]["TSK-001"]["source"] == "08-trd.md"
+    assert index["requirements"]["FR-001"]["tasks"] == ["TSK-001"]
+    assert index["requirements"]["FR-002"]["tasks"] == ["TSK-002"]
+
+
+def test_task_resolver_both_directions(tmp_path):
+    """The resolver answers requirement→tasks and task→requirements, case-insensitively."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "08-trd.md", _TRD)
+    trace.rebuild(root)
+    assert trace.tasks_for_requirement(root, "fr-001") == ["TSK-001"]
+    assert trace.requirements_for_task(root, "tsk-002") == ["FR-002"]
+
+
+def test_task_implementing_undeclared_requirement_is_kept(tmp_path):
+    """A task may implement a requirement the PRD did not stably id; the reverse link
+    is recorded (source=None) rather than silently dropped."""
+    root = _project(tmp_path)
+    _write(root, "08-trd.md", "## Work Breakdown\n### TSK-001 — x\n- **Implements:** FR-999\n")
+    index = trace.build_index(root)
+    assert "FR-999" in index["requirements"]
+    assert index["requirements"]["FR-999"]["source"] is None
+    assert index["requirements"]["FR-999"]["tasks"] == ["TSK-001"]
+
+
+def test_rebuild_preserves_task_tickets_and_upgrades_v1(tmp_path):
+    """A v1 index on disk (no tasks map, an externally-set ticket) upgrades to v2 on
+    rebuild: schema bumps, the reserved ticket survives, and task tickets set by
+    Phase 4b are preserved across a later rebuild."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "08-trd.md", _TRD)
+    # Simulate a legacy v1 file with a manually-populated requirement ticket.
+    legacy = {
+        "schema_version": 1,
+        "requirements": {"FR-001": {"kind": "functional_requirement", "source": "03-prd.md",
+                                    "test_cases": [], "tickets": ["JIRA-1"], "bugs": [], "code_refs": []}},
+        "test_cases": {},
+    }
+    trace.write_index(root, legacy)
+    rebuilt = trace.rebuild(root)
+    assert rebuilt["schema_version"] == 2
+    assert rebuilt["requirements"]["FR-001"]["tickets"] == ["JIRA-1"]
+    assert rebuilt["requirements"]["FR-001"]["tasks"] == ["TSK-001"]
+    # Now attach a task ticket (Phase 4b) and confirm it survives the next rebuild.
+    rebuilt["tasks"]["TSK-001"]["tickets"] = ["JIRA-9"]
+    trace.write_index(root, rebuilt)
+    again = trace.rebuild(root)
+    assert again["tasks"]["TSK-001"]["tickets"] == ["JIRA-9"]
+    assert again["tasks"]["TSK-001"]["implements"] == ["US-001", "FR-001"]
+
+
+def test_missing_trd_yields_empty_tasks(tmp_path):
+    """With no TRD the tasks map is empty and task queries return empties rather than
+    raising — TRD is an optional capstone."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    index = trace.build_index(root)
+    assert index["tasks"] == {}
+    assert trace.tasks_for_requirement(root, "FR-001") == []
+    assert trace.requirements_for_task(root, "TSK-001") == []

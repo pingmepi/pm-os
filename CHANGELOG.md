@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — unreleased
+
+### Added
+- **Phase 3.5b — TRD task IDs (`TSK-###`).** The stage-08 TRD contract now requires a **Work Breakdown** section that decomposes the build into discrete tasks, each with a stable `TSK-###` id and an `Implements:` trace to the PRD requirement(s) (`US-###`/`FR-###`/`REQ-###`) it delivers. `lib/artifact_contracts.py` gains `TASK_ID_RE`, `split_task_blocks`, `task_implements`, and `task_id_declarations`. `.traceability.yaml` (now **schema v2**) indexes tasks under a `tasks:` map with reverse requirement↔task links and a reserved `tickets: []` slot, rebuilt on stage-08 approval; the index is derived, so a v1 file upgrades transparently on the next rebuild. New resolver queries (`tasks_for_requirement`, `requirements_for_task`) and a `pm_trace.py task` subcommand. `/pm-check` validates task ids are unique (duplicate = error) and sequential, that each traces to a real PRD requirement, and that every PRD requirement is implemented by at least one task (gap/orphan/unknown-req/coverage = warnings). Prerequisite for the Phase 4b tracker export.
+
 ## 1.1.0 — 2026-07-16
 
 ### Fixed

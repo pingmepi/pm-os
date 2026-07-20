@@ -106,16 +106,18 @@ def main():
 
     # --- Rebuild the traceability spine when an ID-bearing stage is approved ---
     # Stage 03 (PRD) declares requirement ids; stage 06 (QA plan) declares the
-    # TC-### scenarios that link to them. Re-derive .traceability.yaml (a local,
-    # derived index) so the resolver answers coverage queries without rescanning.
-    if stage_id in {"03", "06"}:
+    # TC-### scenarios that link to them; stage 08 (TRD) declares the TSK-### Work
+    # Breakdown tasks that implement them. Re-derive .traceability.yaml (a local,
+    # derived index) so the resolver answers coverage/handoff queries without rescanning.
+    if stage_id in {"03", "06", "08"}:
         try:
             import traceability as trace
             index = trace.rebuild(project_root)
             reqs = len(index.get("requirements") or {})
             tcs = len(index.get("test_cases") or {})
+            tasks = len(index.get("tasks") or {})
             print(f"[post-approve] Rebuilt {trace.TRACEABILITY_FILENAME}: "
-                  f"{reqs} requirement(s), {tcs} test case(s).")
+                  f"{reqs} requirement(s), {tcs} test case(s), {tasks} task(s).")
             uncovered = trace.uncovered_requirements(project_root)
             if uncovered:
                 print(f"[post-approve] Requirements with no covering scenario: "

@@ -20,6 +20,12 @@ from project import STAGE_NAMES, artifact_path, load_meta, upstream_stage_ids
 from hashing import CompositeHashError, stage_content_hash
 from frontmatter import read as fm_read
 from telemetry import verify_chain
+from artifact_contracts import (
+    requirement_ids,
+    split_task_blocks,
+    task_id_declarations,
+    task_implements,
+)
 
 
 VALID_STATUSES = {"pending", "draft", "approved", "edited", "stale"}
@@ -40,6 +46,12 @@ CODE_TELEMETRY_CHAIN_BROKEN = "TELEMETRY_CHAIN_BROKEN"
 CODE_CONTEXT_YAML_UNPARSEABLE = "CONTEXT_YAML_UNPARSEABLE"
 CODE_SOURCES_YAML_UNPARSEABLE = "SOURCES_YAML_UNPARSEABLE"
 CODE_CHECK_FAILED = "CHECK_FAILED"
+CODE_TRD_TASK_DUPLICATE = "TRD_TASK_DUPLICATE"
+CODE_TRD_TASK_ID_GAP = "TRD_TASK_ID_GAP"
+CODE_TRD_TASK_ORPHAN = "TRD_TASK_ORPHAN"
+CODE_TRD_TASK_UNKNOWN_REQ = "TRD_TASK_UNKNOWN_REQ"
+CODE_TRD_WORK_BREAKDOWN_MISSING = "TRD_WORK_BREAKDOWN_MISSING"
+CODE_TRD_REQ_NOT_IMPLEMENTED = "TRD_REQ_NOT_IMPLEMENTED"
 
 
 @dataclass(frozen=True)
@@ -95,6 +107,7 @@ def check_project(project_root) -> list[Issue]:
         lambda: _check_upstream_approval_shape(meta, stages),
         lambda: _check_telemetry_chain(project_root),
         lambda: _check_context_yaml_parses(project_root),
+        lambda: _check_trd_task_ids(project_root, stages, paths, exists),
     )
     for check in checks:
         try:
@@ -246,6 +259,108 @@ def _check_upstream_approval_shape(meta, stages) -> list[Issue]:
                     f"Re-approve/regenerate {uid} first, or re-approve {sid} once {uid} is settled.",
                 ))
     return issues
+
+
+def _trd_number(tsk_id: str) -> int | None:
+    try:
+        return int(tsk_id.split("-", 1)[1])
+    except (IndexError, ValueError):
+        return None
+
+
+def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
+    """Validate the TRD (stage 08) Work Breakdown: TSK-### ids are unique and
+    sequential, each task traces (`Implements:`) to a requirement that exists in the
+    PRD, and every PRD requirement is implemented by at least one task.
+
+    All findings are WARNING except a duplicate id (ERROR) — two tasks sharing a
+    TSK-### would collide when the tracker export keys tickets off it. A TRD authored
+    before the Work Breakdown contract simply has no tasks and yields one WARNING, so
+    existing projects degrade gracefully rather than failing the check.
+    """
+    stage = next((s for s in stages if s.get("id") == "08"), None)
+    if stage is None or stage.get("status") == "pending" or not exists.get("08"):
+        return []
+    try:
+        _fm, trd_body = fm_read(str(paths["08"]))
+    except Exception:
+        return []  # unreadability is already reported by _check_meta_frontmatter_sync
+
+    issues: list[Issue] = []
+    declarations = task_id_declarations(trd_body)
+    if not declarations:
+        return [Issue(
+            CODE_TRD_WORK_BREAKDOWN_MISSING, "warning", "08",
+            "TRD has no TSK-### tasks in a Work Breakdown section",
+            "Regenerate stage 08 — the Work Breakdown (TSK-### tasks tracing to PRD requirements) is required for dev handoff.",
+        )]
+
+    # Duplicate ids (ERROR — collides on ticket keying).
+    seen: set[str] = set()
+    for tsk_id in declarations:
+        if tsk_id in seen:
+            issues.append(Issue(
+                CODE_TRD_TASK_DUPLICATE, "error", "08",
+                f"Task id {tsk_id} is declared more than once",
+                "Give each TRD task a unique TSK-### id — reused ids collide when exported to the tracker.",
+            ))
+        seen.add(tsk_id)
+
+    # Gaps / non-sequential numbering (WARNING).
+    numbers = sorted({n for n in (_trd_number(t) for t in seen) if n is not None})
+    if numbers:
+        missing = [n for n in range(1, numbers[-1] + 1) if n not in numbers]
+        if missing:
+            issues.append(Issue(
+                CODE_TRD_TASK_ID_GAP, "warning", "08",
+                f"TRD task ids are not sequential — missing: {', '.join(f'TSK-{n:03d}' for n in missing)}",
+                "Number tasks sequentially from TSK-001 with no gaps so the set reads as a complete work breakdown.",
+            ))
+
+    # Per-task trace: implements a real PRD requirement.
+    prd_body = _read_prd_body(project_root)
+    prd_reqs = set(requirement_ids(prd_body)) if prd_body else set()
+    implemented: set[str] = set()
+    for tsk_id, block in split_task_blocks(trd_body).items():
+        traced = task_implements(block)
+        implemented.update(traced)
+        if not traced:
+            issues.append(Issue(
+                CODE_TRD_TASK_ORPHAN, "warning", "08",
+                f"Task {tsk_id} has no Implements: trace to a requirement",
+                f"Add an `Implements:` line to {tsk_id} citing the PRD requirement (US-###/FR-###/REQ-###) it delivers.",
+            ))
+        elif prd_reqs:
+            unknown = [r for r in traced if r not in prd_reqs]
+            if unknown:
+                issues.append(Issue(
+                    CODE_TRD_TASK_UNKNOWN_REQ, "warning", "08",
+                    f"Task {tsk_id} implements id(s) not in the PRD: {', '.join(unknown)}",
+                    "Point the Implements: line at a requirement id that exists in the approved PRD (or add it there).",
+                ))
+
+    # Coverage: every PRD user story / functional requirement is implemented (WARNING).
+    if prd_reqs:
+        to_cover = {r for r in prd_reqs if r.split("-", 1)[0] in ("US", "FR")}
+        uncovered = sorted(to_cover - implemented)
+        if uncovered:
+            issues.append(Issue(
+                CODE_TRD_REQ_NOT_IMPLEMENTED, "warning", "08",
+                f"PRD requirements with no implementing TRD task: {', '.join(uncovered)}",
+                "Add a TSK-### task (or note a deliberate deferral) so the work breakdown covers the approved scope.",
+            ))
+    return issues
+
+
+def _read_prd_body(project_root) -> str | None:
+    path = Path(artifact_path(project_root, "03"))
+    if not path.exists():
+        return None
+    try:
+        _fm, body = fm_read(str(path))
+    except Exception:
+        return None
+    return body
 
 
 def _check_telemetry_chain(project_root) -> list[Issue]:

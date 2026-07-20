@@ -488,7 +488,8 @@ Output sections: North star metric, Input metrics, Output metrics, Guardrail met
 
 ### Stage 08 — TRD (optional, use Opus)
 Optional technical capstone. Always scaffolded (`optional: true` in `.meta.yaml`) but only runnable once stages 01–07 are approved; it reads the full pipeline and details how the product is built. Owned conceptually by engineering, not the PM. Separation of concerns: the PRD says **what/why**, the TRD says **how**.
-Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, Open technical questions.
+Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, **Work Breakdown**, Open technical questions.
+The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v2) with a reserved `tickets: []` slot, and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
 **When `genai_flag=true`:** add sections — Model serving & selection, Prompt/agent architecture (implementation), Tool/function implementation, Context & retrieval engineering, Evaluation & guardrail implementation, Inference cost & latency engineering. (The PRD keeps its product-level GenAI sections; the TRD goes deeper into implementation.)
 
 ---
