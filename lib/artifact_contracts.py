@@ -327,6 +327,14 @@ def split_task_blocks(text: str) -> dict[str, str]:
     return _split_id_blocks(text, _TSK_BLOCK_START_RE)
 
 
+def work_breakdown_section(body: str) -> str:
+    """Return the text under the TRD's ``## Work Breakdown`` heading (up to the next
+    ``##``), or '' if absent. Task parsing is scoped to this section so a stray
+    ``TSK-###`` mentioned elsewhere in the TRD (e.g. under Open Technical Questions)
+    is neither indexed as a delivery task nor counted by /pm-check."""
+    return _section(_sections(body or ""), "Work Breakdown") or ""
+
+
 def task_id_declarations(text: str) -> list[str]:
     """Return every TSK-### id *as declared at a block start*, including duplicates,
     in document order. ``split_task_blocks`` collapses duplicates (first wins); this

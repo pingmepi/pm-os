@@ -25,6 +25,7 @@ from artifact_contracts import (
     split_task_blocks,
     task_id_declarations,
     task_implements,
+    work_breakdown_section,
 )
 
 
@@ -287,7 +288,10 @@ def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
         return []  # unreadability is already reported by _check_meta_frontmatter_sync
 
     issues: list[Issue] = []
-    declarations = task_id_declarations(trd_body)
+    # Only tasks declared inside the ## Work Breakdown section count — a stray TSK-###
+    # elsewhere in the TRD is neither a delivery task nor a substitute for the section.
+    work_breakdown = work_breakdown_section(trd_body)
+    declarations = task_id_declarations(work_breakdown)
     if not declarations:
         return [Issue(
             CODE_TRD_WORK_BREAKDOWN_MISSING, "warning", "08",
@@ -321,7 +325,7 @@ def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
     prd_body = _read_prd_body(project_root)
     prd_reqs = set(requirement_ids(prd_body)) if prd_body else set()
     implemented: set[str] = set()
-    for tsk_id, block in split_task_blocks(trd_body).items():
+    for tsk_id, block in split_task_blocks(work_breakdown).items():
         traced = task_implements(block)
         implemented.update(traced)
         if not traced:

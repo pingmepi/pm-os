@@ -23,8 +23,8 @@ def _project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _write(root: Path, filename: str, body: str) -> None:
-    frontmatter.write(str(root / filename), {"stage": filename.removesuffix(".md"), "status": "draft"}, body)
+def _write(root: Path, filename: str, body: str, status: str = "draft") -> None:
+    frontmatter.write(str(root / filename), {"stage": filename.removesuffix(".md"), "status": status}, body)
 
 
 _PRD = """# PRD
@@ -205,7 +205,7 @@ def test_build_index_links_tasks_and_requirements(tmp_path):
     and back-links each requirement to the tasks that implement it."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
-    _write(root, "08-trd.md", _TRD)
+    _write(root, "08-trd.md", _TRD, status="approved")
     index = trace.build_index(root)
     assert set(index["tasks"]) == {"TSK-001", "TSK-002"}
     assert index["tasks"]["TSK-001"]["implements"] == ["US-001", "FR-001"]
@@ -218,7 +218,7 @@ def test_task_resolver_both_directions(tmp_path):
     """The resolver answers requirement→tasks and task→requirements, case-insensitively."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
-    _write(root, "08-trd.md", _TRD)
+    _write(root, "08-trd.md", _TRD, status="approved")
     trace.rebuild(root)
     assert trace.tasks_for_requirement(root, "fr-001") == ["TSK-001"]
     assert trace.requirements_for_task(root, "tsk-002") == ["FR-002"]
@@ -228,7 +228,7 @@ def test_task_implementing_undeclared_requirement_is_kept(tmp_path):
     """A task may implement a requirement the PRD did not stably id; the reverse link
     is recorded (source=None) rather than silently dropped."""
     root = _project(tmp_path)
-    _write(root, "08-trd.md", "## Work Breakdown\n### TSK-001 — x\n- **Implements:** FR-999\n")
+    _write(root, "08-trd.md", "## Work Breakdown\n### TSK-001 — x\n- **Implements:** FR-999\n", status="approved")
     index = trace.build_index(root)
     assert "FR-999" in index["requirements"]
     assert index["requirements"]["FR-999"]["source"] is None
@@ -241,7 +241,7 @@ def test_rebuild_preserves_task_tickets_and_upgrades_v1(tmp_path):
     Phase 4b are preserved across a later rebuild."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
-    _write(root, "08-trd.md", _TRD)
+    _write(root, "08-trd.md", _TRD, status="approved")
     # Simulate a legacy v1 file with a manually-populated requirement ticket.
     legacy = {
         "schema_version": 1,
@@ -271,3 +271,38 @@ def test_missing_trd_yields_empty_tasks(tmp_path):
     assert index["tasks"] == {}
     assert trace.tasks_for_requirement(root, "FR-001") == []
     assert trace.requirements_for_task(root, "TSK-001") == []
+
+
+def test_draft_or_stale_trd_tasks_excluded_from_index(tmp_path):
+    """Only an approved TRD's tasks enter the index. A draft/stale TRD contributes
+    nothing — so re-approving an upstream stage (which marks 08 stale) drops its now
+    obsolete task links on rebuild, and a handoff export never sees them."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "08-trd.md", _TRD, status="draft")
+    index = trace.build_index(root)
+    assert index["tasks"] == {}
+    assert index["requirements"]["FR-001"]["tasks"] == []
+    # Flip to stale — still excluded.
+    _write(root, "08-trd.md", _TRD, status="stale")
+    assert trace.build_index(root)["tasks"] == {}
+    # Approve — now indexed.
+    _write(root, "08-trd.md", _TRD, status="approved")
+    assert set(trace.build_index(root)["tasks"]) == {"TSK-001", "TSK-002"}
+
+
+def test_task_outside_work_breakdown_is_not_indexed(tmp_path):
+    """A TSK-### mentioned outside the ## Work Breakdown section (e.g. under Open
+    Technical Questions) is not indexed as a delivery task."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    body = (
+        "## Work Breakdown\n"
+        "### TSK-001 — real task\n- **Implements:** US-001\n"
+        "## Open Technical Questions\n"
+        "- TSK-999 investigate migration risk (not a delivery task)\n"
+    )
+    _write(root, "08-trd.md", body, status="approved")
+    index = trace.build_index(root)
+    assert set(index["tasks"]) == {"TSK-001"}
+    assert "TSK-999" not in index["tasks"]

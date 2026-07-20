@@ -52,6 +52,7 @@ from artifact_contracts import (
     split_task_blocks,
     split_test_case_blocks,
     task_implements,
+    work_breakdown_section,
 )
 from frontmatter import read as fm_read
 from project import artifact_path
@@ -94,6 +95,22 @@ def _read_body(path: Path) -> Optional[str]:
     return body
 
 
+def _read_body_if_approved(path: Path) -> Optional[str]:
+    """Return the artifact body only when its frontmatter status is ``approved``.
+
+    Used for the TRD so a draft/stale/edited TRD's tasks never enter the derived
+    index a handoff/export consumes. The stale cascade in post-approve.py demotes
+    the TRD's frontmatter status (not just meta), so re-approving an upstream stage
+    correctly drops its now-obsolete task links on the next rebuild."""
+    if not path.exists():
+        return None
+    try:
+        fm, body = fm_read(str(path))
+    except Exception:
+        return None
+    return body if (fm or {}).get("status") == "approved" else None
+
+
 
 
 def build_index(project_root: Path | str) -> dict:
@@ -106,7 +123,9 @@ def build_index(project_root: Path | str) -> dict:
     prd_body = _read_body(artifact_path(project_root, "03"))
     qa_body = _read_body(artifact_path(project_root, "06"))
 
-    trd_body = _read_body(artifact_path(project_root, "08"))
+    # Only an *approved* TRD's tasks are authoritative for the index a handoff
+    # export consumes; a draft/stale/edited TRD contributes nothing.
+    trd_body = _read_body_if_approved(artifact_path(project_root, "08"))
 
     requirements: dict[str, dict] = {}
     test_cases: dict[str, dict] = {}
@@ -143,8 +162,10 @@ def build_index(project_root: Path | str) -> dict:
                     entry["test_cases"].append(tc_id)
 
     # Tasks (TRD Work Breakdown) + the requirements they implement come from stage 08.
+    # Scoped to the ## Work Breakdown section so a stray TSK-### elsewhere in the TRD
+    # is not indexed as a delivery task.
     if trd_body:
-        for tsk_id, block in split_task_blocks(trd_body).items():
+        for tsk_id, block in split_task_blocks(work_breakdown_section(trd_body)).items():
             implemented = task_implements(block)
             tasks[tsk_id] = {
                 "source": artifact_path(project_root, "08").name,

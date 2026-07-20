@@ -262,3 +262,12 @@ def test_trd_check_skipped_when_stage_pending(tmp_path):
     root = _project_with_trd(tmp_path, "## Work Breakdown\n### TSK-001 — x\n- **Implements:** US-001\n",
                              trd_status="pending")
     assert _trd_codes(root) == []
+
+
+def test_trd_task_outside_work_breakdown_does_not_count(tmp_path):
+    """A TSK-### only under a non-Work-Breakdown section is not a delivery task: the
+    check reports WORK_BREAKDOWN_MISSING rather than treating it as a real task."""
+    root = _project_with_trd(tmp_path,
+        "## Architecture\nProse.\n"
+        "## Open Technical Questions\n- TSK-001 investigate migration risk\n")
+    assert _trd_codes(root) == [consistency.CODE_TRD_WORK_BREAKDOWN_MISSING]

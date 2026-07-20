@@ -557,3 +557,16 @@ def test_task_id_declarations_keeps_duplicates():
     text = "### TSK-001 — a\n- x\n### TSK-001 — dup\n- y\n### TSK-002 — b\n- z\n"
     assert contracts.task_id_declarations(text) == ["TSK-001", "TSK-001", "TSK-002"]
     assert list(contracts.split_task_blocks(text)) == ["TSK-001", "TSK-002"]
+
+
+def test_work_breakdown_section_scopes_task_parsing():
+    """work_breakdown_section returns only the text under ## Work Breakdown, so a
+    stray TSK-### under another heading is excluded; '' when the section is absent."""
+    body = (
+        "## Work Breakdown\n### TSK-001 — real\n- **Implements:** US-001\n"
+        "## Open Technical Questions\n- TSK-999 not a delivery task\n"
+    )
+    section = contracts.work_breakdown_section(body)
+    assert "TSK-001" in section and "TSK-999" not in section
+    assert list(contracts.split_task_blocks(section)) == ["TSK-001"]
+    assert contracts.work_breakdown_section("## Architecture\nNo breakdown here.\n") == ""
