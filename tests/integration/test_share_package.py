@@ -296,6 +296,16 @@ Keyboard order and labels.
 """
 
 
+def _project_with_screens(pmos, new_project, slug="handoff-screen-gate"):
+    """Scaffold and approve the pipeline used by the screen tests (01/02/03/04/06),
+    returning the project root with a fully approved, screen-bearing design spec."""
+    proj = new_project(slug, "A problem")
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", _DESIGN), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    return proj
+
+
 def test_package_maps_screens_to_each_story(pmos, new_project):
     """With an approved design spec declaring SCR-### screens, each story file lists the
     screens it touches (resolved through the spine, via its requirements *and* journeys)
@@ -349,3 +359,61 @@ def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
     screen_map = (proj / "handoff" / "reference" / "screen-map.md").read_text()
     assert "— not captured in source —" in screen_map
     assert "SCR-###" in screen_map  # tells the PM how to fix it
+
+
+def test_package_excludes_screens_from_an_unapproved_design_spec(pmos, new_project):
+    """A design spec that is drafted (or edited/stale after approval) contributes no
+    screens: neither the per-story sections nor reference/screen-map.md may present
+    unapproved design decisions as handoff material. Mirrors the rule build_index
+    already applies to stage 04. See docs/guides/testing.md §6 (T_share)."""
+    import frontmatter
+    import project
+
+    proj = _project_with_screens(pmos, new_project, "handoff-screen-unapproved")
+    # Re-open the approved design spec as a draft carrying a brand-new screen.
+    path = project.artifact_path(proj, "04")
+    fm, body = frontmatter.read(str(path))
+    # The new screen must land *inside* Information Architecture — that is the only
+    # section screens are parsed from, so appending at the end would prove nothing.
+    unapproved = body.replace(
+        "## Journey-to-Flow Traceability",
+        "- **SCR-099 — Unreleased admin console**\n"
+        "  - Purpose: an unreleased surface.\n"
+        "  - Serves: US-001\n"
+        "## Journey-to-Flow Traceability",
+    )
+    assert "SCR-099" in unapproved
+    frontmatter.write(str(path), {**fm, "status": "draft"}, unapproved)
+    meta = project.load_meta(proj)
+    project.get_stage(meta, "04")["status"] = "draft"
+    project.save_meta(meta, proj)
+
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    pkg = proj / "handoff"
+    screen_map = (pkg / "reference" / "screen-map.md").read_text()
+    assert "SCR-099" not in screen_map, "unapproved screen leaked into the package"
+    assert "Unreleased admin console" not in screen_map
+    story = next((pkg / "stories").glob("US-001-*.md")).read_text()
+    assert "SCR-099" not in story
+
+
+def test_package_resolves_screens_from_a_stale_on_disk_index(pmos, new_project):
+    """Screens resolve even when .traceability.yaml predates them (schema v2, no
+    screens map) — the package builds the spine fresh rather than trusting the file,
+    so a project that last rebuilt before this release is not silently screenless."""
+    proj = _project_with_screens(pmos, new_project, "handoff-screen-stale-index")
+    # Simulate a pre-screens index: strip the screens map and reverse links.
+    import yaml
+    tpath = proj / ".traceability.yaml"
+    index = yaml.safe_load(tpath.read_text())
+    index["schema_version"] = 2
+    index.pop("screens", None)
+    for entry in (index.get("requirements") or {}).values():
+        entry.pop("screens", None)
+    tpath.write_text(yaml.safe_dump(index, sort_keys=True))
+
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    story = next((proj / "handoff" / "stories").glob("US-001-*.md")).read_text()
+    assert "SCR-001" in story, "stale on-disk index silently hid the screens"

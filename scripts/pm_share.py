@@ -241,16 +241,28 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     _qa_fm, qa_body = _read_artifact(root, "06")
     _brief_fm, brief_body = _read_artifact(root, "01")
     _scope_fm, scope_body = _read_artifact(root, "02")
-    _design_fm, design_body = _read_artifact(root, "04")
+    # Screens come from the design spec, but only when stage 04 is exactly `approved`
+    # — the same rule traceability.build_index applies to it. Reading a draft/stale/
+    # edited spec here would put unapproved screen names into the package (and stamp
+    # them as a source) while the spine deliberately excluded them.
+    design_body = None
+    if _stage_status(meta, "04") == "approved":
+        _design_fm, design_body = _read_artifact(root, "04")
 
     if prd_body is None:
         raise SystemExit("Error: no approved PRD (03-prd.md) found — nothing to hand off.")
 
+    # Build the spine fresh rather than trusting .traceability.yaml on disk: stage-04
+    # approval rebuilds it, but a project whose index predates screens (schema v2) or
+    # was written before this release would otherwise resolve every story to zero
+    # screens. Same reasoning as pm_handoff.build_plan. build_index re-derives from the
+    # current artifact bodies and already excludes a non-approved design spec.
+    spine = traceability.build_index(root)
+
     tc_blocks = split_test_case_blocks(qa_body) if qa_body else {}
     # Screens the design spec declares, so each story can name the surfaces it touches.
-    # Empty for a design spec written before SCR-### ids existed (or not yet approved,
-    # which is what keeps unapproved design decisions out of the package) — the story
-    # template then renders the usual "not captured in source" line.
+    # Empty for a spec written before SCR-### ids existed, or one that is not currently
+    # approved (gated above) — the story template then renders "not captured in source".
     screen_blocks = (
         split_screen_blocks(information_architecture_section(design_body)) if design_body else {}
     )
@@ -319,7 +331,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         # requirements and its journeys (a screen may cite either).
         screen_ids: list[str] = []
         for ref in reqs + journeys:
-            for scr in traceability.screens_for_requirement(root, ref):
+            for scr in traceability.screens_for_requirement(root, ref, index=spine):
                 if scr not in screen_ids:
                     screen_ids.append(scr)
         screens = [
@@ -414,7 +426,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         "Screen Map",
         [design_stamp] if design_stamp else [],
         now,
-        _screen_map_table(root, screen_blocks, story_index),
+        _screen_map_table(root, spine, screen_blocks, story_index),
     )
     (out_dir / "reference" / "screen-map.md").write_text(screen_map, encoding="utf-8")
     written.append(out_dir / "reference" / "screen-map.md")
@@ -439,7 +451,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     return written
 
 
-def _screen_map_table(root: Path, screen_blocks: dict, story_index) -> str:
+def _screen_map_table(root: Path, spine: dict, screen_blocks: dict, story_index) -> str:
     """The reverse of the per-story Screens section: one row per screen, listing the
     stories and journeys it serves, plus the stories no screen covers.
 
@@ -456,7 +468,7 @@ def _screen_map_table(root: Path, screen_blocks: dict, story_index) -> str:
     lines = ["| Screen | Name | Serves |", "|---|---|---|"]
     covered: set[str] = set()
     for scr_id, block in screen_blocks.items():
-        served = traceability.requirements_for_screen(root, scr_id)
+        served = traceability.requirements_for_screen(root, scr_id, index=spine)
         covered.update(served)
         name = _story_title(scr_id, block)
         lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} |")

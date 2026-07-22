@@ -105,19 +105,22 @@ def main():
         print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
 
     # --- Rebuild the traceability spine when an ID-bearing stage is approved ---
-    # Stage 03 (PRD) declares requirement ids; stage 06 (QA plan) declares the
-    # TC-### scenarios that link to them; stage 08 (TRD) declares the TSK-### Work
-    # Breakdown tasks that implement them. Re-derive .traceability.yaml (a local,
-    # derived index) so the resolver answers coverage/handoff queries without rescanning.
-    if stage_id in {"03", "06", "08"}:
+    # Stage 03 (PRD) declares requirement ids; stage 04 (design spec) declares the
+    # SCR-### screens that serve them; stage 06 (QA plan) declares the TC-### scenarios
+    # that link to them; stage 08 (TRD) declares the TSK-### Work Breakdown tasks that
+    # implement them. Re-derive .traceability.yaml (a local, derived index) so the
+    # resolver answers coverage/handoff queries without rescanning.
+    if stage_id in {"03", "04", "06", "08"}:
         try:
             import traceability as trace
             index = trace.rebuild(project_root)
             reqs = len(index.get("requirements") or {})
             tcs = len(index.get("test_cases") or {})
             tasks = len(index.get("tasks") or {})
+            screens = len(index.get("screens") or {})
             print(f"[post-approve] Rebuilt {trace.TRACEABILITY_FILENAME}: "
-                  f"{reqs} requirement(s), {tcs} test case(s), {tasks} task(s).")
+                  f"{reqs} requirement(s), {tcs} test case(s), {tasks} task(s), "
+                  f"{screens} screen(s).")
             uncovered = trace.uncovered_requirements(project_root)
             if uncovered:
                 print(f"[post-approve] Requirements with no covering scenario: "

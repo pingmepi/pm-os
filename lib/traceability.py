@@ -334,13 +334,19 @@ def tasks_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
     )
 
 
-def screens_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
+def screens_for_requirement(
+    project_root: Path | str, req_id: str, index: dict | None = None
+) -> list[str]:
     """Return the SCR-### ids that serve ``req_id`` (case-insensitive).
 
     Also answers for a journey id (``UJ-###``), which has no requirement entry of its
-    own — those resolve through the fallback scan of each screen's ``serves`` list."""
+    own — those resolve through the fallback scan of each screen's ``serves`` list.
+
+    Pass ``index`` to resolve against an already-built index instead of the on-disk
+    one — callers exporting a package build it fresh so a stale or pre-screens
+    ``.traceability.yaml`` cannot silently resolve every story to zero screens."""
     req_id = req_id.upper()
-    index = _index_for_query(project_root)
+    index = index if index is not None else _index_for_query(project_root)
     entry = (index.get("requirements") or {}).get(req_id)
     if entry and entry.get("screens"):
         return list(entry.get("screens") or [])
@@ -351,10 +357,14 @@ def screens_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
     )
 
 
-def requirements_for_screen(project_root: Path | str, scr_id: str) -> list[str]:
-    """Return the ids (requirements and journeys) that screen ``scr_id`` serves."""
+def requirements_for_screen(
+    project_root: Path | str, scr_id: str, index: dict | None = None
+) -> list[str]:
+    """Return the ids (requirements and journeys) that screen ``scr_id`` serves.
+
+    ``index`` overrides the on-disk index, as in ``screens_for_requirement``."""
     scr_id = scr_id.upper()
-    index = _index_for_query(project_root)
+    index = index if index is not None else _index_for_query(project_root)
     entry = (index.get("screens") or {}).get(scr_id)
     return list(entry.get("serves") or []) if entry else []
 
