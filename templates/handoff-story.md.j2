@@ -19,7 +19,15 @@ not tracked by the state machine. -->
 
 {{ story_body }}
 
-## QA scenarios covering this story
+## Screens this story touches
+
+{% if screens %}{% for screen in screens %}### {{ screen.id }} · {{ screen.name }}
+
+{{ screen.body }}
+
+{% endfor %}{% else %}— not captured in source —
+
+{% endif %}## QA scenarios covering this story
 
 {% if test_cases %}{% for tc in test_cases %}### {{ tc.id }}
 
@@ -31,4 +39,5 @@ not tracked by the state machine. -->
 - **Requirements:** {{ requirements | join(', ') if requirements else '— not captured in source —' }}
 - **Journeys:** {{ journeys | join(', ') if journeys else '— not captured in source —' }}
 - **Covering test cases:** {{ test_case_ids | join(', ') if test_case_ids else '— not captured in source —' }}
+- **Screens:** {{ screen_ids | join(', ') if screen_ids else '— not captured in source —' }}
 - **Impact & non-functional:** see [impact analysis](../reference/impact-analysis.md) · [NFRs](../reference/nfrs.md)

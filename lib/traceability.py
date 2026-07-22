@@ -33,6 +33,11 @@ Format (``schema_version: 2``)::
         source: 08-trd.md
         implements: [US-003, FR-012]
         tickets: []       # populated by Phase 4b (/pm-handoff)
+    screens:              # design spec (stage 04) Information Architecture
+      SCR-001:
+        source: 04-design-spec.md
+        serves: [US-003, UJ-002]
+        design_refs: []   # reserved for a later Figma/design export
 
 The file is a *derived* index: it is safe to delete and regenerate. The ``links``
 inside test cases are extracted from each TC-### block in the QA plan (every
@@ -48,7 +53,10 @@ import yaml
 
 from artifact_contracts import (
     REQUIREMENT_ID_RE,
+    information_architecture_section,
     requirement_ids,
+    screen_serves,
+    split_screen_blocks,
     split_task_blocks,
     split_test_case_blocks,
     task_implements,
@@ -62,13 +70,18 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # `tasks: []` link on each requirement. The file is a *derived* index, so a v1 file
 # on disk upgrades transparently on the next rebuild — reserved req/tc slots are
 # still preserved; the tasks map is simply populated for the first time.
-TRACEABILITY_SCHEMA_VERSION = 2
+# v3 adds a `screens:` map (design-spec Information Architecture, SCR-###) and a
+# reverse `screens: []` link on each requirement, so the handoff can answer "which
+# screens does this story touch". Same upgrade story as v2: the file is derived, so a
+# v1/v2 file on disk upgrades transparently on the next rebuild.
+TRACEABILITY_SCHEMA_VERSION = 3
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
 _REQ_REF_SLOTS = ("tickets", "bugs", "code_refs")
 _TC_REF_SLOTS = ("bugs",)
 _TASK_REF_SLOTS = ("tickets",)
+_SCREEN_REF_SLOTS = ("design_refs",)
 
 
 def traceability_path(project_root: Path | str) -> Path:
@@ -124,12 +137,15 @@ def build_index(project_root: Path | str) -> dict:
     qa_body = _read_body(artifact_path(project_root, "06"))
 
     # Only an *approved* TRD's tasks are authoritative for the index a handoff
-    # export consumes; a draft/stale/edited TRD contributes nothing.
+    # export consumes; a draft/stale/edited TRD contributes nothing. The design
+    # spec's screens follow the same rule for the same reason.
     trd_body = _read_body_if_approved(artifact_path(project_root, "08"))
+    design_body = _read_body_if_approved(artifact_path(project_root, "04"))
 
     requirements: dict[str, dict] = {}
     test_cases: dict[str, dict] = {}
     tasks: dict[str, dict] = {}
+    screens: dict[str, dict] = {}
 
     def _new_requirement(req_id: str, source: Optional[str]) -> dict:
         return {
@@ -137,6 +153,7 @@ def build_index(project_root: Path | str) -> dict:
             "source": source,
             "test_cases": [],
             "tasks": [],
+            "screens": [],
             **{slot: [] for slot in _REQ_REF_SLOTS},
         }
 
@@ -179,12 +196,31 @@ def build_index(project_root: Path | str) -> dict:
                 if tsk_id not in entry["tasks"]:
                     entry["tasks"].append(tsk_id)
 
+    # Screens (design-spec Information Architecture) + the requirements they serve.
+    # Scoped to the ## Information Architecture section so a SCR-### referenced under
+    # Key User Flows is a reference, not a second screen declaration.
+    if design_body:
+        for scr_id, block in split_screen_blocks(information_architecture_section(design_body)).items():
+            served = screen_serves(block)
+            screens[scr_id] = {
+                "source": artifact_path(project_root, "04").name,
+                "serves": served,
+                **{slot: [] for slot in _SCREEN_REF_SLOTS},
+            }
+            for req_id in served:
+                if req_id.upper().startswith("UJ-"):
+                    continue  # journeys are not requirement entries; the forward link suffices
+                entry = requirements.setdefault(req_id, _new_requirement(req_id, None))
+                if scr_id not in entry["screens"]:
+                    entry["screens"].append(scr_id)
+
     return {
         "schema_version": TRACEABILITY_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "requirements": requirements,
         "test_cases": test_cases,
         "tasks": tasks,
+        "screens": screens,
     }
 
 
@@ -209,6 +245,12 @@ def _merge_reserved(old: dict, new: dict) -> dict:
     for tsk_id, entry in new.get("tasks", {}).items():
         prior = old_tasks.get(tsk_id) or {}
         for slot in _TASK_REF_SLOTS:
+            if prior.get(slot):
+                entry[slot] = prior[slot]
+    old_screens = (old or {}).get("screens") or {}
+    for scr_id, entry in new.get("screens", {}).items():
+        prior = old_screens.get(scr_id) or {}
+        for slot in _SCREEN_REF_SLOTS:
             if prior.get(slot):
                 entry[slot] = prior[slot]
     return new
@@ -290,6 +332,41 @@ def tasks_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
         for tsk_id, tsk in (index.get("tasks") or {}).items()
         if req_id in (tsk.get("implements") or [])
     )
+
+
+def screens_for_requirement(
+    project_root: Path | str, req_id: str, index: dict | None = None
+) -> list[str]:
+    """Return the SCR-### ids that serve ``req_id`` (case-insensitive).
+
+    Also answers for a journey id (``UJ-###``), which has no requirement entry of its
+    own — those resolve through the fallback scan of each screen's ``serves`` list.
+
+    Pass ``index`` to resolve against an already-built index instead of the on-disk
+    one — callers exporting a package build it fresh so a stale or pre-screens
+    ``.traceability.yaml`` cannot silently resolve every story to zero screens."""
+    req_id = req_id.upper()
+    index = index if index is not None else _index_for_query(project_root)
+    entry = (index.get("requirements") or {}).get(req_id)
+    if entry and entry.get("screens"):
+        return list(entry.get("screens") or [])
+    return sorted(
+        scr_id
+        for scr_id, screen in (index.get("screens") or {}).items()
+        if req_id in (screen.get("serves") or [])
+    )
+
+
+def requirements_for_screen(
+    project_root: Path | str, scr_id: str, index: dict | None = None
+) -> list[str]:
+    """Return the ids (requirements and journeys) that screen ``scr_id`` serves.
+
+    ``index`` overrides the on-disk index, as in ``screens_for_requirement``."""
+    scr_id = scr_id.upper()
+    index = index if index is not None else _index_for_query(project_root)
+    entry = (index.get("screens") or {}).get(scr_id)
+    return list(entry.get("serves") or []) if entry else []
 
 
 def requirements_for_task(project_root: Path | str, tsk_id: str) -> list[str]:

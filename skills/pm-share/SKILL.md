@@ -36,8 +36,11 @@ Into `handoff/` at the project root (or `--output <dir>`):
 - `README.md` — index + reading guide + provenance.
 - `00-overview.md` — Business Perspective (Who / What & Why / How) from the brief + scope.
 - `epics/EPIC-01-mvp.md` — the story index.
-- `stories/US-###-*.md` — one self-contained story per file.
-- `reference/` — user journeys, QA scenarios, impact analysis, non-functional requirements.
+- `stories/US-###-*.md` — one self-contained story per file, including the
+  `SCR-###` screens that story touches (from the approved design spec).
+- `reference/` — user journeys, screen map, QA scenarios, impact analysis,
+  non-functional requirements. `reference/screen-map.md` is the reverse view:
+  each screen and the stories it serves, plus any story no screen covers.
 - `wireframes/prototype.html` — the approved stage-05 prototype, if present.
 - `--html` also emits `handoff/index.html`.
 
@@ -52,6 +55,10 @@ Into `handoff/` at the project root (or `--output <dir>`):
   prominent; do not fabricate.
 - Requires at least an approved PRD (`03-prd.md`). If it is missing, the
   script exits with an error — stop and tell the PM to approve the PRD first.
+- Screens come from the **approved** design spec's `SCR-###` inventory. If stage
+  04 is not approved, or predates screen ids, every story shows
+  `— not captured in source —` for screens and the screen map says so; mention
+  it to the PM rather than leaving them to notice the blanks.
 
 After running in package mode, confirm the output location and remind the PM
 the package is read-only and should be regenerated after any PRD/QA

@@ -13,7 +13,7 @@ from project import resolve_project
 
 def main():
     parser = argparse.ArgumentParser(description="Validate a PM-OS artifact contract.")
-    parser.add_argument("stage_id", choices=["03", "04", "05", "05-html", "06"])
+    parser.add_argument("stage_id", choices=["03", "04", "05", "05-html", "06", "08"])
     parser.add_argument("--mode", choices=["strict", "warn"], default="strict")
     parser.add_argument("--path", default=None)
     args = parser.parse_args()

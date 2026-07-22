@@ -183,7 +183,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
-artifact_contract_version: 1   # present on contract-validated Stage 03–05 generations
+artifact_contract_version: 3   # present on contract-validated Stage 03–06 generations
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---
@@ -224,11 +224,11 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "pre_stage_hook" }` — emitted by `hooks/pre-stage.py` when it re-hashes an approved upstream and finds drift
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
-- `artifact_validation_warning`: `{ contract_version, origin, findings: [{ severity, code, message }] }` — logged when approval or imported/backfilled approval continues despite Stage 03–05 artifact-contract findings
+- `artifact_validation_warning`: `{ contract_version, origin, findings: [{ severity, code, message }] }` — logged when approval or imported/backfilled approval continues despite Stage 03–06 (or the stage-08 GenAI model check) artifact-contract findings
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
 - `implicit_reapproval`: `{ stage, old_hash, new_hash }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
-- `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data
+- `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data. Logged identically whether the tickets were created through the Atlassian connector or imported from the offline `pm_handoff.py export` CSV
 - `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
 
 ### 5.4 Feedback entry (JSONL line)
@@ -477,7 +477,7 @@ Recommended sections: Prototype data & scenarios; Known limitations.
 
 ### Artifact contracts (Stages 03–05)
 
-`scripts/pm_validate_artifact.py <03|04|05|05-html> --mode strict|warn` validates required sections, recommended sections, journey traceability, prototype modes, and high-signal HTML guardrails. Stage skills run strict mode before generation telemetry; required-section errors must be repaired. Approval and context-import use warning mode: they surface and record findings but continue. Imported PM-authored documents are preserved rather than silently augmented with invented content. `pm-status` shows a warning count for any Stage 03–05 artifact that has contract findings.
+`scripts/pm_validate_artifact.py <03|04|05|05-html|06|08> --mode strict|warn` validates required sections, recommended sections, journey traceability, screen ids (`SCR-###` + `Serves:`), prototype modes, and high-signal HTML guardrails. Stage 08 has no required-section contract and is validated only for the GenAI model availability/fallback check. Stage skills run strict mode before generation telemetry; required-section errors must be repaired. Approval and context-import use warning mode: they surface and record findings but continue. Imported PM-authored documents are preserved rather than silently augmented with invented content. `pm-status` shows a warning count for any contract-validated artifact that has findings.
 
 ### Stage 06 — QA Plan (use Opus)
 Output sections: Test strategy, Functional test cases, Non-functional tests, Edge cases, Acceptance criteria.
@@ -490,7 +490,7 @@ Output sections: North star metric, Input metrics, Output metrics, Guardrail met
 ### Stage 08 — TRD (optional, use Opus)
 Optional technical capstone. Always scaffolded (`optional: true` in `.meta.yaml`) but only runnable once stages 01–07 are approved; it reads the full pipeline and details how the product is built. Owned conceptually by engineering, not the PM. Separation of concerns: the PRD says **what/why**, the TRD says **how**.
 Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, **Work Breakdown**, Open technical questions.
-The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v2) with a reserved `tickets: []` slot — only when the TRD is **approved**, and only tasks inside the `## Work Breakdown` section — and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
+The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v3, which also carries the design spec's `screens:` map) with a reserved `tickets: []` slot — only when the TRD is **approved**, and only tasks inside the `## Work Breakdown` section — and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
 **When `genai_flag=true`:** add sections — Model serving & selection, Prompt/agent architecture (implementation), Tool/function implementation, Context & retrieval engineering, Evaluation & guardrail implementation, Inference cost & latency engineering. (The PRD keeps its product-level GenAI sections; the TRD goes deeper into implementation.)
 
 ---

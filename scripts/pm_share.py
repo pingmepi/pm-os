@@ -34,6 +34,8 @@ from artifact_contracts import (  # noqa: E402
     FUNCTIONAL_REQ_ID_RE,
     JOURNEY_ID_RE,
     _sections,
+    information_architecture_section,
+    split_screen_blocks,
     split_test_case_blocks,
     split_user_story_blocks,
 )
@@ -163,11 +165,16 @@ def _section_of(body: str | None, title: str) -> str:
 
 
 def _story_title(story_id: str, block: str) -> str:
-    """Best-effort human title from the story's declaration line."""
+    """Best-effort human title from a block's declaration line.
+
+    Tolerates a bold-wrapped id (`- **SCR-001 — Case queue**`, the design spec's screen
+    shape) as well as the PRD's plain heading form, so the same helper names stories
+    and screens.
+    """
     first = block.strip().splitlines()[0] if block.strip() else ""
     cleaned = re.sub(r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?", "", first)
-    cleaned = re.sub(rf"^{re.escape(story_id)}\b[\s:—–-]*", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip() or story_id
+    cleaned = re.sub(rf"^\**{re.escape(story_id)}\**\b[\s:—–-]*", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip().strip("*").strip() or story_id
 
 
 def _strip_decl_line(block: str, decl_id: str | None = None) -> str:
@@ -234,11 +241,31 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     _qa_fm, qa_body = _read_artifact(root, "06")
     _brief_fm, brief_body = _read_artifact(root, "01")
     _scope_fm, scope_body = _read_artifact(root, "02")
+    # Screens come from the design spec, but only when stage 04 is exactly `approved`
+    # — the same rule traceability.build_index applies to it. Reading a draft/stale/
+    # edited spec here would put unapproved screen names into the package (and stamp
+    # them as a source) while the spine deliberately excluded them.
+    design_body = None
+    if _stage_status(meta, "04") == "approved":
+        _design_fm, design_body = _read_artifact(root, "04")
 
     if prd_body is None:
         raise SystemExit("Error: no approved PRD (03-prd.md) found — nothing to hand off.")
 
+    # Build the spine fresh rather than trusting .traceability.yaml on disk: stage-04
+    # approval rebuilds it, but a project whose index predates screens (schema v2) or
+    # was written before this release would otherwise resolve every story to zero
+    # screens. Same reasoning as pm_handoff.build_plan. build_index re-derives from the
+    # current artifact bodies and already excludes a non-approved design spec.
+    spine = traceability.build_index(root)
+
     tc_blocks = split_test_case_blocks(qa_body) if qa_body else {}
+    # Screens the design spec declares, so each story can name the surfaces it touches.
+    # Empty for a spec written before SCR-### ids existed, or one that is not currently
+    # approved (gated above) — the story template then renders "not captured in source".
+    screen_blocks = (
+        split_screen_blocks(information_architecture_section(design_body)) if design_body else {}
+    )
 
     # Reverse-declared requirement/journey links: a story is not required to
     # self-cite its FR/UJ ids (only journeys must cite a requirement id) — it
@@ -262,6 +289,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     )
 
     prd_stamp = _stamp(root, "03")
+    design_stamp = _stamp(root, "04")
     written: list[Path] = []
 
     # --- per-story files (the centrepiece) ---
@@ -299,7 +327,25 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             for tc in tc_ids
         ]
 
+        # Screens serving this story, resolved through the spine over both the story's
+        # requirements and its journeys (a screen may cite either).
+        screen_ids: list[str] = []
+        for ref in reqs + journeys:
+            for scr in traceability.screens_for_requirement(root, ref, index=spine):
+                if scr not in screen_ids:
+                    screen_ids.append(scr)
+        screens = [
+            {
+                "id": scr,
+                "name": _story_title(scr, screen_blocks.get(scr, "")),
+                "body": _strip_decl_line(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
+            }
+            for scr in screen_ids
+        ]
+
         generated_from = [s for s in (prd_stamp, _stamp(root, "06")) if s]
+        if screens and design_stamp:
+            generated_from.append(design_stamp)
         rendered = _render_story({
             "story_id": story_id,
             "title": title,
@@ -309,6 +355,8 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             "journeys": journeys,
             "test_cases": test_cases,
             "test_case_ids": tc_ids,
+            "screens": screens,
+            "screen_ids": screen_ids,
             "generated_from": generated_from,
             "canonical_source": "03-prd.md",
             "generated_at": now,
@@ -373,6 +421,16 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         (out_dir / "reference" / filename).write_text(doc, encoding="utf-8")
         written.append(out_dir / "reference" / filename)
 
+    # --- screen map (the reverse view: screen → the stories it serves) ---
+    screen_map = _stamped_doc(
+        "Screen Map",
+        [design_stamp] if design_stamp else [],
+        now,
+        _screen_map_table(root, spine, screen_blocks, story_index),
+    )
+    (out_dir / "reference" / "screen-map.md").write_text(screen_map, encoding="utf-8")
+    written.append(out_dir / "reference" / "screen-map.md")
+
     # --- wireframes: copy the approved prototype into the package if present ---
     proto = root / "05-prototype-mockup.html"
     if proto.exists():
@@ -391,6 +449,42 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             written.append(html_path)
 
     return written
+
+
+def _screen_map_table(root: Path, spine: dict, screen_blocks: dict, story_index) -> str:
+    """The reverse of the per-story Screens section: one row per screen, listing the
+    stories and journeys it serves, plus the stories no screen covers.
+
+    Reads the served ids from the spine (``requirements_for_screen``) so this table and
+    the per-story sections can never disagree."""
+    if not screen_blocks:
+        return (
+            f"{NOT_CAPTURED}\n\n"
+            "The approved design spec declares no `SCR-###` screens in its Information "
+            "Architecture, so screens cannot be mapped to stories. Add screen ids with a "
+            "`Serves:` line to `04-design-spec.md`, re-approve it, and regenerate.\n"
+        )
+
+    lines = ["| Screen | Name | Serves |", "|---|---|---|"]
+    covered: set[str] = set()
+    for scr_id, block in screen_blocks.items():
+        served = traceability.requirements_for_screen(root, scr_id, index=spine)
+        covered.update(served)
+        name = _story_title(scr_id, block)
+        lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} |")
+
+    uncovered = [f"{sid} · {title}" for sid, title, _fn in story_index if sid not in covered]
+    if uncovered:
+        lines += [
+            "",
+            "## Stories with no screen",
+            "",
+            "No screen in the approved design spec declares it serves these — either the "
+            "story is not yet designed, or a screen is missing its `Serves:` trace:",
+            "",
+        ]
+        lines += [f"- {entry}" for entry in uncovered]
+    return "\n".join(lines) + "\n"
 
 
 def _first_para(text: str) -> str:
@@ -442,6 +536,7 @@ def _readme(project_name: str, when: str, story_index, sources, has_proto: bool)
         "",
         "## Reference",
         "- [User journeys](reference/user-journeys.md)",
+        "- [Screen map](reference/screen-map.md) — which screens serve which stories",
         "- [QA scenarios](reference/qa-scenarios.md)",
         "- [Impact analysis](reference/impact-analysis.md)",
         "- [Non-functional requirements](reference/nfrs.md)",
@@ -471,6 +566,7 @@ def _write_html_index(out_dir: Path, project_name: str, when: str, story_index) 
         f"<h2>User stories</h2><ul>{items}</ul>"
         f"<h2>Reference</h2>"
         f'<ul><li><a href="reference/user-journeys.md">User journeys</a></li>'
+        f'<li><a href="reference/screen-map.md">Screen map</a></li>'
         f'<li><a href="reference/qa-scenarios.md">QA scenarios</a></li>'
         f'<li><a href="reference/impact-analysis.md">Impact analysis</a></li>'
         f'<li><a href="reference/nfrs.md">NFRs</a></li></ul>'

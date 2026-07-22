@@ -191,13 +191,14 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v2_with_tasks_map(tmp_path):
-    """The index declares schema_version 2 and always carries a tasks map."""
+def test_index_is_schema_v3_with_tasks_and_screens_maps(tmp_path):
+    """The index declares schema_version 3 and always carries both a tasks map (v2)
+    and a screens map (v3), even when the source artifacts are absent."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 2
-    assert "tasks" in index
+    assert index["schema_version"] == 3
+    assert "tasks" in index and "screens" in index
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):
@@ -236,9 +237,9 @@ def test_task_implementing_undeclared_requirement_is_kept(tmp_path):
 
 
 def test_rebuild_preserves_task_tickets_and_upgrades_v1(tmp_path):
-    """A v1 index on disk (no tasks map, an externally-set ticket) upgrades to v2 on
-    rebuild: schema bumps, the reserved ticket survives, and task tickets set by
-    Phase 4b are preserved across a later rebuild."""
+    """A v1 index on disk (no tasks map, an externally-set ticket) upgrades to the
+    current schema on rebuild: the version bumps, the reserved ticket survives, and
+    task tickets set by Phase 4b are preserved across a later rebuild."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     _write(root, "08-trd.md", _TRD, status="approved")
@@ -251,7 +252,7 @@ def test_rebuild_preserves_task_tickets_and_upgrades_v1(tmp_path):
     }
     trace.write_index(root, legacy)
     rebuilt = trace.rebuild(root)
-    assert rebuilt["schema_version"] == 2
+    assert rebuilt["schema_version"] == trace.TRACEABILITY_SCHEMA_VERSION
     assert rebuilt["requirements"]["FR-001"]["tickets"] == ["JIRA-1"]
     assert rebuilt["requirements"]["FR-001"]["tasks"] == ["TSK-001"]
     # Now attach a task ticket (Phase 4b) and confirm it survives the next rebuild.
@@ -306,3 +307,89 @@ def test_task_outside_work_breakdown_is_not_indexed(tmp_path):
     index = trace.build_index(root)
     assert set(index["tasks"]) == {"TSK-001"}
     assert "TSK-999" not in index["tasks"]
+
+
+# --- Screens (schema v3) ------------------------------------------------------
+
+_DESIGN = """# Design Spec
+## Information Architecture
+- **SCR-001 — Case queue**
+  - Serves: US-001, FR-001, UJ-001
+- **SCR-002 — Audit log**
+  - Serves: FR-002
+## Key User Flows
+- Operator moves from SCR-001 onward.
+"""
+
+
+def test_build_index_links_screens_and_requirements(tmp_path):
+    """build_index extracts SCR-### screens from an approved design spec's Information
+    Architecture, records what each serves, and back-links each requirement to the
+    screens serving it. A journey id is kept as a forward link only — UJ-### is not a
+    requirement entry."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "04-design-spec.md", _DESIGN, status="approved")
+    index = trace.build_index(root)
+    assert set(index["screens"]) == {"SCR-001", "SCR-002"}
+    assert index["screens"]["SCR-001"]["serves"] == ["US-001", "FR-001", "UJ-001"]
+    assert index["screens"]["SCR-001"]["source"] == "04-design-spec.md"
+    assert index["requirements"]["US-001"]["screens"] == ["SCR-001"]
+    assert index["requirements"]["FR-002"]["screens"] == ["SCR-002"]
+    assert "UJ-001" not in index["requirements"]
+
+
+def test_screen_resolver_both_directions(tmp_path):
+    """The resolver answers requirement→screens and screen→served-ids case-insensitively,
+    and resolves a journey id through the fallback scan (journeys have no entry of their own)."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "04-design-spec.md", _DESIGN, status="approved")
+    trace.rebuild(root)
+    assert trace.screens_for_requirement(root, "fr-001") == ["SCR-001"]
+    assert trace.screens_for_requirement(root, "uj-001") == ["SCR-001"]
+    assert trace.requirements_for_screen(root, "scr-002") == ["FR-002"]
+    assert trace.screens_for_requirement(root, "FR-999") == []
+
+
+def test_unapproved_design_spec_contributes_no_screens(tmp_path):
+    """Only an **approved** design spec's screens are indexed — a draft/stale/edited spec
+    contributes nothing, so unapproved design decisions never reach the handoff."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "04-design-spec.md", _DESIGN, status="draft")
+    assert trace.build_index(root)["screens"] == {}
+    _write(root, "04-design-spec.md", _DESIGN, status="stale")
+    assert trace.build_index(root)["screens"] == {}
+
+
+def test_screen_outside_information_architecture_is_not_indexed(tmp_path):
+    """A SCR-### referenced under another heading is a reference, not a declaration."""
+    root = _project(tmp_path)
+    _write(root, "04-design-spec.md",
+           "## Key User Flows\n- **SCR-009 — stray**\n  - Serves: US-001\n", status="approved")
+    assert trace.build_index(root)["screens"] == {}
+
+
+def test_rebuild_preserves_screen_design_refs(tmp_path):
+    """The reserved `design_refs` slot (for a later Figma/design export) survives a
+    rebuild, like the requirement/task ticket slots."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    _write(root, "04-design-spec.md", _DESIGN, status="approved")
+    index = trace.rebuild(root)
+    index["screens"]["SCR-001"]["design_refs"] = ["figma:node-1"]
+    trace.write_index(root, index)
+    again = trace.rebuild(root)
+    assert again["screens"]["SCR-001"]["design_refs"] == ["figma:node-1"]
+    assert again["screens"]["SCR-001"]["serves"] == ["US-001", "FR-001", "UJ-001"]
+
+
+def test_missing_design_spec_yields_empty_screens(tmp_path):
+    """With no design spec the screens map is empty and screen queries return empties
+    rather than raising — existing projects never break."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    assert trace.build_index(root)["screens"] == {}
+    assert trace.screens_for_requirement(root, "FR-001") == []
+    assert trace.requirements_for_screen(root, "SCR-001") == []
