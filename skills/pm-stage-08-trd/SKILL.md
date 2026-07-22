@@ -3,7 +3,7 @@ name: pm-stage-08-trd
 description: Generate the Technical Requirements Document for stage 08 from the full approved product pipeline.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md"]
 writes: "08-trd.md"
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 model_tier: deep-reasoning
 ---
 
@@ -225,7 +225,18 @@ If `genai_flag=true`, append these additional sections after `## Open Technical 
 ```markdown
 ## Model Serving & Selection
 
-<Which models, how they are accessed/served (hosted API vs self-hosted), versioning, provider/data-retention assumptions, and the operational characteristics that drove the choice.>
+<Make the PRD's Model Selection Rationale buildable. Lead with a table — one row per model role in the system (e.g. extraction, summarization, classification, embedding):
+
+| Role | Primary model (family + pinned version) | Fallback chain | Access path | Failover trigger | Cost/latency envelope |
+|---|---|---|---|---|---|
+
+Then specify in prose:
+- **Availability** — how access was verified for each model named: approved-vendor status, region/data-residency of the inference endpoint, quota or rate-limit headroom against expected volume, and any procurement or contractual gap still open.
+- **Access path** — hosted vendor API, internal gateway/proxy, or self-hosted, including auth model, network egress requirements, and what data crosses which boundary (tie to Data Governance & Compliance Implementation above).
+- **Failover mechanics** — how the fallback is actually invoked (retry/circuit-breaker/router), who or what decides, whether it is automatic or manual, and how a degraded run is made visible in logs, metrics, and the UI.
+- **Version pinning and deprecation** — the pinned version or alias in use, how a provider deprecation or silent model update is detected, and the re-validation path (evals to re-run) before a version change ships.
+
+Every model named here must trace to the PRD's Model Selection Rationale; if this TRD departs from it, say so explicitly and give the technical reason.>
 
 ## Prompt / Agent Architecture (Implementation)
 
@@ -322,7 +333,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('08'),
-       'prompt_version': '0.2.0',
+       'prompt_version': '0.3.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
@@ -364,6 +375,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Technical Risks must be engineering-specific and paired with mitigations, not truisms.
 - Rollout, Migration & Deployment must include feature flags, rollback, observability checks, and QA/metrics-linked go/no-go criteria.
 - If `genai_flag=true`, the GenAI sections must specify a buildable architecture and validation approach, going deeper than the PRD.
+- If `genai_flag=true`, Model Serving & Selection must name a pinned primary and a fallback chain per model role, state how availability was verified (approved vendor, region, quota), define how failover is invoked and surfaced, and cover version-deprecation detection and re-validation — not just describe the model's qualities.
 - If `genai_flag=false`, the TRD must use only the base sections and contain no model/prompt/agent/retrieval requirements.
 
 # Self-check before writing
@@ -378,4 +390,5 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 8. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
 9. Does the Work Breakdown enumerate unique, sequential `TSK-###` tasks, each `Implements:`-traced to a real PRD requirement (or cited NFR/governance requirement), with every functional requirement covered by at least one task?
 10. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
-11. If `genai_flag=false`, is the TRD complete without any AI-specific content?
+11. If `genai_flag=true`, does Model Serving & Selection give every model role a pinned primary, a fallback chain, a verified access path, a failover trigger, and a deprecation/re-validation plan — all traced to the PRD's Model Selection Rationale?
+12. If `genai_flag=false`, is the TRD complete without any AI-specific content?

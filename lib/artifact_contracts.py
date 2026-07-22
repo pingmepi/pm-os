@@ -12,16 +12,17 @@ from pathlib import Path
 from typing import Iterable
 
 from frontmatter import read as fm_read
-from project import artifact_path
+from project import artifact_path, load_meta
 
 
-CONTRACT_VERSION = 2
+CONTRACT_VERSION = 3
 
 # Contract versions this validator still accepts without a drift warning. v2 added
 # recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
-# feed the readable handoff package; every v2 check is WARNING-only, so a v1 PRD on
-# disk keeps passing untouched (CLAUDE.md: existing projects must keep working).
-SUPPORTED_CONTRACT_VERSIONS = {1, 2}
+# feed the readable handoff package; v3 added the GenAI model-availability/fallback
+# checks (stages 03/08). Every v2 and v3 check is WARNING-only, so a v1 PRD on disk
+# keeps passing untouched (CLAUDE.md: existing projects must keep working).
+SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -173,6 +174,13 @@ RECOMMENDED_SECTIONS = {
     "05": ["Prototype Data & Scenarios", "Known Limitations"],
     "06": ["Requirement-Test Traceability"],
 }
+
+# Stages validated without a required-section contract. Stage 08 (TRD) predates any
+# section contract and existing TRDs on disk would fail a full required-section list,
+# so it is validated for the GenAI model-serving check only — and is deliberately
+# exempt from the `artifact_contract_version` frontmatter warning below, which
+# belongs to stages that do declare a section contract.
+_EXTRA_VALIDATED_STAGES = {"08"}
 
 _ALIASES = {
     "journey-requirement traceability": {
@@ -376,7 +384,65 @@ _EDGE_CASE_CUE_RE = re.compile(
 )
 
 
-def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
+# --- GenAI model-selection checks (contract v3) -------------------------------
+# A GenAI product spec must answer two questions engineering cannot guess: is the
+# model class actually available to this team, and what runs when it is not. Both
+# cue sets are deliberately broad — this nudges rather than dictates wording — and
+# every finding is WARNING-only so existing approved artifacts keep passing.
+
+_MODEL_AVAILABILITY_CUE_RE = re.compile(
+    r"\bavailab\w*|\baccess(?:ible|\s+path)?\b|\bself-hosted\b|\bhosted\b|\bon-?prem\w*|"
+    r"\bgateway\b|\bprovider\b|\bvendor\b|\bregion\b|\bresidency\b|\bquota\b|"
+    r"\brate limit\b|\bapproved\b|\bprocurement\b|\bdeploy(?:ment|ed)\b",
+    re.IGNORECASE,
+)
+
+_MODEL_FALLBACK_CUE_RE = re.compile(
+    r"\bfall\s?back\w*|\bfail\s?over\w*|\bsecondary model\b|\balternate model\b|"
+    r"\bbackup model\b|\bdegrade[sd]?\b|\bdeprecat\w+",
+    re.IGNORECASE,
+)
+
+
+def _genai_project(project_root: Path) -> bool:
+    """True when the project's ``.meta.yaml`` sets ``genai_flag``.
+
+    Degrades to False on any read failure so the GenAI-only checks can never break
+    validation for a project whose meta is missing, unreadable, or pre-migration.
+    """
+    try:
+        return bool(load_meta(project_root).get("genai_flag"))
+    except Exception:
+        return False
+
+
+def _validate_model_selection(
+    section: str | None, section_title: str, code: str
+) -> list[Finding]:
+    """Warn when a GenAI model section names neither availability nor a fallback.
+
+    Shared by stage 03 (``Model Selection Rationale``, product level) and stage 08
+    (``Model Serving & Selection``, buildable level): both must answer "can we
+    actually get this model, and what runs if we can't". An absent section is not
+    flagged here — the GenAI sections are appended conditionally, and a non-GenAI
+    project legitimately has none.
+    """
+    if not (section or "").strip():
+        return []
+    missing = []
+    if not _MODEL_AVAILABILITY_CUE_RE.search(section):
+        missing.append("model availability (deployment path, vendor/region, quota)")
+    if not _MODEL_FALLBACK_CUE_RE.search(section):
+        missing.append("a fallback model and what triggers the switch")
+    if not missing:
+        return []
+    return [Finding(
+        "WARNING", code,
+        f"{section_title} does not address: {'; '.join(missing)}.",
+    )]
+
+
+def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
     journeys = _section(sections, "User Journeys") or ""
     journey_blocks = _blocks(journeys, r"^###\s+(UJ-\d{3})\b.*$")
@@ -432,7 +498,27 @@ def _validate_stage_03(sections: dict[str, str], body: str) -> list[Finding]:
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):
         findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### (or REQ-###) identifiers so traceability survives regeneration."))
+    if _genai_project(project_root):
+        findings.extend(_validate_model_selection(
+            _section(sections, "Model Selection Rationale"),
+            "Model Selection Rationale",
+            "MODEL_SELECTION_INCOMPLETE",
+        ))
     return findings
+
+
+def _validate_stage_08(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
+    """Stage 08 (TRD) carries no required-section contract — existing TRDs predate one
+    and adding a full list would fail them all. The only check here is the GenAI
+    model-serving one (WARNING-only), so the TRD is held to naming a fallback and an
+    availability path for the models it commits the build to."""
+    if not _genai_project(project_root):
+        return []
+    return _validate_model_selection(
+        _section(sections, "Model Serving & Selection"),
+        "Model Serving & Selection",
+        "MODEL_SERVING_INCOMPLETE",
+    )
 
 
 def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
@@ -576,7 +662,7 @@ def _validate_stage_05(project_root: Path, sections: dict[str, str], body: str) 
 def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str | None = None) -> list[Finding]:
     project_root = Path(project_root)
     stage_id = stage_id.zfill(2)
-    if stage_id not in REQUIRED_SECTIONS:
+    if stage_id not in REQUIRED_SECTIONS and stage_id not in _EXTRA_VALIDATED_STAGES:
         return []
     artifact = Path(path) if path else artifact_path(project_root, stage_id)
     if not artifact.exists():
@@ -587,7 +673,7 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
         return [Finding("ERROR", "ARTIFACT_UNREADABLE", f"Could not read artifact: {exc}")]
 
     findings: list[Finding] = []
-    if fm.get("artifact_contract_version") not in SUPPORTED_CONTRACT_VERSIONS:
+    if stage_id in REQUIRED_SECTIONS and fm.get("artifact_contract_version") not in SUPPORTED_CONTRACT_VERSIONS:
         findings.append(Finding(
             "WARNING", "CONTRACT_VERSION_MISSING",
             f"Artifact does not declare a supported artifact_contract_version "
@@ -596,13 +682,15 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
     sections = _sections(body)
     findings.extend(_missing_sections(stage_id, sections))
     if stage_id == "03":
-        findings.extend(_validate_stage_03(sections, body))
+        findings.extend(_validate_stage_03(project_root, sections, body))
     elif stage_id == "04":
         findings.extend(_validate_stage_04(project_root, sections, body))
     elif stage_id == "05":
         findings.extend(_validate_stage_05(project_root, sections, body))
     elif stage_id == "06":
         findings.extend(_validate_stage_06(project_root, sections, body))
+    elif stage_id == "08":
+        findings.extend(_validate_stage_08(project_root, sections, body))
     return findings
 
 

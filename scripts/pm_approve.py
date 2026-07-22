@@ -106,7 +106,7 @@ def main():
         sys.exit(1)
 
     validation_findings = []
-    if stage_id in {"03", "04", "05", "06"}:
+    if stage_id in {"03", "04", "05", "06", "08"}:
         validation_findings = validate_artifact(project_root, stage_id, apath)
         if validation_findings:
             print(f"Warning: Stage {stage_id} has artifact contract findings; approval will continue:")
