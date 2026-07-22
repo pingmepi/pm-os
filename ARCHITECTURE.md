@@ -101,7 +101,7 @@ flowchart TD
         P5["pm_share.py / pm_sync.py"]
         P6["pm_os_install.py / pm_os_update.py<br/>pm_os_verify.py"]
         P7["pm_context_import.py"]
-        P8["pm_validate_artifact.py<br/>(Stage 03–05 contract checks)"]
+        P8["pm_validate_artifact.py<br/>(Stage 03–06/08 contract checks)"]
         P9["discover_tracking_context.py<br/>(roadmap tracking helper)"]
     end
 
@@ -120,7 +120,7 @@ flowchart TD
         L7["git_sync.py<br/>push feedback repo"]
         L8["text_metrics.py<br/>edit distance"]
         L9["context.py<br/>context overlay"]
-        L10["artifact_contracts.py<br/>Stage 03–05 quality contracts"]
+        L10["artifact_contracts.py<br/>Stage 03–06 quality contracts"]
     end
 
     S1 -->|PM_OS_STAGE=NN inline bash| H1
@@ -165,7 +165,7 @@ flowchart TD
 | `skills/pm-os-verify` → `scripts/pm_os_verify.py` | Health-checks the *installed* `~/.pm-os` for a runtime: `git` binary on PATH, all 9 `lib` module imports (including `html_render`, `context`, `text_metrics`), gate hooks, all 4 Jinja2 templates, config keys + `projects_dir` existence, installed skills count, plus three deterministic self-tests — gate (`pre-stage.py` blocks unapproved upstream / allows first stage), telemetry (append + hash chain + `push_all` status), and artifact contracts (detects missing PRD sections). |
 | `skills/pm-prototype-html` | Standalone skill to generate or regenerate `05-prototype-mockup.html` from the approved prototype brief and design spec without re-running the full stage 05 brief generation. Auto-invoked by `pm-stage-05-prototype-brief` after the brief is written; also callable directly to rebuild the prototype only. |
 | `skills/pm-update-roadmap-tracking` → `scripts/discover_tracking_context.py` | Reads roadmap, implementation-plan, and status docs in a product root; calls `discover_tracking_context.py` to surface recent git/doc change signals; updates only the relevant tracking docs with evidence-backed status changes, risks, and next steps. |
-| `scripts/pm_validate_artifact.py` | CLI entry point for the Stage 03–05 artifact contract validator (`lib/artifact_contracts.py`). Accepts `<stage> --mode strict\|warn`: strict mode exits non-zero on any required-section or journey-traceability finding; warn mode prints findings and exits 0. Called in strict mode by stage skills before generation telemetry; called in warn mode by `pm_approve.py` and `pm_context_import.py` so approval/import continue with visible findings logged as `artifact_validation_warning`. |
+| `scripts/pm_validate_artifact.py` | CLI entry point for the Stage 03–06 (+ GenAI-only stage 08) artifact contract validator (`lib/artifact_contracts.py`). Accepts `<stage> --mode strict\|warn`: strict mode exits non-zero on any required-section or journey-traceability finding; warn mode prints findings and exits 0. Called in strict mode by stage skills before generation telemetry; called in warn mode by `pm_approve.py` and `pm_context_import.py` so approval/import continue with visible findings logged as `artifact_validation_warning`. |
 | `scripts/discover_tracking_context.py` | Read-only helper that walks a product root, finds tracking documents (roadmap, implementation plans, status docs, backlogs), and reports recent git-log and doc-change signals as a compact Markdown digest. Used by `pm-update-roadmap-tracking` to ground status updates in evidence. |
 | `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift; runs the implicit-reapproval prompt, cascading `stale` to downstream approved stages on implicit reapproval. |
 | `hooks/post-approve.py` | Renders HTML companions for stages 04/05, cascades `stale` to downstream approved stages, and syncs telemetry/feedback via `git_sync` — deferred to a detached background process by default so the network push never gates approval completion (`PM_OS_SYNC_BLOCKING=1` forces an inline push). |
@@ -247,7 +247,7 @@ sequenceDiagram
 
 - **`.meta.yaml`** — project metadata + `stages[]` list (id, name, status, `approved_at`, `content_hash`, `upstream_hashes_at_approval`, `regeneration_count`, `optional`, `origin`). Carries `schema_version` (currently 3; `lib/project.py:migrate_meta` upgrades older projects in place). v3 adds `project_type` (`new_product | enhancement`), `codebase_path`, and `codebase_ref` for enhancement projects. `origin` is `generated | imported | backfilled`. The stage-00 understanding group (`00` business-statement, plus the conditional `00c` codebase-understanding, `00w` context-wiki, and `00u` context-understanding when `/pm-context-import` is used) gates stage 01.
 - **`.sources.yaml`** — registry of externally-provided sources ingested via `/pm-context-import` (id, type, uri, captured_at, snapshot path); raw originals preserved under `.history/`.
-- **Artifact frontmatter** — `status`, `approved_at/by`, `content_hash`, `generated_hash`, `pm_os_version`, `genai_flag`, `generation_notes`, `origin`, and (for current Stage 03–05 generations) `artifact_contract_version`, followed by the Markdown body.
+- **Artifact frontmatter** — `status`, `approved_at/by`, `content_hash`, `generated_hash`, `pm_os_version`, `genai_flag`, `generation_notes`, `origin`, and (for current Stage 03–06 generations) `artifact_contract_version`, followed by the Markdown body.
 - **`telemetry.jsonl`** — append-only, hash-chained (`prev_event_hash` → `event_hash`). Event types include `project_created`, `stage_started`, `stage_generated`, `stage_approved`, `stage_imported`, `stage_backfilled`, `context_ingested`, `stage_edited_post_approval`, `stage_edited_via_note`, `artifact_validation_warning`, `implicit_reapproval`, `stage_marked_stale`, `feedback_submitted`. Telemetry failures warn but never break the workflow.
 - **`feedback.jsonl`** — append-only stage feedback entries (`rating`, `note`, PM, project, timestamp). Feedback is also joined into `telemetry.jsonl` as `feedback_submitted` so it participates in the hash chain.
 - Both JSONL files are pushed to the shared `pm-os-feedback` repo under `telemetry/<pm>/<slug>/`.

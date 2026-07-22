@@ -233,7 +233,7 @@ Base sections:
 
 **If `genai_flag=true`,** append after `## Risks`:
 
-- **`## Model Selection Rationale`** — Which model characteristics matter and why they fit, at the product-requirement level.
+- **`## Model Selection Rationale`** — The capability profile the use case demands, the **model family/type** it implies, the **availability constraints** that apply (hosted API vs internal gateway vs self-hosted, vendor approval, data residency, quota), and a named **primary + at least one fallback** with the conditions that trigger the switch. Product-requirement level; distinct from `## Fallback Behavior`, which is what the *user* sees.
 - **`## Prompt/Agent Architecture`** — The high-level prompting pattern, orchestration flow, agent steps, or decision logic (product view, not implementation).
 - **`## Tool/Function Inventory`** — External tools, functions, retrieval systems, or structured actions the product needs.
 - **`## Context Window Strategy`** — What context each invocation requires, how it's selected, and how overflow/retrieval is managed.
@@ -248,7 +248,7 @@ Base sections:
 
 Exactly these sections (Markdown only; the HTML companion is generated separately after approval):
 
-- **`## Information Architecture`** — Screen/page inventory, hierarchy, entry points, and navigation rules, each major screen tied to the PRD requirement/story it supports.
+- **`## Information Architecture`** — Hierarchy, entry points, and navigation rules, plus the screen/page inventory as stable **`SCR-###`** screens. Each screen carries a `Serves:` line citing the PRD ids it supports (`US-###`/`FR-###`/`REQ-###`/`UJ-###`) — only that line is read as the trace. Numbered sequentially, never renumbered across regenerations; states (loading/empty/error) belong to their owning screen rather than getting their own id.
 - **`## Journey-to-Flow Traceability`** — Maps every PRD `UJ-###` to entry point, screens/overlays, states, happy-path completion, recovery paths, and supporting `US-###`/`FR-###`.
 - **`## Key User Flows`** — Step-by-step critical flows: start state, user action, system response, decision/failure branch, completion state, and the requirement satisfied.
 - **`## Product UX Guardrails`** — Declares `Interaction model: retrieval-only | generative | mixed | non-AI`, the product mental model, approved vocabulary, prohibited UI patterns, and trust/safety constraints.
@@ -275,7 +275,7 @@ Exactly these sections. After the brief is written, stage 05 auto-invokes `pm-pr
 - **`## What to Prototype`** — The bounded product slice/journey/behavior and its design/PRD source, plus why this slice is the right one to prototype first.
 - **`## Fidelity Level`** — The appropriate fidelity (wireframe, clickable mid-fi, polished mockup, static HTML) and why.
 - **`## Prototype Audience & Modes`** — Participant mode (the unbiased default experience) vs reviewer mode (facilitator surface holding journey IDs, research questions, build metadata).
-- **`## Screens to Include`** — Screens/modals/panels/empty/error states, each with purpose, primary content, controls, states, and design/PRD reference *(bulleted — the renderer extracts list items)*.
+- **`## Screens to Include`** — Screens/modals/panels/empty/error states, each citing its design-spec `SCR-###` id and carrying purpose, primary content, controls, states, and design/PRD reference *(bulleted — the renderer extracts list items)*.
 - **`## Interactions to Demonstrate`** — Interactions/transitions/state changes, each naming start state, user action, system response, resulting state, and source *(bulleted — renderer extracts)*.
 - **`## Prototype Data & Scenarios`** *(recommended)* — Realistic, safe sample data and task scenarios per participant/journey; prohibited sensitive/misleading content.
 - **`## Questions the Prototype Should Answer`** — Product/usability/workflow/feasibility questions, each mapped to a screen/interaction and the evidence that answers it *(bulleted)*.
@@ -357,7 +357,7 @@ Base sections:
 
 **If `genai_flag=true`,** append after `## Open Technical Questions`:
 
-- **`## Model Serving & Selection`** — Which models, how they're accessed/served (hosted vs self-hosted), versioning, provider/data-retention assumptions, and operational drivers.
+- **`## Model Serving & Selection`** — A per-model-role table (primary + pinned version, fallback chain, access path, failover trigger, cost/latency envelope), plus how availability was verified (approved vendor, region, quota headroom), how failover is invoked and surfaced, and the version-deprecation/re-validation plan. Traces back to the PRD's Model Selection Rationale.
 - **`## Prompt / Agent Architecture (Implementation)`** — The concrete orchestration: prompt templates, version management, agent/tool loop, state handling, control flow, and human-review/escalation paths.
 - **`## Tool / Function Implementation`** — The tools/functions exposed to the model: signatures, side effects, permissions, authorization checks, and output validation.
 - **`## Context & Retrieval Engineering`** — How context is assembled per invocation: retrieval/indexing strategy, chunking, ranking, caching, and window budgeting.
@@ -398,10 +398,13 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 |------|-----------|---------|
 | `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 4`); mirrors each artifact's frontmatter. |
 | `telemetry.jsonl` | `lib/telemetry.py` | Append-only, hash-chained event log (`prev_event_hash` → `event_hash`). |
-| `.traceability.yaml` | rebuilt on stage-06 approval | Machine-readable requirement↔test map from `US/FR/REQ` ↔ `TC` ids. |
+| `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v3): requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). |
 | `04-design-spec.html` | `hooks/post-approve.py` via `lib/html_render.py` (`templates/design-spec.html.j2`) | HTML companion rendered on stage-04 approval. |
 | `05-prototype-*.html` | `pm-prototype-html` (`templates/prototype-mockup.html.j2`) | Interactive prototype rendered after the stage-05 brief. |
 | `00-context/manifest.yaml` | `pm_context_import.py pack-manifest` | Assembles the context-wiki pack; records it in `.meta.yaml`. |
+| `handoff/` | `pm_share.py --package` | Read-only projection of the approved pipeline: `README.md`, `00-overview.md`, `epics/`, one `stories/US-###-*.md` per story (with the `SCR-###` screens it touches), and `reference/` (user journeys, **screen map**, QA scenarios, impact analysis, NFRs). Regenerated wholesale — never hand-edited. |
+| `handoff/jira-plan.{md,json}` | `pm_handoff.py plan` | Dry-run ticket map (`US-###`→epic, `FR-###`→story, `TSK-###`→task) reviewed before anything is created in Jira. |
+| `handoff/jira-import.csv` | `pm_handoff.py export` | The same plan as a Jira CSV-importer file for the offline route, with descriptions in Jira wiki markup and `Issue Id`/`Parent Id` parent linking. Shipped alongside `jira-import-README.md` (import + field-mapping guide). |
 
 ---
 

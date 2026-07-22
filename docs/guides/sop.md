@@ -174,7 +174,19 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 ```text
 Claude: /pm-share --package      Codex: $pm-share --package
 ```
-Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/`: one self-contained file per user story (walking the traceability spine US → FR → journey → covering test cases), plus an overview and reference docs. Add `--html` for a cross-linked `handoff/index.html`, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA re-approval to refresh the package.
+Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/`: one self-contained file per user story (walking the traceability spine US → FR → journey → covering test cases → serving `SCR-###` screens), plus an overview and reference docs (including `reference/screen-map.md`, the screen → stories reverse view). Add `--html` for a cross-linked `handoff/index.html`, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA re-approval to refresh the package.
+
+**Export to Jira (`/pm-handoff`).**
+```text
+Claude: /pm-handoff jira         Codex: $pm-handoff jira
+```
+Turns the approved pipeline into tracker tickets keyed to PM-OS's stable ids: each `US-###` becomes an epic, the `FR-###`/`REQ-###` it owns become child stories, and each approved TRD `TSK-###` becomes a child task. It requires an **approved** PRD and always runs **dry-run → you confirm → create → record** — nothing is created in Jira without an explicit yes, and only ticket keys come back into `.traceability.yaml`.
+
+Two routes:
+- **Connector** (default) — creates the tickets directly through the Atlassian MCP. Needs that connector authorized for your session; PM-OS never handles tokens.
+- **Offline** (`/pm-handoff jira --offline`) — writes `handoff/jira-import.csv` plus an import guide, which you upload through Jira's own CSV importer with your normal Jira login. No connector, no API token. Afterwards, recover the created keys from Jira (search the `pm-os` label) and record them with `pm_handoff.py record` so both routes end in the same state.
+
+Re-running creates *new* tickets — it does not detect ones you already created. Check `.traceability.yaml` for recorded tickets before a second run.
 
 ---
 
