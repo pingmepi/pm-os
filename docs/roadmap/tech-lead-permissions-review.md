@@ -68,7 +68,7 @@ Current mechanism (`lib/git_sync.py`): copies `telemetry.jsonl` / `feedback.json
 | Roadmap item | New access needed |
 |---|---|
 | Gemini runtime support | Gemini CLI + API access, if adopted |
-| Jira/Linear handoff | API tokens with write scope (create tickets) |
+| Jira/Linear handoff | API tokens with write scope (create tickets) — **only for the live-create path.** `/pm-handoff jira --offline` needs no access at all: it writes a `handoff/jira-import.csv` the PM uploads through Jira's own CSV importer with their existing Jira login |
 | Figma integration | Figma API token, read access to design files |
 | Dev-phase / QA bug analysis, release readiness | GitHub/GitLab API read access, bug-tracker access, release-tool access |
 | Feedback ingestion | Access to Indegene's support/analytics tooling (Intercom/Zendesk/PostHog/Amplitude equivalent) |

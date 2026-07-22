@@ -165,3 +165,66 @@ def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
     assert payload["tracker"] == "jira"
     assert payload["created_count"] == 3
     assert payload["tickets"] == {"US-001": "RA-1", "FR-001": "RA-2", "TSK-001": "RA-3"}
+
+
+def _csv_rows(proj):
+    import csv as _csv
+    with open(proj / "handoff" / "jira-import.csv", newline="", encoding="utf-8") as handle:
+        return list(_csv.reader(handle))
+
+
+def test_export_csv_writes_importer_file_and_guide(pmos, new_project):
+    """`export` renders the same plan as a Jira CSV-importer file plus an import guide,
+    entirely offline: one row per exportable item, epics before their children, and the
+    stable id carried both as a column and as a `pm-os-<id>` label so created keys can be
+    recovered and fed back to `record`."""
+    proj = new_project("ho-csv", "A problem")
+    _approve(pmos, proj, "03", _PRD_BODY)
+    _approve(pmos, proj, "08", _TRD_BODY)
+
+    res = run_script(pmos, "pm_handoff.py", "export", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    guide = (proj / "handoff" / "jira-import-README.md").read_text()
+    assert "Import issues from CSV" in guide and "pm_handoff.py record" in guide
+
+    rows = _csv_rows(proj)
+    header, body = rows[0], rows[1:]
+    assert header == ["Issue Id", "Parent Id", "Issue Type", "Summary", "Description",
+                      "Labels", "Labels", "PM-OS Id"]
+    by_ref = {row[7]: row for row in body}
+    # 2 epics + 3 stories + 3 tasks; the synthetic UNASSIGNED epic is never a ticket.
+    assert len(body) == 8 and "UNASSIGNED" not in by_ref
+    assert [row[2] for row in body[:2]] == ["Epic", "Epic"], "epics must precede their children"
+
+    # Parent Id points at the owning epic's Issue Id, inside this file.
+    assert by_ref["FR-001"][1] == by_ref["US-001"][0]
+    assert by_ref["TSK-001"][1] == by_ref["US-001"][0]
+    # An item with no owning story is exported parentless rather than under a fake epic.
+    assert by_ref["FR-003"][1] == ""
+    # Labels: the marker + the stable-id label used to map keys back.
+    assert by_ref["US-001"][5] == "pm-os" and by_ref["US-001"][6] == "pm-os-us-001"
+
+
+def test_export_csv_descriptions_are_jira_markup_with_provenance(pmos, new_project):
+    """Descriptions are converted from Markdown to Jira wiki markup and carry a
+    provenance footer naming the source artifact, so a ticket never reads as canonical."""
+    proj = new_project("ho-csv-markup", "A problem")
+    _approve(pmos, proj, "03", "## User Stories with Acceptance Criteria\n"
+                               "### US-001 — Rep sees **approved** content\n"
+                               "- Happy path: covered by `FR-001`\n"
+                               "## Functional Requirements\n"
+                               "- **FR-001 (must):** Surface approved assets.\n")
+    assert run_script(pmos, "pm_handoff.py", "export", cwd=proj).returncode == 0
+
+    description = {row[7]: row[4] for row in _csv_rows(proj)[1:]}["US-001"]
+    assert "* Happy path: covered by {{FR-001}}" in description
+    assert "**" not in description and "`" not in description
+    assert "03-prd.md@" in description and "Canonical source" in description
+
+
+def test_export_csv_blocks_when_prd_not_approved(pmos, new_project):
+    """`export` reuses the plan builder's gate: no approved PRD, no CSV on disk."""
+    proj = new_project("ho-csv-gate", "A problem")
+    res = run_script(pmos, "pm_handoff.py", "export", cwd=proj)
+    assert res.returncode != 0
+    assert not (proj / "handoff" / "jira-import.csv").exists()
