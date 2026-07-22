@@ -1,6 +1,6 @@
 ---
 name: pm-handoff
-description: Export the approved PM-OS pipeline to Jira — build a dry-run ticket plan, get explicit PM confirmation, create the epics/issues via the Atlassian MCP, then record the ticket keys back into the traceability spine.
+description: Export the approved PM-OS pipeline to Jira — build a dry-run ticket plan, get explicit PM confirmation, create the epics/issues via the Atlassian MCP, then record the ticket keys back into the traceability spine. With --offline, emit a Jira CSV-importer file instead of calling the connector.
 model_tier: utility
 reads: ["03-prd.md", "08-trd.md", ".traceability.yaml"]
 ---
@@ -21,7 +21,9 @@ record**. You never create or modify a Jira object without an explicit human
 never bulk copies of Jira data.
 
 `$ARGUMENTS` may name the tracker (`jira`); if omitted, assume `jira`. Any other
-tracker is not supported in this phase — say so and stop.
+tracker is not supported in this phase — say so and stop. `$ARGUMENTS` may also
+carry `--offline` (or `csv`), which switches to the CSV route below — the PM
+imports the file themselves and no connector is involved.
 
 # Preconditions
 
@@ -30,8 +32,9 @@ tracker is not supported in this phase — say so and stop.
 2. **Jira connector authorized.** Creating tickets requires the Atlassian MCP to
    be connected and authorized for this session. If it is not available, **stop**
    before creating anything and tell the PM to authorize the Atlassian/Jira
-   connector (claude.ai connector settings, or `/mcp` in an interactive session),
-   then re-run. Do not ask the PM for tokens or credentials.
+   connector (claude.ai connector settings, or `/mcp` in an interactive session) —
+   or to use the **offline CSV route** below, which needs no connector. Offer both;
+   do not ask the PM for tokens or credentials.
 3. **Target Jira project.** You need the destination Jira project key (e.g.
    `RA`). If the PM has not given it, ask for it before creating anything.
 
@@ -96,6 +99,30 @@ slot (preserved across future traceability rebuilds) and logs a `handoff_exporte
 telemetry event with refs/counts/keys only. Report its summary as-is, including
 any ids it skipped as "not found in the index" (those weren't created or the
 source stage isn't approved).
+
+# Offline path (no Atlassian connector)
+
+When the PM passes `--offline`/`csv`, or the Atlassian connector is unavailable
+and the PM would rather not wait for it, use this route instead of Steps 2–4:
+
+```bash
+python3 ~/.pm-os/scripts/pm_handoff.py export
+```
+
+This runs the same plan builder (same approval gate, same US→Epic / FR→Story /
+TSK→Task mapping) and writes `handoff/jira-import.csv` plus
+`handoff/jira-import-README.md`. Descriptions are converted to Jira wiki markup,
+each row carries its stable id as a `pm-os-<id>` label, and parent links are
+expressed with `Issue Id` / `Parent Id` so the epic hierarchy survives the import.
+
+Nothing is created — **the PM runs the import**. Report where the two files are,
+the issue counts, and any items exported without a parent, then point the PM at
+the README for the field mapping. There is no confirmation step here because
+nothing outward-facing happens; the PM's own import is the decision point.
+
+After the PM imports, they can recover the created keys from Jira (search the
+`pm-os` label, export to CSV) and record them with the same Step 4 command, so
+the offline route ends in exactly the same state as the connector route.
 
 # Guardrails
 

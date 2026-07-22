@@ -82,6 +82,7 @@ tests/
 │   ├── test_config.py      test_telemetry.py   test_text_metrics.py
 │   ├── test_context.py     test_git_sync.py    test_html_render.py
 │   ├── test_artifact_contracts.py     test_traceability.py
+│   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
@@ -192,6 +193,11 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_markdownish_escapes_untrusted_html` / `test_inline_escapes_and_formats` — untrusted Markdown is HTML-escaped (XSS guard); bold/code still render.
 - `test_parse_sections_splits_on_h2` / `test_parse_sections_no_headings_defaults_overview` — sections split on `##`; no-heading body becomes one "Overview" section.
 
+**`test_jira_markup.py`** — Markdown → Jira wiki markup (`lib/jira_markup.py`), used by the offline CSV export
+- `test_headings_emphasis_and_links` / `test_lists_preserve_nesting_depth` / `test_tables_mark_the_header_row_and_drop_the_separator` — the documented subset converts headings, `**bold**`→`*bold*`, `~~x~~`→`-x-`, links to `[text|url]`, bullets/ordered items with nesting depth, and tables to `||header||`/`|cell|`.
+- `test_code_is_protected_from_every_other_rule` / `test_unterminated_fence_is_closed` — inline code (`{{…}}`) and fenced blocks (`{code:lang}`) keep their contents verbatim so Markdown syntax inside a code sample survives; a truncated fence is closed rather than swallowing the rest of the ticket.
+- `test_quotes_rules_and_unknown_syntax_pass_through` — blockquotes/`----` convert, and unrecognized text is emitted unchanged (the safe failure mode for a ticket body).
+
 **`test_artifact_contracts.py`** — Stage 03–06 artifact quality contracts (`lib/artifact_contracts.py`)
 - `test_valid_prd_contract_has_no_errors` / `test_prd_without_journeys_is_an_error` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
 - `test_recommended_prd_sections_warn_without_blocking` — recommended sections warn instead of erroring; caller continues.
@@ -256,6 +262,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_plan_without_trd_exports_prd_only` — with no approved TRD, `plan` still exports PRD stories + functional requirements and carries zero tasks (`source_stamps.trd` is null).
 - `test_plan_excludes_tasks_when_trd_no_longer_approved` — Codex PR #36 P1 regression: when stage 08 is cascaded to stale (implicit re-approval of an edited PRD) *without* the derived `.traceability.yaml` being rebuilt, `plan` must not export the stale tasks — it rebuilds the index fresh and gates tasks on the live meta status.
 - `test_record_writes_ticket_keys_and_logs_telemetry` — `record` writes created ticket keys into the matching requirement's/task's `tickets` slot, skips ids absent from the index, survives a later `pm_trace.py rebuild`, and logs a `handoff_exported` event carrying refs/counts/keys only.
+- **Offline CSV route:** `test_export_csv_writes_importer_file_and_guide` (`export` writes `jira-import.csv` + the import guide with one row per exportable item, epics before their children, `Parent Id` pointing at the owning epic's `Issue Id`, unowned items parentless, the synthetic `UNASSIGNED` epic never emitted as a ticket, and the stable id carried as both a column and a `pm-os-<id>` label); `test_export_csv_descriptions_are_jira_markup_with_provenance` (descriptions are converted to wiki markup — no residual `**`/backticks — and carry a provenance footer naming the source artifact); `test_export_csv_blocks_when_prd_not_approved` (`export` reuses the plan builder's approval gate and writes nothing).
 
 **`test_share_package.py`** — Phase 4a readable handoff package, `pm-share --package` (`scripts/pm_share.py`; merged from the former `scripts/pm_handoff.py` — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B)
 - `test_package_generates_per_story_files_with_traceability` — approving 01/02/03/06 then running `pm_share.py --package` assembles per-story files in the boss house-format by walking US-### → FR-### → UJ-### → covering TC-###; the story lists both covering test cases, carries the authored story body, and is stamped with source provenance + a "DO NOT EDIT HERE" banner.
