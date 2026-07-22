@@ -53,3 +53,32 @@ def test_validator_cli_strict_fails_and_warn_mode_succeeds(pmos, new_project):
     assert strict.returncode != 0
     assert warn.returncode == 0
     assert "USER_JOURNEY_MISSING" in strict.stdout
+
+
+def test_approval_surfaces_stage_08_model_serving_warning(pmos, new_project):
+    """A GenAI TRD that never addresses model availability or a fallback warns at approval.
+    Guards the wiring, not just the check: stage 08 must be in pm_approve's validated set,
+    or the contract finding exists but no PM ever sees it. See docs/guides/testing.md §5 (T3)."""
+    proj = new_project("contract-trd", "A problem", genai=True)
+    make_draft(proj, "08", body=(
+        "## Model Serving & Selection\n\n"
+        "We will use a large language model with good reasoning quality.\n"
+    ))
+    res = run_script(pmos, "pm_approve.py", "08", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert "MODEL_SERVING_INCOMPLETE" in res.stdout
+    events = read_events(proj)
+    assert any(event["event_type"] == "artifact_validation_warning" for event in events)
+
+
+def test_approval_stays_silent_for_non_genai_trd(pmos, new_project):
+    """The same thin TRD in a non-GenAI project must not warn — the model checks are
+    gated on genai_flag, so conventional products never see AI-shaped findings."""
+    proj = new_project("contract-trd-plain", "A problem", genai=False)
+    make_draft(proj, "08", body=(
+        "## Model Serving & Selection\n\n"
+        "We will use a large language model with good reasoning quality.\n"
+    ))
+    res = run_script(pmos, "pm_approve.py", "08", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert "MODEL_SERVING_INCOMPLETE" not in res.stdout

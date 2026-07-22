@@ -317,7 +317,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('03'),
-       'prompt_version': '0.3.0',
+       'prompt_version': '0.4.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
