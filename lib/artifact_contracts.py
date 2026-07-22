@@ -34,6 +34,10 @@ TEST_CASE_ID_RE = re.compile(r"\bTC-\d{3,}\b", re.IGNORECASE)
 USER_STORY_ID_RE = re.compile(r"\bUS-\d{3,}\b", re.IGNORECASE)
 FUNCTIONAL_REQ_ID_RE = re.compile(r"\b(?:FR|REQ)-\d{3,}\b", re.IGNORECASE)
 JOURNEY_ID_RE = re.compile(r"\bUJ-\d{3,}\b", re.IGNORECASE)
+# Design-spec (stage 04) screens. SCR-### is the stable handle that lets the handoff
+# package tell a developer which screens a user story touches; each screen declares
+# the stories/requirements/journeys it serves.
+SCREEN_ID_RE = re.compile(r"\bSCR-\d{3,}\b", re.IGNORECASE)
 # TRD (stage 08) Work Breakdown tasks. TSK-### is the stable handle the tracker
 # export keys tickets off; each task declares the requirement ids it implements.
 TASK_ID_RE = re.compile(r"\bTSK-\d{3,}\b", re.IGNORECASE)
@@ -335,6 +339,62 @@ def split_task_blocks(text: str) -> dict[str, str]:
     return _split_id_blocks(text, _TSK_BLOCK_START_RE)
 
 
+# A SCR-### screen can be declared as a heading (`### SCR-001`), a bullet, an
+# ordered-list item, or a bare line, id optionally bold-wrapped — the same shapes the
+# US/TC/TSK splitters accept. Shared by the design-spec contract, the traceability
+# index, /pm-check and the handoff package so they all agree on what "a screen" is.
+_SCR_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>SCR-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# The `Serves:` line inside a screen block, tolerating list/bold markers and an
+# optional colon (`- **Serves:** US-003, FR-012, UJ-002`). Only this line is trusted
+# as the screen's trace, mirroring the task `Implements:` rule.
+_SERVES_LINE_RE = re.compile(
+    r"^[\s>*+\-]*\*{0,2}\s*serves\b\s*:?\**\s*(?P<rest>.*)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def split_screen_blocks(text: str) -> dict[str, str]:
+    """Map each SCR-### id to its introducing block. Mirrors ``split_task_blocks``
+    (via ``_split_id_blocks``) so the design-spec contract, the traceability index and
+    the handoff package stay in lockstep."""
+    return _split_id_blocks(text, _SCR_BLOCK_START_RE)
+
+
+def screen_id_declarations(text: str) -> list[str]:
+    """Return every SCR-### id *as declared at a block start*, including duplicates, in
+    document order — so /pm-check can flag a reused id that ``split_screen_blocks``
+    collapses."""
+    return [match.group("id").upper() for match in _SCR_BLOCK_START_RE.finditer(text or "")]
+
+
+def screen_serves(block: str) -> list[str]:
+    """Return the ids a screen declares it serves, read from the block's ``Serves:``
+    line(s), unique and upper-cased in first-seen order.
+
+    Accepts requirement ids (``US``/``FR``/``REQ-###``) and journey ids (``UJ-###``) —
+    a screen legitimately serves a journey step as well as a story. Only the ``Serves:``
+    line is trusted; an id mentioned elsewhere in the block's prose is not counted,
+    which is exactly the untraced-screen signal the contract flags."""
+    seen: dict[str, None] = {}
+    for match in _SERVES_LINE_RE.finditer(block or ""):
+        rest = match.group("rest")
+        for sid in REQUIREMENT_ID_RE.findall(rest) + JOURNEY_ID_RE.findall(rest):
+            seen.setdefault(sid.upper(), None)
+    return list(seen)
+
+
+def information_architecture_section(body: str) -> str:
+    """Return the text under the design spec's ``## Information Architecture`` heading
+    (up to the next ``##``), or '' if absent. Screen parsing is scoped to this section
+    so a stray ``SCR-###`` mentioned elsewhere in the spec (e.g. under Key User Flows)
+    is not indexed as a screen in its own right."""
+    return _section(_sections(body or ""), "Information Architecture") or ""
+
+
 def work_breakdown_section(body: str) -> str:
     """Return the text under the TRD's ``## Work Breakdown`` heading (up to the next
     ``##``), or '' if absent. Task parsing is scoped to this section so a stray
@@ -628,7 +688,32 @@ def _validate_stage_04(project_root: Path, sections: dict[str, str], body: str) 
             "ERROR", "INTERACTION_MODEL_MISSING",
             "Product UX Guardrails must declare Interaction model: retrieval-only | generative | mixed | non-AI.",
         ))
+    findings.extend(_validate_screens(_section(sections, "Information Architecture") or ""))
     return findings
+
+
+def _validate_screens(ia_section: str) -> list[Finding]:
+    """Screens are the handoff's missing link: without a stable id and a declared
+    trace, a story file cannot tell a developer which screens it touches.
+
+    WARNING-only by design — design specs approved before contract v3 carry no
+    ``SCR-###`` ids at all, and must keep passing (CLAUDE.md: existing projects keep
+    working). The handoff degrades to "not captured in source" for them.
+    """
+    blocks = split_screen_blocks(ia_section)
+    if not blocks:
+        return [Finding(
+            "WARNING", "SCREEN_IDS_MISSING",
+            "Information Architecture declares no SCR-### screens, so the handoff package "
+            "cannot map screens to user stories.",
+        )]
+    untraced = sorted(sid for sid, block in blocks.items() if not screen_serves(block))
+    if untraced:
+        return [Finding(
+            "WARNING", "SCREEN_TRACE_MISSING",
+            f"Screens with no `Serves:` trace to a story/requirement/journey: {', '.join(untraced)}",
+        )]
+    return []
 
 
 def _validate_stage_05(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:

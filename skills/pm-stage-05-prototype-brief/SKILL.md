@@ -3,7 +3,7 @@ name: pm-stage-05-prototype-brief
 description: Generate the Prototype Brief for stage 05 from the approved design spec and upstream product artifacts.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md"]
 writes: ["05-prototype-brief.md", "05-prototype-mockup.html"]
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 ---
 
 # Role and goal
@@ -143,7 +143,9 @@ GenAI handling:
 
 ## Screens to Include
 
-<Use bullets or a numbered list. List the screens, modals, panels, empty states, and error states needed for the prototype. Each item should follow: Screen name - purpose; primary content; key controls; states to show; source design/PRD reference.>
+<Use bullets or a numbered list. List the screens, modals, panels, empty states, and error states needed for the prototype. Each item should follow: `SCR-###` id - screen name - purpose; primary content; key controls; states to show; source design/PRD reference.
+
+Cite the design spec's `SCR-###` id for every screen you carry into the prototype — that id is what links the prototype back to the approved screen inventory and to the stories the handoff maps to it. If the approved design spec predates screen ids and has none, name the screen exactly as the spec does instead.>
 
 For each screen, include enough layout and state detail for the renderer to create a lo-fi HTML wireframe: screen purpose, primary content area, controls, empty/error/loading states, and what the user should notice first.
 
@@ -247,7 +249,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('05'),
-       'prompt_version': '0.2.0',
+       'prompt_version': '0.3.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

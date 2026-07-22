@@ -654,3 +654,92 @@ def test_missing_genai_sections_are_not_flagged(tmp_path):
     _write(root, "03-prd.md", _valid_prd(), contract_version=3)
     codes = {f.code for f in contracts.validate_artifact(root, "03")}
     assert "MODEL_SELECTION_INCOMPLETE" not in codes
+
+
+# --- Screens (SCR-###, contract v3) -------------------------------------------
+
+_DESIGN_IA = """## Information Architecture
+- **SCR-001 — Case queue**
+  - Purpose: landing surface.
+  - Serves: US-001, UJ-001
+- **SCR-002 — Case detail**
+  - Purpose: single case.
+  - Serves: FR-002
+- **SCR-003 — Settings**
+  - Purpose: configuration. Mentions US-001 in prose only.
+## Key User Flows
+- The operator moves from SCR-001 to SCR-002.
+"""
+
+
+def test_split_screen_blocks_and_serves():
+    """Every SCR-### declared in the IA is found in first-seen order, and `Serves:`
+    reads requirement *and* journey ids from that line only — a prose mention (SCR-003)
+    is not a trace, which is exactly the untraced-screen signal."""
+    ia = contracts.information_architecture_section(_DESIGN_IA)
+    blocks = contracts.split_screen_blocks(ia)
+    assert list(blocks) == ["SCR-001", "SCR-002", "SCR-003"]
+    assert contracts.screen_serves(blocks["SCR-001"]) == ["US-001", "UJ-001"]
+    assert contracts.screen_serves(blocks["SCR-002"]) == ["FR-002"]
+    assert contracts.screen_serves(blocks["SCR-003"]) == []
+
+
+def test_information_architecture_section_scopes_screen_parsing():
+    """Screen parsing is scoped to ## Information Architecture, so a SCR-### referenced
+    under Key User Flows is a reference, not a second declaration; '' when absent."""
+    ia = contracts.information_architecture_section(_DESIGN_IA)
+    assert "SCR-003" in ia and "Key User Flows" not in ia
+    assert contracts.information_architecture_section("## Typography\nNo IA here.\n") == ""
+
+
+def test_screen_id_declarations_keeps_duplicates():
+    """screen_id_declarations returns block-start ids including duplicates so /pm-check
+    can flag a reused id, unlike split_screen_blocks which collapses them."""
+    text = "- **SCR-001 — a**\n- **SCR-001 — dup**\n- **SCR-002 — b**\n"
+    assert contracts.screen_id_declarations(text) == ["SCR-001", "SCR-001", "SCR-002"]
+    assert list(contracts.split_screen_blocks(text)) == ["SCR-001", "SCR-002"]
+
+
+def _design_spec(ia_section: str) -> str:
+    return (
+        "# Design Spec\n" + ia_section +
+        "## Journey-to-Flow Traceability\nUJ-001 maps to the queue flow.\n"
+        "## Key User Flows\nFlow.\n"
+        "## Product UX Guardrails\nInteraction model: non-AI\n"
+        "## Design Principles\nClarity.\n## Component Inventory\nTable.\n"
+        "## Typography\nScale.\n## Color Tokens\nTokens.\n## Spacing Tokens\nScale.\n"
+        "## Iconography\nSet.\n## Accessibility Notes\nKeyboard and focus order.\n"
+    )
+
+
+def test_design_spec_without_screen_ids_warns_not_errors(tmp_path):
+    """A design spec with no SCR-### ids warns (the handoff cannot map screens to
+    stories) but never blocks — specs approved before contract v3 must keep passing."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    _write(root, "04-design-spec.md", _design_spec("## Information Architecture\nA queue and a detail page.\n"), contract_version=3)
+    findings = contracts.validate_artifact(root, "04")
+    assert any(f.code == "SCREEN_IDS_MISSING" for f in findings)
+    assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
+
+
+def test_design_spec_screen_without_serves_warns(tmp_path):
+    """A declared screen with no `Serves:` line is named in a SCREEN_TRACE_MISSING
+    warning, so the PM sees which screen is unlinked."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    _write(root, "04-design-spec.md", _design_spec(_DESIGN_IA), contract_version=3)
+    findings = contracts.validate_artifact(root, "04")
+    warning = next(f for f in findings if f.code == "SCREEN_TRACE_MISSING")
+    assert "SCR-003" in warning.message and "SCR-001" not in warning.message
+    assert contracts.error_count(findings) == 0
+
+
+def test_fully_traced_screens_are_clean(tmp_path):
+    """Screens that all carry a Serves: line produce no screen findings."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    ia = "## Information Architecture\n- **SCR-001 — Queue**\n  - Serves: US-001, FR-001\n"
+    _write(root, "04-design-spec.md", _design_spec(ia), contract_version=3)
+    codes = {f.code for f in contracts.validate_artifact(root, "04")}
+    assert "SCREEN_IDS_MISSING" not in codes and "SCREEN_TRACE_MISSING" not in codes
