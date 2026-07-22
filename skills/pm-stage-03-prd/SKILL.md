@@ -3,7 +3,7 @@ name: pm-stage-03-prd
 description: Generate the Product Requirements Document for stage 03 from the approved brief and scope.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md"]
 writes: "03-prd.md"
-prompt_version: 0.3.0
+prompt_version: 0.4.0
 model_tier: deep-reasoning
 ---
 
@@ -207,7 +207,16 @@ If `genai_flag=true`, append these additional sections after `## Risks`:
 ```markdown
 ## Model Selection Rationale
 
-<Explain which model characteristics matter for this product and why they fit the use case. Stay at the product requirement level unless the approved scope names a specific provider or model.>
+<Answer, at the product requirement level: what class of model this product needs, whether it is actually available to this team, and what runs if it is not. Cover all four:
+
+1. **Capability profile** — the demands the use case places on the model: reasoning depth, latency budget, context length, multimodality, structured-output/tool-calling needs, and language/domain coverage. Tie each to a requirement or NFR rather than listing generic desiderata.
+2. **Model family/type** — the *class* of model that profile implies (e.g. frontier reasoning model, fast general-purpose model, small self-hostable model, embedding model, vision model), and why a cheaper or smaller class is or is not sufficient. Name a specific provider/model only if the approved scope, the context wiki, or a stakeholder decision already fixed it.
+3. **Availability constraints** — whether that class is actually reachable for this team and deployment: hosted vendor API vs an internal gateway vs self-hosted, vendor-approval status, data-residency/regulatory limits on where inference may run, and any quota/rate-limit or procurement constraint. Take these from the context wiki's `## Technical constraints` / `## Stakeholder authority` and the approved scope's constraints — do not invent an approved-vendor list.
+4. **Primary and fallback** — the primary choice plus at least one named fallback, the conditions that trigger the switch (provider outage, quota/rate limit, cost ceiling, latency SLO breach, model deprecation/version retirement), and what materially changes for the user under the fallback (quality, latency, or cost delta). If no fallback is viable, say so and state the resulting single-provider risk.
+
+Where a choice genuinely cannot be made at product level, say so explicitly and name what the TRD must decide — do not leave it silent.
+
+This section is about *which model runs*. `## Fallback Behavior` below is about *what the user sees* when a call is uncertain, slow, or fails; keep the two distinct and do not merge them.>
 
 ## Prompt/Agent Architecture
 
@@ -353,6 +362,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Scope open questions must either be carried forward as requirement blockers or resolved with a clearly stated conservative assumption.
 - Edge Cases and Risks must surface meaningful failure modes and delivery concerns rather than obvious truisms.
 - If `genai_flag=true`, the GenAI sections must describe actual product behavior, validation, failure handling, and human review needs, not abstract AI commentary.
+- If `genai_flag=true`, Model Selection Rationale must state the model family/type the capability profile implies, whether it is actually available to this team (deployment path, vendor approval, data residency, quota), and a named primary plus at least one fallback with the conditions that trigger the switch — engineering must not have to guess what to build against or what happens when it is unavailable.
 - If `genai_flag=false`, the PRD must use only the base sections and must not include AI-specific requirements or terminology unless explicitly required by the approved scope.
 
 # Self-check before writing
@@ -366,4 +376,5 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 7. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
 8. Are edge cases and risks concrete enough to shape design or delivery decisions?
 9. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
-10. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
+10. If `genai_flag=true`, does Model Selection Rationale name a model family, its availability constraints, and a primary + fallback with switch triggers — and stay distinct from the user-facing Fallback Behavior section?
+11. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?

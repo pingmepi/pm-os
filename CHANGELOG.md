@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-07-22
+
+### Added
+- **Model selection rationale must name availability and a fallback (tech-lead feedback).** For GenAI products, the spec used to say which model *characteristics* mattered but never whether that model was actually obtainable, or what runs when it is not. The stage-03 PRD's `## Model Selection Rationale` prompt now asks for four things: the capability profile the use case demands, the **model family/type** it implies, the **availability constraints** that apply (hosted API vs internal gateway vs self-hosted, vendor approval, data residency, quota — sourced from the context wiki's technical constraints rather than invented), and a **named primary plus at least one fallback** with the conditions that trigger the switch and what changes for the user. It is explicitly distinguished from `## Fallback Behavior`, which stays user-facing. The stage-08 TRD's `## Model Serving & Selection` now requires a per-model-role table (primary + pinned version, fallback chain, access path, failover trigger, cost/latency envelope) plus how availability was verified, how failover is invoked and surfaced, and a version-deprecation/re-validation plan traced back to the PRD.
+- **Artifact contract v3 — GenAI model checks.** `lib/artifact_contracts.py` gains `MODEL_SELECTION_INCOMPLETE` (stage 03) and `MODEL_SERVING_INCOMPLETE` (stage 08), both **WARNING-only** and both fired only when `.meta.yaml` sets `genai_flag: true`, so existing artifacts and every non-GenAI project are untouched. Stage 08 is now validated for this one check despite having no required-section contract — and is exempt from the `artifact_contract_version` frontmatter warning for that reason, so existing TRDs stay quiet. `CONTRACT_VERSION` → 3; v1/v2 artifacts on disk keep passing.
+
 ## 1.2.0 — 2026-07-21
 
 ### Added

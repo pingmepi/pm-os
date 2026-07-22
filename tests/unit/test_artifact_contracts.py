@@ -570,3 +570,87 @@ def test_work_breakdown_section_scopes_task_parsing():
     assert "TSK-001" in section and "TSK-999" not in section
     assert list(contracts.split_task_blocks(section)) == ["TSK-001"]
     assert contracts.work_breakdown_section("## Architecture\nNo breakdown here.\n") == ""
+
+
+# --- GenAI model selection / serving (contract v3) ----------------------------
+
+_MODEL_SECTION_COMPLETE = """## Model Selection Rationale
+Needs deep reasoning over long clinical documents, so a frontier reasoning model.
+Available today only through the approved vendor's EU-region hosted API (quota 1M
+tokens/day); self-hosting is not approved. Primary is that model; the fallback is
+the smaller fast model in the same family, triggered by quota exhaustion, a
+provider outage, or deprecation of the pinned version — answers get terser.
+"""
+
+_MODEL_SECTION_VAGUE = """## Model Selection Rationale
+The product needs a model that reasons well over long documents and responds quickly.
+"""
+
+
+def _genai_project(tmp_path: Path) -> Path:
+    (tmp_path / ".meta.yaml").write_text(
+        "schema_version: 3\nproject_slug: contract-test\nproject_name: Contract Test\n"
+        "genai_flag: true\npm_os_version: 0\nstages: []\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def test_genai_prd_model_rationale_without_availability_or_fallback_warns(tmp_path):
+    """A GenAI PRD whose Model Selection Rationale names neither an availability path
+    nor a fallback model warns (WARNING, never blocking) so the PM sees the gap before
+    engineering has to guess what to build against."""
+    root = _genai_project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd() + _MODEL_SECTION_VAGUE, contract_version=3)
+    findings = contracts.validate_artifact(root, "03")
+    warning = next(f for f in findings if f.code == "MODEL_SELECTION_INCOMPLETE")
+    assert "availability" in warning.message and "fallback" in warning.message
+    assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
+
+
+def test_genai_prd_model_rationale_with_availability_and_fallback_is_clean(tmp_path):
+    """Naming the deployment path, region/quota, and a named fallback with its switch
+    trigger satisfies the check — no MODEL_SELECTION_INCOMPLETE warning."""
+    root = _genai_project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd() + _MODEL_SECTION_COMPLETE, contract_version=3)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "MODEL_SELECTION_INCOMPLETE" not in codes
+
+
+def test_non_genai_project_skips_the_model_selection_check(tmp_path):
+    """genai_flag=false projects have no GenAI sections by contract, so the check never
+    fires for them — the same vague text is silent here."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd() + _MODEL_SECTION_VAGUE, contract_version=3)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "MODEL_SELECTION_INCOMPLETE" not in codes
+
+
+def test_trd_model_serving_check_is_warning_only_and_version_exempt(tmp_path):
+    """Stage 08 is validated for the GenAI model-serving gap only: a vague section warns,
+    a complete one is clean, and neither path emits CONTRACT_VERSION_MISSING — the TRD
+    carries no section contract, so existing TRDs on disk stay quiet."""
+    root = _genai_project(tmp_path)
+    vague = "# TRD\n## Architecture\nServices.\n## Model Serving & Selection\nA strong model, called per request.\n"
+    _write(root, "08-trd.md", vague, contract_version=None)
+    findings = contracts.validate_artifact(root, "08")
+    assert {f.code for f in findings} == {"MODEL_SERVING_INCOMPLETE"}
+    assert contracts.error_count(findings) == 0
+
+    complete = (
+        "# TRD\n## Architecture\nServices.\n## Model Serving & Selection\n"
+        "| Role | Primary | Fallback chain |\n"
+        "Primary is pinned and served from the approved vendor's EU region (quota headroom 3x);\n"
+        "fallback to the self-hosted small model on rate limit, outage, or deprecation.\n"
+    )
+    _write(root, "08-trd.md", complete, contract_version=None)
+    assert contracts.validate_artifact(root, "08") == []
+
+
+def test_missing_genai_sections_are_not_flagged(tmp_path):
+    """An absent Model Selection Rationale is not a finding — the GenAI sections are
+    appended conditionally, and flagging absence would fail every pre-v3 PRD."""
+    root = _genai_project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd(), contract_version=3)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "MODEL_SELECTION_INCOMPLETE" not in codes
