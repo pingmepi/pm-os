@@ -7,6 +7,27 @@
 
 ---
 
+## Contents
+
+1. [Context and intent](#1-context-and-intent)
+2. [Non-negotiables](#2-non-negotiables)
+3. [Repos and structure](#3-repos-and-structure)
+4. [Project structure (on PM's machine)](#4-project-structure-on-pms-machine)
+5. [Data schemas](#5-data-schemas)
+6. [State machine](#6-state-machine)
+7. [Skills — specifications](#7-skills--specifications)
+8. [Per-stage prompt guidelines](#8-per-stage-prompt-guidelines)
+9. [Hooks — specifications](#9-hooks--specifications)
+10. [Library specifications](#10-library-specifications)
+11. [Build phasing (for executor)](#11-build-phasing-for-executor)
+12. [Technical defaults](#12-technical-defaults)
+13. [Out of scope for v1](#13-out-of-scope-for-v1)
+14. [Questions to escalate to Karan, not resolve unilaterally](#14-questions-to-escalate-to-karan-not-resolve-unilaterally)
+15. [Acceptance criteria](#15-acceptance-criteria)
+16. [Notes on building this system *using* Claude Code](#16-notes-on-building-this-system-using-claude-code)
+
+---
+
 ## 1. Context and intent
 
 PM-OS is an internal tool that expedites PM work at Indegene across the full PDLC. It is not a replacement for the dev team, design team, or QA — it is a recommendation and coordination layer that keeps one coherent thread from idea to ship.

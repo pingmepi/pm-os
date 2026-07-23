@@ -4,6 +4,18 @@ PM-OS is a local-first, PM-led PDLC operating layer. It maintains one coherent t
 
 It is built as an agent skill suite for Claude Code and OpenAI Codex, plus small Python helpers. There is no web app or backend service: project state lives in Markdown, YAML, and JSONL files on the user's machine.
 
+## Contents
+
+- [Decision Authority](#decision-authority)
+- [What PM-OS Does](#what-pm-os-does)
+- [Design Goals](#design-goals)
+- [Repository Layout](#repository-layout)
+- [Basic Usage](#basic-usage)
+- [Project Data](#project-data)
+- [Safety Notes](#safety-notes)
+- [Testing](#testing)
+- [Requirements](#requirements)
+
 ## Decision Authority
 
 PM-OS is not the final decision-maker and is not an executor.
