@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 — 2026-07-23
+
+### Fixed
+- **Screen map counts journey-only coverage as covered (Codex review on [#40](https://github.com/pingmepi/pm-os/pull/40)).** `reference/screen-map.md` built its "Stories with no screen" list from each screen's literal `Serves:` ids, so a story covered *only* through a journey link (a screen serves `UJ-001`, and `UJ-001` serves `US-001`) was reported uncovered in the map even though its own story file listed the screen — the two views of the same package disagreed. Coverage is now taken from the same per-story resolution the story files use (requirements *and* journeys), so the map and the story files can't contradict each other.
+
+### Changed
+- **Docs:** README, the SOP, and the build spec (`docs/reference/pm-os-spec.md`) gained a table of contents. The demo assets (`docs/PM-OS-demo.pptx`, `docs/build_deck.js`, `docs/run-of-show.md`) are now `export-ignore`d, so the offline delivery zip carries only PM-facing material.
+
 ## 1.3.0 — 2026-07-22
 
 ### Added
