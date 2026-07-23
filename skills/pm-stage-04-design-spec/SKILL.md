@@ -3,7 +3,7 @@ name: pm-stage-04-design-spec
 description: Generate the Design Spec for stage 04 from the approved PRD and upstream product artifacts.
 reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md"]
 writes: "04-design-spec.md"
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 model_tier: deep-reasoning
 ---
 
@@ -149,7 +149,22 @@ GenAI handling:
 
 ## Information Architecture
 
-<Describe the screen/page inventory, hierarchy, entry points, primary navigation, secondary navigation if needed, and rules for how users move through the MVP. Tie each major screen to the PRD requirement or user story it supports.>
+<Describe the hierarchy, entry points, primary navigation, secondary navigation if needed, and rules for how users move through the MVP.
+
+Then give the **screen/page inventory as a list of stable `SCR-###` screens** — these ids are the handoff spine for design, exactly as `US-###`/`FR-###` are for requirements: the handoff package uses them to tell a developer which screens a story touches. Declare each screen like this:
+
+```markdown
+- **SCR-001 — Case queue**
+  - Purpose: the operator's landing surface; lists open cases with status and owner.
+  - Serves: US-001, FR-003, UJ-001
+```
+
+Rules:
+- Number sequentially from `SCR-001` with no gaps, and never reuse an id.
+- Every screen needs a `Serves:` line citing the PRD ids it supports (`US-###` / `FR-###` / `REQ-###` / `UJ-###`). Only this line is read as the trace — ids mentioned in prose elsewhere do not count.
+- Cover every user story with at least one screen, or say explicitly why a story is screenless (e.g. a backend-only requirement).
+- List real screens and overlays only. Loading, empty, error, success, and degraded **states** belong to their owning screen — do not give a state its own `SCR-###`.
+- **When regenerating, reuse the same `SCR-###` for the same screen** and only append ids for genuinely new ones. Renumbering breaks the handoff's screen map.>
 
 ## Journey-to-Flow Traceability
 
@@ -273,7 +288,7 @@ After generating, do the following in order:
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('04'),
-       'prompt_version': '0.2.0',
+       'prompt_version': '0.3.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
@@ -304,7 +319,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 
 # Quality bar
 
-- Information Architecture must include a clear screen/page inventory.
+- Information Architecture must include a clear screen/page inventory declared as stable `SCR-###` screens — sequential, never reused across regenerations, each with a `Serves:` line tracing to the PRD ids it supports. These ids are the design half of the handoff spine; without them the handoff package cannot tell a developer which screens a story touches.
 - Journey-to-Flow Traceability must reference every PRD `UJ-###` and preserve its start, completion, and recovery context.
 - Product UX Guardrails must declare the interaction model and prevent AI or navigation patterns that contradict the PRD.
 - Every major screen, flow, and component must trace to an approved PRD requirement, story, non-functional requirement, or edge case.
@@ -317,7 +332,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 
 # Self-check before writing
 
-1. Does every major screen or component trace back to an approved PRD requirement?
+1. Does every major screen or component trace back to an approved PRD requirement — and does every `SCR-###` carry a `Serves:` line, with every user story served by at least one screen (or explicitly noted as screenless)?
 2. Is every PRD journey mapped to UI flows, screens/overlays, states, and recovery paths?
 3. Does Product UX Guardrails declare the correct interaction model and prohibit misleading patterns?
 4. Are the key flows clear enough to sketch without another scoping conversation?

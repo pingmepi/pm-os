@@ -367,15 +367,16 @@ Goal: connect approved product intent to the systems dev/QA actually use — val
 
 **Phase 4a — Local handoff packet (zero integrations). — ✅ COMPLETE (v1.0.12)**
 
-- Shipped as `/pm-share --package` (`scripts/pm_share.py`): a decomposed per-story handoff package assembled offline from the approved pipeline by walking the traceability spine (`US-### → FR-### → UJ-### → covering TC-###`). Pure local Markdown; no auth, no network.
+- Shipped as `/pm-share --package` (`scripts/pm_share.py`): a decomposed per-story handoff package assembled offline from the approved pipeline by walking the traceability spine (`US-### → FR-### → UJ-### → covering TC-### → serving SCR-###`). Pure local Markdown; no auth, no network.
+- **Screen mapping (v1.3.0, tech-lead feedback):** the design spec declares stable `SCR-###` screens with a `Serves:` trace; each story file lists the screens it touches, and `reference/screen-map.md` gives the reverse view (screen → stories, plus stories no screen covers).
 
 Checks (met):
-- Handoff package lists each story with its requirements, journey, and covering `TC` IDs.
+- Handoff package lists each story with its requirements, journey, covering `TC` IDs, and the `SCR-###` screens serving it.
 - Generated entirely offline from approved artifacts.
 
 **Phase 4b — One tracker, export-only (opt-in, dry-run -> confirm -> create). — ✅ COMPLETE**
 
-Shipped as `/pm-handoff jira` (`skills/pm-handoff/` + `scripts/pm_handoff.py`), gated on approved status and built on the Phase 3.5/3.5b stable IDs. The tracker is **Jira** (the single tracker chosen per the roadmap principle — not both). `pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a tracker-agnostic ticket map — each `US-###` → epic, its `FR-###`/`REQ-###` → child story, each approved `TSK-###` → child task under the owning epic — and writes a PM-readable dry-run (`handoff/jira-plan.md`) plus a machine map (`.json`), fully offline. The skill then runs **dry-run → PM confirms → create via the Atlassian MCP → `pm_handoff.py record`**, which writes each returned ticket key into the matching requirement's/task's `tickets: []` slot in `.traceability.yaml` and logs a `handoff_exported` telemetry event. GitHub/GitLab PR/commit refs and Figma source links remain **separate, later, read-only "reference capture" units** — not bundled here.
+Shipped as `/pm-handoff jira` (`skills/pm-handoff/` + `scripts/pm_handoff.py`), gated on approved status and built on the Phase 3.5/3.5b stable IDs. The tracker is **Jira** (the single tracker chosen per the roadmap principle — not both). `pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a tracker-agnostic ticket map — each `US-###` → epic, its `FR-###`/`REQ-###` → child story, each approved `TSK-###` → child task under the owning epic — and writes a PM-readable dry-run (`handoff/jira-plan.md`) plus a machine map (`.json`), fully offline. The skill then runs **dry-run → PM confirms → create via the Atlassian MCP → `pm_handoff.py record`**, which writes each returned ticket key into the matching requirement's/task's `tickets: []` slot in `.traceability.yaml` and logs a `handoff_exported` telemetry event. **Offline route (v1.3.0, tech-lead feedback):** `/pm-handoff jira --offline` (`pm_handoff.py export`) renders the same plan as `handoff/jira-import.csv` + an import guide, with descriptions converted to Jira wiki markup (`lib/jira_markup.py`) and `Issue Id`/`Parent Id` parent linking — no connector, no tokens; the PM runs Jira's own CSV importer and records the keys back with the same `record` step. GitHub/GitLab PR/commit refs and Figma source links remain **separate, later, read-only "reference capture" units** — not bundled here.
 
 Checks (met):
 - Tickets map to requirements/tasks via stable IDs (`US`/`FR`/`REQ`/`TSK`), recorded back locally.

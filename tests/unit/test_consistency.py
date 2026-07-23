@@ -271,3 +271,80 @@ def test_trd_task_outside_work_breakdown_does_not_count(tmp_path):
         "## Architecture\nProse.\n"
         "## Open Technical Questions\n- TSK-001 investigate migration risk\n")
     assert _trd_codes(root) == [consistency.CODE_TRD_WORK_BREAKDOWN_MISSING]
+
+
+# --- Design-spec screens (SCR-###) ---------------------------------------------
+
+def _project_with_design(tmp_path: Path, ia_body: str, *, status="draft") -> Path:
+    """Build a project with an approved PRD and a stage-04 design spec carrying ia_body."""
+    _write_meta(tmp_path, [
+        _stage("03", status="approved", content_hash="x"),
+        _stage("04", status=status),
+    ])
+    frontmatter.write(str(tmp_path / "03-prd.md"),
+                      {"stage": "03-prd", "status": "approved", "content_hash": "x"}, _PRD_FOR_TRD)
+    frontmatter.write(str(tmp_path / "04-design-spec.md"),
+                      {"stage": "04-design-spec", "status": status}, ia_body)
+    return tmp_path
+
+
+def _screen_codes(tmp_path: Path) -> list[str]:
+    return [i.code for i in consistency.check_project(tmp_path)
+            if i.code.startswith("SCREEN_") or i.code == consistency.CODE_STORY_HAS_NO_SCREEN]
+
+
+def test_design_spec_without_screen_ids_warns(tmp_path):
+    """A design spec with no SCR-### ids yields one warning and nothing else — specs
+    written before screen ids existed degrade gracefully instead of failing the check."""
+    root = _project_with_design(tmp_path, "## Information Architecture\nA queue and a detail page.\n")
+    issues = [i for i in consistency.check_project(root) if i.code == consistency.CODE_SCREEN_IDS_MISSING]
+    assert issues and issues[0].severity == "warning"
+    assert _screen_codes(root) == [consistency.CODE_SCREEN_IDS_MISSING]
+
+
+def test_duplicate_screen_id_is_error(tmp_path):
+    """Two screens sharing a SCR-### id is an ERROR — reused ids collide in the
+    handoff's screen map."""
+    root = _project_with_design(tmp_path,
+        "## Information Architecture\n"
+        "- **SCR-001 — queue**\n  - Serves: US-001\n"
+        "- **SCR-001 — dup**\n  - Serves: US-002\n")
+    issues = [i for i in consistency.check_project(root) if i.code == consistency.CODE_SCREEN_DUPLICATE]
+    assert issues and issues[0].severity == "error"
+
+
+def test_screen_gap_orphan_unknown_and_story_coverage_are_warnings(tmp_path):
+    """Id gaps, screens with no Serves: trace, traces to ids absent from the PRD, and
+    user stories no screen serves are all WARNINGs, so a work-in-progress design spec
+    still passes."""
+    root = _project_with_design(tmp_path,
+        "## Information Architecture\n"
+        "- **SCR-001 — queue**\n  - Serves: US-001\n"
+        "- **SCR-003 — gap + unknown**\n  - Serves: FR-999\n"
+        "- **SCR-004 — orphan**\n  - Purpose: no serves line.\n")
+    codes = _screen_codes(root)
+    assert consistency.CODE_SCREEN_ID_GAP in codes        # missing SCR-002
+    assert consistency.CODE_SCREEN_UNKNOWN_REQ in codes   # FR-999 not in the PRD
+    assert consistency.CODE_SCREEN_ORPHAN in codes        # SCR-004 has no Serves:
+    assert consistency.CODE_STORY_HAS_NO_SCREEN in codes  # US-002 unserved
+    assert all(i.severity == "warning" for i in consistency.check_project(root)
+               if i.code in codes)
+
+
+def test_fully_traced_screens_produce_no_screen_issues(tmp_path):
+    """Sequential screens that serve every user story raise nothing — including a
+    screen that serves a journey id alongside a story."""
+    root = _project_with_design(tmp_path,
+        "## Information Architecture\n"
+        "- **SCR-001 — queue**\n  - Serves: US-001, FR-010\n"
+        "- **SCR-002 — detail**\n  - Serves: US-002\n")
+    assert _screen_codes(root) == []
+
+
+def test_screens_outside_information_architecture_are_ignored(tmp_path):
+    """A SCR-### under another heading is a reference, not a declaration — the check
+    reports the IA as having no screens rather than validating the stray id."""
+    root = _project_with_design(tmp_path,
+        "## Information Architecture\nProse only.\n"
+        "## Key User Flows\n- **SCR-009 — stray**\n  - Serves: US-001\n")
+    assert _screen_codes(root) == [consistency.CODE_SCREEN_IDS_MISSING]

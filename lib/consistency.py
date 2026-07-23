@@ -21,7 +21,12 @@ from hashing import CompositeHashError, stage_content_hash
 from frontmatter import read as fm_read
 from telemetry import verify_chain
 from artifact_contracts import (
+    JOURNEY_ID_RE,
+    information_architecture_section,
     requirement_ids,
+    screen_id_declarations,
+    screen_serves,
+    split_screen_blocks,
     split_task_blocks,
     task_id_declarations,
     task_implements,
@@ -53,6 +58,12 @@ CODE_TRD_TASK_ORPHAN = "TRD_TASK_ORPHAN"
 CODE_TRD_TASK_UNKNOWN_REQ = "TRD_TASK_UNKNOWN_REQ"
 CODE_TRD_WORK_BREAKDOWN_MISSING = "TRD_WORK_BREAKDOWN_MISSING"
 CODE_TRD_REQ_NOT_IMPLEMENTED = "TRD_REQ_NOT_IMPLEMENTED"
+CODE_SCREEN_DUPLICATE = "SCREEN_DUPLICATE"
+CODE_SCREEN_ID_GAP = "SCREEN_ID_GAP"
+CODE_SCREEN_ORPHAN = "SCREEN_ORPHAN"
+CODE_SCREEN_UNKNOWN_REQ = "SCREEN_UNKNOWN_REQ"
+CODE_SCREEN_IDS_MISSING = "SCREEN_IDS_MISSING"
+CODE_STORY_HAS_NO_SCREEN = "STORY_HAS_NO_SCREEN"
 
 
 @dataclass(frozen=True)
@@ -109,6 +120,7 @@ def check_project(project_root) -> list[Issue]:
         lambda: _check_telemetry_chain(project_root),
         lambda: _check_context_yaml_parses(project_root),
         lambda: _check_trd_task_ids(project_root, stages, paths, exists),
+        lambda: _check_screen_ids(project_root, stages, paths, exists),
     )
     for check in checks:
         try:
@@ -262,9 +274,11 @@ def _check_upstream_approval_shape(meta, stages) -> list[Issue]:
     return issues
 
 
-def _trd_number(tsk_id: str) -> int | None:
+def _id_number(stable_id: str) -> int | None:
+    """The numeric part of a stable id (`TSK-007` → 7), or None if unparseable.
+    Shared by the TRD-task and screen sequence checks."""
     try:
-        return int(tsk_id.split("-", 1)[1])
+        return int(stable_id.split("-", 1)[1])
     except (IndexError, ValueError):
         return None
 
@@ -311,7 +325,7 @@ def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
         seen.add(tsk_id)
 
     # Gaps / non-sequential numbering (WARNING).
-    numbers = sorted({n for n in (_trd_number(t) for t in seen) if n is not None})
+    numbers = sorted({n for n in (_id_number(t) for t in seen) if n is not None})
     if numbers:
         missing = [n for n in range(1, numbers[-1] + 1) if n not in numbers]
         if missing:
@@ -354,6 +368,99 @@ def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
                 "Add a TSK-### task (or note a deliberate deferral) so the work breakdown covers the approved scope.",
             ))
     return issues
+
+
+def _check_screen_ids(project_root, stages, paths, exists) -> list[Issue]:
+    """Validate the design spec's (stage 04) screen inventory: SCR-### ids are unique
+    and sequential, each screen traces (`Serves:`) to an id that exists in the PRD, and
+    every PRD user story is served by at least one screen.
+
+    Everything is WARNING except a duplicate id (ERROR — two screens sharing a SCR-###
+    collide in the handoff's screen map). A design spec written before screen ids
+    existed simply yields the one "no SCR-### screens" warning, so existing projects
+    degrade gracefully instead of failing the check.
+    """
+    stage = next((s for s in stages if s.get("id") == "04"), None)
+    if stage is None or stage.get("status") == "pending" or not exists.get("04"):
+        return []
+    try:
+        _fm, design_body = fm_read(str(paths["04"]))
+    except Exception:
+        return []  # unreadability is already reported by _check_meta_frontmatter_sync
+
+    issues: list[Issue] = []
+    # Only screens declared inside ## Information Architecture count — a SCR-###
+    # referenced under Key User Flows is a reference, not a second declaration.
+    ia_section = information_architecture_section(design_body)
+    declarations = screen_id_declarations(ia_section)
+    if not declarations:
+        return [Issue(
+            CODE_SCREEN_IDS_MISSING, "warning", "04",
+            "Design spec has no SCR-### screens in its Information Architecture",
+            "Give each screen a SCR-### id and a `Serves:` line so the handoff package can map screens to user stories.",
+        )]
+
+    seen: set[str] = set()
+    for scr_id in declarations:
+        if scr_id in seen:
+            issues.append(Issue(
+                CODE_SCREEN_DUPLICATE, "error", "04",
+                f"Screen id {scr_id} is declared more than once",
+                "Give each screen a unique SCR-### id — reused ids collide in the handoff screen map.",
+            ))
+        seen.add(scr_id)
+
+    numbers = sorted({n for n in (_id_number(s) for s in seen) if n is not None})
+    if numbers:
+        missing = [n for n in range(1, numbers[-1] + 1) if n not in numbers]
+        if missing:
+            issues.append(Issue(
+                CODE_SCREEN_ID_GAP, "warning", "04",
+                f"Screen ids are not sequential — missing: {', '.join(f'SCR-{n:03d}' for n in missing)}",
+                "Number screens sequentially from SCR-001 with no gaps so the inventory reads as complete.",
+            ))
+
+    # Per-screen trace: serves a real PRD story/requirement/journey.
+    prd_body = _read_prd_body(project_root)
+    known_ids = set(requirement_ids(prd_body)) | set(_journey_ids(prd_body)) if prd_body else set()
+    served: set[str] = set()
+    for scr_id, block in split_screen_blocks(ia_section).items():
+        traced = screen_serves(block)
+        served.update(traced)
+        if not traced:
+            issues.append(Issue(
+                CODE_SCREEN_ORPHAN, "warning", "04",
+                f"Screen {scr_id} has no Serves: trace to a story, requirement, or journey",
+                f"Add a `Serves:` line to {scr_id} citing the PRD ids (US-###/FR-###/UJ-###) it supports.",
+            ))
+        elif known_ids:
+            unknown = [r for r in traced if r not in known_ids]
+            if unknown:
+                issues.append(Issue(
+                    CODE_SCREEN_UNKNOWN_REQ, "warning", "04",
+                    f"Screen {scr_id} serves id(s) not in the PRD: {', '.join(unknown)}",
+                    "Point the Serves: line at ids that exist in the approved PRD (or add them there).",
+                ))
+
+    # Coverage: every PRD user story is served by some screen (WARNING).
+    if known_ids:
+        stories = {r for r in known_ids if r.startswith("US-")}
+        unserved = sorted(stories - served)
+        if unserved:
+            issues.append(Issue(
+                CODE_STORY_HAS_NO_SCREEN, "warning", "04",
+                f"User stories no screen declares it serves: {', '.join(unserved)}",
+                "Add the story to a screen's Serves: line (or note that it is deliberately screenless, e.g. a backend-only story).",
+            ))
+    return issues
+
+
+def _journey_ids(body: str | None) -> list[str]:
+    """Unique UJ-### ids in ``body`` — screens may serve a journey as well as a story."""
+    seen: dict[str, None] = {}
+    for match in JOURNEY_ID_RE.findall(body or ""):
+        seen.setdefault(match.upper(), None)
+    return list(seen)
 
 
 def _read_prd_body(project_root) -> str | None:
