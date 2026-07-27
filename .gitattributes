@@ -21,3 +21,9 @@ docs/README.md               export-ignore
 
 # collateral (binary, internal-branded)
 collateral/                  export-ignore
+
+# demo deck artifacts (presentation-only, not needed to run PM-OS)
+docs/PM-OS-demo.pptx         export-ignore
+docs/build_deck.js           export-ignore
+docs/run-of-show.md          export-ignore
+.gitignore                   export-ignore

@@ -4,7 +4,7 @@ Share materials for PM-OS. Two audiences, one shared visual identity.
 
 | File | Audience | Use |
 |---|---|---|
-| `PM-OS-Business-Overview.pptx` | Director of Product (→ BU head later) | 6-slide deck for a ~30-min slot with a live demo. Slide 4 ("What works today") is the demo hand-off. |
+| `PM-OS-Business-Overview.pptx` | Director of Product · BU head | 11-slide deck for a ~30-min slot with a live demo. Slide `03` ("What works today") is the demo hand-off. Slides `06`/`07` quote figures measured from real project telemetry — re-measure before restating them. Slide `04` (gates) is the safest cut if the slot runs short. |
 | `PM-OS-Technical-Walkthrough.pptx` | Director of Product | 8-slide deck for a live technical walkthrough. |
 | `PM-OS-Technical-Brief.docx` | Director of Product | Reference doc to read/forward async. Source of truth the decks distill from. |
 

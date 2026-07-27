@@ -51,3 +51,6 @@ pm-os-offline.zip
 .alignment-cache.json
 docs-alignment-report.md
 
+
+# Offline install bundles (build artifacts, regenerated on release)
+pm-os-*-offline.zip
