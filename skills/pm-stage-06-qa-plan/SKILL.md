@@ -151,7 +151,18 @@ Write a QA Plan with these base sections.
 
 ## Functional Test Cases
 
-<List concrete test cases grouped by feature, flow, or requirement. Give every scenario a stable ID such as `TC-001`. In each test case, explicitly cite the PRD requirement id(s) it covers (`US-###`, `FR-###`, or `REQ-###`) so the traceability spine can link them — preconditions, test data, steps, expected results, priority, and pass/fail signal follow. These `TC-###` ids are stable traceability handles (bug triage and release readiness link by them): keep them constant across regenerations and only append new ids; never renumber existing ones.>
+<List concrete test cases grouped by feature, flow, or requirement. Give every scenario a stable ID such as `TC-001`. In each test case, explicitly cite the PRD requirement id(s) it covers (`US-###`, `FR-###`, or `REQ-###`) so the traceability spine can link them. Use this labeled shape for every test case:
+
+### TC-001 — <scenario title>
+- **Covers:** <US-### / FR-### / REQ-###>
+- **Preconditions:** <state required before execution>
+- **Test data:** <specific records, inputs, roles, permissions, or fixtures>
+- **Steps:** <ordered QA actions>
+- **Expected results:** <observable result(s)>
+- **Priority:** <must/should/could or equivalent>
+- **Pass/fail signal:** <what decides pass, fail, no-go, or acceptable limitation>
+
+These `TC-###` ids are stable traceability handles (bug triage and release readiness link by them): keep them constant across regenerations and only append new ids; never renumber existing ones.>
 
 ## Non-Functional Tests
 
@@ -251,7 +262,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 1
+   artifact_contract_version: 7
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```

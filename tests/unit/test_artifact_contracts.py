@@ -54,7 +54,7 @@ are deferred when they do not block the primary completion signal.
 Priority: Must
 Happy path: The operator opens the item, reviews it, and completes it.
 Edge cases / alternate paths: If required data is unavailable, show recovery guidance.
-Acceptance criteria are observable.
+Acceptance criteria: Observable completion is recorded.
 ## Functional Requirements
 - FR-001 — Complete the work.
   Priority: Must
@@ -270,6 +270,32 @@ a
     _write(root, "06-qa-plan.md", body)
     codes = {f.code for f in contracts.validate_artifact(root, "06")}
     assert "TEST_CASE_TRACE_MISSING" in codes
+
+
+def test_qa_plan_test_case_labeled_fields_warn(tmp_path):
+    """TC blocks should carry structural fields so QA meaning is not inferred from
+    prose. Missing fields warn, never block."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    body = """# QA Plan
+## Test Strategy
+Risk-based coverage.
+## Functional Test Cases
+### TC-001 — Happy path (covers US-001)
+Steps and expected results in prose only.
+## Non-Functional Tests
+Performance.
+## Edge Cases
+Invalid input.
+## Acceptance Criteria
+Must-pass gates.
+"""
+    _write(root, "06-qa-plan.md", body, contract_version=7)
+    findings = contracts.validate_artifact(root, "06")
+    warning = next(f for f in findings if f.code == "TEST_CASE_FIELDS_MISSING")
+    assert "TC-001" in warning.message
+    assert "Preconditions" in warning.message and "Pass/fail signal" in warning.message
+    assert contracts.error_count(findings) == 0
 
 
 def test_qa_plan_uncovered_requirement_warns_not_errors(tmp_path):
@@ -514,7 +540,7 @@ def test_user_story_without_acceptance_warns_not_errors(tmp_path):
         "Priority: Must\n"
         "Happy path: The operator opens the item, reviews it, and completes it.\n"
         "Edge cases / alternate paths: If required data is unavailable, show recovery guidance.\n"
-        "Acceptance criteria are observable.\n",
+        "Acceptance criteria: Observable completion is recorded.\n",
         "### US-001 — Complete work\nPriority: Must\nThe operator opens the item.\n",
     )
     _write(root, "03-prd.md", body)
@@ -792,6 +818,22 @@ def test_trd_section_contract_is_warning_only_for_v6(tmp_path):
     assert "TRD_REQUIRED_SECTION_EMPTY" not in codes
 
 
+def test_trd_task_labeled_fields_warn_for_v7(tmp_path):
+    """Contract v7 warns when TSK blocks omit build-ready labeled fields."""
+    root = _project(tmp_path)
+    trd = _COMPLETE_TRD.replace(
+        "- **Description:** Build it.\n"
+        "- **Definition of Done:** Done.\n"
+        "- **Depends on:** none.\n",
+        "Build it and call it done in prose.\n",
+    )
+    _write(root, "08-trd.md", trd, contract_version=7)
+    warning = next(f for f in contracts.validate_artifact(root, "08") if f.code == "TASK_FIELDS_MISSING")
+    assert "TSK-001" in warning.message
+    assert "Description" in warning.message and "Definition of Done" in warning.message
+    assert contracts.error_count(contracts.validate_artifact(root, "08")) == 0
+
+
 def test_missing_genai_sections_are_not_flagged(tmp_path):
     """An absent Model Selection Rationale is not a finding — the GenAI sections are
     appended conditionally, and flagging absence would fail every pre-v3 PRD."""
@@ -884,7 +926,20 @@ def test_fully_traced_screens_are_clean(tmp_path):
     """Screens that all carry a Serves: line produce no screen findings."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _valid_prd())
-    ia = "## Information Architecture\n- **SCR-001 — Queue**\n  - Serves: US-001, FR-001\n"
+    ia = "## Information Architecture\n- **SCR-001 — Queue**\n  - Purpose: landing surface.\n  - Serves: US-001, FR-001\n"
     _write(root, "04-design-spec.md", _design_spec(ia), contract_version=3)
     codes = {f.code for f in contracts.validate_artifact(root, "04")}
-    assert "SCREEN_IDS_MISSING" not in codes and "SCREEN_TRACE_MISSING" not in codes
+    assert "SCREEN_IDS_MISSING" not in codes
+    assert "SCREEN_TRACE_MISSING" not in codes
+    assert "SCREEN_FIELDS_MISSING" not in codes
+
+
+def test_screen_without_purpose_warns(tmp_path):
+    """SCR blocks use `Purpose:` as a structural field, so a screen can no longer
+    satisfy the contract by merely mentioning its intent in prose."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    ia = "## Information Architecture\n- **SCR-001 — Queue**\n  - Serves: US-001, FR-001\n"
+    _write(root, "04-design-spec.md", _design_spec(ia), contract_version=7)
+    warning = next(f for f in contracts.validate_artifact(root, "04") if f.code == "SCREEN_FIELDS_MISSING")
+    assert "SCR-001" in warning.message
