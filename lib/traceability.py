@@ -10,7 +10,7 @@ This module is the local resolver: it (re)builds the link file from the approved
 PRD (stage 03) and QA plan (stage 06) artifact bodies, and answers questions like
 "which scenarios cover requirement REQ-X" without any network or external system.
 
-Format (``schema_version: 4``)::
+Format (``schema_version: 5``)::
 
     schema_version: 3
     generated_at: <iso8601>
@@ -19,6 +19,7 @@ Format (``schema_version: 4``)::
         kind: requirement | user_story | functional_requirement
         source: 03-prd.md
         epic: EPIC-001
+        priority: Must
         test_cases: [TC-001, TC-002]
         tasks: [TSK-001]  # TRD tasks that implement this requirement (reverse link)
         tickets: []       # populated by Phase 4b (/pm-handoff)
@@ -83,9 +84,10 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # reverse `screens: []` link on each requirement, so the handoff can answer "which
 # screens does this story touch". v4 replaces the temporary synthetic
 # `handoff_epics:` map with first-class PRD-declared `epics:` and a reverse `epic`
-# field on each requirement. The file is derived, so v1-v3 files upgrade on rebuild;
-# old synthetic epic ticket refs are preserved under `legacy_handoff_epics`.
-TRACEABILITY_SCHEMA_VERSION = 4
+# field on each requirement. v5 adds a `priority` field to PRD-declared
+# requirements and user stories. The file is derived, so older files upgrade on
+# rebuild; old synthetic epic ticket refs are preserved under `legacy_handoff_epics`.
+TRACEABILITY_SCHEMA_VERSION = 5
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
@@ -166,6 +168,7 @@ def build_index(project_root: Path | str) -> dict:
             "kind": _id_kind(req_id),
             "source": source,
             "epic": None,
+            "priority": None,
             "test_cases": [],
             "tasks": [],
             "screens": [],
@@ -195,6 +198,9 @@ def build_index(project_root: Path | str) -> dict:
             entry["epic"] = epic_id
             if epic_id in epics and req_id not in epics[epic_id]["requirements"]:
                 epics[epic_id]["requirements"].append(req_id)
+        for req_id, priority in delivery.priorities.items():
+            entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
+            entry["priority"] = priority
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:

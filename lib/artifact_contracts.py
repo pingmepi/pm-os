@@ -15,15 +15,16 @@ from frontmatter import read as fm_read
 from project import artifact_path, load_meta
 
 
-CONTRACT_VERSION = 4
+CONTRACT_VERSION = 5
 
 # Contract versions this validator still accepts without a drift warning. v2 added
 # recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
 # feed the readable handoff package; v3 added the GenAI model-availability/fallback
-# checks (stages 03/08); v4 adds explicit Product Epics. v2+ checks are either
-# WARNING-only or only become hard errors once the new section is present, so older
-# PRDs on disk keep passing untouched (CLAUDE.md: existing projects must keep working).
-SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4}
+# checks (stages 03/08); v4 adds explicit Product Epics; v5 adds explicit
+# prioritization method/value checks. v2+ checks are either WARNING-only or only
+# become hard errors once the new section is present, so older PRDs on disk keep
+# passing untouched (CLAUDE.md: existing projects must keep working).
+SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -183,11 +184,48 @@ REQUIRED_SECTIONS = {
 }
 
 RECOMMENDED_SECTIONS = {
-    "03": ["Journey-Requirement Traceability", "Assumptions & Open Decisions", "Impact Analysis"],
+    "03": ["Prioritization Method", "Journey-Requirement Traceability", "Assumptions & Open Decisions", "Impact Analysis"],
     "04": ["Responsive & Platform Behavior", "UX Content Rules"],
     "05": ["Prototype Data & Scenarios", "Known Limitations"],
     "06": ["Requirement-Test Traceability"],
 }
+
+_LABELED_FIELD_RE = re.compile(
+    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:\s*(?P<value>\S.*)$",
+    re.MULTILINE,
+)
+
+
+def labeled_field(block: str, label: str) -> str | None:
+    """Return a non-empty Markdown labeled field value from an id block.
+
+    This intentionally stays structural: a line such as ``Priority: Must`` or
+    ``- **Priority:** RICE 42`` is machine-readable, while prose that merely uses
+    the word "priority" is not.
+    """
+    wanted = _norm(label)
+    for match in _LABELED_FIELD_RE.finditer(block or ""):
+        if _norm(match.group("label").strip("*")) == wanted:
+            value = match.group("value").strip()
+            return value if value else None
+    return None
+
+
+def block_priority(block: str) -> str | None:
+    """Priority value declared by a story/requirement block, if present."""
+    return labeled_field(block, "Priority")
+
+
+def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
+    """Remove specific one-line labeled fields before prose cue checks."""
+    wanted = {_norm(label) for label in labels}
+    kept: list[str] = []
+    for line in (block or "").splitlines():
+        match = _LABELED_FIELD_RE.match(line)
+        if match and _norm(match.group("label").strip("*")) in wanted:
+            continue
+        kept.append(line)
+    return "\n".join(kept)
 
 # Stages validated without a required-section contract. Stage 08 (TRD) predates any
 # section contract and existing TRDs on disk would fail a full required-section list,
@@ -577,6 +615,14 @@ def _validate_model_selection(
 
 def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
+    priority_method = _section(sections, "Prioritization Method")
+    if not (priority_method or "").strip():
+        findings.append(Finding(
+            "WARNING", "PRIORITIZATION_METHOD_MISSING",
+            "PRD should declare `## Prioritization Method` with the framework used "
+            "and how it was applied to this product.",
+        ))
+
     product_epics = _section(sections, "Product Epics")
     epic_blocks = split_epic_blocks(product_epics or "")
     declared_epics = set(epic_blocks)
@@ -638,11 +684,22 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     stories = _section(sections, "User Stories with Acceptance Criteria") or ""
     if not USER_STORY_ID_RE.search(stories):
         findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers so traceability survives regeneration."))
+    story_blocks = split_user_story_blocks(stories)
+    missing_story_priority = sorted(
+        us_id for us_id, block in story_blocks.items()
+        if not block_priority(block)
+    )
+    if missing_story_priority:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_PRIORITY_MISSING",
+            "User stories with no labeled `Priority:` value: "
+            + ", ".join(missing_story_priority),
+        ))
     # v2 (WARNING-only): each story block should carry acceptance criteria so the
     # handoff can render a Done/acceptance section per story instead of a blank.
     unacc = sorted(
-        us_id for us_id, block in split_user_story_blocks(stories).items()
-        if not _ACCEPTANCE_CUE_RE.search(block)
+        us_id for us_id, block in story_blocks.items()
+        if not _ACCEPTANCE_CUE_RE.search(_strip_labeled_fields(block, ("Priority",)))
     )
     if unacc:
         findings.append(Finding(
@@ -650,7 +707,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no visible acceptance criteria: {', '.join(unacc)}",
         ))
     missing_happy = sorted(
-        us_id for us_id, block in split_user_story_blocks(stories).items()
+        us_id for us_id, block in story_blocks.items()
         if not _HAPPY_PATH_CUE_RE.search(block)
     )
     if missing_happy:
@@ -659,7 +716,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no explicit happy path: {', '.join(missing_happy)}",
         ))
     missing_edges = sorted(
-        us_id for us_id, block in split_user_story_blocks(stories).items()
+        us_id for us_id, block in story_blocks.items()
         if not _EDGE_CASE_CUE_RE.search(block)
     )
     if missing_edges:
@@ -670,10 +727,18 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):
         findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### (or REQ-###) identifiers so traceability survives regeneration."))
+    requirement_blocks = split_functional_requirement_blocks(requirements)
+    missing_requirement_priority = sorted(
+        req_id for req_id, block in requirement_blocks.items()
+        if not block_priority(block)
+    )
+    if missing_requirement_priority:
+        findings.append(Finding(
+            "WARNING", "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING",
+            "Functional requirements with no labeled `Priority:` value: "
+            + ", ".join(missing_requirement_priority),
+        ))
     if declared_epics:
-        story_blocks = split_user_story_blocks(stories)
-        requirement_blocks = split_functional_requirement_blocks(requirements)
-
         def _validate_epic_ownership(kind: str, blocks: dict[str, str]) -> None:
             missing: list[str] = []
             multiple: list[str] = []

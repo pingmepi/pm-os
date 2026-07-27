@@ -2,6 +2,7 @@
 story_id: {{ story_id }}
 title: {{ title }}
 epic: {{ epic }}
+priority: {{ priority }}
 generated_from: [{{ generated_from | join(', ') }}]
 canonical_source: {{ canonical_source }}
 generated_at: {{ generated_at }}
@@ -36,6 +37,7 @@ not tracked by the state machine. -->
 {% endfor %}{% else %}— not captured in source —
 
 {% endif %}## Traceability
+- **Priority:** {{ priority }}
 - **Requirements:** {{ requirements | join(', ') if requirements else '— not captured in source —' }}
 - **Journeys:** {{ journeys | join(', ') if journeys else '— not captured in source —' }}
 - **Covering test cases:** {{ test_case_ids | join(', ') if test_case_ids else '— not captured in source —' }}

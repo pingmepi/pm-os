@@ -399,7 +399,7 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 |------|-----------|---------|
 | `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 4`); mirrors each artifact's frontmatter. |
 | `telemetry.jsonl` | `lib/telemetry.py` | Append-only, hash-chained event log (`prev_event_hash` → `event_hash`). |
-| `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v4): Product Epics (`EPIC-###`) with story/requirement membership and ticket slots, requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). Legacy synthetic `EPIC-01` ticket refs are preserved as legacy metadata only. |
+| `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v5): Product Epics (`EPIC-###`) with story/requirement membership and ticket slots, PRD-declared priority values on `US/FR/REQ`, requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). Legacy synthetic `EPIC-01` ticket refs are preserved as legacy metadata only. |
 | `04-design-spec.html` | `hooks/post-approve.py` via `lib/html_render.py` (`templates/design-spec.html.j2`) | HTML companion rendered on stage-04 approval. |
 | `05-prototype-*.html` | `pm-prototype-html` (`templates/prototype-mockup.html.j2`) | Interactive prototype rendered after the stage-05 brief. |
 | `00-context/manifest.yaml` | `pm_context_import.py pack-manifest` | Assembles the context-wiki pack; records it in `.meta.yaml`. |

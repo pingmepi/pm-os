@@ -156,6 +156,10 @@ Write a Product Requirements Document with these base sections.
 
 <Define the product-level workstreams or outcome areas that will become Jira Epics. Use `### EPIC-### — <epic name>` for each epic and include **Outcome**, **Scope**, and **Success signal**. Create as many epics as the MVP naturally has distinct workstreams/outcomes; do not collapse the whole project into one epic unless the approved scope is genuinely one workstream. `EPIC-###` ids are stable and append-only across regenerations.>
 
+## Prioritization Method
+
+<Name the prioritization framework used for this PRD (`RICE`, `MoSCoW`, `value-effort`, or another explicit framework) and explain in two or three concrete lines how it was applied to this product. The method is stated once here; do not repeat per-story rationale in every item. The `Priority:` values below must use this framework consistently enough that a reader can derive and audit the ordering.>
+
 ## User Journeys
 
 <Define the end-to-end journeys that establish the context for later stories and requirements. Use `### UJ-### — <journey name>` for each journey and include: **Primary user**, **Context and trigger**, **Goal**, **Preconditions**, **Happy path**, **Alternate/failure paths**, **Completion signal**, and **Traceability** to at least one `US-###` or `FR-###`. Cover pre-task context, recovery, and post-completion behavior where relevant; do not substitute UI flows for journeys.>
@@ -165,6 +169,7 @@ Write a Product Requirements Document with these base sections.
 <List the core user stories in priority order using stable IDs such as `US-001`. Write each story as a **self-contained mini-spec** so the readable handoff package can render it per story without inventing content. For each `US-###` include:
 - **Story** — actor, trigger, and outcome (`As a <role>, I want <capability>, so that <outcome>`).
 - **Epic** — exactly one declared `EPIC-###` from `## Product Epics`.
+- **Priority** — a machine-readable value that follows `## Prioritization Method` (for example `Priority: Must`, `Priority: RICE 82`, or `Priority: High value / low effort`).
 - **Happy path** — the primary success flow from trigger to completion, written clearly enough that a developer can implement the normal path and QA can identify the positive test case.
 - **Edge cases / alternate paths** — meaningful failure modes, unusual states, invalid inputs, permission gaps, empty/loading/error states, and recovery behavior. Trace each to a QA `TC-###` when a matching test case exists or is expected.
 - **Data fields** — the fields the story touches (name, type, mandatory?), where a screen or grid is involved. Omit only if the story has no data surface.
@@ -176,7 +181,7 @@ These `US-###` ids are the **stable traceability handles** for the whole pipelin
 
 ## Functional Requirements
 
-<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. For each `FR-###`/`REQ-###`, include exactly one labeled `Epic: EPIC-###` line pointing to a declared Product Epic. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
+<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. For each `FR-###`/`REQ-###`, include exactly one labeled `Epic: EPIC-###` line pointing to a declared Product Epic and one labeled `Priority:` line using the same framework declared in `## Prioritization Method`. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
 
 ## Non-Functional Requirements
 
@@ -297,7 +302,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 4
+   artifact_contract_version: 5
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
@@ -357,6 +362,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
 - Product Epics must use stable `EPIC-###` ids with Outcome, Scope, and Success signal. Stories and functional requirements must each name exactly one declared epic with a labeled `Epic: EPIC-###` line so Jira export, readable handoff, and traceability stay in sync.
+- Prioritization Method must name the framework and how it was applied. Every `US-###` and `FR-###`/`REQ-###` must carry a labeled `Priority:` value consistent with that method so story ordering is auditable and the traceability spine can index it.
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions, and traceability so the handoff can render it without invention.
 - Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
@@ -377,10 +383,11 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 2. Does every critical user story appear in at least one structured `UJ-###` journey with context, recovery, completion, and traceability?
 3. Would QA be able to derive concrete test cases from the user stories and acceptance criteria?
 4. Do user stories and functional requirements use stable IDs and describe observable behavior? Is each story a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, per-step UI/system/acceptance/corner-cases, and traceability so the handoff can render it faithfully?
-5. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
-6. Were scope open questions handled as blockers or explicit assumptions?
-7. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
-8. Are edge cases and risks concrete enough to shape design or delivery decisions?
-9. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
-10. If `genai_flag=true`, does Model Selection Rationale name a model family, its availability constraints, and a primary + fallback with switch triggers — and stay distinct from the user-facing Fallback Behavior section?
-11. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
+5. Does the PRD declare a prioritization method and give every story and functional requirement a labeled priority value consistent with that method?
+6. Did the PRD avoid introducing features, audiences, or integrations that scope excluded?
+7. Were scope open questions handled as blockers or explicit assumptions?
+8. Does Data & Governance identify every category of sensitive data, its retention and access rules, and the applicable compliance regime (or confirm none applies)?
+9. Are edge cases and risks concrete enough to shape design or delivery decisions?
+10. If `genai_flag=true`, do the additional sections specify product behavior and validation needs rather than generic AI best practices?
+11. If `genai_flag=true`, does Model Selection Rationale name a model family, its availability constraints, and a primary + fallback with switch triggers — and stay distinct from the user-facing Fallback Behavior section?
+12. If `genai_flag=false`, is the PRD complete without relying on GenAI sections or assumptions?
