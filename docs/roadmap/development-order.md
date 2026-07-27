@@ -23,7 +23,7 @@ This is the single home for **build sequencing** across all open work. It does n
 
 | # | Item | Why necessary | Depends on |
 |---|---|---|---|
-| 1 | **#18 (local half)** — `git init` per project | Every approved decision lives on one laptop with no version history; the local half needs nothing external. Cheap, do immediately, in parallel. | — |
+| 1 | **#18 (local half)** — `git init` per project ✅ **shipped** | Every approved decision lives on one laptop with no version history; the local half needs nothing external. `lib/project_git.py` — init+commit at scaffold, commit on approval. | — |
 | 2 | **B0** — reconcile the `EPIC-01`-vs-per-story export mapping | A *live bug*: the two shipped exports (`pm_share.py`, `pm_handoff.py`) decompose the same pipeline two incompatible ways. Also unblocks the roadmap's tier/increment work. | — |
 | 3 | **#19** — prioritization value + method block | Stage-03 already *claims* "stories in priority order" with nothing to back it. Makes a current claim honest; unblocks #10; foundation for tiers. | — |
 | 4 | **#20** — stage-08 TRD required-section contract | The TRD is now load-bearing (TSK ids, Jira export) yet the least-validated artifact. WARNING-only + `CONTRACT_VERSION` bump. Unblocks increments. | — |

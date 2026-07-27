@@ -312,10 +312,14 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-## 18. 🔴 Project artifacts have no off-machine copy and no version history
+## 18. 🟡 Project artifacts have no off-machine copy and no version history
 
 **Severity:** P1 — total-loss risk. Losing one laptop loses every approved product decision, and there is no org-side copy of what was decided or approved.
-**Status:** 🔴 Open.
+**Status:** 🟡 Partially fixed — **local version history shipped** (this change); the off-machine copy remains open (needs Indegene git hosting).
+
+**Fixed (local half, this change):** `lib/project_git.py` makes every project its own local git repo — `git init` + initial commit at scaffold (`scripts/pm_new.py`), and a commit on each approval (`hooks/post-approve.py`), with a project `.gitignore` excluding `.codebase/`. No remote, no network, no IT request: history/diff/restore all work offline. Warn-not-fail throughout (a git problem never blocks scaffold or approval) and per-commit identity injection so it works with no global git config. Tests: `tests/unit/test_project_git.py`, `tests/integration/test_project_versioning.py`. This is the project's own repo, separate from the central feedback-repo sync (`lib/git_sync.py`).
+
+**Still open (off-machine half):** an org-side copy still requires Indegene-owned git hosting — add per-PM private artifact repos to the same namespace as the telemetry sink (one IT request; see proposed fix part 2 below), then push the local repo to it. Tracked here until that hosting exists.
 
 **Symptom:** PM-OS syncs the *metrics about* the work but never the work itself. Every brief, scope, PRD, design spec, QA plan and TRD exists only in `~/pm-projects/<slug>/` on a single machine, unversioned. There is no record of what an artifact said before an edit beyond the agent-written `.history/` snapshots (which nothing validates — see entry #25), and no copy anywhere else.
 

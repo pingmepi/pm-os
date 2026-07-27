@@ -83,10 +83,11 @@ tests/
 │   ├── test_context.py     test_git_sync.py    test_html_render.py
 │   ├── test_artifact_contracts.py     test_traceability.py
 │   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
+│   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
-│   ├── test_traceability_spine.py
+│   ├── test_traceability_spine.py     test_project_versioning.py
 │   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
 │   ├── test_artifact_contract_warnings.py
@@ -198,6 +199,12 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_code_is_protected_from_every_other_rule` / `test_unterminated_fence_is_closed` — inline code (`{{…}}`) and fenced blocks (`{code:lang}`) keep their contents verbatim so Markdown syntax inside a code sample survives; a truncated fence is closed rather than swallowing the rest of the ticket.
 - `test_quotes_rules_and_unknown_syntax_pass_through` — blockquotes/`----` convert, and unrecognized text is emitted unchanged (the safe failure mode for a ticket body).
 
+**`test_project_git.py`** — per-project local version history (`lib/project_git.py`, backlog #18, local half)
+- `test_init_creates_repo_and_initial_commit` / `test_commit_all_adds_commit` / `test_commit_all_nothing_to_commit` — `init_project_repo` makes one initial commit; a later `commit_all` after a change adds exactly one commit; a clean tree is a successful no-op, not an error.
+- `test_gitignore_written_with_codebase` / `test_gitignore_preserves_existing_and_adds_codebase` / `test_codebase_dir_is_not_tracked` — a fresh `.gitignore` excludes `.codebase/`/`.pm-os-sync.log`; an existing one is preserved with `.codebase/` appended; files under `.codebase/` are never committed.
+- `test_identity_injected_without_global_config` — with no ambient git identity (env cleared, global/system config ignored) the `-c user.name/email` injection still supplies a valid author **and** committer = `pm_user`.
+- `test_git_unavailable_warns_not_raises` — with git unavailable both entry points return `ok:false` with a reason and never raise (warn-not-fail: approval/scaffold must not break).
+
 **`test_artifact_contracts.py`** — Stage 03–06 artifact quality contracts (`lib/artifact_contracts.py`)
 - `test_valid_prd_contract_has_no_errors` / `test_prd_without_journeys_is_an_error` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
 - `test_recommended_prd_sections_warn_without_blocking` — recommended sections warn instead of erroring; caller continues.
@@ -257,6 +264,11 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_bold_wrapped_bullet_tc_ids_still_populate_the_spine` — IMP-007 end-to-end: a QA plan using bold-wrapped bullet TC ids passes stage-06 approval AND populates `.traceability.yaml` (previously approved silently with an empty spine).
 - `test_resolver_answers_coverage_query` — `pm_trace.py requirement|scenario` resolves coverage in both directions, locally from approved artifacts.
 - `test_rebuild_subcommand_regenerates_index` — `pm_trace.py rebuild` regenerates the derived dotfile on demand.
+
+**`test_project_versioning.py`** — per-project local version history end-to-end (backlog #18, local half)
+- `test_scaffold_creates_git_repo` — `pm_new.py` leaves the project as a git repo with one initial commit and a `.gitignore` excluding `.codebase/`.
+- `test_approval_adds_commit` — approving a stage (real `pm_approve.py` → `post-approve.py` path) adds exactly one commit whose subject names the stage (`approve: stage 00 …`).
+- `test_codebase_dir_ignored_end_to_end` — a `.codebase/` clone present at approval time is never tracked.
 
 **`test_handoff.py`** — Phase 4b Jira handoff export (`scripts/pm_handoff.py`)
 - `test_plan_blocks_when_prd_not_approved` — `plan` exits non-zero and writes nothing while the PRD is not approved (the export projects approved decisions only).
