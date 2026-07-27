@@ -28,11 +28,23 @@ def _write(root: Path, filename: str, body: str, status: str = "draft") -> None:
 
 
 _PRD = """# PRD
+## Product Epics
+### EPIC-001 — Core workflow
+**Outcome:** Users complete the primary workflow.
+**Scope:** Primary story and requirement.
+**Success signal:** Primary task is done.
+### EPIC-002 — Audit workflow
+**Outcome:** Users can audit the workflow.
+**Scope:** Audit requirement.
+**Success signal:** Audit trail is visible.
 ## Functional Requirements
 - FR-001 — Do the thing.
+  - Epic: EPIC-001
 - FR-002 — Audit the thing.
+  - Epic: EPIC-002
 ## User Stories with Acceptance Criteria
 ### US-001 — Story
+Epic: EPIC-001
 ok
 """
 
@@ -191,14 +203,18 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v3_with_tasks_and_screens_maps(tmp_path):
-    """The index declares schema_version 3 and always carries both a tasks map (v2)
-    and a screens map (v3), even when the source artifacts are absent."""
+def test_index_is_schema_v4_with_tasks_epics_and_screens_maps(tmp_path):
+    """The index declares schema_version 4 and carries tasks, Product Epics, and
+    screens maps."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 3
-    assert "tasks" in index and "screens" in index
+    assert index["schema_version"] == 4
+    assert "tasks" in index and "epics" in index and "screens" in index
+    assert index["epics"]["EPIC-001"]["tickets"] == []
+    assert index["epics"]["EPIC-001"]["stories"] == ["US-001"]
+    assert index["epics"]["EPIC-002"]["requirements"] == ["FR-002"]
+    assert index["requirements"]["FR-001"]["epic"] == "EPIC-001"
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):
@@ -255,12 +271,32 @@ def test_rebuild_preserves_task_tickets_and_upgrades_v1(tmp_path):
     assert rebuilt["schema_version"] == trace.TRACEABILITY_SCHEMA_VERSION
     assert rebuilt["requirements"]["FR-001"]["tickets"] == ["JIRA-1"]
     assert rebuilt["requirements"]["FR-001"]["tasks"] == ["TSK-001"]
-    # Now attach a task ticket (Phase 4b) and confirm it survives the next rebuild.
+    # Now attach tracker tickets (Phase 4b) and confirm they survive the next rebuild.
+    rebuilt["epics"]["EPIC-001"]["tickets"] = ["JIRA-0"]
     rebuilt["tasks"]["TSK-001"]["tickets"] = ["JIRA-9"]
     trace.write_index(root, rebuilt)
     again = trace.rebuild(root)
+    assert again["epics"]["EPIC-001"]["tickets"] == ["JIRA-0"]
     assert again["tasks"]["TSK-001"]["tickets"] == ["JIRA-9"]
     assert again["tasks"]["TSK-001"]["implements"] == ["US-001", "FR-001"]
+
+
+def test_rebuild_preserves_legacy_handoff_epic_tickets(tmp_path):
+    """Old synthetic EPIC-01 tickets survive rebuilds as legacy metadata without
+    becoming a new Product Epic."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    legacy = {
+        "schema_version": 3,
+        "requirements": {},
+        "test_cases": {},
+        "tasks": {},
+        "handoff_epics": {"EPIC-01": {"source": "03-prd.md", "tickets": ["JIRA-OLD"]}},
+    }
+    trace.write_index(root, legacy)
+    rebuilt = trace.rebuild(root)
+    assert "EPIC-01" not in rebuilt["epics"]
+    assert rebuilt["legacy_handoff_epics"]["EPIC-01"]["tickets"] == ["JIRA-OLD"]
 
 
 def test_missing_trd_yields_empty_tasks(tmp_path):

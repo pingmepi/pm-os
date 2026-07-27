@@ -10,7 +10,7 @@ This module is the local resolver: it (re)builds the link file from the approved
 PRD (stage 03) and QA plan (stage 06) artifact bodies, and answers questions like
 "which scenarios cover requirement REQ-X" without any network or external system.
 
-Format (``schema_version: 3``)::
+Format (``schema_version: 4``)::
 
     schema_version: 3
     generated_at: <iso8601>
@@ -18,6 +18,7 @@ Format (``schema_version: 3``)::
       REQ-001:            # or US-001 / FR-001
         kind: requirement | user_story | functional_requirement
         source: 03-prd.md
+        epic: EPIC-001
         test_cases: [TC-001, TC-002]
         tasks: [TSK-001]  # TRD tasks that implement this requirement (reverse link)
         tickets: []       # populated by Phase 4b (/pm-handoff)
@@ -32,6 +33,13 @@ Format (``schema_version: 3``)::
       TSK-001:
         source: 08-trd.md
         implements: [US-003, FR-012]
+        tickets: []       # populated by Phase 4b (/pm-handoff)
+    epics:               # Phase 4b — Product Epics declared in the PRD
+      EPIC-001:
+        source: 03-prd.md
+        title: "Onboarding"
+        stories: [US-001]
+        requirements: [FR-001]
         tickets: []       # populated by Phase 4b (/pm-handoff)
     screens:              # design spec (stage 04) Information Architecture
       SCR-001:
@@ -62,6 +70,7 @@ from artifact_contracts import (
     task_implements,
     work_breakdown_section,
 )
+from delivery_map import build_prd_delivery_map
 from frontmatter import read as fm_read
 from project import artifact_path
 
@@ -72,15 +81,18 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # still preserved; the tasks map is simply populated for the first time.
 # v3 adds a `screens:` map (design-spec Information Architecture, SCR-###) and a
 # reverse `screens: []` link on each requirement, so the handoff can answer "which
-# screens does this story touch". Same upgrade story as v2: the file is derived, so a
-# v1/v2 file on disk upgrades transparently on the next rebuild.
-TRACEABILITY_SCHEMA_VERSION = 3
+# screens does this story touch". v4 replaces the temporary synthetic
+# `handoff_epics:` map with first-class PRD-declared `epics:` and a reverse `epic`
+# field on each requirement. The file is derived, so v1-v3 files upgrade on rebuild;
+# old synthetic epic ticket refs are preserved under `legacy_handoff_epics`.
+TRACEABILITY_SCHEMA_VERSION = 4
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
 _REQ_REF_SLOTS = ("tickets", "bugs", "code_refs")
 _TC_REF_SLOTS = ("bugs",)
 _TASK_REF_SLOTS = ("tickets",)
+_EPIC_REF_SLOTS = ("tickets",)
 _SCREEN_REF_SLOTS = ("design_refs",)
 
 
@@ -145,12 +157,15 @@ def build_index(project_root: Path | str) -> dict:
     requirements: dict[str, dict] = {}
     test_cases: dict[str, dict] = {}
     tasks: dict[str, dict] = {}
+    epics: dict[str, dict] = {}
+    legacy_handoff_epics: dict[str, dict] = {}
     screens: dict[str, dict] = {}
 
     def _new_requirement(req_id: str, source: Optional[str]) -> dict:
         return {
             "kind": _id_kind(req_id),
             "source": source,
+            "epic": None,
             "test_cases": [],
             "tasks": [],
             "screens": [],
@@ -159,8 +174,27 @@ def build_index(project_root: Path | str) -> dict:
 
     # Requirements come from the PRD.
     if prd_body:
+        delivery = build_prd_delivery_map(prd_body)
         for req_id in requirement_ids(prd_body):
             requirements[req_id] = _new_requirement(req_id, artifact_path(project_root, "03").name)
+        for epic_id, epic in delivery.epics.items():
+            epics[epic_id] = {
+                "source": artifact_path(project_root, "03").name,
+                "title": epic.title,
+                "stories": [],
+                "requirements": [],
+                **{slot: [] for slot in _EPIC_REF_SLOTS},
+            }
+        for story_id, epic_id in delivery.story_to_epic.items():
+            entry = requirements.setdefault(story_id, _new_requirement(story_id, artifact_path(project_root, "03").name))
+            entry["epic"] = epic_id
+            if epic_id in epics and story_id not in epics[epic_id]["stories"]:
+                epics[epic_id]["stories"].append(story_id)
+        for req_id, epic_id in delivery.requirement_to_epic.items():
+            entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
+            entry["epic"] = epic_id
+            if epic_id in epics and req_id not in epics[epic_id]["requirements"]:
+                epics[epic_id]["requirements"].append(req_id)
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
@@ -220,6 +254,8 @@ def build_index(project_root: Path | str) -> dict:
         "requirements": requirements,
         "test_cases": test_cases,
         "tasks": tasks,
+        "epics": epics,
+        "legacy_handoff_epics": legacy_handoff_epics,
         "screens": screens,
     }
 
@@ -247,6 +283,22 @@ def _merge_reserved(old: dict, new: dict) -> dict:
         for slot in _TASK_REF_SLOTS:
             if prior.get(slot):
                 entry[slot] = prior[slot]
+    old_epics = (old or {}).get("epics") or {}
+    old_handoff_epics = (old or {}).get("handoff_epics") or {}
+    old_legacy_epics = (old or {}).get("legacy_handoff_epics") or {}
+    for epic_id, entry in new.get("epics", {}).items():
+        prior = old_epics.get(epic_id) or old_handoff_epics.get(epic_id) or old_legacy_epics.get(epic_id) or {}
+        for slot in _EPIC_REF_SLOTS:
+            if prior.get(slot):
+                entry[slot] = prior[slot]
+    legacy = new.setdefault("legacy_handoff_epics", {})
+    for epic_id, prior in {**old_legacy_epics, **old_handoff_epics}.items():
+        if epic_id not in new.get("epics", {}) and prior.get("tickets"):
+            legacy[epic_id] = {
+                "source": prior.get("source"),
+                "tickets": list(prior.get("tickets") or []),
+                "note": "Preserved from legacy synthetic handoff_epics; not used for new exports.",
+            }
     old_screens = (old or {}).get("screens") or {}
     for scr_id, entry in new.get("screens", {}).items():
         prior = old_screens.get(scr_id) or {}

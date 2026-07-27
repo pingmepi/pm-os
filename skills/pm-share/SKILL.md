@@ -16,8 +16,8 @@ status, or staleness.
   self-contained file per user story in the team's house format (data
   fields, key UI steps, per-step acceptance/corner-cases), plus an overview
   and reference docs — shaped for people, not the gate/hash machine. Assembled
-  by walking the traceability spine: `US-### → its FR-###s → its UJ-### journey
-  → its covering TC-###s`.
+  by walking the traceability spine and PRD delivery map:
+  `EPIC-### → US-### → its FR-###s → its UJ-### journey → its covering TC-###s`.
 
 Run:
 
@@ -35,7 +35,7 @@ guidance below, which you must still convey to the PM.
 Into `handoff/` at the project root (or `--output <dir>`):
 - `README.md` — index + reading guide + provenance.
 - `00-overview.md` — Business Perspective (Who / What & Why / How) from the brief + scope.
-- `epics/EPIC-01-mvp.md` — the story index.
+- `epics/EPIC-###-*.md` — one story/requirement index per Product Epic declared in the PRD.
 - `stories/US-###-*.md` — one self-contained story per file, including the
   `SCR-###` screens that story touches (from the approved design spec).
 - `reference/` — user journeys, screen map, QA scenarios, impact analysis,

@@ -11,6 +11,7 @@
 > self-contained mini-spec carrying, at minimum:
 >
 > - **Story** — As a `<role>`, I want `<capability>`, so that `<outcome>`.
+> - **Epic** — exactly one `EPIC-###` from the PRD's "Product Epics" section.
 > - **Happy path** — the normal success flow from trigger to completion.
 > - **Edge cases / alternate paths** — failure modes, invalid inputs, permission
 >   gaps, empty/loading/error states, and recovery behavior; tie each to a
@@ -28,6 +29,14 @@
 > - **Wireframes** — reference the screen(s); mandatory for new screens.
 
 <!-- TODO: paste your team's exact per-story field list / wording here. -->
+
+## Product epics
+
+> The PRD should include a "Product Epics" section before user journeys. Each
+> `EPIC-###` represents a real product workstream/outcome that will become a Jira
+> Epic, with Outcome, Scope, and Success signal. Every `US-###` and every
+> `FR-###`/`REQ-###` should include a labeled `Epic: EPIC-###` line so readable
+> handoff, Jira export, and traceability agree.
 
 ## Impact analysis & NFRs (per story or PRD-level)
 
