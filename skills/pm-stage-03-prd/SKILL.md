@@ -302,7 +302,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 5
+   artifact_contract_version: 6
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```

@@ -735,6 +735,63 @@ def test_trd_model_serving_check_is_warning_only_and_version_exempt(tmp_path):
     assert contracts.validate_artifact(root, "08") == []
 
 
+_COMPLETE_TRD = """# TRD
+## System Context
+System boundary.
+## Architecture
+Components.
+## Data Model
+Entities.
+## Data Governance & Compliance Implementation
+Controls.
+## API / Interface Contracts
+Endpoints.
+## Key Technical Flows
+Sequences.
+## Tech Stack & Rationale
+Stack.
+## Non-Functional Implementation
+NFR implementation.
+## Dependencies & Integrations
+Dependencies.
+## Trade-offs & Alternatives Considered
+Trade-offs.
+## Technical Risks & Mitigations
+Risks.
+## Rollout, Migration & Deployment
+Rollout.
+## Work Breakdown
+### TSK-001 — Build the thing
+- **Implements:** US-001
+- **Description:** Build it.
+- **Definition of Done:** Done.
+- **Depends on:** none.
+## Open Technical Questions
+None.
+"""
+
+
+def test_trd_section_contract_is_warning_only_for_v6(tmp_path):
+    """Contract v6 adds a warning-only TRD section shape. Older TRDs stay quiet,
+    incomplete v6 TRDs warn, and complete v6 TRDs are clean for section shape."""
+    root = _project(tmp_path)
+    incomplete = "# TRD\n## Architecture\nServices.\n"
+
+    _write(root, "08-trd.md", incomplete, contract_version=None)
+    assert contracts.validate_artifact(root, "08") == []
+
+    _write(root, "08-trd.md", incomplete, contract_version=6)
+    findings = contracts.validate_artifact(root, "08")
+    codes = {f.code for f in findings}
+    assert "TRD_REQUIRED_SECTION_MISSING" in codes
+    assert contracts.error_count(findings) == 0
+
+    _write(root, "08-trd.md", _COMPLETE_TRD, contract_version=6)
+    codes = {f.code for f in contracts.validate_artifact(root, "08")}
+    assert "TRD_REQUIRED_SECTION_MISSING" not in codes
+    assert "TRD_REQUIRED_SECTION_EMPTY" not in codes
+
+
 def test_missing_genai_sections_are_not_flagged(tmp_path):
     """An absent Model Selection Rationale is not a finding — the GenAI sections are
     appended conditionally, and flagging absence would fail every pre-v3 PRD."""

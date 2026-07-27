@@ -204,7 +204,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
-artifact_contract_version: 5   # present on contract-validated Stage 03–06 generations
+artifact_contract_version: 6   # present on contract-validated Stage 03–06 and new Stage 08 generations
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---

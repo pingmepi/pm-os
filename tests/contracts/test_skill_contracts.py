@@ -96,14 +96,16 @@ def test_stage_skills_print_both_runtime_entrypoints():
 
 
 def test_product_artifact_skills_enforce_current_contracts():
-    """Stages 03–06 carry the required/recommended product contracts and invoke strict
-    deterministic validation before generation completes. Stage 06 adds the Phase 3.5
-    stable-id contract: TC-### scenarios and a requirement-test traceability section."""
+    """Contracted artifact stages carry the required/recommended product/technical
+    contracts and invoke strict deterministic validation before generation completes.
+    Stage 06 adds the Phase 3.5 stable-id contract; stage 08 adds the warning-only
+    TRD section contract."""
     expected = {
-        "03": ("## Product Epics", "## Journey–Requirement Traceability", "artifact_contract_version: 5"),
+        "03": ("## Product Epics", "## Journey–Requirement Traceability", "artifact_contract_version: 6"),
         "04": ("## Journey-to-Flow Traceability", "## Product UX Guardrails", "Interaction model:"),
         "05": ("## Prototype Audience & Modes", "## Validation Plan", "## Known Limitations"),
         "06": ("## Functional Test Cases", "## Requirement-Test Traceability", "artifact_contract_version: 1"),
+        "08": ("## Work Breakdown", "## Open Technical Questions", "artifact_contract_version: 6"),
     }
     for stage_id, markers in expected.items():
         body = (stage_skill_dir(stage_id) / "SKILL.md").read_text()

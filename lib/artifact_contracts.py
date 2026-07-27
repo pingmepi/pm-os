@@ -15,16 +15,17 @@ from frontmatter import read as fm_read
 from project import artifact_path, load_meta
 
 
-CONTRACT_VERSION = 5
+CONTRACT_VERSION = 6
 
 # Contract versions this validator still accepts without a drift warning. v2 added
 # recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
 # feed the readable handoff package; v3 added the GenAI model-availability/fallback
 # checks (stages 03/08); v4 adds explicit Product Epics; v5 adds explicit
-# prioritization method/value checks. v2+ checks are either WARNING-only or only
-# become hard errors once the new section is present, so older PRDs on disk keep
-# passing untouched (CLAUDE.md: existing projects must keep working).
-SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5}
+# prioritization method/value checks; v6 adds a warning-only TRD section shape.
+# v2+ checks are either WARNING-only or only become hard errors once the new
+# section is present, so older artifacts on disk keep passing untouched
+# (CLAUDE.md: existing projects must keep working).
+SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5, 6}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -190,6 +191,23 @@ RECOMMENDED_SECTIONS = {
     "06": ["Requirement-Test Traceability"],
 }
 
+TRD_REQUIRED_SECTIONS = [
+    "System Context",
+    "Architecture",
+    "Data Model",
+    "Data Governance & Compliance Implementation",
+    "API / Interface Contracts",
+    "Key Technical Flows",
+    "Tech Stack & Rationale",
+    "Non-Functional Implementation",
+    "Dependencies & Integrations",
+    "Trade-offs & Alternatives Considered",
+    "Technical Risks & Mitigations",
+    "Rollout, Migration & Deployment",
+    "Work Breakdown",
+    "Open Technical Questions",
+]
+
 _LABELED_FIELD_RE = re.compile(
     r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:\s*(?P<value>\S.*)$",
     re.MULTILINE,
@@ -227,11 +245,9 @@ def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
         kept.append(line)
     return "\n".join(kept)
 
-# Stages validated without a required-section contract. Stage 08 (TRD) predates any
-# section contract and existing TRDs on disk would fail a full required-section list,
-# so it is validated for the GenAI model-serving check only — and is deliberately
-# exempt from the `artifact_contract_version` frontmatter warning below, which
-# belongs to stages that do declare a section contract.
+# Stages validated outside the hard required-section path. Stage 08's section
+# shape is warning-only and gated to contract v6+ artifacts so existing TRDs on
+# disk stay quiet.
 _EXTRA_VALIDATED_STAGES = {"08"}
 
 _ALIASES = {
@@ -285,6 +301,24 @@ def _missing_sections(stage_id: str, sections: dict[str, str]) -> list[Finding]:
             findings.append(Finding("WARNING", "RECOMMENDED_SECTION_MISSING", f"Missing recommended section: {title}"))
         elif not content.strip():
             findings.append(Finding("WARNING", "RECOMMENDED_SECTION_EMPTY", f"Recommended section is empty: {title}"))
+    return findings
+
+
+def _contract_version_number(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _missing_trd_sections(sections: dict[str, str]) -> list[Finding]:
+    findings: list[Finding] = []
+    for title in TRD_REQUIRED_SECTIONS:
+        content = _section(sections, title)
+        if content is None:
+            findings.append(Finding("WARNING", "TRD_REQUIRED_SECTION_MISSING", f"Missing TRD section: {title}"))
+        elif not content.strip():
+            findings.append(Finding("WARNING", "TRD_REQUIRED_SECTION_EMPTY", f"TRD section is empty: {title}"))
     return findings
 
 
@@ -785,18 +819,28 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     return findings
 
 
-def _validate_stage_08(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
-    """Stage 08 (TRD) carries no required-section contract — existing TRDs predate one
-    and adding a full list would fail them all. The only check here is the GenAI
-    model-serving one (WARNING-only), so the TRD is held to naming a fallback and an
-    availability path for the models it commits the build to."""
-    if not _genai_project(project_root):
-        return []
-    return _validate_model_selection(
-        _section(sections, "Model Serving & Selection"),
-        "Model Serving & Selection",
-        "MODEL_SERVING_INCOMPLETE",
-    )
+def _validate_stage_08(
+    project_root: Path,
+    sections: dict[str, str],
+    body: str,
+    contract_version: int | None,
+) -> list[Finding]:
+    """Validate TRD shape without breaking legacy TRDs.
+
+    Contract v6 adds a warning-only section list. Older TRDs and imported/backfilled
+    TRDs without v6 frontmatter stay quiet for section shape, while all GenAI TRDs
+    keep the existing model-serving warning.
+    """
+    findings: list[Finding] = []
+    if contract_version is not None and contract_version >= 6:
+        findings.extend(_missing_trd_sections(sections))
+    if _genai_project(project_root):
+        findings.extend(_validate_model_selection(
+            _section(sections, "Model Serving & Selection"),
+            "Model Serving & Selection",
+            "MODEL_SERVING_INCOMPLETE",
+        ))
+    return findings
 
 
 def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
@@ -993,7 +1037,9 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
     elif stage_id == "06":
         findings.extend(_validate_stage_06(project_root, sections, body))
     elif stage_id == "08":
-        findings.extend(_validate_stage_08(project_root, sections, body))
+        findings.extend(_validate_stage_08(
+            project_root, sections, body, _contract_version_number(fm.get("artifact_contract_version"))
+        ))
     return findings
 
 
