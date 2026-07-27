@@ -10,9 +10,9 @@ This module is the local resolver: it (re)builds the link file from the approved
 PRD (stage 03) and QA plan (stage 06) artifact bodies, and answers questions like
 "which scenarios cover requirement REQ-X" without any network or external system.
 
-Format (``schema_version: 2``)::
+Format (``schema_version: 3``)::
 
-    schema_version: 2
+    schema_version: 3
     generated_at: <iso8601>
     requirements:
       REQ-001:            # or US-001 / FR-001

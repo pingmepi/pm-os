@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 — 2026-07-23
+
+Release cut of the v1.3.0 feature set (the `SCR-###` screen→story mapping and the offline Jira CSV export described under 1.3.0 landed in this cut), plus follow-on fixes:
+
+### Fixed
+- **Handoff-package screens gate on stage-04 approval.** `/pm-share --package` reads `SCR-###` screens only from an *approved* design spec, and `.traceability.yaml` rebuilds on stage-04 approval, so screen links can never come from a draft/stale spec.
+- **Stage-08 GenAI model-serving check wired into validation; `prompt_version` synced to telemetry.**
+
 ## 1.3.0 — 2026-07-22
 
 ### Added
