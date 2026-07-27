@@ -178,6 +178,8 @@ Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · �
 
 **Note:** Surfaced 2026-07-14 while reviewing how 05 decides the slice. Keeps PM authority (priority is a PM-set upstream signal); makes the slice decision reproducible and auditable. Consistent with the product-shape principle "grow the traceability spine, not the state machine."
 
+**Related (2026-07-27):** this is one instance of a general property, not a stage-05 quirk. PM-OS never calls the LLM API itself — the agent runtime does — so there is no lever at this layer to set a seed or temperature, and generation cannot be made repeatable here. The remedy is therefore always the one proposed above: make the judgment *auditable against declared upstream inputs* rather than attempting to make it deterministic. Entry #19 supplies the declared priority this check needs.
+
 ---
 
 ## 11. 🟢 Validator and traceability builder disagree on what counts as a `TC-###` declaration (IMP-007)
@@ -213,7 +215,7 @@ split_test_case_blocks(qa_text) # -> {}            (traceability + trace-check: 
 ## 12. 🟢 `pm_handoff.py` mis-renders contract-valid PRD/QA formats (IMP-008)
 
 **Severity:** P1 — pre-merge (found dogfooding the branch behind [PR #30](https://github.com/pingmepi/pm-os/pull/30), not yet installed anywhere). Two distinct, verified bugs in the new handoff generator; both make a fully-traceable pipeline render `— not captured in source —` for content that genuinely exists upstream — exactly the honesty-signal the generator is supposed to preserve, now giving false negatives instead.
-**Status:** 🟢 **Fixed**, landed while merging the handoff generator into `pm-share` (`scripts/pm_share.py --package`; `pm_handoff.py` no longer exists — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-and-handoff-plan.md` Part B). Both bugs below now reference the merged file for history; both have regression tests in `tests/integration/test_share_package.py`.
+**Status:** 🟢 **Fixed**, landed while merging the handoff generator into `pm-share` (`scripts/pm_share.py --package`; `pm_handoff.py` no longer exists — the `pm-handoff` name is now reserved for a future external-tracker/design export, see `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part C). Both bugs below now reference the merged file for history; both have regression tests in `tests/integration/test_share_package.py`.
 
 **Bug A — single-line TC bodies get stripped to empty.** `scripts/pm_handoff.py`'s `_strip_decl_line()` assumes every `split_test_case_blocks()` block has its declaration on its own line and body text on the lines that follow (`lines[1:]`) — true for a `### TC-001` heading block, false for the equally contract-valid single-line-bullet style QA plans commonly use (`- TC-001: <description>. Covers REQ-001.`), where the entire scenario is one line. `lines[1:]` on a one-line block is `[]` — the body vanishes.
 
@@ -308,4 +310,196 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
+## 18. 🔴 Project artifacts have no off-machine copy and no version history
+
+**Severity:** P1 — total-loss risk. Losing one laptop loses every approved product decision, and there is no org-side copy of what was decided or approved.
+**Status:** 🔴 Open.
+
+**Symptom:** PM-OS syncs the *metrics about* the work but never the work itself. Every brief, scope, PRD, design spec, QA plan and TRD exists only in `~/pm-projects/<slug>/` on a single machine, unversioned. There is no record of what an artifact said before an edit beyond the agent-written `.history/` snapshots (which nothing validates — see entry #25), and no copy anywhere else.
+
+**Evidence:**
+- `lib/git_sync.py:15` — `SYNCED_FILES = ["telemetry.jsonl", "feedback.jsonl"]`. Only these two files reach the central feedback repo; no `.md` artifact is ever synced.
+- `scripts/pm_new.py` — scaffolds the project directory, `.meta.yaml`, `00-business-statement.md`, `.history/`, telemetry and feedback, but never runs `git init`. A grep for git/backup/init in that file returns only the `--codebase` argument help at `:37`.
+- `docs/roadmap/tech-lead-permissions-review.md` §8 flags plaintext-at-rest but not the absence of backup or version control.
+
+**Proposed fix — two orthogonal halves; do both:**
+
+1. **Version history — no new dependency, no IT request.** `git init` each project at scaffold time (artifacts + `.history/`, excluding the gitignored `.codebase/` clone), committing on approval. Git is *already* a mandatory PM-OS prerequisite (`docs/guides/offline-install.md:7`, and listed in the IT prerequisite table at `:14`), and Git for Windows — the same installer as Git Bash, already the recommended Windows path per entry #2 — bundles it. Local git needs **no network and no remote**: history, diff, and restore all work offline.
+2. **Off-machine copy — reuse infrastructure already being provisioned.** The engine repo and the telemetry sink must both move to Indegene-owned git hosting (`tech-lead-permissions-review.md` §3, §4), and the sink is plain git that works on any host (`docs/guides/offline-install.md:167`). Adding per-PM private artifact repos to that same namespace is **one** IT request instead of three, and a git remote over SSH gives atomic, incremental, integrity-checked transfer that carries the history with it. A separate FTP service is a net-new service request on top: it provides no version history, is not atomic, authenticates in plaintext, and can corrupt `.git/` objects in ASCII transfer mode.
+
+**Open policy question (not new):** artifact repos hold product and client content, so they need to be private and access-controlled — the same question already open for the telemetry sink, not an additional one.
+
+---
+
+## 19. 🔴 No prioritization logic in the system; requirements carry no priority value
+
+**Severity:** P1 — nothing can rank, sequence by value, or audit a selection decision. Blocks the scope-tier / delivery-increment work and is the root cause behind entry #10.
+**Status:** 🔴 Open.
+
+**Symptom:** Nothing in PM-OS defines *how* priority is decided, and no requirement carries a priority value. Stage 03 instructs the agent to list stories "in priority order" — an ordering with no stated basis, no framework, and nothing machine-readable. A reader of the PRD or the handoff package cannot tell whether the order reflects value, risk, effort, dependency, or nothing at all.
+
+**Evidence:**
+- `lib/artifact_contracts.py` — a grep for priority / estimate / effort / story point / RICE / MoSCoW returns nothing. No priority field exists on `US-###`, `FR-###`, `REQ-###`, or `UJ-###`.
+- `skills/pm-stage-03-prd/SKILL.md:161` — "List the core user stories in priority order using stable IDs such as `US-001`" — prose guidance only.
+- Entry #10 independently found the same absence from the journey side ("No `risk`/`priority` field exists on journeys in the PRD (03) or design-spec (04) contracts").
+
+**Proposed fix (PM decision, 2026-07-27):**
+1. A `## Prioritization Method` block near the top of the stage-03 PRD naming the framework used (RICE / MoSCoW / value-effort / other) plus two or three lines on how it was applied to *this* product. Deliberately **not** a per-story rationale — the method is stated once, not restated per item.
+2. Each `US-###`/`FR-###` carries a machine-readable priority **value** consistent with the declared framework (e.g. `Priority: Must`, or a RICE score), so ordering can be derived and audited rather than asserted.
+3. Index the value in `.traceability.yaml`, and surface the method block in `/pm-share --package`.
+
+Additive to the traceability spine; no gate, hash, or status change. Prerequisite for the scope-tier / delivery-increment work, and it supplies the declared upstream priority entry #10 needs.
+
+---
+
+## 20. 🔴 Stage 08 (TRD) has no required-section contract
+
+**Severity:** P1 — the artifact engineering depends on most is the least-validated in the system, and it is now load-bearing for the traceability spine and the Jira export.
+**Status:** 🔴 Open.
+
+**Symptom:** A TRD can be nearly empty and pass validation. Every other contracted stage has a required-section list; stage 08 has none.
+
+**Evidence:** `lib/artifact_contracts.py:570-581` — `_validate_stage_08`'s own docstring states it: "Stage 08 (TRD) carries no required-section contract — existing TRDs predate one and adding a full list would fail them all." The only check is the GenAI-only, WARNING-level `MODEL_SERVING_INCOMPLETE`. Meanwhile `TSK-###` ids, `.traceability.yaml`'s `tasks:` map, and the whole `/pm-handoff jira` export are all derived from this artifact.
+
+**Proposed fix:** Add `REQUIRED_SECTIONS["08"]` as **WARNING-only**, matching the pattern used for contract v2 and v3 — existing TRDs stay quiet, new ones are held to a shape. Bump `CONTRACT_VERSION`.
+
+---
+
+## 21. 🟠 Single hardcoded approver; no multi-party sign-off
+
+**Severity:** P3 — by design for the single-PM v1. Logged as a constraint with a deferred decision, not as a bug.
+**Status:** 🟠 Open (by design).
+
+**Symptom:** Approval is one boolean by one person. Design review, engineering review, legal/MLR, and client sign-off are unrepresentable, as are "approved with comments" and partial/conditional approval.
+
+**Evidence:** `lib/config.py:8` — `REQUIRED_KEYS = ["pm_user", ...]`, a single identity. `scripts/pm_approve.py:127` reads that one value as the approver. No role, reviewer, or delegation model exists anywhere.
+
+**Note:** Consistent with the local-first single-PM v1 design and with `tech-lead-permissions-review.md` §8 ("no auth model in PM-OS itself"). Recorded because `docs/roadmap/product-shape-and-flexibility-brainstorm.md` §7 raises it as possibly the higher-priority Indegene gap over shape flexibility — a multi-approver model is a prerequisite for any regulated/MLR gate. No fix scoped.
+
+---
+
+## 22. 🟠 No time, effort, or capacity dimension anywhere
+
+**Severity:** P3 — mostly by design; recorded as an explicit boundary so it is not mistaken for an oversight.
+**Status:** 🟠 Open (boundary recorded, not a gap to close).
+
+**Symptom:** PM-OS models the *content* of work and none of its *when*. No estimates, no durations, no target dates, no capacity — even stage 09's release horizons are undated.
+
+**Evidence:** A grep for deadline / due_date / target_date / timeline / capacity / velocity across `lib/*.py` and `scripts/*.py` returns only `lib/git_sync.py:37`, an unrelated lock timeout.
+
+**Decision (PM, 2026-07-27):** story points and effort estimation belong to **development**, not PM-OS — the tool should not model them. The boundary is deliberate: PM-OS owns *what* and *why*; the tracker owns *when* and *how much*. The delivery-increment layer being scoped groups work into cycles without estimating it. This entry records the boundary rather than proposing to close it.
+
+---
+
+## 23. 🟠 No product decision record
+
+**Severity:** P2 — provenance gap. Also the missing input that would make entry #26's metrics interpretable.
+**Status:** 🟠 Open — shape undecided, needs discussion.
+
+**Symptom:** `.history/` snapshots *what* an artifact said at a point in time; nothing records *why* it changed, who raised it, what was traded away, or what was rejected. In month nine, "why is this a dropdown" is unanswerable from the repo.
+
+**Evidence:** No `decisions.jsonl` or equivalent exists at project root. `docs/roadmap/current-state-review.md` §8 proposes `recommendations.jsonl` and `imports.jsonl`; neither is built, and both concern PM-OS's own improvement loop rather than product decisions. `docs/roadmap/product-shape-and-flexibility-brainstorm.md` §5 identifies the same need for the (unbuilt) exploration lane — the gap is actually general.
+
+**Status of the fix:** An append-only `decisions.jsonl` written on approval-with-note and on `--reapprove` would match the existing append-log convention. But *what* to capture — and how much to demand from the PM at approval time without adding friction to a gate they pass frequently — is an open discussion, not a scoped design. Deliberately left undecided.
+
+---
+
+## 24. 🟠 No concurrency control on project state
+
+**Severity:** P3 — latent; requires two concurrent sessions on one project to surface.
+**Status:** 🟠 Open.
+
+**Symptom:** Two agent sessions (or an agent and a PM shell) operating in the same project can interleave writes to `.meta.yaml`, losing one side's status update.
+
+**Evidence:** The only lock in the codebase guards the shared central-sync cache — `lib/git_sync.py:20-51` (`_lock_path`, an atomic `mkdir` lock with stale-lock stealing). `scripts/pm_approve.py` and the hooks read-modify-write `.meta.yaml` with no lock.
+
+**Proposed fix:** Reuse the portable `mkdir` lock already written for the sync cache, scoped per project root, around the read-modify-write of `.meta.yaml`.
+
+---
+
+## 25. 🟠 `.history/` lineage is agent-written and completely unvalidated
+
+**Severity:** P2 — silently corrupts the approval-quality metrics, and a missing snapshot is indistinguishable from a legitimately-null one.
+**Status:** 🟠 Open.
+
+**Symptom:** The only artifact-lineage record in PM-OS is written by the agent following `SKILL.md` instructions, and nothing ever checks it. Three consequences, all verified:
+1. If the agent skips or misnames a snapshot, `_latest_generated_snapshot` returns `None` and the edit-distance metrics silently become `None` — **indistinguishable from the legitimate null recorded for imported/backfilled stages that were never generated**.
+2. The baseline snapshot is selected by lexicographic filename sort, so a malformed timestamp silently picks the wrong baseline and yields a wrong edit distance with no error.
+3. Nothing verifies a snapshot's `generated_hash` against what was actually generated, so a hand-edited or tampered history file corrupts the metric invisibly.
+
+**Evidence:**
+- `scripts/pm_approve.py:25-36` — `_latest_generated_snapshot` globs `.history/<stem>.*.generated.md` and takes the lexicographically last match; Python only ever *reads* history.
+- `scripts/pm_approve.py:163-169` — the snapshot feeds `char_edit_distance` / `normalized_edit_distance` inside a bare `except Exception: pass`.
+- `lib/consistency.py:115-123` — `check_project` runs exactly nine checks; none touch `.history`.
+- The history write lives in each stage skill's "Write outputs" step (e.g. `skills/pm-stage-02-scope/SKILL.md`, step 3) — an agent instruction, not code.
+
+**Proposed fix (PM decision, 2026-07-27) — make the write deterministic rather than merely detecting when it wasn't:**
+1. Move the snapshot write into Python: the agent writes the artifact, then one inline call (e.g. `pm_snapshot.py <NN>`) copies it into `.history/` with a Python-controlled timestamp and stamps/verifies `generated_hash`. This replaces today's *two* writes of the same content (history, then artifact) with one write plus a copy, so the snapshot is byte-identical by construction and the whole "history and artifact disagree" bug class disappears.
+2. **Never a hard failure.** Generating the artifact is the job. A snapshot problem must surface as a visible warning so the PM knows lineage is degraded, and must not block generation or approval. This follows the existing convention for telemetry, which is wrapped so a failure warns without breaking the workflow.
+3. Keep a lightweight consistency check as a secondary, for projects already on disk whose agent-written history has never been validated: every stage with a `stage_generated` event should have a parseable snapshot whose hash matches.
+
+**Scope note:** touches a new script plus the write-outputs step in all nine stage skills — a path every stage depends on. Not a docs-only change; needs the test suite.
+
+---
+
+## 26. 🟠 "Quality" metrics measure PM effort and PM opinion, not artifact correctness
+
+**Severity:** P2 — the self-improvement loop (roadmap next-step #10, the next major build) is designed on top of these signals and would present them as quality.
+**Status:** 🟠 Open — constraint recorded; replacement undecided.
+
+**Symptom:** PM-OS's entire quality signal set is: character/normalized edit distance between generated and approved bodies, an optional *agent-estimated* `semantic_distance`, and a 1-5 PM rating with tags. Every one measures **how much the PM changed it** and **whether the PM liked it**. An artifact that is fluent, confident, and wrong — and that the PM does not catch — scores as high quality: low edit distance, high rating. Conversely a large edit distance cannot distinguish "the system's output was wrong" from "the PM changed their mind," "the PM rewrote for style," or a PM deliberately distorting the number. The metric is uninterpretable without a reason attached to it.
+
+**Evidence:**
+- `lib/text_metrics.py` — `char_edit_distance` / `normalized_edit_distance`, plain Levenshtein.
+- `scripts/pm_feedback.py:19` — a 1-5 `--rating` plus tags.
+- `docs/plans/pm-os-self-improvement-loop-plan.md:32` (the plan's own headline example: "higher edit distance, lower ratings"), `:233-235` (Quality Metrics purpose), `:600-604` (candidate quality flags, e.g. `rating <= 3: quality concern`) — the improvement loop's quality model rests entirely on these proxies.
+- Entry #5 (IMP-001) is the proof case: a design spec contradicted the PRD and was caught only once the prototype was built, never by any metric.
+
+**Proposed fix:** Not an evaluation harness — assessing artifact correctness is a research problem, and `docs/reference/pm-os-spec.md` already records that an embedding-based semantic capability was designed and deliberately never built. The actionable constraint is narrower: **the self-improvement loop must not label these as artifact quality.** They are activity and satisfaction metrics; naming them accurately prevents a rollup that ranks stages by a number which cannot distinguish system failure from PM preference. What to capture *instead* is undecided and depends on entry #23 — a decision record attached to each approval is what would make an edit distance interpretable.
+
+---
+
+## 27. 🟠 Artifact contracts detect vocabulary, not meaning (the recurring-bug root cause)
+
+**Severity:** P2 — the shared root cause of entries #11 and #12, and of the pattern named in #13's closing note. Not a single defect: a substrate limitation that keeps producing defects.
+**Status:** 🟠 Open.
+
+**Symptom:** The traceability spine and every artifact contract are derived by pattern-matching Markdown prose. `lib/artifact_contracts.py` compiles 19 regexes in three classes of very different soundness:
+1. **ID patterns** (`:32-43` — `REQUIREMENT_ID_RE`, `TEST_CASE_ID_RE`, `JOURNEY_ID_RE`, `SCREEN_ID_RE`, `TASK_ID_RE`, …). Matching a stable token like `TSK-014`. Regex is the correct tool; not a problem.
+2. **Block splitters** (`:258`, `:306`, `:322`, `:346` — `_TC_BLOCK_START_RE`, `_US_BLOCK_START_RE`, `_TSK_BLOCK_START_RE`, `_SCR_BLOCK_START_RE`). These infer document structure from Markdown line shape. Fragile, and the direct source of entries #11 and #12 — bold-wrapped ids, heading-level nesting, single-line vs. heading authoring styles.
+3. **Cue regexes** (`:430`, `:435`, `:440`, `:453`, `:460` — `_ACCEPTANCE_CUE_RE`, `_HAPPY_PATH_CUE_RE`, `_EDGE_CASE_CUE_RE`, `_MODEL_AVAILABILITY_CUE_RE`, `_MODEL_FALLBACK_CUE_RE`). These decide whether *meaning* is present by keyword match. A story covering edge cases in different words **fails**; a story that writes "Edge cases:" and then says nothing useful **passes**. This class is unsound — a vocabulary detector presented as a semantic check.
+
+**Evidence:** the file:line references above, plus `lib/artifact_contracts.py:511-517`, where `_validate_stage_03` already checks journeys for required *fields* ("primary user", "context and trigger", "goal", "preconditions", "happy path", …) — but implements that as substring matching over normalized text rather than a real labeled-field parse.
+
+**Proposed fix — convert semantic questions into structural ones.** Not NLP or embeddings (`docs/reference/pm-os-spec.md` records that path as designed and deliberately abandoned; it would add a dependency and a fresh false-confidence surface). Instead, require **labeled fields** under each declaration: if a `US-###` must carry explicit `Happy path:` / `Edge cases:` / `Acceptance:` fields, then "does this story have acceptance criteria" becomes "does the `Acceptance:` field exist and is it non-empty" — a question regex answers soundly. The cue regexes retire, and the block splitters gain a reliable anchor instead of guessing at prose shape. This generalizes and hardens the pattern `_validate_stage_03` already gestures at, extending it to stories, test cases, screens, and tasks. Delivery shape: a `CONTRACT_VERSION` bump, **WARNING-only** for existing artifacts, matching how v2 and v3 shipped. Larger than a bug fix — it retires an entire recurring bug class rather than patching the next instance. See also the constraint note in `ARCHITECTURE.md` §4.
+
+---
+
+## 28. 🔴 Single-tier scope + single-shot handoff — no path from "whole product" to stories, and the two exports disagree
+
+**Severity:** P1 — caps PM-OS at one tier of work handed off once; blocks multi-cycle delivery. The export mismatch is a live bug.
+**Status:** 🔴 Open. **Design captured in** `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B (2026-07-27) — this entry tracks the verified gaps; the plan holds the design.
+
+**Symptom:** Three connected gaps:
+1. **"MVP" is prose; "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph that every downstream stage treats as binding via LLM judgment — no structured field, id, or flag. Stage 09's `V1`/`V2`/`Expansion` horizons carry **no `US-###`/`FR-###`** (stage 09 is forbidden from generating requirements), so there is no path from a roadmap horizon to a user story. The pipeline can only ever elaborate the single tier stage 02 named MVP, and what separates MVP from the full product is nowhere defined structurally.
+2. **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles.
+3. **The two exports use different, conflicting mappings.** `scripts/pm_share.py:352` hardcodes every story to a single `"EPIC-01"` and writes one `epics/EPIC-01-mvp.md`; `scripts/pm_handoff.py:160` maps one epic per `US-###`. A fully-traceable pipeline is decomposed two incompatible ways depending on which export runs.
+
+**Evidence:** `skills/pm-stage-02-scope/SKILL.md:155` (prose MVP boundary); `skills/pm-stage-09-roadmap/SKILL.md:14,202` (horizons, no requirement generation); `lib/artifact_contracts.py` (no `Tier`/priority field on `US`/`FR`); `scripts/pm_share.py:352` vs. `scripts/pm_handoff.py:160` (mapping disagreement); `lib/traceability.py:142` + `scripts/pm_handoff.py:202` (a non-`approved` TRD contributes zero tasks — the reason increments must be ungated).
+
+**Proposed fix (designed in the plan, PM decisions 2026-07-27):**
+- **B0 (prerequisite bugfix):** reconcile the `EPIC-01` vs. per-story mapping to one epic/story/task mapping before any tier/increment work.
+- **Scope tiers:** an optional `Tier:` (`mvp | v1 | v2 | later`, default `mvp`) on `US-###`/`FR-###`; stage 02 declares tiers + defines what "complete" means; stages 04–07 stay MVP-scoped by default so nothing downstream gets heavier. Depends on #19 (priority).
+- **Tiered fidelity + `/pm-promote`:** non-MVP stories are lightweight stubs (the v2 mini-spec contract applies to `tier: mvp` only); promotion elevates a stub and triggers full-fidelity regeneration — deferred rigor paid at promotion, not skipped.
+- **Delivery increments:** an **ungated** `delivery.yaml` of `INC-###` grouping `TSK-###`, validated *against* stage 08/09 by `/pm-check` but never gated *by* them, so replanning a cycle never marks the TRD/roadmap stale. `--increment` scopes the Jira export; ticket keys are recorded per increment so later cycles never recreate earlier tickets. Depends on #20 (TRD contract).
+- **Explicitly out of scope:** story points / effort / sprint dates / capacity / velocity — those belong to the tracker and to development, not PM-OS (backlog #22).
+
+Additive to the traceability spine throughout; no gate/hash/status/staleness change.
+
+**Proposed fix — convert semantic questions into structural ones.** Not NLP or embeddings (`docs/reference/pm-os-spec.md` records that path as designed and deliberately abandoned; it would add a dependency and a fresh false-confidence surface). Instead, require **labeled fields** under each declaration: if a `US-###` must carry explicit `Happy path:` / `Edge cases:` / `Acceptance:` fields, then "does this story have acceptance criteria" becomes "does the `Acceptance:` field exist and is it non-empty" — a question regex answers soundly. The cue regexes retire, and the block splitters gain a reliable anchor instead of guessing at prose shape. This generalizes and hardens the pattern `_validate_stage_03` already gestures at, extending it to stories, test cases, screens, and tasks.
+
+Delivery shape: a `CONTRACT_VERSION` bump to v4, **WARNING-only** for existing artifacts — the same pattern used for v2 and v3, so nothing on disk breaks. Larger than a bug fix; it retires an entire recurring bug class rather than patching the next instance. See also the constraint note in `ARCHITECTURE.md` §4.
+
+---
+
+_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. **Entries 18-28 recorded 2026-07-27** from a structural review of PM-OS's limitations against a full PDLC (business, product, and technical levels), each verified against the current codebase before being logged; PM decisions taken during that review are marked inline (#19 prioritization shape, #21 severity, #22 boundary, #25 deterministic snapshot, #28 delivery model). #28's design is captured in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B rather than inline here. Roadmap-level gaps surfaced in the same review — missing discovery/research stages, the regulatory/compliance gate, the commercial/services layer, localization and UX-writing workflows, and the metrics-late/feasibility-late ordering — were deliberately **not** logged here; they belong in `current-state-review.md` and `product-shape-and-flexibility-brainstorm.md`, since this file tracks verified gaps in built things. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
