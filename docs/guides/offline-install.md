@@ -1,5 +1,40 @@
 # Offline and GitLab-friendly Install
 
+## 0. Prerequisite: network access to fetch the base tools
+
+On a corporate machine, having local admin rights is not the same as having network access —
+a proxy/firewall team commonly blocks the download endpoints even when you're allowed to install
+software yourself. PM-OS itself needs `git` and a Python 3.11+ runtime; the agent runtime (Claude
+Code or Codex) is a separate prerequisite install. Before install day, file one ticket with your
+network/IT team requesting outbound access to all of these — going one tool at a time tends to
+turn into a multi-week back-and-forth:
+
+| Tool | What you're fetching | Typical domains to allow-list |
+|------|----------------------|-------------------------------|
+| Git | Git for Windows / Xcode CLT / distro package | `github.com`, `objects.githubusercontent.com`, `gitforwindows.org` (Windows installer) |
+| Python 3.11+ | Interpreter installer | `python.org`, `www.python.org` |
+| pip / PyPI packages (`pyyaml`, `jinja2`) | Runtime dependencies `install.sh` installs automatically | `pypi.org`, `files.pythonhosted.org` |
+| Claude Code | CLI install script / npm package | `claude.ai`, `anthropic.com`, `registry.npmjs.org` (if installed via npm) |
+| Codex | CLI install script / npm package | `openai.com`, `registry.npmjs.org` (if installed via npm) |
+| PM-OS itself | This repo, cloned by `install.sh` | `github.com` (or your internal GitLab mirror — see §2 below) |
+
+Practical notes:
+- Ask for the list above in one request rather than discovering blocks one at a time — each
+  round trip through a network team's ticket queue can cost a day or more.
+- If GitHub itself is blocked but an internal GitLab mirror is reachable, use the
+  [GitLab mirror path](#2-gitlab-mirror-custom-git-remote) below instead of requesting a
+  GitHub exception.
+- If PyPI is blocked but GitHub/GitLab isn't, use `--with-wheels` (§3) to bundle `pyyaml`/`jinja2`
+  so no PyPI access is needed at install time.
+- If *all* outbound access is blocked (no exceptions available), use the fully offline zip path
+  (§3) with `--with-wheels` — it needs no network access at install time, only a way to move the
+  zip onto the machine (shared drive, MDM payload, USB).
+- Confirm the base tools (`git`, `python3`, and your chosen agent runtime CLI) are actually
+  installed and on `PATH` before running `install.sh` — a network unblock doesn't install the
+  tool for you, it just lets the installer you run yourself reach the download.
+
+---
+
 PM-OS supports three install paths from the same `install.sh`:
 
 1. **GitHub (default)** — standard path, clones from public GitHub.

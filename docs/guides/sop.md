@@ -97,6 +97,7 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 ### 4.1 One-time setup (per machine)
 
 **Prerequisites:**
+- Network access to fetch the base tools below — on a locked-down corporate machine, local admin rights are not sufficient by themselves; the network/proxy team must also allow-list the relevant domains. Request this *before* the install day, since network changes usually go through a ticket queue. See `docs/guides/offline-install.md` §0 for the specific domains to request per tool.
 - Python 3.11+
 - `git` — required for `/pm-sync` (telemetry push) and for GitHub/GitLab install paths; not needed for the offline zip install path
 - `pyyaml` and `jinja2` — auto-installed by `install.sh` if pip/PyPI is available; if pip is blocked, see `docs/guides/offline-install.md` for the `--with-wheels` zip option
