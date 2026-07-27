@@ -40,12 +40,11 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from artifact_contracts import (  # noqa: E402
-    FUNCTIONAL_REQ_ID_RE,
     _sections,
     split_task_blocks,
-    split_user_story_blocks,
     work_breakdown_section,
 )
+from delivery_map import build_prd_delivery_map, body_of, title_of  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from jira_markup import to_jira_markup  # noqa: E402
 from project import artifact_path, load_meta, resolve_project  # noqa: E402
@@ -157,11 +156,13 @@ def _resolve_out_dir(root: Path, output: str | None) -> Path:
 def build_plan(root: Path) -> dict:
     """Build the tracker-agnostic ticket map from the approved PRD (+ approved TRD).
 
-    Structure: one Epic per PRD user story (US-###); each functional requirement
-    (FR-###/REQ-###) the story owns becomes a child Story; each approved TRD task
-    (TSK-###) becomes a child Task under the epic that owns the requirement it
-    implements. Requirements/tasks with no owning story are surfaced under a
-    synthetic 'Unassigned' epic rather than dropped.
+    Jira-native structure: PRD Product Epics (EPIC-###) become Jira Epics; each
+    PRD user story (US-###) becomes a Jira Story under its declared epic; each
+    functional requirement (FR-###/REQ-###) becomes a Jira Task under its declared
+    epic. A TRD task that implements exactly one exported Story/Task becomes a
+    Subtask under that item; one that implements multiple refs in the same epic
+    becomes a Task under that epic; cross-epic/unresolved tasks stay unparented
+    and are counted for PM review.
     """
     meta = load_meta(root)
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
@@ -183,10 +184,9 @@ def build_plan(root: Path) -> dict:
         raise SystemExit("Error: no approved PRD (03-prd.md) found — nothing to export.")
 
     prd_stamp = _stamp(root, "03")
-    stories_section = _section_of(prd_body, "user stories with acceptance criteria")
-    fr_section = _section_of(prd_body, "functional requirements")
-    story_blocks = split_user_story_blocks(stories_section or prd_body)
-    fr_blocks = _split_blocks(fr_section, _FR_BLOCK_START_RE)
+    delivery = build_prd_delivery_map(prd_body)
+    story_blocks = delivery.story_blocks
+    fr_blocks = delivery.requirement_blocks
 
     # Build the traceability view *fresh* rather than trusting the on-disk index.
     # An implicit re-approval (hooks/pre-stage.py) can re-approve the edited PRD and
@@ -204,83 +204,118 @@ def build_plan(root: Path) -> dict:
     _trd_fm, trd_body = _read_artifact(root, "08") if trd_stamp else (None, None)
     task_blocks = split_task_blocks(work_breakdown_section(trd_body)) if trd_body else {}
 
-    # req_id -> owning story id. A story owns the FRs it cites (forward) and the FRs
-    # whose own block names the story (reverse), mirroring pm_share's linkage.
-    owner: dict[str, str] = {}
-    epics: list[dict] = []
-    for story_id, block in story_blocks.items():
-        owner.setdefault(story_id, story_id)
-        forward = [m.upper() for m in FUNCTIONAL_REQ_ID_RE.findall(block)]
-        reverse = [fid for fid, fblk in fr_blocks.items()
-                   if re.search(rf"\b{re.escape(story_id)}\b", fblk, re.IGNORECASE)]
-        owned_frs = list(dict.fromkeys(forward + reverse))
-        for fid in owned_frs:
-            owner.setdefault(fid, story_id)
-        epics.append({
-            "ref": story_id,
-            "type": "Epic",
-            "summary": f"{story_id} — {_title_of(story_id, block)}",
-            "description": _body_of(block, story_id),
-            "source": prd_stamp,
-            "parent_ref": None,
-            "children": list(owned_frs),  # filled/extended below
-        })
+    # req_id -> owning story id. This is logical ownership for PM review only;
+    # Jira Tasks cannot be children of Jira Stories, so actual parentage comes from
+    # each requirement's declared Product Epic.
+    owner: dict[str, str] = {story_id: story_id for story_id in story_blocks}
+    for story_id, reqs in delivery.story_requirements.items():
+        for req_id in reqs:
+            owner.setdefault(req_id, story_id)
 
     items: list[dict] = []
-    unassigned_children: list[str] = []
-
-    # Emit epics, then their FR children, then TRD task children.
-    epic_by_ref = {e["ref"]: e for e in epics}
-    for epic in epics:
-        epic["children"] = []  # rebuilt as we attach, preserving order
-    for epic in epics:
-        items.append(epic)
-
-    # FR child stories.
-    for fr_id, fblk in fr_blocks.items():
-        parent = owner.get(fr_id)
-        (epic_by_ref[parent]["children"] if parent in epic_by_ref else unassigned_children).append(fr_id)
+    for epic_ref, epic in delivery.epics.items():
         items.append({
-            "ref": fr_id,
-            "type": "Story",
-            "summary": f"{fr_id} — {_title_of(fr_id, fblk)}",
-            "description": _body_of(fblk, fr_id),
-            "source": prd_stamp,
-            "parent_ref": parent if parent in epic_by_ref else "UNASSIGNED",
-        })
-
-    # TRD task children.
-    for tsk_id in index_tasks:
-        implements = index_tasks[tsk_id].get("implements") or []
-        parent = next((owner[r] for r in implements if r in owner), None)
-        (epic_by_ref[parent]["children"] if parent in epic_by_ref else unassigned_children).append(tsk_id)
-        block = task_blocks.get(tsk_id, "")
-        items.append({
-            "ref": tsk_id,
-            "type": "Task",
-            "summary": f"{tsk_id} — {_title_of(tsk_id, block)}",
-            "description": _body_of(block, tsk_id),
-            "source": trd_stamp,
-            "parent_ref": parent if parent in epic_by_ref else "UNASSIGNED",
-            "implements": implements,
-        })
-
-    if unassigned_children:
-        items.append({
-            "ref": "UNASSIGNED",
+            "ref": epic_ref,
             "type": "Epic",
-            "summary": "Unassigned — requirements/tasks not owned by a user story",
-            "description": "Items with no owning user story. Review before creating: "
-                           "either link them to a story in the PRD or create them standalone.",
+            "summary": f"{epic_ref} — {epic.title}",
+            "description": epic.body,
             "source": prd_stamp,
             "parent_ref": None,
-            "children": list(unassigned_children),
+            "children": [],
         })
 
+    item_by_ref = {item["ref"]: item for item in items}
+    unassigned_children: list[str] = list(delivery.unassigned)
+    if not delivery.epics:
+        unassigned_children.extend(list(story_blocks) + list(fr_blocks))
+
+    for story_id, block in story_blocks.items():
+        epic_ref = delivery.story_to_epic.get(story_id)
+        if epic_ref in item_by_ref:
+            item_by_ref[epic_ref]["children"].append(story_id)
+        elif story_id not in unassigned_children:
+            unassigned_children.append(story_id)
+        item = {
+            "ref": story_id,
+            "type": "Story",
+            "summary": f"{story_id} — {title_of(story_id, block)}",
+            "description": body_of(block, story_id),
+            "source": prd_stamp,
+            "parent_ref": epic_ref if epic_ref in item_by_ref else None,
+            "children": [],
+        }
+        items.append(item)
+        item_by_ref[story_id] = item
+
+    # FR/REQ standard Jira tasks under their declared Product Epic. They retain
+    # logical ownership through ``story_ref`` because Jira cannot parent Task under
+    # Story.
+    for fr_id, fblk in fr_blocks.items():
+        story_ref = owner.get(fr_id)
+        epic_ref = delivery.requirement_to_epic.get(fr_id)
+        if epic_ref in item_by_ref:
+            item_by_ref[epic_ref]["children"].append(fr_id)
+        elif fr_id not in unassigned_children:
+            unassigned_children.append(fr_id)
+        item = {
+            "ref": fr_id,
+            "type": "Task",
+            "summary": f"{fr_id} — {title_of(fr_id, fblk)}",
+            "description": body_of(fblk, fr_id),
+            "source": prd_stamp,
+            "parent_ref": epic_ref if epic_ref in item_by_ref else None,
+            "story_ref": story_ref,
+            "children": [],
+        }
+        items.append(item)
+        item_by_ref[fr_id] = item
+
+    # TRD task children. One implemented exported item maps to a Jira Subtask under
+    # it. Multiple implemented refs in the same Product Epic map to a Jira Task
+    # under that Epic. Cross-epic or unresolved tasks stay unparented so the PM can
+    # correct the TRD/PRD instead of PM-OS silently choosing a parent.
+    for tsk_id in index_tasks:
+        implements = index_tasks[tsk_id].get("implements") or []
+        exportable_impls = [ref for ref in implements if ref in item_by_ref]
+        parent_ref = None
+        issue_type = "Task"
+        if len(exportable_impls) == 1:
+            parent_ref = exportable_impls[0]
+            issue_type = "Subtask"
+        elif len(exportable_impls) > 1:
+            epic_refs = {
+                delivery.story_to_epic.get(ref) or delivery.requirement_to_epic.get(ref)
+                for ref in exportable_impls
+            }
+            epic_refs.discard(None)
+            if len(epic_refs) == 1:
+                parent_ref = next(iter(epic_refs))
+                issue_type = "Task"
+        if parent_ref in item_by_ref:
+            item_by_ref[parent_ref]["children"].append(tsk_id)
+        else:
+            parent_ref = None
+            if tsk_id not in unassigned_children:
+                unassigned_children.append(tsk_id)
+        block = task_blocks.get(tsk_id, "")
+        item = {
+            "ref": tsk_id,
+            "type": issue_type,
+            "summary": f"{tsk_id} — {title_of(tsk_id, block)}",
+            "description": body_of(block, tsk_id),
+            "source": trd_stamp,
+            "parent_ref": parent_ref,
+            "implements": implements,
+        }
+        items.append(item)
+        item_by_ref[tsk_id] = item
+
+    unassigned_children = list(dict.fromkeys(unassigned_children))
     counts = {
-        "epics": sum(1 for i in items if i["type"] == "Epic" and i["ref"] != "UNASSIGNED"),
+        "epics": sum(1 for i in items if i["type"] == "Epic"),
         "stories": sum(1 for i in items if i["type"] == "Story"),
         "tasks": sum(1 for i in items if i["type"] == "Task"),
+        "subtasks": sum(1 for i in items if i["type"] == "Subtask"),
         "unassigned": len(unassigned_children),
     }
 
@@ -292,6 +327,7 @@ def build_plan(root: Path) -> dict:
         "source_stamps": {"prd": prd_stamp, "trd": trd_stamp},
         "items": items,
         "counts": counts,
+        "unassigned_refs": unassigned_children,
     }
 
 
@@ -305,14 +341,17 @@ def _render_plan_md(plan: dict) -> str:
                  + ".")
     c = plan["counts"]
     lines.append("")
-    lines.append(f"**{c['epics']} epic(s), {c['stories']} story(ies), {c['tasks']} task(s)**"
+    lines.append(f"**{c['epics']} epic(s), {c['stories']} story(ies), "
+                 f"{c['tasks']} task(s), {c['subtasks']} subtask(s)**"
                  + (f" · {c['unassigned']} unassigned" if c["unassigned"] else "")
                  + ". Review, then confirm to create.")
     lines.append("")
 
     by_ref = {i["ref"]: i for i in plan["items"]}
     epics = [i for i in plan["items"] if i["type"] == "Epic"]
+    rendered_refs: set[str] = set()
     for epic in epics:
+        rendered_refs.add(epic["ref"])
         lines.append(f"## {epic['summary']}")
         if epic["description"]:
             lines.append("")
@@ -321,15 +360,47 @@ def _render_plan_md(plan: dict) -> str:
             child = by_ref.get(child_ref)
             if not child:
                 continue
+            rendered_refs.add(child["ref"])
             lines.append("")
             lines.append(f"- **[{child['type']}] {child['summary']}**")
             if child.get("implements"):
                 lines.append(f"  - implements: {', '.join(child['implements'])}")
+            if child.get("story_ref"):
+                lines.append(f"  - logical story: {child['story_ref']}")
             if child["description"]:
                 snippet = " ".join(child["description"].split())
                 if len(snippet) > 240:
                     snippet = snippet[:237] + "…"
                 lines.append(f"  - {snippet}")
+            for grandchild_ref in child.get("children", []):
+                grandchild = by_ref.get(grandchild_ref)
+                if not grandchild:
+                    continue
+                rendered_refs.add(grandchild["ref"])
+                lines.append(f"  - **[{grandchild['type']}] {grandchild['summary']}**")
+                if grandchild.get("implements"):
+                    lines.append(f"    - implements: {', '.join(grandchild['implements'])}")
+                if grandchild["description"]:
+                    snippet = " ".join(grandchild["description"].split())
+                    if len(snippet) > 200:
+                        snippet = snippet[:197] + "…"
+                    lines.append(f"    - {snippet}")
+        lines.append("")
+    unparented = [
+        item for item in plan["items"]
+        if item["ref"] not in rendered_refs and item["type"] != "Epic"
+    ]
+    if unparented:
+        lines.append("## Unparented items")
+        lines.append("")
+        lines.append("These items have no valid declared Product Epic parent in the approved PRD/TRD.")
+        for item in unparented:
+            lines.append("")
+            lines.append(f"- **[{item['type']}] {item['summary']}**")
+            if item.get("implements"):
+                lines.append(f"  - implements: {', '.join(item['implements'])}")
+            if item.get("story_ref"):
+                lines.append(f"  - logical story: {item['story_ref']}")
         lines.append("")
     lines.append("---")
     lines.append("_Confirm to create these in "
@@ -349,8 +420,9 @@ def cmd_plan(root: Path, output: str | None) -> None:
     print(f"Handoff plan written (DRY RUN — nothing created):")
     print(f"  {md_path}   (review this)")
     print(f"  {json_path}   (machine map)")
-    print(f"  {c['epics']} epic(s), {c['stories']} story(ies), {c['tasks']} task(s)"
-          + (f", {c['unassigned']} unassigned" if c["unassigned"] else "") + ".")
+    print(f"  {c['epics']} epic(s), {c['stories']} story(ies), "
+          f"{c['tasks']} task(s), {c['subtasks']} subtask(s)"
+          + (f", {c['unassigned']} unparented/unassigned" if c["unassigned"] else "") + ".")
 
 
 # --- export (offline CSV) --------------------------------------------------------
@@ -392,13 +464,15 @@ def build_csv_rows(plan: dict) -> list[dict]:
     """Flatten the plan into importer rows, parents first.
 
     Mirrors the MCP path's ownership rules exactly so the two routes create the same
-    shape: the synthetic ``UNASSIGNED`` epic is *not* emitted as a ticket, and its
-    children are emitted parentless for the PM to place — rather than manufacturing
-    an "Unassigned" epic in the PM's Jira.
+    shape: Epic first, standard work items next (Stories/Tasks), then Subtasks so
+    every `Parent Id` points to an issue already present in the same file.
     """
-    items = [i for i in plan["items"] if i["ref"] != "UNASSIGNED"]
-    # Epics first so a parent's Issue Id is always defined before a child cites it.
-    ordered = [i for i in items if i["type"] == "Epic"] + [i for i in items if i["type"] != "Epic"]
+    items = plan["items"]
+    ordered = (
+        [i for i in items if i["type"] == "Epic"]
+        + [i for i in items if i["type"] in ("Story", "Task")]
+        + [i for i in items if i["type"] == "Subtask"]
+    )
     issue_ids = {item["ref"]: index for index, item in enumerate(ordered, start=1)}
 
     rows: list[dict] = []
@@ -451,7 +525,7 @@ def _render_import_guide(plan: dict, rows: list[dict], csv_name: str) -> str:
         "|---|---|---|",
         "| `Issue Id` | Issue Id | Required for parent linking; not a Jira key |",
         "| `Parent Id` | Parent Id | Links each story/task to its epic **inside this file** — map it or the hierarchy is lost |",
-        "| `Issue Type` | Issue Type | `Epic` / `Story` / `Task` — rename to match your project's scheme if it differs |",
+        "| `Issue Type` | Issue Type | `Epic` / `Story` / `Task` / `Subtask` — rename to match your project's scheme if it differs (for example `Sub-task`) |",
         "| `Summary` | Summary | |",
         "| `Description` | Description | Already Jira wiki markup |",
         "| `Labels` (both columns) | Labels | Two columns on purpose — Jira reads repeated columns as multiple values |",
@@ -480,9 +554,8 @@ def _render_import_guide(plan: dict, rows: list[dict], csv_name: str) -> str:
     ]
     if unassigned:
         lines += [
-            f"- **{unassigned} item(s) have no owning user story.** They are exported with no",
-            "  `Parent Id` and will import as top-level issues. Fix ownership in the PRD and",
-            "  re-export if you would rather they sat under an epic.",
+            f"- **{unassigned} item(s) have no valid Product Epic parent.** They are",
+            "  exported without a parent and should be reviewed for missing PRD/TRD ownership.",
         ]
     return "\n".join(lines) + "\n"
 
@@ -500,10 +573,13 @@ def cmd_export(root: Path, output: str | None, fmt: str) -> None:
 
     c = plan["counts"]
     print("Jira CSV export written (offline — nothing created in Jira):")
-    print(f"  {csv_path}   ({len(rows)} issue(s): {c['epics']} epic, {c['stories']} story, {c['tasks']} task)")
+    print(
+        f"  {csv_path}   ({len(rows)} issue(s): {c['epics']} epic, "
+        f"{c['stories']} story, {c['tasks']} task, {c['subtasks']} subtask)"
+    )
     print(f"  {guide_path}   (import + field-mapping guide)")
     if c["unassigned"]:
-        print(f"  Note: {c['unassigned']} item(s) have no owning user story — exported without a parent.")
+        print(f"  Note: {c['unassigned']} item(s) have no valid Product Epic parent — review ownership.")
     print("Import it via Jira's CSV importer, then record the created keys with "
           "`pm_handoff.py record`.")
 
@@ -511,6 +587,7 @@ def cmd_export(root: Path, output: str | None, fmt: str) -> None:
 # --- record --------------------------------------------------------------------
 
 # The id shapes the record step accepts, routed to the right index slot.
+_EPIC_REF_RE = re.compile(r"^EPIC-\d{2,}$", re.IGNORECASE)
 _REQ_REF_RE = re.compile(r"^(?:REQ|US|FR)-\d{3,}$", re.IGNORECASE)
 _TASK_REF_RE = re.compile(r"^TSK-\d{3,}$", re.IGNORECASE)
 
@@ -534,6 +611,9 @@ def _load_created_map(input_path: str | None) -> dict:
 def cmd_record(root: Path, input_path: str | None) -> None:
     created = _load_created_map(input_path)
     index = traceability.load_index(root) or traceability.build_index(root)
+    epics = index.setdefault("epics", {})
+    legacy_epics = index.setdefault("legacy_handoff_epics", {})
+    old_handoff_epics = index.get("handoff_epics") or {}
     requirements = index.setdefault("requirements", {})
     tasks = index.setdefault("tasks", {})
 
@@ -542,7 +622,10 @@ def cmd_record(root: Path, input_path: str | None) -> None:
     for ref, key in created.items():
         if ref == "UNASSIGNED":
             continue
-        if _REQ_REF_RE.match(ref):
+        if _EPIC_REF_RE.match(ref):
+            entry = epics.get(ref) or legacy_epics.get(ref) or old_handoff_epics.get(ref)
+            slot = entry.setdefault("tickets", []) if entry is not None else None
+        elif _REQ_REF_RE.match(ref):
             entry = requirements.get(ref)
             slot = entry.setdefault("tickets", []) if entry is not None else None
         elif _TASK_REF_RE.match(ref):

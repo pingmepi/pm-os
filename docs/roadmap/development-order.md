@@ -24,7 +24,7 @@ This is the single home for **build sequencing** across all open work. It does n
 | # | Item | Why necessary | Depends on |
 |---|---|---|---|
 | 1 | **#18 (local half)** — `git init` per project ✅ **shipped** | Every approved decision lives on one laptop with no version history; the local half needs nothing external. `lib/project_git.py` — init+commit at scaffold, commit on approval. | — |
-| 2 | **B0** — reconcile the `EPIC-01`-vs-per-story export mapping | A *live bug*: the two shipped exports (`pm_share.py`, `pm_handoff.py`) decompose the same pipeline two incompatible ways. Also unblocks the roadmap's tier/increment work. | — |
+| 2 | **B0** — reconcile epic/story/task export mapping ✅ **shipped** | Stage 03 now declares Product Epics (`EPIC-###`) and both shipped exports use the same Jira-native mapping: `EPIC-###` items are Epics, `US-###` items are Stories, `FR/REQ-###` items are Tasks, and `TSK-###` items become Subtasks when they implement exactly one exported item. This unblocks the roadmap's tier/increment work. | — |
 | 3 | **#19** — prioritization value + method block | Stage-03 already *claims* "stories in priority order" with nothing to back it. Makes a current claim honest; unblocks #10; foundation for tiers. | — |
 | 4 | **#20** — stage-08 TRD required-section contract | The TRD is now load-bearing (TSK ids, Jira export) yet the least-validated artifact. WARNING-only + `CONTRACT_VERSION` bump. Unblocks increments. | — |
 | 5 | **#27** — labeled-field contracts | Contracts match vocabulary, not meaning — the root cause behind #11/#12/#5. Retires the bug class; generalizes the labeled-field pattern #19/#20 use. Larger change. | (best after #19/#20 so their fields ride the same bump) |

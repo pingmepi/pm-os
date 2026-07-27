@@ -8,6 +8,8 @@ overview and reference docs. It is a read-only projection: it must never touch t
 gate/hash/status state machine, every file is stamped with source provenance, and
 sections with no source content are flagged (not fabricated).
 See docs/guides/testing.md §"Share package mode"."""
+import json
+
 import pytest
 
 from helpers import run_script, make_draft
@@ -25,19 +27,31 @@ _SCOPE = """## MVP Boundary
 Add and list external agencies. No allocation engine in v1.
 """
 
-_PRD = """## User Journeys
+_PRD = """## Product Epics
+### EPIC-001 — Agency onboarding
+**Outcome:** Collections users can add external agencies.
+**Scope:** Agency creation and approval state.
+**Success signal:** An agency is saved for approval.
+### EPIC-002 — Agency discovery
+**Outcome:** Collections users can find agencies.
+**Scope:** Agency listing.
+**Success signal:** Agency list loads within target performance.
+## User Journeys
 ### UJ-001 — Manage agencies
 Primary user: Collections user. Traceability: US-001.
 ## User Stories with Acceptance Criteria
 ### US-001 — Add external agency
+Epic: EPIC-001
 As a Collections user, I want to add agencies, so that cases can be allocated.
 Traceability: UJ-001, FR-001.
 Data fields: Agency Code, Status.
 Acceptance: agency saved with status Sent for approval.
 ### US-002 — List agencies
+Epic: EPIC-002
 As a user, I want to list agencies.
 ## Functional Requirements
 FR-001 — The system stores agencies.
+Epic: EPIC-001
 ## Non-Functional Requirements
 Performance: list loads under 2s for 10k agencies.
 ## Impact Analysis
@@ -68,9 +82,12 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     pkg = proj / "handoff"
     assert (pkg / "README.md").exists()
     assert (pkg / "00-overview.md").exists()
-    assert (pkg / "epics" / "EPIC-01-mvp.md").exists()
+    assert (pkg / "epics" / "EPIC-001-agency-onboarding.md").exists()
+    assert (pkg / "epics" / "EPIC-002-agency-discovery.md").exists()
+    assert not (pkg / "epics" / "US-001-add-external-agency.md").exists()
 
     story = (pkg / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "epic: EPIC-001" in story
     # Assembled from the spine: both covering test cases resolved and listed together.
     assert "TC-001" in story and "TC-002" in story
     assert "TC-001, TC-002" in story  # the joined "Covering test cases" line
@@ -79,6 +96,16 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     # Provenance stamp + non-canonical banner.
     assert "03-prd.md@" in story
     assert "DO NOT EDIT HERE" in story
+
+    # B0: pm-share and pm-handoff must decompose the same approved pipeline with
+    # Jira-native refs: Product Epics as Jira Epics, with US-### items as stories.
+    assert run_script(pmos, "pm_handoff.py", "plan", cwd=proj).returncode == 0
+    plan = json.loads((pkg / "jira-plan.json").read_text())
+    jira_epics = {item["ref"] for item in plan["items"] if item["type"] == "Epic"}
+    jira_stories = {item["ref"] for item in plan["items"] if item["type"] == "Story"}
+    package_epics = {path.name.split("-", 2)[0] + "-" + path.name.split("-", 2)[1] for path in (pkg / "epics").glob("EPIC-*.md")}
+    assert package_epics == jira_epics == {"EPIC-001", "EPIC-002"}
+    assert jira_stories == {"US-001", "US-002"}
 
 
 def test_package_flags_unsourced_sections_instead_of_fabricating(pmos, new_project):

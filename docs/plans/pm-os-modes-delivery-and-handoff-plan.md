@@ -1,6 +1,6 @@
 # PM-OS Modes, Delivery Model & Engineering Handoff Plan
 
-**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B designed but unbuilt; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27) but unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
+**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B partially built; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 is shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming note, resolved 2026-07-15.** A local, human-readable handoff-package generator briefly shipped under `skills/pm-handoff/` (PR #30), colliding with the `/pm-handoff <target>` name this plan reserves for Part B below. **Resolved by merging that local generator into `/pm-share --package`** (`scripts/pm_share.py`) instead — `pm-share` now covers both a raw text export and the decomposed per-story package, and the `pm-handoff` name is fully free again for Part B's external-tracker/design export when it gets built, exactly as this plan originally intended.
 
@@ -133,12 +133,12 @@ Small and localized:
 
 ## 8. Part B — Delivery model: scope tiers & delivery increments
 
-**Designed 2026-07-27 (Karan + Claude); unbuilt.** This part resolves two gaps the current linear pipeline has by design: PM-OS defines exactly one tier of work ("the MVP", as prose) and hands it off exactly once. It adds a *scope-tier* dimension upstream and a *delivery-increment* dimension downstream, both **additive to the traceability spine — no change to the gate, hash, status, or staleness machinery** (the product-shape golden rule: grow the spine, not the state machine). Depends on backlog #19 (priority) and #20 (TRD section contract).
+**Designed 2026-07-27 (Karan + Claude); partially built.** B0 shipped 2026-07-28, resolving the synthetic-epic vs. per-story export mismatch into a Jira-native hierarchy with declared Product Epics (`EPIC-###`). The remaining Part B work resolves two gaps the current linear pipeline still has by design: PM-OS defines exactly one tier of work ("the MVP", as prose) and hands it off exactly once. It adds a *scope-tier* dimension upstream and a *delivery-increment* dimension downstream, both **additive to the traceability spine — no change to the gate, hash, status, or staleness machinery** (the product-shape golden rule: grow the spine, not the state machine). Depends on backlog #19 (priority) and #20 (TRD section contract).
 
 ### 8.1 The two gaps, verified
 
 - **"MVP" is prose, and "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph (`skills/pm-stage-02-scope/SKILL.md:155`); every downstream stage treats it as binding via LLM judgment, with no structured field, ID, or flag. Stage 09 has `V1`/`V2`/`Expansion` horizons but is explicitly forbidden from generating requirements, so roadmap horizons carry **no `US-###`/`FR-###`**. There is no path from "V1 horizon" to "user story" — the pipeline can only ever elaborate the single tier stage 02 named MVP.
-- **Handoff is single-shot, and the two exports disagree.** `scripts/pm_share.py:352` stamps every story with a literal `"EPIC-01"` and writes one `epics/EPIC-01-mvp.md`; `scripts/pm_handoff.py:160` uses a *different* mapping (one epic per `US-###`). Neither models "which slice ships this cycle" — a grep for `sprint` across `skills/`/`lib/`/`scripts/` returns nothing.
+- **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles. The earlier export-mapping mismatch is now fixed: `pm_share.py --package` and `pm_handoff.py plan/export` both use Jira's native hierarchy (`EPIC-###` Epic → `US-###` Story / `FR-###` Task → `TSK-###` Subtask/Task as parentability allows).
 
 ### 8.2 Defining MVP vs. the whole product
 
@@ -176,11 +176,11 @@ So the increment layer is:
 
 **Out of scope by decision:** story points, effort estimation, sprint dates, capacity, velocity — these belong to the tracker and to development, not PM-OS (backlog #22). PM-OS owns the increment *boundary* as a product decision; it does not estimate or schedule it.
 
-### 8.6 Resolve the export mismatch first
+### 8.6 Export mapping prerequisite — shipped
 
-Before tiers or increments land, the `EPIC-01`-hardcode (`pm_share.py:352`) vs. one-epic-per-story (`pm_handoff.py:160`) disagreement must be reconciled to a single epic/story/task mapping — otherwise the inconsistency multiplies across every tier and increment.
+B0 is complete: Stage 03 declares Product Epics and `pm-share --package` / `pm_handoff.py` now agree on Jira's default hierarchy. `EPIC-###` entries export as Epic work items, `US-###` entries export as Story work items under their declared epic, `FR/REQ-###` entries export as Task work items under their declared epic, and approved `TSK-###` work-breakdown entries export as Subtasks when they implement exactly one exported item. Same-epic multi-ref tasks become Tasks under that epic; cross-epic or unresolved tasks stay unparented. `tests/integration/test_share_package.py` compares the package epic refs against the Jira handoff plan.
 
-Once unified, `/pm-handoff jira --increment INC-02` scopes the export to that increment — but **an increment export is the member set plus its required ancestor closure, not the members alone.** `scripts/pm_handoff.py:255-264` parents each task to its owning `US-###` epic, and the offline exporter (`:359-365`, `:399-410`) resolves `Parent Id` only against issues present in the *same* CSV. So a task-only export orphans every task (its parent epic isn't in the file). The export must therefore emit, for each member, the epic/story ancestors it hangs from. And because those ancestors may have been created in an *earlier* increment, the export must **substitute the previously-recorded Jira keys** (from `.traceability.yaml`'s per-increment `tickets:` slots) for any parent already created, rather than re-creating it. `.traceability.yaml` records returned ticket keys per increment so cycle 2 never recreates cycle 1's tickets. This is a prerequisite-aware refinement of backlog #28.
+With that mapping in place, `/pm-handoff jira --increment INC-02` scopes the export to that increment — but **an increment export is the member set plus its required ancestor closure, not the members alone.** `scripts/pm_handoff.py` parents Subtasks to their owning requirement/story and standard Jira work items to their declared `EPIC-###`; the offline exporter resolves `Parent Id` only against issues present in the *same* CSV. So a subtask-only export orphans every subtask unless its Story/Task parent (and the epic ancestor for standard work items) is also present or represented by a previously-recorded Jira key. The export must therefore emit, for each member, the required ancestors it hangs from. And because those ancestors may have been created in an *earlier* increment, the export must **substitute the previously-recorded Jira keys** (from `.traceability.yaml`'s per-increment `tickets:` slots) for any parent already created, rather than re-creating it. `.traceability.yaml` records returned ticket keys per increment so cycle 2 never recreates cycle 1's tickets. This is a prerequisite-aware refinement of backlog #28.
 
 ---
 
@@ -190,7 +190,7 @@ Engineering handoff is an **export/sync action, not new pipeline stages** — th
 
 **Status: partly shipped.** The Jira half of this part is built; Linear, Figma, and design-token→React codegen remain unbuilt.
 
-- **`/pm-handoff jira` — ✅ shipped (v1.2.0, offline route + screen mapping v1.3.0).** `scripts/pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a tracker-agnostic ticket map (`US-###` → epic, `FR-###`/`REQ-###` → child story, approved `TSK-###` → child task) and writes a PM-readable dry-run, fully offline. Two create routes:
+- **`/pm-handoff jira` — ✅ shipped (v1.2.0, offline route + screen mapping v1.3.0; declared Product Epic hierarchy aligned in B0).** `scripts/pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a Jira ticket map (`EPIC-###` → Epic, `US-###` → Story, `FR-###`/`REQ-###` → Task, approved `TSK-###` → Subtask/Task when parentable) and writes a PM-readable dry-run, fully offline. Two create routes:
   - *Connector route:* dry-run → PM confirms → create via the **Atlassian MCP** → `record` writes ticket keys back into `.traceability.yaml`. Needs an authorized connector.
   - *Offline route (`--offline`):* `pm_handoff.py export` writes `handoff/jira-import.csv` (+ import guide, descriptions converted to Jira wiki markup via `lib/jira_markup.py`, `Issue Id`/`Parent Id` parent linking) that the PM imports through Jira's own CSV importer — **no connector, no tokens** — then recovers the keys and runs the same `record` step. Ends in the same state as the connector route.
 - **`/pm-handoff linear` — 🔴 unbuilt.** The plan builder is tracker-agnostic, so Linear is mostly a second create adapter over the same map. (Per the roadmap's one-tracker principle, Jira was chosen first, not both.)
@@ -229,7 +229,7 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 | **A0** | `00c` codebase-understanding + Explore-based reading + drift signal | mode flag | ✅ shipped |
 | **A1** | Schema + `pm_new` (`--mode`, `--codebase`) + `pm_status` plumbing | — | ✅ shipped |
 | **A2** | Enhancement conditional blocks across stages 01–08; dogfood one real enhancement | A0, A1 | 🟡 dogfood open |
-| **B0** | Resolve the `EPIC-01` vs. per-story export mismatch to one mapping (backlog #28) | — | 🔴 prerequisite |
+| **B0** | Resolve the synthetic-epic vs. per-story export mismatch to one declared-Product-Epic Jira mapping (backlog #28) | — | ✅ shipped |
 | **B1** | Scope-tier attribute (`Tier:` on `US`/`FR`) + stage-02 tier declaration + stages 04–07 default-to-`mvp` filter | #19, B0 | 🔴 open |
 | **B2** | Tiered-fidelity contract (v2 mini-spec checks apply to `tier: mvp` only) + `/pm-promote` | B1 | 🔴 open |
 | **B3** | Delivery-increment layer (`delivery.yaml`, `INC-###` by `TSK`) + `/pm-check` cross-validation | #20, B1 | 🔴 open |
@@ -250,7 +250,7 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 - [x] No change to new-product behavior, hashing, staleness, or telemetry semantics.
 
 **Part B (target):**
-- [ ] The `EPIC-01`/per-story export mismatch is resolved to one mapping before any tier/increment work (B0).
+- [x] The synthetic-epic/per-story export mismatch is resolved to one declared-Product-Epic Jira mapping before any tier/increment work (B0).
 - [ ] Each `US-###`/`FR-###` carries an optional `Tier:` (default `mvp`); existing projects are unchanged.
 - [ ] Stages 04–07 stay MVP-scoped by default; the MVP pipeline behaves identically to today.
 - [ ] Non-MVP stories may be stubs; the v2 mini-spec contract applies only to `tier: mvp`; `/pm-promote` elevates a stub and triggers full-fidelity regeneration.

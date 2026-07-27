@@ -152,6 +152,10 @@ Write a Product Requirements Document with these base sections.
 
 <List the outcomes this release is meant to achieve, followed by the explicit non-goals for this version.>
 
+## Product Epics
+
+<Define the product-level workstreams or outcome areas that will become Jira Epics. Use `### EPIC-### — <epic name>` for each epic and include **Outcome**, **Scope**, and **Success signal**. Create as many epics as the MVP naturally has distinct workstreams/outcomes; do not collapse the whole project into one epic unless the approved scope is genuinely one workstream. `EPIC-###` ids are stable and append-only across regenerations.>
+
 ## User Journeys
 
 <Define the end-to-end journeys that establish the context for later stories and requirements. Use `### UJ-### — <journey name>` for each journey and include: **Primary user**, **Context and trigger**, **Goal**, **Preconditions**, **Happy path**, **Alternate/failure paths**, **Completion signal**, and **Traceability** to at least one `US-###` or `FR-###`. Cover pre-task context, recovery, and post-completion behavior where relevant; do not substitute UI flows for journeys.>
@@ -160,6 +164,7 @@ Write a Product Requirements Document with these base sections.
 
 <List the core user stories in priority order using stable IDs such as `US-001`. Write each story as a **self-contained mini-spec** so the readable handoff package can render it per story without inventing content. For each `US-###` include:
 - **Story** — actor, trigger, and outcome (`As a <role>, I want <capability>, so that <outcome>`).
+- **Epic** — exactly one declared `EPIC-###` from `## Product Epics`.
 - **Happy path** — the primary success flow from trigger to completion, written clearly enough that a developer can implement the normal path and QA can identify the positive test case.
 - **Edge cases / alternate paths** — meaningful failure modes, unusual states, invalid inputs, permission gaps, empty/loading/error states, and recovery behavior. Trace each to a QA `TC-###` when a matching test case exists or is expected.
 - **Data fields** — the fields the story touches (name, type, mandatory?), where a screen or grid is involved. Omit only if the story has no data surface.
@@ -171,7 +176,7 @@ These `US-###` ids are the **stable traceability handles** for the whole pipelin
 
 ## Functional Requirements
 
-<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
+<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. For each `FR-###`/`REQ-###`, include exactly one labeled `Epic: EPIC-###` line pointing to a declared Product Epic. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
 
 ## Non-Functional Requirements
 
@@ -292,7 +297,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 2
+   artifact_contract_version: 4
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
@@ -351,6 +356,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - The PRD must stay inside the stage-02 MVP boundary.
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
+- Product Epics must use stable `EPIC-###` ids with Outcome, Scope, and Success signal. Stories and functional requirements must each name exactly one declared epic with a labeled `Epic: EPIC-###` line so Jira export, readable handoff, and traceability stay in sync.
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions, and traceability so the handoff can render it without invention.
 - Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.

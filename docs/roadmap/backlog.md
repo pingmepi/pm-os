@@ -481,20 +481,19 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 
 ---
 
-## 28. 🔴 Single-tier scope + single-shot handoff — no path from "whole product" to stories, and the two exports disagree
+## 28. 🟡 Single-tier scope + single-shot handoff — no path from "whole product" to stories
 
-**Severity:** P1 — caps PM-OS at one tier of work handed off once; blocks multi-cycle delivery. The export mismatch is a live bug.
-**Status:** 🔴 Open. **Design captured in** `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B (2026-07-27) — this entry tracks the verified gaps; the plan holds the design.
+**Severity:** P1 — caps PM-OS at one tier of work handed off once; blocks multi-cycle delivery. The export mismatch was a live bug and is now fixed by B0.
+**Status:** 🟡 Partially fixed. **B0 shipped 2026-07-28:** Stage 03 now declares Product Epics (`EPIC-###`) and `pm_share.py --package` / `pm_handoff.py plan/export` share the same Jira-native mapping (`EPIC-###` as Epic; `US-###` as Story; `FR/REQ-###` as Task; `TSK-###` as Subtask when it implements exactly one exported item, or Task/unparented when appropriate). The temporary synthetic `EPIC-01` handoff mapping is retired for new exports. Scope tiers and delivery increments remain open. **Design captured in** `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B (2026-07-27) — this entry tracks the verified gaps; the plan holds the design.
 
-**Symptom:** Three connected gaps:
+**Symptom:** Two connected gaps remain:
 1. **"MVP" is prose; "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph that every downstream stage treats as binding via LLM judgment — no structured field, id, or flag. Stage 09's `V1`/`V2`/`Expansion` horizons carry **no `US-###`/`FR-###`** (stage 09 is forbidden from generating requirements), so there is no path from a roadmap horizon to a user story. The pipeline can only ever elaborate the single tier stage 02 named MVP, and what separates MVP from the full product is nowhere defined structurally.
 2. **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles.
-3. **The two exports use different, conflicting mappings.** `scripts/pm_share.py:352` hardcodes every story to a single `"EPIC-01"` and writes one `epics/EPIC-01-mvp.md`; `scripts/pm_handoff.py:160` maps one epic per `US-###`. A fully-traceable pipeline is decomposed two incompatible ways depending on which export runs.
 
-**Evidence:** `skills/pm-stage-02-scope/SKILL.md:155` (prose MVP boundary); `skills/pm-stage-09-roadmap/SKILL.md:14,202` (horizons, no requirement generation); `lib/artifact_contracts.py` (no `Tier`/priority field on `US`/`FR`); `scripts/pm_share.py:352` vs. `scripts/pm_handoff.py:160` (mapping disagreement); `lib/traceability.py:142` + `scripts/pm_handoff.py:202` (a non-`approved` TRD contributes zero tasks — the reason increments must be ungated).
+**Evidence:** `skills/pm-stage-02-scope/SKILL.md:155` (prose MVP boundary); `skills/pm-stage-09-roadmap/SKILL.md:14,202` (horizons, no requirement generation); `lib/artifact_contracts.py` (no `Tier`/priority field on `US`/`FR`; now includes Product Epic ownership checks); `scripts/pm_share.py` + `scripts/pm_handoff.py` now both consume `lib/delivery_map.py` for the Jira-native `Epic -> Story/Task -> Subtask` hierarchy; `tests/integration/test_share_package.py` compares the package epic refs against `pm_handoff.py plan`; `lib/traceability.py` + `scripts/pm_handoff.py` (a non-`approved` TRD contributes zero subtasks — the reason increments must be ungated).
 
 **Proposed fix (designed in the plan, PM decisions 2026-07-27):**
-- **B0 (prerequisite bugfix):** reconcile the `EPIC-01` vs. per-story mapping to one epic/story/task mapping before any tier/increment work.
+- **B0 (prerequisite bugfix):** ✅ shipped — Stage 03 has declared Product Epics and `pm-share --package` / `/pm-handoff jira` now share a Jira-native hierarchy: `EPIC-###` → `US-###` Story / `FR-###` Task → `TSK-###` Subtask/Task as dictated by Jira parentability.
 - **Scope tiers:** an optional `Tier:` (`mvp | v1 | v2 | later`, default `mvp`) on `US-###`/`FR-###`; stage 02 declares tiers + defines what "complete" means; stages 04–07 stay MVP-scoped by default so nothing downstream gets heavier. Depends on #19 (priority).
 - **Tiered fidelity + `/pm-promote`:** non-MVP stories are lightweight stubs (the v2 mini-spec contract applies to `tier: mvp` only); promotion elevates a stub and triggers full-fidelity regeneration — deferred rigor paid at promotion, not skipped.
 - **Delivery increments:** an **ungated** `delivery.yaml` of `INC-###` grouping `TSK-###`, validated *against* stage 08/09 by `/pm-check` but never gated *by* them, so replanning a cycle never marks the TRD/roadmap stale. `--increment` scopes the Jira export; ticket keys are recorded per increment so later cycles never recreate earlier tickets. Depends on #20 (TRD contract).

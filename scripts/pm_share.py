@@ -31,14 +31,13 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from artifact_contracts import (  # noqa: E402
-    FUNCTIONAL_REQ_ID_RE,
-    JOURNEY_ID_RE,
     _sections,
     information_architecture_section,
     split_screen_blocks,
     split_test_case_blocks,
     split_user_story_blocks,
 )
+from delivery_map import build_prd_delivery_map, title_of  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
 import traceability  # noqa: E402
@@ -267,14 +266,9 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         split_screen_blocks(information_architecture_section(design_body)) if design_body else {}
     )
 
-    # Reverse-declared requirement/journey links: a story is not required to
-    # self-cite its FR/UJ ids (only journeys must cite a requirement id) — it
-    # can be linked purely from the *other* direction, the FR's or journey's
-    # own text naming the story. Build both directions once per project.
-    fr_section = _section_of(prd_body, "functional requirements")
-    uj_section = _section_of(prd_body, "user journeys")
-    fr_blocks = _split_blocks(fr_section, _FR_BLOCK_START_RE)
-    uj_blocks = _split_blocks(uj_section, _UJ_BLOCK_START_RE)
+    # Shared PRD delivery map: stories, requirements, journeys, and declared
+    # Product Epics. This is the same decomposition `pm_handoff.py` uses.
+    delivery = build_prd_delivery_map(prd_body)
 
     # Clean out a stale package so removed stories don't linger — but only after
     # validating the target so this never erases project data or a user dir.
@@ -293,9 +287,8 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     written: list[Path] = []
 
     # --- per-story files (the centrepiece) ---
-    stories_section = _section_of(prd_body, "user stories with acceptance criteria")
-    story_blocks = split_user_story_blocks(stories_section or prd_body)
-    story_index: list[tuple[str, str, str]] = []  # (id, title, filename)
+    story_blocks = delivery.story_blocks
+    story_index: list[dict] = []  # {id, title, filename, requirements}
     # Story ids that resolved to >=1 screen, captured from the same per-story
     # resolution the story files use (requirements *and* journeys). The screen map's
     # "Stories with no screen" list is derived from this set, not from each screen's
@@ -306,22 +299,9 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
 
     for story_id, block in story_blocks.items():
         title = _story_title(story_id, block)
-
-        # Forward: FR/REQ and UJ ids the story's own block cites.
-        forward_reqs = [m.upper() for m in FUNCTIONAL_REQ_ID_RE.findall(block)]
-        forward_journeys = [m.upper() for m in JOURNEY_ID_RE.findall(block)]
-        # Reverse: FR/REQ or UJ blocks elsewhere in the PRD that name this story.
-        reverse_reqs = [
-            rid for rid, blk in fr_blocks.items()
-            if re.search(rf"\b{re.escape(story_id)}\b", blk, re.IGNORECASE)
-        ]
-        reverse_journeys = [
-            jid for jid, blk in uj_blocks.items()
-            if re.search(rf"\b{re.escape(story_id)}\b", blk, re.IGNORECASE)
-        ]
-
-        reqs = list(dict.fromkeys([story_id] + forward_reqs + reverse_reqs))
-        journeys = list(dict.fromkeys(forward_journeys + reverse_journeys))
+        epic_ref = delivery.story_to_epic.get(story_id)
+        reqs = delivery.story_requirements.get(story_id, [story_id])
+        journeys = delivery.story_journeys.get(story_id, [])
 
         # Covering test cases via the traceability resolver, then fetch their text.
         tc_ids: list[str] = []
@@ -358,7 +338,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         rendered = _render_story({
             "story_id": story_id,
             "title": title,
-            "epic": "EPIC-01",
+            "epic": epic_ref or NOT_CAPTURED,
             "story_body": _strip_decl_line(block, story_id) or NOT_CAPTURED,
             "requirements": [r for r in reqs if r != story_id],
             "journeys": journeys,
@@ -374,7 +354,13 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         path = out_dir / "stories" / filename
         path.write_text(rendered, encoding="utf-8")
         written.append(path)
-        story_index.append((story_id, title, filename))
+        story_index.append({
+            "id": story_id,
+            "title": title,
+            "filename": filename,
+            "epic": epic_ref,
+            "requirements": [r for r in reqs if r != story_id],
+        })
 
     # --- overview (Business Perspective from brief + scope) ---
     who = _first_para(_section_of(brief_body, "target user") or _section_of(brief_body, "audience"))
@@ -399,18 +385,46 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     (out_dir / "00-overview.md").write_text(overview, encoding="utf-8")
     written.append(out_dir / "00-overview.md")
 
-    # --- epic index (single MVP epic; grouped story list) ---
-    epic_lines = ["## Stories in this epic\n"]
-    for sid, title, filename in story_index:
-        epic_lines.append(f"- **{sid}** [{title}](../stories/{filename})")
-    epic = _stamped_doc(
-        f"EPIC-01 · {project_name} MVP",
-        [prd_stamp] if prd_stamp else [],
-        now,
-        "\n".join(epic_lines) + "\n",
-    )
-    (out_dir / "epics" / "EPIC-01-mvp.md").write_text(epic, encoding="utf-8")
-    written.append(out_dir / "epics" / "EPIC-01-mvp.md")
+    # --- epic indexes (one file per Product Epic declared in the PRD) ---
+    epic_index: list[dict] = []
+    for epic_ref, epic_rec in delivery.epics.items():
+        epic_lines = [
+            "## Outcome and scope",
+            "",
+            epic_rec.body.strip() or NOT_CAPTURED,
+            "",
+            "## Stories in this epic",
+            "",
+        ]
+        epic_stories = [story for story in story_index if story.get("epic") == epic_ref]
+        if epic_stories:
+            for story in epic_stories:
+                epic_lines.append(f"- **{story['id']}** [{story['title']}](../stories/{story['filename']})")
+        else:
+            epic_lines.append(NOT_CAPTURED)
+        epic_lines += [
+            "",
+            "## Functional requirements in this epic",
+            "",
+        ]
+        epic_requirements = [
+            req_id for req_id, req_epic in delivery.requirement_to_epic.items()
+            if req_epic == epic_ref
+        ]
+        if epic_requirements:
+            epic_lines += [f"- {req}" for req in epic_requirements]
+        else:
+            epic_lines.append(NOT_CAPTURED)
+        doc = _stamped_doc(
+            f"{epic_ref} · {epic_rec.title}",
+            [prd_stamp] if prd_stamp else [],
+            now,
+            "\n".join(epic_lines) + "\n",
+        )
+        filename = f"{epic_ref}-{_slug(epic_rec.title, epic_ref.lower())}.md"
+        (out_dir / "epics" / filename).write_text(doc, encoding="utf-8")
+        written.append(out_dir / "epics" / filename)
+        epic_index.append({"id": epic_ref, "title": epic_rec.title, "filename": filename})
 
     # --- reference docs ---
     references = {
@@ -448,12 +462,12 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         written.append(out_dir / "wireframes" / "prototype.html")
 
     # --- README index ---
-    readme = _readme(project_name, now, story_index, generated_sources(root), proto.exists())
+    readme = _readme(project_name, now, story_index, epic_index, generated_sources(root), proto.exists())
     (out_dir / "README.md").write_text(readme, encoding="utf-8")
     written.append(out_dir / "README.md")
 
     if with_html:
-        html_path = _write_html_index(out_dir, project_name, now, story_index)
+        html_path = _write_html_index(out_dir, project_name, now, story_index, epic_index)
         if html_path:
             written.append(html_path)
 
@@ -487,7 +501,9 @@ def _screen_map_table(
         lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} |")
 
     uncovered = [
-        f"{sid} · {title}" for sid, title, _fn in story_index if sid not in covered_story_ids
+        f"{story['id']} · {story['title']}"
+        for story in story_index
+        if story["id"] not in covered_story_ids
     ]
     if uncovered:
         lines += [
@@ -530,7 +546,7 @@ def generated_sources(root: Path) -> list[str]:
     return [s for s in (_stamp(root, sid) for sid in ("01", "02", "03", "04", "05", "06", "08")) if s]
 
 
-def _readme(project_name: str, when: str, story_index, sources, has_proto: bool) -> str:
+def _readme(project_name: str, when: str, story_index, epic_index, sources, has_proto: bool) -> str:
     lines = [
         f"# {project_name} — Handoff Package",
         "",
@@ -541,12 +557,15 @@ def _readme(project_name: str, when: str, story_index, sources, has_proto: bool)
         "",
         "## Start here",
         "- [Overview](00-overview.md) — who / what & why / how (for stakeholders)",
-        "- [EPIC-01 · MVP](epics/EPIC-01-mvp.md) — the story index",
-        "",
-        "## User stories (dev/QA)",
     ]
-    for sid, title, filename in story_index:
-        lines.append(f"- [{sid} · {title}](stories/{filename})")
+    if epic_index:
+        for epic in epic_index:
+            lines.append(f"- [{epic['id']} · {epic['title']}](epics/{epic['filename']}) — Jira epic and story index")
+    else:
+        lines.append("- Product epics: not captured in source")
+    lines += ["", "## User stories (dev/QA)"]
+    for story in story_index:
+        lines.append(f"- [{story['id']} · {story['title']}](stories/{story['filename']})")
     lines += [
         "",
         "## Reference",
@@ -562,7 +581,7 @@ def _readme(project_name: str, when: str, story_index, sources, has_proto: bool)
     return "\n".join(lines)
 
 
-def _write_html_index(out_dir: Path, project_name: str, when: str, story_index) -> Path | None:
+def _write_html_index(out_dir: Path, project_name: str, when: str, story_index, epic_index) -> Path | None:
     """A minimal, self-contained HTML index. Reuses html_render's safe Markdown
     converter for the story links; no external assets."""
     try:
@@ -571,13 +590,18 @@ def _write_html_index(out_dir: Path, project_name: str, when: str, story_index) 
     except Exception:
         return None
     items = "\n".join(
-        f'<li><a href="stories/{fn}">{sid} · {title}</a></li>' for sid, title, fn in story_index
+        f'<li><a href="stories/{story["filename"]}">{story["id"]} · {story["title"]}</a></li>'
+        for story in story_index
     )
+    epic_items = "\n".join(
+        f'<li><a href="epics/{epic["filename"]}">{epic["id"]} · {epic["title"]}</a></li>'
+        for epic in epic_index
+    ) or "<li>Product epics not captured in source</li>"
     body = (
         f"<h1>{project_name} — Handoff Package</h1>"
         f"<p>Generated {when}. Read-only projection of the approved pipeline.</p>"
         f'<ul><li><a href="00-overview.md">Overview</a></li>'
-        f'<li><a href="epics/EPIC-01-mvp.md">EPIC-01 · MVP</a></li></ul>'
+        f"{epic_items}</ul>"
         f"<h2>User stories</h2><ul>{items}</ul>"
         f"<h2>Reference</h2>"
         f'<ul><li><a href="reference/user-journeys.md">User journeys</a></li>'

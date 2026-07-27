@@ -15,15 +15,29 @@ from helpers import run_script, make_draft
 pytestmark = pytest.mark.integration
 
 
-_PRD_BODY = """## User Stories with Acceptance Criteria
+_PRD_BODY = """## Product Epics
+### EPIC-001 — Approved content access
+**Outcome:** Reps can use only approved content.
+**Scope:** Approved-content visibility and audit.
+**Success signal:** Reps see approved assets and views are logged.
+### EPIC-002 — Specialty filtering
+**Outcome:** Reps can narrow content by specialty.
+**Scope:** Specialty filters.
+**Success signal:** Filtered content matches the selected specialty.
+## User Stories with Acceptance Criteria
 ### US-001 — Rep sees only approved content
+Epic: EPIC-001
 Implements FR-001.
 ### US-002 — Rep filters by specialty
+Epic: EPIC-002
 Covers FR-002.
 ## Functional Requirements
 - **FR-001 (must):** Surface only MLR-approved assets.
+  - Epic: EPIC-001
 - **FR-002 (should):** Filter content by specialty.
+  - Epic: EPIC-002
 - **FR-003 (could):** Log every content view.
+  - Epic: EPIC-001
 """
 
 _TRD_BODY = """## Architecture
@@ -35,6 +49,8 @@ Prose.
 - **Implements:** FR-002
 ### TSK-003 — Audit log writer
 - **Implements:** FR-003
+### TSK-004 — Shared telemetry review
+- **Implements:** FR-001, FR-002
 ## Open Technical Questions
 - TSK-999 not a real task
 """
@@ -56,11 +72,8 @@ def test_plan_blocks_when_prd_not_approved(pmos, new_project):
     assert not (proj / "handoff" / "jira-plan.json").exists()
 
 
-def test_plan_maps_stories_requirements_and_tasks(pmos, new_project):
-    """`plan` maps each user story to an epic, its functional requirements to child
-    stories, and each approved TRD task to a child task under the epic that owns the
-    requirement it implements; unowned items go to an Unassigned bucket, and a TSK
-    outside the Work Breakdown is excluded."""
+def test_plan_maps_jira_native_hierarchy(pmos, new_project):
+    """`plan` maps to Jira's default hierarchy from declared Product Epics."""
     proj = new_project("ho-plan", "A problem")
     _approve(pmos, proj, "03", _PRD_BODY)
     _approve(pmos, proj, "08", _TRD_BODY)
@@ -71,33 +84,46 @@ def test_plan_maps_stories_requirements_and_tasks(pmos, new_project):
 
     plan = json.loads((proj / "handoff" / "jira-plan.json").read_text())
     assert plan["tracker"] == "jira"
-    assert plan["counts"] == {"epics": 2, "stories": 3, "tasks": 3, "unassigned": 2}
+    assert plan["counts"] == {
+        "epics": 2,
+        "stories": 2,
+        "tasks": 4,
+        "subtasks": 3,
+        "unassigned": 1,
+    }
 
     items = {i["ref"]: i for i in plan["items"]}
-    # US -> Epic, its FR -> child Story, its TSK -> child Task.
-    assert items["US-001"]["type"] == "Epic"
-    assert items["FR-001"]["type"] == "Story" and items["FR-001"]["parent_ref"] == "US-001"
-    assert items["TSK-001"]["type"] == "Task" and items["TSK-001"]["parent_ref"] == "US-001"
+    assert items["EPIC-001"]["type"] == "Epic"
+    assert items["EPIC-002"]["type"] == "Epic"
+    assert items["US-001"]["type"] == "Story" and items["US-001"]["parent_ref"] == "EPIC-001"
+    assert items["US-002"]["type"] == "Story" and items["US-002"]["parent_ref"] == "EPIC-002"
+    assert items["FR-001"]["type"] == "Task" and items["FR-001"]["parent_ref"] == "EPIC-001"
+    assert items["FR-002"]["type"] == "Task" and items["FR-002"]["parent_ref"] == "EPIC-002"
+    assert items["FR-001"]["story_ref"] == "US-001"
+    assert items["TSK-001"]["type"] == "Subtask" and items["TSK-001"]["parent_ref"] == "FR-001"
     assert items["TSK-001"]["implements"] == ["FR-001"]
-    # FR-003 / TSK-003 have no owning story -> Unassigned.
-    assert items["FR-003"]["parent_ref"] == "UNASSIGNED"
-    assert items["TSK-003"]["parent_ref"] == "UNASSIGNED"
+    # FR-003 has no owning story, but still sits under its declared Product Epic.
+    assert items["FR-003"]["parent_ref"] == "EPIC-001"
+    assert items["TSK-003"]["type"] == "Subtask" and items["TSK-003"]["parent_ref"] == "FR-003"
+    # Cross-epic work is not silently assigned to one epic.
+    assert items["TSK-004"]["type"] == "Task" and items["TSK-004"]["parent_ref"] is None
     # A TSK only under Open Technical Questions is never a delivery task.
     assert "TSK-999" not in items
 
 
 def test_plan_without_trd_exports_prd_only(pmos, new_project):
     """With no approved TRD, `plan` still exports PRD stories + functional requirements
-    and simply carries no tasks."""
+    and simply carries no TRD subtasks."""
     proj = new_project("ho-notrd", "A problem")
     _approve(pmos, proj, "03", _PRD_BODY)
 
     res = run_script(pmos, "pm_handoff.py", "plan", cwd=proj)
     assert res.returncode == 0, res.stderr
     plan = json.loads((proj / "handoff" / "jira-plan.json").read_text())
-    assert plan["counts"]["tasks"] == 0
     assert plan["source_stamps"]["trd"] is None
-    assert plan["counts"]["stories"] == 3
+    assert plan["counts"]["subtasks"] == 0
+    assert plan["counts"]["stories"] == 2
+    assert plan["counts"]["tasks"] == 3
 
 
 def test_plan_excludes_tasks_when_trd_no_longer_approved(pmos, new_project):
@@ -128,9 +154,9 @@ def test_plan_excludes_tasks_when_trd_no_longer_approved(pmos, new_project):
     res = run_script(pmos, "pm_handoff.py", "plan", cwd=proj)
     assert res.returncode == 0, res.stderr
     plan = json.loads((proj / "handoff" / "jira-plan.json").read_text())
-    assert plan["counts"]["tasks"] == 0, "must not export tasks from a stale TRD"
+    assert plan["counts"]["subtasks"] == 0, "must not export subtasks from a stale TRD"
     assert plan["source_stamps"]["trd"] is None
-    assert not any(i["type"] == "Task" for i in plan["items"])
+    assert not any(i["type"] == "Subtask" for i in plan["items"])
 
 
 def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
@@ -142,12 +168,13 @@ def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
     _approve(pmos, proj, "08", _TRD_BODY)
     run_script(pmos, "pm_handoff.py", "plan", cwd=proj)
 
-    created = '{"US-001": "RA-1", "FR-001": "RA-2", "TSK-001": "RA-3", "BOGUS-9": "RA-9"}'
+    created = '{"EPIC-001": "RA-0", "US-001": "RA-1", "FR-001": "RA-2", "TSK-001": "RA-3", "BOGUS-9": "RA-9"}'
     res = run_script(pmos, "pm_handoff.py", "record", cwd=proj, stdin=created)
     assert res.returncode == 0, res.stderr
     assert "BOGUS-9" in res.stdout  # reported as skipped
 
     data = yaml.safe_load((proj / ".traceability.yaml").read_text())
+    assert data["epics"]["EPIC-001"]["tickets"] == ["RA-0"]
     assert data["requirements"]["US-001"]["tickets"] == ["RA-1"]
     assert data["requirements"]["FR-001"]["tickets"] == ["RA-2"]
     assert data["tasks"]["TSK-001"]["tickets"] == ["RA-3"]
@@ -155,6 +182,7 @@ def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
     # Ticket refs survive a later rebuild of the derived index.
     assert run_script(pmos, "pm_trace.py", "rebuild", cwd=proj).returncode == 0
     data = yaml.safe_load((proj / ".traceability.yaml").read_text())
+    assert data["epics"]["EPIC-001"]["tickets"] == ["RA-0"]
     assert data["requirements"]["US-001"]["tickets"] == ["RA-1"]
     assert data["tasks"]["TSK-001"]["tickets"] == ["RA-3"]
 
@@ -163,8 +191,13 @@ def test_record_writes_ticket_keys_and_logs_telemetry(pmos, new_project):
     assert handoff, "record must log a handoff_exported event"
     payload = handoff[-1]["payload"]
     assert payload["tracker"] == "jira"
-    assert payload["created_count"] == 3
-    assert payload["tickets"] == {"US-001": "RA-1", "FR-001": "RA-2", "TSK-001": "RA-3"}
+    assert payload["created_count"] == 4
+    assert payload["tickets"] == {
+        "EPIC-001": "RA-0",
+        "US-001": "RA-1",
+        "FR-001": "RA-2",
+        "TSK-001": "RA-3",
+    }
 
 
 def _csv_rows(proj):
@@ -192,15 +225,20 @@ def test_export_csv_writes_importer_file_and_guide(pmos, new_project):
     assert header == ["Issue Id", "Parent Id", "Issue Type", "Summary", "Description",
                       "Labels", "Labels", "PM-OS Id"]
     by_ref = {row[7]: row for row in body}
-    # 2 epics + 3 stories + 3 tasks; the synthetic UNASSIGNED epic is never a ticket.
-    assert len(body) == 8 and "UNASSIGNED" not in by_ref
-    assert [row[2] for row in body[:2]] == ["Epic", "Epic"], "epics must precede their children"
+    # 2 epics + 2 stories + 4 tasks + 3 subtasks.
+    assert len(body) == 11 and "UNASSIGNED" not in by_ref
+    assert {row[2] for row in body[:2]} == {"Epic"}
+    assert {row[2] for row in body[2:8]} == {"Story", "Task"}
+    assert [row[2] for row in body[8:]] == ["Subtask", "Subtask", "Subtask"]
 
-    # Parent Id points at the owning epic's Issue Id, inside this file.
-    assert by_ref["FR-001"][1] == by_ref["US-001"][0]
-    assert by_ref["TSK-001"][1] == by_ref["US-001"][0]
-    # An item with no owning story is exported parentless rather than under a fake epic.
-    assert by_ref["FR-003"][1] == ""
+    # Parent Id points at the owning Jira parent inside this file.
+    assert by_ref["US-001"][1] == by_ref["EPIC-001"][0]
+    assert by_ref["US-002"][1] == by_ref["EPIC-002"][0]
+    assert by_ref["FR-001"][1] == by_ref["EPIC-001"][0]
+    assert by_ref["FR-002"][1] == by_ref["EPIC-002"][0]
+    assert by_ref["TSK-001"][1] == by_ref["FR-001"][0]
+    assert by_ref["FR-003"][1] == by_ref["EPIC-001"][0]
+    assert by_ref["TSK-004"][1] == ""
     # Labels: the marker + the stable-id label used to map keys back.
     assert by_ref["US-001"][5] == "pm-os" and by_ref["US-001"][6] == "pm-os-us-001"
 

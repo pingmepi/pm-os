@@ -293,6 +293,55 @@ def test_prd_functional_requirements_accept_req_only_ids(tmp_path):
     assert "FUNCTIONAL_REQUIREMENT_IDS_MISSING" not in codes
 
 
+def test_prd_product_epics_validate_declared_ownership(tmp_path):
+    """When a PRD declares Product Epics, every story and functional requirement
+    must point at exactly one declared EPIC-### via a labeled Epic line."""
+    root = _project(tmp_path)
+    prd = _valid_prd().replace(
+        "## User Journeys\n",
+        "## Product Epics\n"
+        "### EPIC-001 — Primary workflow\n"
+        "**Outcome:** Operators complete work.\n"
+        "**Scope:** Primary work execution.\n"
+        "**Success signal:** Completed work is confirmed.\n"
+        "### EPIC-002 — Audit workflow\n"
+        "**Outcome:** Supervisors can audit work.\n"
+        "**Scope:** Audit visibility.\n"
+        "**Success signal:** Audit trail is visible.\n"
+        "## User Journeys\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-001 — Complete work\nEpic: EPIC-001\n",
+    ).replace(
+        "- FR-001 — Complete the work.",
+        "- FR-001 — Complete the work.\n  - Epic: EPIC-001",
+    )
+    _write(root, "03-prd.md", prd, contract_version=contracts.CONTRACT_VERSION)
+    findings = contracts.validate_artifact(root, "03")
+    assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
+
+
+def test_prd_product_epics_reject_missing_unknown_and_multiple_refs(tmp_path):
+    root = _project(tmp_path)
+    prd = _valid_prd().replace(
+        "## User Journeys\n",
+        "## Product Epics\n"
+        "### EPIC-001 — Primary workflow\n"
+        "**Outcome:** Operators complete work.\n"
+        "**Scope:** Primary work execution.\n"
+        "**Success signal:** Completed work is confirmed.\n"
+        "## User Journeys\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-001 — Complete work\nEpic: EPIC-001, EPIC-999\n",
+    )
+    _write(root, "03-prd.md", prd, contract_version=contracts.CONTRACT_VERSION)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "USER_STORY_EPIC_REF_MULTIPLE" in codes
+    assert "USER_STORY_EPIC_REF_UNKNOWN" in codes
+    assert "FUNCTIONAL_REQUIREMENT_EPIC_REF_MISSING" in codes
+
+
 def test_qa_plan_per_test_case_trace_is_enforced(tmp_path):
     """Each TC must cite a requirement id, not just 'some id appears in the body'. A
     plan where TC-002 has no link must fail even though TC-001 (and a traceability

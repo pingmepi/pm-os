@@ -15,14 +15,15 @@ from frontmatter import read as fm_read
 from project import artifact_path, load_meta
 
 
-CONTRACT_VERSION = 3
+CONTRACT_VERSION = 4
 
 # Contract versions this validator still accepts without a drift warning. v2 added
 # recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
 # feed the readable handoff package; v3 added the GenAI model-availability/fallback
-# checks (stages 03/08). Every v2 and v3 check is WARNING-only, so a v1 PRD on disk
-# keeps passing untouched (CLAUDE.md: existing projects must keep working).
-SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3}
+# checks (stages 03/08); v4 adds explicit Product Epics. v2+ checks are either
+# WARNING-only or only become hard errors once the new section is present, so older
+# PRDs on disk keep passing untouched (CLAUDE.md: existing projects must keep working).
+SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -41,6 +42,7 @@ SCREEN_ID_RE = re.compile(r"\bSCR-\d{3,}\b", re.IGNORECASE)
 # TRD (stage 08) Work Breakdown tasks. TSK-### is the stable handle the tracker
 # export keys tickets off; each task declares the requirement ids it implements.
 TASK_ID_RE = re.compile(r"\bTSK-\d{3,}\b", re.IGNORECASE)
+EPIC_ID_RE = re.compile(r"\bEPIC-\d{3,}\b", re.IGNORECASE)
 
 
 def requirement_ids(text: str) -> list[str]:
@@ -64,6 +66,14 @@ def task_ids(text: str) -> list[str]:
     """Return the unique, upper-cased TSK-### ids in ``text``, in first-seen order."""
     seen: dict[str, None] = {}
     for match in TASK_ID_RE.findall(text or ""):
+        seen.setdefault(match.upper(), None)
+    return list(seen)
+
+
+def epic_ids(text: str) -> list[str]:
+    """Return the unique, upper-cased EPIC-### ids in ``text``, in first-seen order."""
+    seen: dict[str, None] = {}
+    for match in EPIC_ID_RE.findall(text or ""):
         seen.setdefault(match.upper(), None)
     return list(seen)
 
@@ -315,6 +325,69 @@ def split_user_story_blocks(text: str) -> dict[str, str]:
     return _split_id_blocks(text, _US_BLOCK_START_RE)
 
 
+# A Product Epic is declared in stage 03's `## Product Epics` section. It may be a
+# heading, bullet, ordered-list item, or bare line, mirroring the other stable-id
+# block splitters. The `EPIC-###` ids are product workstream/outcome handles and
+# map directly to Jira Epics in the handoff exporter.
+_EPIC_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>EPIC-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def split_epic_blocks(text: str) -> dict[str, str]:
+    """Map each EPIC-### id to its introducing Product Epic block."""
+    return _split_id_blocks(text, _EPIC_BLOCK_START_RE)
+
+
+def epic_id_declarations(text: str) -> list[str]:
+    """Return every EPIC-### id declared at a block start, including duplicates."""
+    return [match.group("id").upper() for match in _EPIC_BLOCK_START_RE.finditer(text or "")]
+
+
+_EPIC_LINE_RE = re.compile(
+    r"^[\s>*+\-]*\*{0,2}\s*epic\b\s*:?\**\s*(?P<rest>.*)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def block_epic_refs(block: str) -> list[str]:
+    """Return EPIC-### ids from labeled `Epic:` lines in a story/requirement block.
+
+    Only the labeled line is trusted. A prose mention of an epic id elsewhere is
+    not counted as ownership, matching the `Implements:` and `Serves:` pattern.
+    """
+    seen: dict[str, None] = {}
+    for match in _EPIC_LINE_RE.finditer(block or ""):
+        for eid in EPIC_ID_RE.findall(match.group("rest")):
+            seen.setdefault(eid.upper(), None)
+    return list(seen)
+
+
+# Functional/umbrella requirements in stage 03 are declared as bullets or ordered
+# list items in `## Functional Requirements`. Shared by validation, traceability,
+# and both handoff exporters so the same FR/REQ blocks are used everywhere.
+_FR_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>(?:FR|REQ)-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def split_functional_requirement_blocks(text: str) -> dict[str, str]:
+    """Map each FR-###/REQ-### id to its introducing block."""
+    return _split_id_blocks(text, _FR_BLOCK_START_RE)
+
+
+def functional_requirement_id_declarations(text: str) -> list[str]:
+    """Return every FR-###/REQ-### id declared at a block start, including duplicates."""
+    return [match.group("id").upper() for match in _FR_BLOCK_START_RE.finditer(text or "")]
+
+
+def product_epics_section(body: str) -> str:
+    """Return stage 03's `## Product Epics` section body, or '' if absent."""
+    return _section(_sections(body or ""), "Product Epics") or ""
+
+
 # A TSK-### task can be declared as a heading (`### TSK-001`), a bullet, an
 # ordered-list item, or a bare line, id optionally bold-wrapped — the same shapes
 # the US/TC splitters accept. Shared by the traceability index and /pm-check so
@@ -504,6 +577,45 @@ def _validate_model_selection(
 
 def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings: list[Finding] = []
+    product_epics = _section(sections, "Product Epics")
+    epic_blocks = split_epic_blocks(product_epics or "")
+    declared_epics = set(epic_blocks)
+    if product_epics is None:
+        findings.append(Finding(
+            "WARNING", "PRODUCT_EPICS_MISSING",
+            "PRD declares no Product Epics; Jira handoff will not fabricate an epic. "
+            "Add `## Product Epics` with EPIC-### workstreams and `Epic:` on every "
+            "US/FR when ready.",
+        ))
+    else:
+        epic_declarations = epic_id_declarations(product_epics)
+        duplicates = sorted({eid for eid in epic_declarations if epic_declarations.count(eid) > 1})
+        if duplicates:
+            findings.append(Finding(
+                "ERROR", "PRODUCT_EPIC_ID_DUPLICATE",
+                f"Duplicate Product Epic ids: {', '.join(duplicates)}",
+            ))
+        if not epic_blocks:
+            findings.append(Finding(
+                "ERROR", "PRODUCT_EPIC_IDS_MISSING",
+                "Product Epics must declare at least one stable EPIC-### id.",
+            ))
+        missing_fields = []
+        for epic_id, block in epic_blocks.items():
+            normalized = _norm(block)
+            missing = [
+                field for field in ("outcome", "scope", "success signal")
+                if field not in normalized
+            ]
+            if missing:
+                missing_fields.append(f"{epic_id} ({', '.join(missing)})")
+        if missing_fields:
+            findings.append(Finding(
+                "WARNING", "PRODUCT_EPIC_FIELDS_MISSING",
+                "Product Epics should include Outcome, Scope, and Success signal: "
+                + "; ".join(missing_fields),
+            ))
+
     journeys = _section(sections, "User Journeys") or ""
     journey_blocks = _blocks(journeys, r"^###\s+(UJ-\d{3})\b.*$")
     if not journey_blocks:
@@ -558,6 +670,47 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):
         findings.append(Finding("ERROR", "FUNCTIONAL_REQUIREMENT_IDS_MISSING", "Functional requirements must use stable FR-### (or REQ-###) identifiers so traceability survives regeneration."))
+    if declared_epics:
+        story_blocks = split_user_story_blocks(stories)
+        requirement_blocks = split_functional_requirement_blocks(requirements)
+
+        def _validate_epic_ownership(kind: str, blocks: dict[str, str]) -> None:
+            missing: list[str] = []
+            multiple: list[str] = []
+            unknown: dict[str, list[str]] = {}
+            for block_id, block in blocks.items():
+                refs = block_epic_refs(block)
+                if not refs:
+                    missing.append(block_id)
+                elif len(refs) > 1:
+                    multiple.append(f"{block_id} ({', '.join(refs)})")
+                bad = [ref for ref in refs if ref not in declared_epics]
+                if bad:
+                    unknown[block_id] = bad
+            if missing:
+                findings.append(Finding(
+                    "ERROR", f"{kind}_EPIC_REF_MISSING",
+                    f"{kind.replace('_', ' ').title()} with no labeled `Epic: EPIC-###`: "
+                    + ", ".join(sorted(missing)),
+                ))
+            if multiple:
+                findings.append(Finding(
+                    "ERROR", f"{kind}_EPIC_REF_MULTIPLE",
+                    f"{kind.replace('_', ' ').title()} with multiple Epic refs: "
+                    + "; ".join(sorted(multiple)),
+                ))
+            if unknown:
+                details = "; ".join(
+                    f"{block_id} -> {', '.join(refs)}"
+                    for block_id, refs in sorted(unknown.items())
+                )
+                findings.append(Finding(
+                    "ERROR", f"{kind}_EPIC_REF_UNKNOWN",
+                    "Epic refs must point to Product Epics declared in this PRD: " + details,
+                ))
+
+        _validate_epic_ownership("USER_STORY", story_blocks)
+        _validate_epic_ownership("FUNCTIONAL_REQUIREMENT", requirement_blocks)
     if _genai_project(project_root):
         findings.extend(_validate_model_selection(
             _section(sections, "Model Selection Rationale"),

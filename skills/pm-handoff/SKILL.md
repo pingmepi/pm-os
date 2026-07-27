@@ -9,10 +9,13 @@ reads: ["03-prd.md", "08-trd.md", ".traceability.yaml"]
 
 Turn the **approved** product pipeline into tracker tickets, keyed to PM-OS's
 stable ids so the two systems stay linked. The single supported tracker is
-**Jira** (via the Atlassian MCP connector). Each PRD user story (`US-###`)
-becomes an **epic**; each functional requirement (`FR-###`/`REQ-###`) it owns
-becomes a child **story**; each approved TRD task (`TSK-###`) becomes a child
-**task** under the epic that owns the requirement it implements.
+**Jira** (via the Atlassian MCP connector). Each PRD Product Epic (`EPIC-###`)
+becomes a Jira **Epic**; each PRD user story (`US-###`) becomes a **Story** under
+its declared epic; each functional requirement (`FR-###`/`REQ-###`) becomes a
+**Task** under its declared epic; each approved TRD task (`TSK-###`) becomes a
+**Subtask** when it implements exactly one exported Story/Task. A task that spans
+multiple refs in one epic becomes a Task under that epic; cross-epic or unresolved
+tasks stay unparented for PM review.
 
 This is an **outward-facing, side-effectful** action: it creates real objects in
 the PM's Jira. The flow is therefore strict: **dry-run → PM confirms → create →
@@ -47,9 +50,9 @@ python3 ~/.pm-os/scripts/pm_handoff.py plan
 This writes `handoff/jira-plan.md` (PM-readable) and `handoff/jira-plan.json`
 (the machine map). It touches nothing external. Read `handoff/jira-plan.md` and
 present its summary to the PM: how many epics / stories / tasks, and — if any —
-the **Unassigned** items (requirements or tasks with no owning user story). Call
-those out explicitly; the PM may want to fix ownership in the PRD first rather
-than create orphan tickets.
+the unparented/unassigned items (missing Product Epic ownership or cross-epic
+TRD tasks). Call those out explicitly; the PM may want to fix ownership in the
+PRD/TRD first rather than create standalone tickets.
 
 # Step 2 — STOP and get explicit confirmation
 
@@ -57,7 +60,8 @@ Do **not** create anything yet. Show the PM the plan and the target Jira project
 and ask for an explicit go-ahead, e.g.:
 
 > Ready to create in Jira project **RA**: 2 epics, 3 stories, 3 tasks (2
-> unassigned — review these first). Nothing has been created yet. Create them?
+> unparented/unassigned — review these first). Nothing has been created yet.
+> Create them?
 
 Wait for a clear "yes". If the PM wants changes, they edit the canonical stage
 artifact (`03-prd.md` / `08-trd.md`), re-approve, and you re-run Step 1 — never
@@ -68,14 +72,15 @@ hand-edit `handoff/`. If the PM says no, stop.
 Only after an explicit yes. Read `handoff/jira-plan.json` and create objects in
 dependency order using the Atlassian/Jira MCP tools:
 
-1. Create every **Epic** first (the items with `type: "Epic"`, excluding
-   `ref: "UNASSIGNED"`). Use its `summary` and `description`. Record the returned
-   Jira key against its `ref`.
+1. Create every **Epic** first (the items with `type: "Epic"`). Use its `summary`
+   and `description`. Record the returned Jira key against its `ref`.
 2. Create every **Story** and **Task**, setting each one's parent/epic link to
-   the Jira key of the epic named by its `parent_ref` (skip the parent link for
-   items whose `parent_ref` is `"UNASSIGNED"` — create them standalone). Use each
+   the Jira key of the epic named by its `parent_ref` when present. If `parent_ref`
+   is empty, create the item standalone and mention it in the PM summary. Use each
    item's `summary` and `description`; for tasks, the `implements` ids are useful
    context to include.
+3. Create every **Subtask** after its Story/Task parent exists, using the Jira key
+   of the item named by `parent_ref`.
 
 Build a flat map of `{ stable-id: created-jira-key }` as you go, e.g.
 `{"US-001": "RA-1", "FR-001": "RA-2", "TSK-001": "RA-3"}`.
@@ -109,8 +114,8 @@ and the PM would rather not wait for it, use this route instead of Steps 2–4:
 python3 ~/.pm-os/scripts/pm_handoff.py export
 ```
 
-This runs the same plan builder (same approval gate, same US→Epic / FR→Story /
-TSK→Task mapping) and writes `handoff/jira-import.csv` plus
+This runs the same plan builder (same approval gate, same EPIC→Epic / US→Story /
+FR→Task / TSK→Subtask-or-Task mapping) and writes `handoff/jira-import.csv` plus
 `handoff/jira-import-README.md`. Descriptions are converted to Jira wiki markup,
 each row carries its stable id as a `pm-os-<id>` label, and parent links are
 expressed with `Issue Id` / `Parent Id` so the epic hierarchy survives the import.

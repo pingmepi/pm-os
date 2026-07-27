@@ -221,9 +221,10 @@ Base sections:
 
 - **`## Overview`** — The product, the user problem, the MVP boundary, and what this PRD covers.
 - **`## Goals and Non-Goals`** — The outcomes this release targets, followed by the explicit non-goals for this version.
+- **`## Product Epics`** — Product workstreams/outcome areas (`EPIC-###`) that become Jira Epics, each with Outcome, Scope, and Success signal. Stories and functional requirements cite exactly one declared epic with `Epic: EPIC-###`.
 - **`## User Journeys`** — End-to-end journeys (`### UJ-###`): primary user, trigger, goal, preconditions, happy path, failure paths, completion signal, and traceability to US/FR.
-- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor/trigger/outcome, explicit happy path, edge cases / alternate paths, data fields, key UI steps with system behavior and Done criteria, scope/journey/requirement trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
-- **`## Functional Requirements`** — Required system behaviors, workflows, states, rules, and integrations (`FR-###`/`REQ-###`), each mapped to a story or scope item.
+- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor/trigger/outcome, exactly one `Epic: EPIC-###`, explicit happy path, edge cases / alternate paths, data fields, key UI steps with system behavior and Done criteria, scope/journey/requirement trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
+- **`## Functional Requirements`** — Required system behaviors, workflows, states, rules, and integrations (`FR-###`/`REQ-###`), each mapped to a story or scope item and exactly one declared `Epic: EPIC-###`.
 - **`## Non-Functional Requirements`** — Performance, reliability, security, privacy, accessibility, auditability, maintainability, and operations — with measurable thresholds.
 - **`## Data & Governance`** — What data is collected/stored/processed, its sensitivity, owner, retention, access, consent/legal basis, residency/regime, and any third-party or model-provider sharing.
 - **`## Journey–Requirement Traceability`** *(recommended)* — Maps every `UJ-###` to its `US-###`/`FR-###`/NFRs and principal success/failure signal.
@@ -398,12 +399,12 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 |------|-----------|---------|
 | `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 4`); mirrors each artifact's frontmatter. |
 | `telemetry.jsonl` | `lib/telemetry.py` | Append-only, hash-chained event log (`prev_event_hash` → `event_hash`). |
-| `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v3): requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). |
+| `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v4): Product Epics (`EPIC-###`) with story/requirement membership and ticket slots, requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). Legacy synthetic `EPIC-01` ticket refs are preserved as legacy metadata only. |
 | `04-design-spec.html` | `hooks/post-approve.py` via `lib/html_render.py` (`templates/design-spec.html.j2`) | HTML companion rendered on stage-04 approval. |
 | `05-prototype-*.html` | `pm-prototype-html` (`templates/prototype-mockup.html.j2`) | Interactive prototype rendered after the stage-05 brief. |
 | `00-context/manifest.yaml` | `pm_context_import.py pack-manifest` | Assembles the context-wiki pack; records it in `.meta.yaml`. |
-| `handoff/` | `pm_share.py --package` | Read-only projection of the approved pipeline: `README.md`, `00-overview.md`, `epics/`, one `stories/US-###-*.md` per story (with the `SCR-###` screens it touches), and `reference/` (user journeys, **screen map**, QA scenarios, impact analysis, NFRs). Regenerated wholesale — never hand-edited. |
-| `handoff/jira-plan.{md,json}` | `pm_handoff.py plan` | Dry-run ticket map (`US-###`→epic, `FR-###`→story, `TSK-###`→task) reviewed before anything is created in Jira. |
+| `handoff/` | `pm_share.py --package` | Read-only projection of the approved pipeline: `README.md`, `00-overview.md`, one `epics/EPIC-###-*.md` per declared Product Epic, one `stories/US-###-*.md` per story (with the `SCR-###` screens it touches), and `reference/` (user journeys, **screen map**, QA scenarios, impact analysis, NFRs). Regenerated wholesale — never hand-edited. |
+| `handoff/jira-plan.{md,json}` | `pm_handoff.py plan` | Dry-run ticket map (`EPIC-###`→Epic, `US-###`→Story, `FR/REQ-###`→Task, `TSK-###`→Subtask when it implements exactly one exported item; same-epic multi-ref TSK→Task; cross-epic/unresolved TSK→unparented Task) reviewed before anything is created in Jira. |
 | `handoff/jira-import.csv` | `pm_handoff.py export` | The same plan as a Jira CSV-importer file for the offline route, with descriptions in Jira wiki markup and `Issue Id`/`Parent Id` parent linking. Shipped alongside `jira-import-README.md` (import + field-mapping guide). |
 
 ---
