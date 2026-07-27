@@ -48,6 +48,7 @@ are deferred when they do not block the primary completion signal.
 **Happy path:** Open, review, and finish.
 **Alternate/failure paths:** Recover from unavailable data.
 **Completion signal:** Confirmation appears.
+**Prototype priority:** High
 **Traceability:** US-001, FR-001.
 ## User Stories with Acceptance Criteria
 ### US-001 — Complete work
@@ -242,6 +243,40 @@ No production integration.
     _write(root, "05-prototype-brief.md", body)
     findings = contracts.validate_artifact(root, "05")
     assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
+
+
+def test_prototype_brief_warns_when_high_priority_journey_lacks_slice_decision(tmp_path):
+    """High-priority PRD journeys must be explicitly included or excluded in
+    `What to Prototype`; mentioning the journey elsewhere is not enough."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd(), contract_version=7)
+    body = """# Prototype Brief
+## What to Prototype
+Primary form slice, but no journey decision list.
+## Fidelity Level
+Interactive HTML.
+## Prototype Audience & Modes
+Participant mode is the default; reviewer mode is enabled separately.
+## Screens to Include
+Primary screen serving UJ-001.
+## Interactions to Demonstrate
+Complete the task.
+## Prototype Data & Scenarios
+Synthetic scenario.
+## Questions the Prototype Should Answer
+Can users finish?
+## Validation Plan
+Participants complete tasks against a current-experience comparator. Measures and evidence use a decision threshold. Facilitator guidance avoids bias and priming.
+## Known Limitations
+Simulated backend.
+## Non-Goals for Prototype
+No production integration.
+"""
+    _write(root, "05-prototype-brief.md", body)
+    findings = contracts.validate_artifact(root, "05")
+    warning = next(f for f in findings if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING")
+    assert "UJ-001" in warning.message
+    assert contracts.error_count(findings) == 0
 
 
 def test_retrieval_html_flags_generic_generation_patterns(tmp_path):
@@ -686,6 +721,18 @@ def test_prd_prioritization_method_and_values_are_warning_only(tmp_path):
     assert "PRIORITIZATION_METHOD_MISSING" not in codes
     assert "USER_STORY_PRIORITY_MISSING" not in codes
     assert "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING" not in codes
+
+
+def test_prd_journey_prototype_priority_warns_when_missing(tmp_path):
+    """Stage 05 slice selection depends on declared journey validation risk, so
+    journeys missing `Prototype priority:` warn without blocking the PRD."""
+    root = _project(tmp_path)
+    body = _valid_prd().replace("**Prototype priority:** High\n", "")
+    _write(root, "03-prd.md", body, contract_version=7)
+    findings = contracts.validate_artifact(root, "03")
+    warning = next(f for f in findings if f.code == "USER_JOURNEY_PROTOTYPE_PRIORITY_MISSING")
+    assert "UJ-001" in warning.message
+    assert contracts.error_count(findings) == 0
 
 
 def test_impact_analysis_is_a_recommended_prd_section(tmp_path):

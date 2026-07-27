@@ -734,6 +734,16 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             ))
         if not REQUIREMENT_ID_RE.search(block):
             findings.append(Finding("ERROR", "USER_JOURNEY_TRACE_MISSING", f"{journey_id} does not reference a stable requirement id (REQ-### / US-### / FR-###)."))
+    missing_prototype_priority = sorted(
+        journey_id for journey_id, block in journey_blocks
+        if not labeled_field_any(block, ("Prototype priority", "Validation risk"))
+    )
+    if missing_prototype_priority:
+        findings.append(Finding(
+            "WARNING", "USER_JOURNEY_PROTOTYPE_PRIORITY_MISSING",
+            "User journeys with no labeled `Prototype priority:` / validation-risk value: "
+            + ", ".join(missing_prototype_priority),
+        ))
 
     stories = _section(sections, "User Stories with Acceptance Criteria") or ""
     if not USER_STORY_ID_RE.search(stories):
@@ -973,6 +983,23 @@ def _upstream_journey_ids(project_root: Path) -> set[str]:
     return {match.upper() for match in JOURNEY_ID_RE.findall(body)}
 
 
+def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
+    path = artifact_path(project_root, "03")
+    if not path.exists():
+        return {}
+    try:
+        _fm, body = fm_read(str(path))
+    except Exception:
+        return {}
+    sections = _sections(body)
+    journeys = _section(sections, "User Journeys") or ""
+    return {
+        journey_id: priority
+        for journey_id, block in _blocks(journeys, r"^###\s+(UJ-\d{3})\b.*$")
+        if (priority := labeled_field_any(block, ("Prototype priority", "Validation risk", "Priority")))
+    }
+
+
 def _upstream_requirement_ids(project_root: Path) -> set[str]:
     """Requirement ids (REQ/US/FR-###) declared in the approved PRD, used to check
     QA-plan coverage. Empty when the PRD is absent or carries no stable ids — so
@@ -1125,6 +1152,23 @@ def _validate_screens(ia_section: str) -> list[Finding]:
 
 def _validate_stage_05(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings = _validate_journey_references(project_root, body, "05")
+    what_to_prototype = _section(sections, "What to Prototype") or ""
+    high_priority_journeys = [
+        journey_id for journey_id, priority in _upstream_journey_priorities(project_root).items()
+        if _norm(priority) in {"high", "critical", "must", "must-have", "high risk", "high-risk"}
+        or "high" in _norm(priority)
+        or "critical" in _norm(priority)
+    ]
+    missing_decisions = sorted(
+        journey_id for journey_id in high_priority_journeys
+        if not re.search(rf"\b{re.escape(journey_id)}\b", what_to_prototype, re.IGNORECASE)
+    )
+    if missing_decisions:
+        findings.append(Finding(
+            "WARNING", "PROTOTYPE_PRIORITY_DECISION_MISSING",
+            "What to Prototype must explicitly include or exclude high-priority journeys: "
+            + ", ".join(missing_decisions),
+        ))
     modes = _norm(_section(sections, "Prototype Audience & Modes") or "")
     for term in ("participant", "reviewer"):
         if term not in modes:

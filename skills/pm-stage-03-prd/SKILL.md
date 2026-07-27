@@ -162,7 +162,7 @@ Write a Product Requirements Document with these base sections.
 
 ## User Journeys
 
-<Define the end-to-end journeys that establish the context for later stories and requirements. Use `### UJ-### — <journey name>` for each journey and include: **Primary user**, **Context and trigger**, **Goal**, **Preconditions**, **Happy path**, **Alternate/failure paths**, **Completion signal**, and **Traceability** to at least one `US-###` or `FR-###`. Cover pre-task context, recovery, and post-completion behavior where relevant; do not substitute UI flows for journeys.>
+<Define the end-to-end journeys that establish the context for later stories and requirements. Use `### UJ-### — <journey name>` for each journey and include: **Primary user**, **Context and trigger**, **Goal**, **Preconditions**, **Happy path**, **Alternate/failure paths**, **Completion signal**, **Prototype priority** (`High`, `Medium`, or `Low`, based on validation risk/value), and **Traceability** to at least one `US-###` or `FR-###`. Cover pre-task context, recovery, and post-completion behavior where relevant; do not substitute UI flows for journeys.>
 
 ## User Stories with Acceptance Criteria
 
@@ -366,6 +366,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions, and traceability so the handoff can render it without invention.
 - Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
 - User Journeys must use `UJ-###`, carry the required journey fields, cover happy and recovery paths, and trace to `US-###` or `FR-###`.
+- User Journeys should declare `Prototype priority:` so Stage 05 can audit why a journey was included in or excluded from the prototype slice.
 - Journey–Requirement Traceability and Assumptions & Open Decisions should be present when applicable; explain explicit non-applicability instead of silently omitting them.
 - Functional Requirements must be complete enough that design and engineering can infer what needs to be built without re-scoping the product, and must use stable `FR-###` (or `REQ-###`) IDs that survive regeneration.
 - Stable IDs are the traceability spine: when regenerating, reuse the same `US-###`/`FR-###`/`REQ-###` id for the same requirement and only append ids for genuinely new ones — never renumber, so downstream QA/handoff links stay valid.
