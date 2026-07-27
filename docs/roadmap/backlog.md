@@ -3,6 +3,8 @@
 Tracked issues and fixes, surfaced during testing/rollout prep. Newest concerns first.
 Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · 🟡 partially fixed · 🟢 fixed (pending release).
 
+For **build order** across these entries (which are necessary to the current product vs. roadmap expansion, dependency-ordered), see `development-order.md`.
+
 ---
 
 ## 1. 🟢 Edited-upstream re-approval gate is auto-answered by the agent (human-in-the-loop bypass)
@@ -310,10 +312,14 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-## 18. 🔴 Project artifacts have no off-machine copy and no version history
+## 18. 🟡 Project artifacts have no off-machine copy and no version history
 
 **Severity:** P1 — total-loss risk. Losing one laptop loses every approved product decision, and there is no org-side copy of what was decided or approved.
-**Status:** 🔴 Open.
+**Status:** 🟡 Partially fixed — **local version history shipped** (this change); the off-machine copy remains open (needs Indegene git hosting).
+
+**Fixed (local half, this change):** `lib/project_git.py` makes every project its own local git repo — `git init` + initial commit at scaffold (`scripts/pm_new.py`), and a commit on each approval (`hooks/post-approve.py`), with a project `.gitignore` excluding `.codebase/`. No remote, no network, no IT request: history/diff/restore all work offline. Warn-not-fail throughout (a git problem never blocks scaffold or approval) and per-commit identity injection so it works with no global git config. Tests: `tests/unit/test_project_git.py`, `tests/integration/test_project_versioning.py`. This is the project's own repo, separate from the central feedback-repo sync (`lib/git_sync.py`).
+
+**Still open (off-machine half):** an org-side copy still requires Indegene-owned git hosting — add per-PM private artifact repos to the same namespace as the telemetry sink (one IT request; see proposed fix part 2 below), then push the local repo to it. Tracked here until that hosting exists.
 
 **Symptom:** PM-OS syncs the *metrics about* the work but never the work itself. Every brief, scope, PRD, design spec, QA plan and TRD exists only in `~/pm-projects/<slug>/` on a single machine, unversioned. There is no record of what an artifact said before an edit beyond the agent-written `.history/` snapshots (which nothing validates — see entry #25), and no copy anywhere else.
 
@@ -498,4 +504,4 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 
 ---
 
-_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. **Entries 18-28 recorded 2026-07-27** from a structural review of PM-OS's limitations against a full PDLC (business, product, and technical levels), each verified against the current codebase before being logged; PM decisions taken during that review are marked inline (#19 prioritization shape, #21 severity, #22 boundary, #25 deterministic snapshot, #28 delivery model). #28's design is captured in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B rather than inline here. Roadmap-level gaps surfaced in the same review — missing discovery/research stages, the regulatory/compliance gate, the commercial/services layer, localization and UX-writing workflows, and the metrics-late/feasibility-late ordering — were deliberately **not** logged here; they belong in `current-state-review.md` and `product-shape-and-flexibility-brainstorm.md`, since this file tracks verified gaps in built things. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._
+_Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. **Entries 18-28 recorded 2026-07-27** from a structural review of PM-OS's limitations against a full PDLC (business, product, and technical levels), each verified against the current codebase before being logged; PM decisions taken during that review are marked inline (#19 prioritization shape, #21 severity, #22 boundary, #25 deterministic snapshot, #28 delivery model). #28's design is captured in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B rather than inline here. Roadmap-level gaps surfaced in the same review — missing discovery/research stages, the regulatory/compliance gate, the commercial/services layer, localization and UX-writing workflows, and the metrics-late/feasibility-late ordering — were deliberately **not** logged here; they belong in `current-state-review.md` (§3, "Roadmap-level lifecycle gaps") and `product-shape-and-flexibility-brainstorm.md`, since this file tracks verified gaps in built things. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._

@@ -129,6 +129,33 @@ def main():
             print(f"[post-approve] WARNING: Could not rebuild traceability: {e}",
                   file=sys.stderr)
 
+    # --- Commit the project to its local git repo (backlog #18) ---
+    # The project's OWN version history, entirely separate from the central
+    # feedback-repo sync below. The approval is already durably written to disk
+    # at this point; this just snapshots it so it is diffable and recoverable.
+    # Warn-not-fail: a git problem must never gate approval.
+    try:
+        from project_git import commit_all
+        pm_user = "pm-os"
+        try:
+            from config import load_config
+            pm_user = load_config().get("pm_user") or "pm-os"
+        except Exception:
+            pass
+        try:
+            stage_name = get_stage(meta, stage_id).get("name", stage_id)
+        except KeyError:
+            stage_name = stage_id
+        vcs = commit_all(project_root, f"approve: stage {stage_id} {stage_name}", pm_user=pm_user)
+        if vcs.get("ok"):
+            if vcs.get("reason") == "committed":
+                print(f"[post-approve] Versioned project locally (git): stage {stage_id}.")
+        else:
+            print(f"[post-approve] WARNING: local git commit skipped — {vcs.get('reason')}",
+                  file=sys.stderr)
+    except Exception as e:
+        print(f"[post-approve] WARNING: could not commit to local git: {e}", file=sys.stderr)
+
     # --- Sync to feedback repo ---
     # By default this is DEFERRED to a detached background process so the
     # network push never gates the PM's perceived approval completion (backlog

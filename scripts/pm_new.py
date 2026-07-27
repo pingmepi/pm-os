@@ -169,6 +169,19 @@ def main():
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
 
+    # --- Local version history (backlog #18): init the project as its own git repo ---
+    # No remote, no network — a local commit of the scaffold so every later
+    # approval is diffable and recoverable. Warn-not-fail: a git problem must
+    # never block scaffolding.
+    try:
+        from project_git import init_project_repo
+        vcs = init_project_repo(project_root, pm_user=pm,
+                                initial_message=f"Initialize PM-OS project {args.slug}")
+        if not vcs.get("ok") and vcs.get("reason") != "nothing to commit":
+            print(f"Warning: local version history not initialized — {vcs.get('reason')}")
+    except Exception as e:
+        print(f"Warning: could not initialize local version history: {e}")
+
     print(f"Project '{args.slug}' created at {project_root}/")
     print(f"GenAI flag: {'yes' if genai_flag else 'no'}  Mode: {project_type}")
     if project_type == "enhancement" and args.codebase:
