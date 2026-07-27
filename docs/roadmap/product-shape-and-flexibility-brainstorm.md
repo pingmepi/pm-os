@@ -44,6 +44,8 @@ Bonus insight: a handoff packet + traceability spine extended through tickets/te
 
 ## 2. Working-style flexibility — the three PM "paths"
 
+> **Update (2026-07-27):** the MVP-vs-full-product / scope-tier thread in this section and §3 has since moved from open discussion to a **committed design** — scope tiers (`mvp | v1 | v2 | later`) with tiered fidelity + a `/pm-promote` step, and an ungated delivery-increment layer for multi-cycle handoff. See `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part B and backlog #28. This brainstorm is preserved as the origin of that thinking; the decisions live in the plan, not here.
+
 A PM described three working styles. Where PM-OS stands (verified in code):
 
 | Path | Command today | Standing |
@@ -107,6 +109,35 @@ PM-OS models requirements as **flat nodes** with exactly one edge type in the wh
 **Do today (convention, zero code):** a "Capability Map & Interfaces" section in PRD + design; interface IDs (`IF-CONTENT→TRANS-001`) referenced from requirements on both sides; integration QA class (`TC-INT-###`) tied to `IF-` IDs; roadmap horizons ordered by the dependency edges.
 
 **Worth building (safe):** grow the **traceability spine** with typed `REQ→REQ` / capability edges and `IF-` interface nodes — **purely additive to the link graph, never touches the state machine** (respects the golden rule). Then roadmap phasing can be *derived* from the dependency graph. Product interface lives in PRD/design; technical contract in TRD; **same `IF-` ID**, different layer.
+
+---
+
+## 4.5 Surface bias — PM-OS assumes product = UI product; backend is second-class
+
+**Date: 2026-07-27 · verified against code.** Prompted by "product is not just frontend — how conducive is PM-OS to backend?" The `IF-` interface node from §4 turns out to be part of the answer, so this sits here. **The finding is solid; the response is open** (per the standing caveat).
+
+**PM-OS structurally assumes a product is a user-facing thing with screens.** It is *not* uniformly weak on backend — the bias is concentrated in a specific, and backwards, place. By layer:
+
+| Layer | Stage | Backend fit |
+|---|---|---|
+| Definition | 03 PRD | **Neutral — fine.** `FR-###`/`NFR`/`Data & Governance` aren't inherently UI; a backend requirement expresses cleanly. |
+| Design | 04 design-spec | **Frontend-locked.** All 11 required sections are UI (Information Architecture, Key User Flows, Component Inventory, Typography, Color/Spacing Tokens, Iconography, Accessibility). Grep: **116 UI/screen/journey references in the contract, 0 for API/endpoint/service/schema.** No gated design stage exists for API design, data-model design, service decomposition, or event/message contracts. |
+| Prototype | 05 | **Frontend by definition** — emits an HTML mockup, demands "Screens to Include." No backend analogue (no "OpenAPI + mock server + sample request/response" path). |
+| Implementation | 08 TRD | **Strong on backend** — API/Interface Contracts, Data Model, Architecture (sync/async, data ownership, trust boundaries), Dependencies & Integrations, NFR implementation, GenAI serving. |
+
+**The structural inversion (the real problem):** backend design has exactly one home, and it is the **optional, uncontracted** stage 08 (no required-section contract — see `backlog.md` #20). Frontend design (04) is **mandatory and rigorously contracted**. So the surface most products lead with rigor on is the UI, and the backend-design surface lives in the stage most likely to be skipped and least likely to be validated — inverted for a backend-heavy product.
+
+**Traceability has no backend primitive.** The design-side anchor is `SCR-###` (screens). There is no `API-###`/`SVC-###`/`ENTITY-###`/`EVT-###`, and `UJ-###` ("user journey") presumes a UI actor. A system-to-system integration, batch job, or internal API has nothing to point at through the design layer — it can only reappear later as a `TSK-###` in the optional TRD. This is the same "interfaces are a missing primitive" gap as §4, seen from the layer axis instead of the capability axis: the `IF-` interface node §4 proposes is exactly what a backend seam would trace to.
+
+**The pure-backend product is actively mis-served.** A product with no UI (API platform, data pipeline, ML inference service) is still forced through 04 and 05 to produce screens and an HTML prototype it doesn't need — with **no "not applicable" escape**, because the gate has no N/A for core stages 01–07 (§2's invariant). And there is no *surface-type* dimension (`ui | api | data | service`) to branch 04/05 the way `genai_flag` branches stage 03 — the only mode axes are `new_product|enhancement` and `genai_flag`.
+
+**Response options (none decided):**
+- **A — Surface-type flag.** Add a propagating `surface_type` dimension (like `genai_flag` / `project_type`, established precedent), letting 04/05 swap UI sections for interface/data-contract sections and letting a pure-backend product skip screen/prototype demands honestly. Cheapest; reuses the mode-flag pattern.
+- **B — `IF-`/data traceability primitive (from §4).** First-class interface/entity/event nodes so backend units trace through the design layer, not just the TRD. Additive to the spine; respects the golden rule.
+- **C — Give stage 08 a section contract (`backlog.md` #20)** so the one backend-design home stops being uncontracted — necessary regardless of A/B.
+- **Not** a separate backend-design *stage* forking the pipeline — that violates "one linear chain, one artifact per stage." A surface-conditioned stage 04 (option A) is the shape-preserving version.
+
+**Open tension:** is backend under-service a *now* problem, or does it only bite when Indegene actually defines an API/data/service product? For a UI-forward product today, the frontend lean is harmless. Same "start native, split when forced" question as §2/§3 — logged, not resolved.
 
 ---
 

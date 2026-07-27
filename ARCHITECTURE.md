@@ -205,6 +205,18 @@ stateDiagram-v2
 
 **Two synchronized sources of truth:** stage state lives in **both** `.meta.yaml` (`stages[]`) **and** each artifact's frontmatter, kept in lockstep by `pm_approve.py` and the hooks. `content_hash` is computed over the **body only**, so frontmatter edits never trigger false drift.
 
+### Structural constraint: the spine is derived from prose
+
+Stage state above is *stored* as structured data, but everything the traceability spine knows about the **contents** of an artifact is **pattern-matched out of Markdown prose**. `lib/artifact_contracts.py` compiles 19 regexes to do it, and they are not equally sound:
+
+- **ID patterns** (`REQUIREMENT_ID_RE`, `TEST_CASE_ID_RE`, `TASK_ID_RE`, `SCREEN_ID_RE`, …) match stable tokens like `TSK-014`. Regex is the right tool; these are reliable.
+- **Block splitters** (`_TC_BLOCK_START_RE`, `_US_BLOCK_START_RE`, `_TSK_BLOCK_START_RE`, `_SCR_BLOCK_START_RE`) infer where a declaration's block begins and ends from Markdown line shape. These are fragile: bold-wrapped ids, heading-level nesting, and single-line vs. heading authoring styles have all produced real defects (backlog #11, #12).
+- **Cue regexes** (`_ACCEPTANCE_CUE_RE`, `_HAPPY_PATH_CUE_RE`, `_EDGE_CASE_CUE_RE`, `_MODEL_*_CUE_RE`) decide whether *meaning* is present by keyword match. These are unsound by construction: a story covering edge cases in other words fails, and a story that writes the expected label while saying nothing useful passes.
+
+The practical consequence is worth stating plainly, because it keeps being rediscovered as a bug: **contract checks verify vocabulary and shape, never correctness.** An artifact can be fully contract-valid and product-wrong, and nothing in the system will say otherwise (backlog #4, #5). Requirements are not objects here — they are regex matches over documents.
+
+The intended direction is *not* NLP or embeddings (designed and deliberately abandoned — see `docs/reference/pm-os-spec.md`) but converting semantic questions into structural ones via labeled fields per declaration, so that "does this story have acceptance criteria" becomes a question regex can answer soundly. Tracked as backlog #27.
+
 ---
 
 ## 5. End-to-end sequence: generate → approve
@@ -245,7 +257,7 @@ sequenceDiagram
 
 ## 6. Data & telemetry
 
-- **`.meta.yaml`** — project metadata + `stages[]` list (id, name, status, `approved_at`, `content_hash`, `upstream_hashes_at_approval`, `regeneration_count`, `optional`, `origin`). Carries `schema_version` (currently 3; `lib/project.py:migrate_meta` upgrades older projects in place). v3 adds `project_type` (`new_product | enhancement`), `codebase_path`, and `codebase_ref` for enhancement projects. `origin` is `generated | imported | backfilled`. The stage-00 understanding group (`00` business-statement, plus the conditional `00c` codebase-understanding, `00w` context-wiki, and `00u` context-understanding when `/pm-context-import` is used) gates stage 01.
+- **`.meta.yaml`** — project metadata + `stages[]` list (id, name, status, `approved_at`, `content_hash`, `upstream_hashes_at_approval`, `regeneration_count`, `optional`, `origin`). Carries `schema_version` (currently 4; `lib/project.py:migrate_meta` upgrades older projects in place). v3 adds `project_type` (`new_product | enhancement`), `codebase_path`, and `codebase_ref` for enhancement projects; v4 adds the composite-hash adaptive context pack. `origin` is `generated | imported | backfilled`. The stage-00 understanding group (`00` business-statement, plus the conditional `00c` codebase-understanding, `00w` context-wiki, and `00u` context-understanding when `/pm-context-import` is used) gates stage 01.
 - **`.sources.yaml`** — registry of externally-provided sources ingested via `/pm-context-import` (id, type, uri, captured_at, snapshot path); raw originals preserved under `.history/`.
 - **Artifact frontmatter** — `status`, `approved_at/by`, `content_hash`, `generated_hash`, `pm_os_version`, `genai_flag`, `generation_notes`, `origin`, and (for current Stage 03–06 generations) `artifact_contract_version`, followed by the Markdown body.
 - **`telemetry.jsonl`** — append-only, hash-chained (`prev_event_hash` → `event_hash`). Event types include `project_created`, `stage_started`, `stage_generated`, `stage_approved`, `stage_imported`, `stage_backfilled`, `context_ingested`, `stage_edited_post_approval`, `stage_edited_via_note`, `artifact_validation_warning`, `implicit_reapproval`, `stage_marked_stale`, `feedback_submitted`. Telemetry failures warn but never break the workflow.

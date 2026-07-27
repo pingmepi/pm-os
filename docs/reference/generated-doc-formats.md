@@ -1,6 +1,6 @@
 # Generated Document Formats
 
-**PM-OS version:** 1.0.8 · **Status:** reference (mirrors what the skills on `main` actually generate)
+**PM-OS version:** 1.3.2 · **Status:** reference (mirrors what the skills on `main` actually generate)
 
 This is the canonical catalog of the format of **every document PM-OS generates** — each section with a one-line note on what it contains, the shared frontmatter they all carry, and the supporting machine-written files. Each format is sourced from the `# Output specification` block of the stage's `SKILL.md` (or the context templates for the 00-group), so it reflects the code on `main`, not the aspirational build spec.
 
