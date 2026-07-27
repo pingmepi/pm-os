@@ -39,7 +39,7 @@ The current codebase (v1.3.1) is a strong **local-first product-definition MVP**
 
 It can scaffold a project from a business statement **or from existing PM-authored context** (research, brief, scope, PRD, design notes) via `/pm-context-import`; generate staged product artifacts; require human approval between stages; track status/hashes/origin in local files; check project consistency (`/pm-check`); record telemetry/feedback; and export approved artifacts — as raw text or a decomposed per-story handoff package (`/pm-share --package`).
 
-It is not yet the full PDLC operating system described above (no brownfield codebase awareness, external integrations, or dev/QA/release/feedback workflows).
+It is not yet the full PDLC operating system described above: brownfield codebase awareness (enhancement mode) and one external integration (the Jira handoff export) have shipped, but the dev/QA/release/feedback workflows are unbuilt, and external integration is still limited to the Jira export — no Linear/Figma, no bug-tracker/analytics/support ingestion, and no external artifact graph yet.
 
 ### Implemented Today
 

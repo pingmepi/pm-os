@@ -170,7 +170,7 @@ Multiple development cycles need a *delivery increment* object. It is deliberate
 So the increment layer is:
 
 - An **ungated, append-friendly** record — `delivery.yaml` (or `INC-###` entries) at project root, beside `.meta.yaml`, not a numbered stage artifact.
-- Each increment: an id (`INC-###`), a goal, entry/exit conditions, and **membership by `TSK-###`** (the TRD Work Breakdown is already the right sequencing unit — tasks already carry `Implements:` traces). Increments group tasks, not stories.
+- Each increment: an id (`INC-###`), a goal, entry/exit conditions, and **membership by `TSK-###` when an approved TRD exists** (the TRD Work Breakdown is the right sequencing unit — tasks already carry `Implements:` traces). **Fallback for the TRD-less path:** stage 08 is optional, and the supported handoff already degrades to PRD-only stories/requirements when no TRD is present, so a project without a TRD has no `TSK-###` to group. In that case increment membership falls back to **`US-###`/`FR-###`** — the same units the PRD-only handoff exports — so an increment can always be formed. Prefer `TSK` granularity when tasks exist; fall back to `US`/`FR` otherwise. (An earlier draft said "group tasks, not stories"; that only holds when a TRD exists.)
 - **Validated *against* 08/09, never gated *by* them:** `/pm-check` warns if an increment contains a `TSK` whose dependency sits in a later increment, or pulls a story from a horizon stage 09 placed later. Advisory, read-only — the existing `/pm-check` pattern.
 - Sequencing (task→task dependency) stays in the **gated** stage-08 Work Breakdown; strategic horizons stay in **gated** stage 09; only *assignment to a cycle* and the *handoff ledger* live in the ungated layer. This is the "sort by rate of change, not by gated/ungated" split: stable facts stay gated and get *updated* (via `--reapprove`), the weekly-churn object stays out.
 
@@ -178,7 +178,9 @@ So the increment layer is:
 
 ### 8.6 Resolve the export mismatch first
 
-Before tiers or increments land, the `EPIC-01`-hardcode (`pm_share.py:352`) vs. one-epic-per-story (`pm_handoff.py:160`) disagreement must be reconciled to a single epic/story/task mapping — otherwise the inconsistency multiplies across every tier and increment. This is a prerequisite bugfix, tracked in backlog #28. Once unified, `/pm-handoff jira --increment INC-02` exports only that increment's tasks, and `.traceability.yaml` records returned ticket keys per increment so cycle 2 never recreates cycle 1's tickets.
+Before tiers or increments land, the `EPIC-01`-hardcode (`pm_share.py:352`) vs. one-epic-per-story (`pm_handoff.py:160`) disagreement must be reconciled to a single epic/story/task mapping — otherwise the inconsistency multiplies across every tier and increment.
+
+Once unified, `/pm-handoff jira --increment INC-02` scopes the export to that increment — but **an increment export is the member set plus its required ancestor closure, not the members alone.** `scripts/pm_handoff.py:255-264` parents each task to its owning `US-###` epic, and the offline exporter (`:359-365`, `:399-410`) resolves `Parent Id` only against issues present in the *same* CSV. So a task-only export orphans every task (its parent epic isn't in the file). The export must therefore emit, for each member, the epic/story ancestors it hangs from. And because those ancestors may have been created in an *earlier* increment, the export must **substitute the previously-recorded Jira keys** (from `.traceability.yaml`'s per-increment `tickets:` slots) for any parent already created, rather than re-creating it. `.traceability.yaml` records returned ticket keys per increment so cycle 2 never recreates cycle 1's tickets. This is a prerequisite-aware refinement of backlog #28.
 
 ---
 
@@ -196,7 +198,7 @@ Engineering handoff is an **export/sync action, not new pipeline stages** — th
   - *Pull* (do first): read an existing Figma file to extract real design tokens/components so stage 04 extends the actual system. **Complementary** to enhancement mode, which already extracts design language from code — most useful when the design source of truth lives in Figma rather than the codebase.
   - *Push* (later): generate frames from the prototype brief.
 
-**Delivery-increment scoping (from Part B, unbuilt):** `--increment INC-##` should narrow any of the above to a single increment's tasks, and `record` should stamp returned keys per increment so later cycles never recreate earlier tickets. The shipped Jira export currently exports the whole approved pipeline; `--increment` lands with Part B's B3.
+**Delivery-increment scoping (from Part B, unbuilt):** `--increment INC-##` should narrow any of the above to a single increment's members **plus their required ancestor closure** (owning epics/stories), substituting previously-recorded Jira keys for parents created in earlier increments so the hierarchy survives (see §8.6). `record` stamps returned keys per increment so later cycles never recreate earlier tickets. The shipped Jira export currently exports the whole approved pipeline; `--increment` lands with Part B's B3.
 
 This part **revised current v1 non-goals.** Spec §13 listed "Figma integration" and "MCP integrations beyond optional `pm-share`" as out of scope, and the cross-runtime plan called a unified MCP server out of scope. The shipped Jira export already retired the MCP-integration non-goal; the Figma non-goal is retired when Figma lands. MCP is supported across Claude Code / Codex / Gemini, so connectors stay cross-runtime-portable.
 
