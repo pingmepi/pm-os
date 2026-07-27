@@ -101,6 +101,7 @@ It is not yet the full PDLC operating system described above: brownfield codebas
 | Delivery model (scope tiers + delivery increments) | Planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part B; backlog #28 |
 | Jira/Linear handoff | Jira export shipped (v1.2.0); Linear planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part C |
 | Figma/design-system integration | Planned later | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part C |
+| Design-token consumption → React codegen | Planned later (blocked on partner) | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part C (C4) |
 | QA bug analysis against codebase | Missing | part of expanded ask |
 | Dev-phase support and fix-plan suggestion | Missing | part of expanded ask |
 | Release readiness workflow | Missing | part of expanded ask |
@@ -136,6 +137,16 @@ Major gaps:
 6. **No external artifact consumption:** Jira/Linear/GitHub/Figma/QA/analytics/support systems are not integrated.
 7. **No dev/QA execution support:** PM-OS can draft a QA plan and TRD, but cannot yet analyze a QA bug, map it to requirements/code, classify it, and suggest a developer fix plan.
 8. **Runtime agnosticism is complete (Claude + Codex).** Install, skill interfaces, advisory model guidance, a real `AGENTS.md`, non-interactive-safe gates, and an install verifier are all shipped. Gate parity was confirmed: the gates run from `~/.pm-os/hooks` via skill bash and `pm_approve.py`, not native Claude hooks, so they behave identically on both runtimes. (Gemini remains a later runtime target.)
+
+### Roadmap-level lifecycle gaps (surfaced 2026-07-27)
+
+These are lifecycle-coverage gaps in what PM-OS *doesn't yet do* — distinct from the verified defects in built things that `backlog.md` tracks. The 2026-07-27 limitations review deliberately kept them out of the backlog (see its closing note) and delegated them here; this subsection is where they live.
+
+1. **No discovery / research stage.** The pipeline begins at the stage-01 brief, assuming the problem, target user, and opportunity are already validated — problem discovery, user research, and opportunity sizing are assumed done *before* PM-OS. (The stage-05 prototype brief carries a validation *plan*, but it tests a chosen solution slice, not the upstream problem.) §1 lists "intake and discovery" as an aim; no stage implements discovery.
+2. **No regulatory / compliance / MLR gate.** No stage or approval models Medical/Legal/Regulatory (MLR) review, 21 CFR Part 11 / GxP / CSV validation, or HIPAA/GDPR privacy — arguably mandatory gates for a life-sciences org, not optional. Tied to the single-approver limit (`backlog.md` #21) and detailed in `product-shape-and-flexibility-brainstorm.md` §1.
+3. **No commercial / services layer.** Intake assumes a single internal PM with a one-line idea — not an SOW/RFP, client engagement, pricing, or service-delivery dimension that an agency/services business runs on. Product ≠ the whole business. See `product-shape-and-flexibility-brainstorm.md` §1 (client/stakeholder model).
+4. **No localization or UX-writing workflow.** No stage covers content design / UX writing or localization/translation for multi-market products. Surfaced here; not yet elaborated elsewhere.
+5. **Metrics-late / feasibility-late ordering.** Success-metrics planning (stage 07) and technical feasibility / TRD (stage 08) sit near the end of the pipeline, after design and prototype. Feasibility can invalidate scope and metrics should shape the PRD, so both arguably belong earlier — a sequencing critique of the fixed stage order, not a missing feature.
 
 ---
 
@@ -513,6 +524,8 @@ Principles:
 ---
 
 ## 10. Immediate Next Steps
+
+For the fine-grained build sequencing across all open work (necessary-then-roadmap, dependency-ordered), see `development-order.md`. The coarse phase order below stays for historical continuity.
 
 Recommended order:
 

@@ -1,6 +1,6 @@
 # PM-OS Modes, Delivery Model & Engineering Handoff Plan
 
-**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B designed but unbuilt; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27) but unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear` and Figma pull/push remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
+**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B designed but unbuilt; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27) but unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming note, resolved 2026-07-15.** A local, human-readable handoff-package generator briefly shipped under `skills/pm-handoff/` (PR #30), colliding with the `/pm-handoff <target>` name this plan reserves for Part B below. **Resolved by merging that local generator into `/pm-share --package`** (`scripts/pm_share.py`) instead — `pm-share` now covers both a raw text export and the decomposed per-story package, and the `pm-handoff` name is fully free again for Part B's external-tracker/design export when it gets built, exactly as this plan originally intended.
 
@@ -188,7 +188,7 @@ Once unified, `/pm-handoff jira --increment INC-02` scopes the export to that in
 
 Engineering handoff is an **export/sync action, not new pipeline stages** — the same category as the existing `/pm-share`. It runs *after* approved artifacts exist and pushes them outward. Model it as a `pm-handoff` skill family gated on `approved` status, rather than stages 09/10. It consumes the Part B delivery increments: an increment is the natural unit of a single handoff.
 
-**Status: partly shipped.** The Jira half of this part is built; Linear and Figma remain unbuilt.
+**Status: partly shipped.** The Jira half of this part is built; Linear, Figma, and design-token→React codegen remain unbuilt.
 
 - **`/pm-handoff jira` — ✅ shipped (v1.2.0, offline route + screen mapping v1.3.0).** `scripts/pm_handoff.py plan` parses the approved PRD (+ approved TRD) into a tracker-agnostic ticket map (`US-###` → epic, `FR-###`/`REQ-###` → child story, approved `TSK-###` → child task) and writes a PM-readable dry-run, fully offline. Two create routes:
   - *Connector route:* dry-run → PM confirms → create via the **Atlassian MCP** → `record` writes ticket keys back into `.traceability.yaml`. Needs an authorized connector.
@@ -197,6 +197,7 @@ Engineering handoff is an **export/sync action, not new pipeline stages** — th
 - **`/pm-handoff figma` — 🔴 unbuilt.** Two directions:
   - *Pull* (do first): read an existing Figma file to extract real design tokens/components so stage 04 extends the actual system. **Complementary** to enhancement mode, which already extracts design language from code — most useful when the design source of truth lives in Figma rather than the codebase.
   - *Push* (later): generate frames from the prototype brief.
+- **`/pm-handoff react` (design-token → React codegen) — 🔴 unbuilt, blocked on partner.** A partner team is building a **design-token system mapped to React components**. Once it exists, PM-OS reads those tokens and generates **React code for the `SCR-###` screens it designs** — turning the stage-05 HTML prototype into design-system-conformant React rather than throwaway markup. Consumes the shipped screen spine (`SCR-###` `Serves:` trace + `reference/screen-map.md`) and the approved design spec / prototype brief; **emits code, not tickets** (an export/sync action like the rest of Part C, gated on `approved`). **External prerequisite:** the token system must be published and its token→component mapping stable — PM-OS is a *consumer* of that contract, so this cannot ship before it exists. Complementary to Figma *pull* above: pull grounds the design spec in real tokens; this grounds the generated code in them.
 
 **Delivery-increment scoping (from Part B, unbuilt):** `--increment INC-##` should narrow any of the above to a single increment's members **plus their required ancestor closure** (owning epics/stories), substituting previously-recorded Jira keys for parents created in earlier increments so the hierarchy survives (see §8.6). `record` stamps returned keys per increment so later cycles never recreate earlier tickets. The shipped Jira export currently exports the whole approved pipeline; `--increment` lands with Part B's B3.
 
@@ -235,6 +236,7 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 | **C1** | `/pm-handoff jira` (export PRD/TRD → tickets); `--increment` scoping | A complete, B3 | 🟡 base shipped v1.2.0; `--increment` open |
 | **C2** | Figma *pull* to ground enhancement-mode design spec | C1 | 🔴 open |
 | **C3** | Figma *push* + spec §13 non-goal revision | C2 | 🔴 open |
+| **C4** | Design-token → React codegen for `SCR-###` screens | C1, external token system | 🔴 open (blocked on partner) |
 
 ---
 
