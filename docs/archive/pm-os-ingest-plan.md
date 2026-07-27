@@ -44,7 +44,7 @@ The remainder of this document describes the original `/pm-import NN <file>` sha
 
 ## 1. The gap this closes
 
-The [modes & handoff plan](pm-os-modes-and-handoff-plan.md) added a *reality* axis (greenfield vs. existing-product, via reading the codebase). It still assumes **PM-OS authors every artifact** from stage 00 downward. That leaves a second, orthogonal axis unaddressed:
+The [modes & handoff plan](pm-os-modes-delivery-and-handoff-plan.md) added a *reality* axis (greenfield vs. existing-product, via reading the codebase). It still assumes **PM-OS authors every artifact** from stage 00 downward. That leaves a second, orthogonal axis unaddressed:
 
 | Axis | Question | Status |
 |---|---|---|
