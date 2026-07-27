@@ -174,6 +174,10 @@ Rules:
 
 <Narrate the critical flows step by step. For each flow, include start state, user action, system response, decision or failure branch, completion state, and the PRD story or requirement it satisfies.>
 
+## Input Behavior Reconciliation
+
+<Explicitly reconcile input empty, missing, invalid, malformed, permission-denied, and recovery behavior against the PRD's `## Edge Cases` and story edge cases. If the PRD says empty submit should recover, the design must name the exact UI response, copy/hint, focus behavior, and state transition. For every input that uses placeholder text, name the visible label, helper text, hint, description, or `aria-label` affordance that makes first use discoverable without relying on the placeholder alone.>
+
 ## Product UX Guardrails
 
 <Declare `Interaction model: retrieval-only | generative | mixed | non-AI`, then define the product mental model, approved user-facing vocabulary, prohibited or misleading UI patterns, trust/safety constraints, and rules distinguishing pages/screens, overlays, and states. A GenAI flag alone never justifies generative UI.>
@@ -321,6 +325,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 
 - Information Architecture must include a clear screen/page inventory declared as stable `SCR-###` screens — sequential, never reused across regenerations, each with a `Serves:` line tracing to the PRD ids it supports. These ids are the design half of the handoff spine; without them the handoff package cannot tell a developer which screens a story touches.
 - Journey-to-Flow Traceability must reference every PRD `UJ-###` and preserve its start, completion, and recovery context.
+- Input Behavior Reconciliation must explicitly carry forward PRD empty/invalid-input edge behavior and must name discoverability affordances for any input that uses placeholder text.
 - Product UX Guardrails must declare the interaction model and prevent AI or navigation patterns that contradict the PRD.
 - Every major screen, flow, and component must trace to an approved PRD requirement, story, non-functional requirement, or edge case.
 - Key User Flows must cover the critical PRD stories and include start states, system responses, completion states, and failure or exception paths where relevant.
@@ -335,9 +340,10 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 1. Does every major screen or component trace back to an approved PRD requirement — and does every `SCR-###` carry a `Serves:` line, with every user story served by at least one screen (or explicitly noted as screenless)?
 2. Is every PRD journey mapped to UI flows, screens/overlays, states, and recovery paths?
 3. Does Product UX Guardrails declare the correct interaction model and prohibit misleading patterns?
-4. Are the key flows clear enough to sketch without another scoping conversation?
-5. Do flows include important states: loading, empty, error, disabled, success, permission, and fallback where relevant?
-6. Are component states and validation rules concrete enough for prototype and implementation?
+4. Does Input Behavior Reconciliation preserve PRD empty/invalid-input behavior and avoid placeholder-only discoverability?
+5. Are the key flows clear enough to sketch without another scoping conversation?
+6. Do flows include important states: loading, empty, error, disabled, success, permission, and fallback where relevant?
+7. Are component states and validation rules concrete enough for prototype and implementation?
 7. Are tokens practical and internally consistent?
 8. Are accessibility notes specific enough to guide design and QA?
 9. Does the output match explicit PRD behavior rather than inferring UI from `genai_flag`?
