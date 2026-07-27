@@ -346,6 +346,36 @@ def test_package_screen_map_reference_lists_coverage_both_ways(pmos, new_project
     assert "[Screen map](reference/screen-map.md)" in (proj / "handoff" / "README.md").read_text()
 
 
+def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
+    """A screen that serves only a journey (SCR-001 → UJ-001, and UJ-001 → US-001) must
+    NOT list US-001 under "Stories with no screen": its own story file already shows the
+    screen via journey resolution, so the reverse map has to agree. Guards against the
+    map deriving coverage from each screen's literal `serves` ids. See docs/guides/testing.md §6."""
+    proj = new_project("handoff-journey-coverage", "A problem")
+    # No screen names US-001 directly: SCR-001 serves only UJ-001 (and UJ-001 → US-001),
+    # SCR-002 serves US-002. So US-001 is covered *purely* through its journey link.
+    design = (
+        _DESIGN
+        .replace("  - Serves: US-001, US-002, UJ-001\n", "  - Serves: UJ-001\n")
+        .replace("  - Serves: US-001\n", "  - Serves: US-002\n")
+    )
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", design), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    # The story file resolves SCR-001 through the journey.
+    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "SCR-001" in story
+    # ...and the reverse map must not contradict it: both stories are covered, so no
+    # story may appear under "Stories with no screen". Deriving coverage from each
+    # screen's literal `serves` ids (the bug) would report US-001 uncovered here.
+    screen_map = (proj / "handoff" / "reference" / "screen-map.md").read_text()
+    tail = screen_map.split("## Stories with no screen")[-1] if "## Stories with no screen" in screen_map else ""
+    assert "US-001 · Add external agency" not in tail, "US-001 is covered via its journey but reported uncovered"
+    assert "US-002 · List agencies" not in tail
+
+
 def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
     """A project with no approved design spec (or one predating SCR-### ids) still
     packages: stories show the not-captured marker for screens and the screen map

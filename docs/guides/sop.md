@@ -6,6 +6,19 @@
 
 ---
 
+## Contents
+
+1. [Purpose](#1-purpose)
+2. [When to use PM-OS](#2-when-to-use-pm-os)
+3. [Roles & responsibilities](#3-roles--responsibilities)
+4. [The standard workflow](#4-the-standard-workflow)
+5. [Best-fit use cases](#5-best-fit-use-cases)
+6. [Pitfalls & anti-patterns](#6-pitfalls--anti-patterns)
+7. [Data handling & safety](#7-data-handling--safety)
+8. [Quick reference](#8-quick-reference)
+
+---
+
 ## 1. Purpose
 
 PM-OS is a PM-led PDLC operating layer. It maintains one coherent thread from idea to ship — intake, product definition, design, dev handoff, QA, release readiness, and feedback — with the PM in control at every decision point.

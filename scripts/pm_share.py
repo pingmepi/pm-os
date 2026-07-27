@@ -296,6 +296,13 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     stories_section = _section_of(prd_body, "user stories with acceptance criteria")
     story_blocks = split_user_story_blocks(stories_section or prd_body)
     story_index: list[tuple[str, str, str]] = []  # (id, title, filename)
+    # Story ids that resolved to >=1 screen, captured from the same per-story
+    # resolution the story files use (requirements *and* journeys). The screen map's
+    # "Stories with no screen" list is derived from this set, not from each screen's
+    # literal `serves` ids — otherwise a story covered only via a journey link
+    # (a screen serves UJ-001, which serves US-001) would be reported uncovered in
+    # the map while its own story file lists that screen.
+    covered_story_ids: set[str] = set()
 
     for story_id, block in story_blocks.items():
         title = _story_title(story_id, block)
@@ -342,6 +349,8 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             }
             for scr in screen_ids
         ]
+        if screen_ids:
+            covered_story_ids.add(story_id)
 
         generated_from = [s for s in (prd_stamp, _stamp(root, "06")) if s]
         if screens and design_stamp:
@@ -426,7 +435,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
         "Screen Map",
         [design_stamp] if design_stamp else [],
         now,
-        _screen_map_table(root, spine, screen_blocks, story_index),
+        _screen_map_table(root, spine, screen_blocks, story_index, covered_story_ids),
     )
     (out_dir / "reference" / "screen-map.md").write_text(screen_map, encoding="utf-8")
     written.append(out_dir / "reference" / "screen-map.md")
@@ -451,12 +460,18 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
     return written
 
 
-def _screen_map_table(root: Path, spine: dict, screen_blocks: dict, story_index) -> str:
+def _screen_map_table(
+    root: Path, spine: dict, screen_blocks: dict, story_index, covered_story_ids: set[str]
+) -> str:
     """The reverse of the per-story Screens section: one row per screen, listing the
-    stories and journeys it serves, plus the stories no screen covers.
+    ids it serves, plus the stories no screen covers.
 
-    Reads the served ids from the spine (``requirements_for_screen``) so this table and
-    the per-story sections can never disagree."""
+    Each row's `Serves` shows what the screen literally declares (requirement *or*
+    journey ids). The "Stories with no screen" list, however, is taken from
+    ``covered_story_ids`` — the set of stories that actually resolved to a screen in
+    the per-story pass (over requirements *and* journeys) — so the map and the story
+    files can never disagree. Using each screen's literal `serves` ids here instead
+    would wrongly flag a story that is covered only through a journey link."""
     if not screen_blocks:
         return (
             f"{NOT_CAPTURED}\n\n"
@@ -466,14 +481,14 @@ def _screen_map_table(root: Path, spine: dict, screen_blocks: dict, story_index)
         )
 
     lines = ["| Screen | Name | Serves |", "|---|---|---|"]
-    covered: set[str] = set()
     for scr_id, block in screen_blocks.items():
         served = traceability.requirements_for_screen(root, scr_id, index=spine)
-        covered.update(served)
         name = _story_title(scr_id, block)
         lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} |")
 
-    uncovered = [f"{sid} · {title}" for sid, title, _fn in story_index if sid not in covered]
+    uncovered = [
+        f"{sid} · {title}" for sid, title, _fn in story_index if sid not in covered_story_ids
+    ]
     if uncovered:
         lines += [
             "",
