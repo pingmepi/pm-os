@@ -25,12 +25,12 @@ This is the single home for **build sequencing** across all open work. It does n
 |---|---|---|---|
 | 1 | **#18 (local half)** — `git init` per project ✅ **shipped** | Every approved decision lives on one laptop with no version history; the local half needs nothing external. `lib/project_git.py` — init+commit at scaffold, commit on approval. | — |
 | 2 | **B0** — reconcile epic/story/task export mapping ✅ **shipped** | Stage 03 now declares Product Epics (`EPIC-###`) and both shipped exports use the same Jira-native mapping: `EPIC-###` items are Epics, `US-###` items are Stories, `FR/REQ-###` items are Tasks, and `TSK-###` items become Subtasks when they implement exactly one exported item. This unblocks the roadmap's tier/increment work. | — |
-| 3 | **#19** — prioritization value + method block | Stage-03 already *claims* "stories in priority order" with nothing to back it. Makes a current claim honest; unblocks #10; foundation for tiers. | — |
-| 4 | **#20** — stage-08 TRD required-section contract | The TRD is now load-bearing (TSK ids, Jira export) yet the least-validated artifact. WARNING-only + `CONTRACT_VERSION` bump. Unblocks increments. | — |
-| 5 | **#27** — labeled-field contracts | Contracts match vocabulary, not meaning — the root cause behind #11/#12/#5. Retires the bug class; generalizes the labeled-field pattern #19/#20 use. Larger change. | (best after #19/#20 so their fields ride the same bump) |
-| 6 | **#5** — design-spec ↔ PRD divergence | A spec contradiction reached the prototype uncaught. #27's structural fields make this class checkable. | #27 (shrinks its surface) |
-| 7 | **#10** — stage-05 slice auditability | The current prototype-slice choice isn't auditable or repeatable. | #19 (declared priority) |
-| 8 | **#25** — deterministic / validated `.history` | Agent-written lineage is never checked, silently corrupting current approval-quality metrics. Touches all 9 stage skills; warn-not-fail. | — |
+| 3 | **#19** — prioritization value + method block ✅ **shipped** | Stage 03 now declares `## Prioritization Method`, priority values on `US/FR/REQ`, and stores priority in traceability/package outputs. Makes the current "priority order" claim auditable; unblocks #10; foundation for tiers. | — |
+| 4 | **#20** — stage-08 TRD required-section contract ✅ **shipped** | New TRDs now carry warning-only required-section validation under the artifact contract, while existing TRDs stay non-blocked. Unblocks increments that depend on reliable `TSK-###` context. | — |
+| 5 | **#27** — labeled-field contracts ✅ **shipped** | Contract checks now use labeled fields for stories, journeys, screens, test cases, and tasks where structure is required. Retires the recurring vocabulary-vs-meaning bug class by making key checks structural and warning-only. | #19/#20 |
+| 6 | **#5** — design-spec ↔ PRD divergence ✅ **shipped** | Stage 04 now includes input behavior reconciliation against PRD edge cases and warns on missing first-use input affordances. | #27 |
+| 7 | **#10** — stage-05 slice auditability ✅ **shipped** | Stage 03 journeys now declare prototype priority, and stage 05 records explicit inclusion/exclusion decisions for high-priority journeys. | #19 |
+| 8 | **#25** — deterministic / validated `.history` ✅ **shipped** | Stage skills now write the artifact once, then call `pm_snapshot.py` to create a deterministic generated snapshot; `/pm-check` warns on missing or hash-mismatched generated lineage. | — |
 
 ### Lower-priority integrity/operability (slot in opportunistically)
 

@@ -164,7 +164,7 @@ Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you a
 1. **Never generate a downstream stage from an unapproved upstream stage.** The gate exists to stop drift. If a pre-stage gate exits non-zero, stop and read the error; do not write the artifact anyway.
 2. **Approval is explicit and follows review.** A draft is not a decision until someone runs `pm-approve` for that stage. Don't approve to "unblock" yourself.
 3. **Surface conflicts; don't silently override.** If a new note contradicts an approved upstream artifact, raise it and decide deliberately — re-open the upstream stage if the decision actually changed.
-4. **Edit drafts freely before approval.** The Markdown is yours to refine. History is snapshotted under `.history/` before each regeneration, so you can regenerate without fear.
+4. **Edit drafts freely before approval.** The Markdown is yours to refine. Generated drafts are snapshotted under `.history/` by `pm_snapshot.py`, so you can regenerate without fear.
 5. **Validate artifact quality before approving stages 03–05.** Run `/pm-validate-artifact 03` (or 04, 05) to check section completeness, user-journey coverage, and interaction-model consistency. Required-section errors block approval; warnings are advisory and recorded as `artifact_validation_warning` telemetry on approval — you can proceed, but review them with the same attention as a reviewer comment.
 
 ### 4.4 Check state and capture feedback any time

@@ -82,16 +82,18 @@ For **build order** across these entries (which are necessary to the current pro
 
 ---
 
-## 5. 🔴 Design spec can silently diverge from the PRD, and from itself (IMP-001)
+## 5. 🟢 Design spec can silently diverge from the PRD, and from itself (IMP-001)
 
 **Severity:** P1 — a spec contradiction reached the prototype stage before it was caught; it was only visible once built, not on paper.
-**Status:** 🔴 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.9.
 
 **Symptom:** During a demo-project run, stage-04's design spec specified empty-submit → "blocked with hint," while the PRD's Edge Cases section specified empty → low-confidence recovery — two behaviors for the same event, unreconciled between stages. Separately, the same spec placed example text in an input's placeholder while its own accessibility rule stated inputs must be "not placeholder-only" for discoverability — an internal self-contradiction within stage 04 alone.
 
 **Evidence:** PM-observed during a demo run; not yet traced to specific `skills/pm-stage-04-design-spec/SKILL.md` lines or `lib/artifact_contracts.py` checks in this session — needs a follow-up pass through the stage-04 skill and its cross-reference logic (see `lib/artifact_contracts.py`'s ID-matching checks, entry #4/IMP-002 evidence) to confirm whether this class of contradiction is checkable at all today.
 
 **Proposed fix:** Stage-04's self-check should (a) explicitly reconcile input empty/invalid behavior against the PRD's Edge Cases section before the spec is presented as complete, and (b) require a first-use discoverability affordance for any input that isn't placeholder-only, checked against the spec's own accessibility rules. Shares its root cause with entry #4 (**IMP-002**: no cross-artifact/cross-section consistency checking) — a general upstream-conflict-style check at stage-04 generation/approval time would likely catch both the PRD-vs-spec and spec-vs-itself cases.
+
+**Fixed:** Stage 04 now includes `## Input Behavior Reconciliation`, tying invalid/empty input behavior back to PRD edge cases, and the validator emits warning-only findings for missing PRD edge-behavior reconciliation or missing first-use affordances for inputs.
 
 ---
 
@@ -159,10 +161,10 @@ For **build order** across these entries (which are necessary to the current pro
 
 ---
 
-## 10. 🟠 Stage-05 prototype slice selection is not auditable (non-deterministic, judgment-only)
+## 10. 🟢 Stage-05 prototype slice selection is not auditable (non-deterministic, judgment-only)
 
 **Severity:** P2 — traceability/reproducibility gap. Not a correctness bug; the slice picked is always *valid*, just not *auditable* or repeatable.
-**Status:** 🔴 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.10.
 
 **Symptom:** Stage 05 chooses *which* slice of the approved design to prototype by LLM judgment against a prose objective — "smallest slice that can answer the highest-risk product and design questions" (`skills/pm-stage-05-prototype-brief/SKILL.md:13,177`). "Highest-risk" is nowhere declared: there is no `risk`/`prototype-priority` field on `UJ-###` journeys, so the model *infers* risk from upstream prose each run. Two runs on the same inputs can pick different slices, and there is no recorded, rankable basis for why one journey made the slice and another didn't.
 
@@ -181,6 +183,8 @@ For **build order** across these entries (which are necessary to the current pro
 **Note:** Surfaced 2026-07-14 while reviewing how 05 decides the slice. Keeps PM authority (priority is a PM-set upstream signal); makes the slice decision reproducible and auditable. Consistent with the product-shape principle "grow the traceability spine, not the state machine."
 
 **Related (2026-07-27):** this is one instance of a general property, not a stage-05 quirk. PM-OS never calls the LLM API itself — the agent runtime does — so there is no lever at this layer to set a seed or temperature, and generation cannot be made repeatable here. The remedy is therefore always the one proposed above: make the judgment *auditable against declared upstream inputs* rather than attempting to make it deterministic. Entry #19 supplies the declared priority this check needs.
+
+**Fixed:** Stage 03 user journeys now carry labeled `Prototype priority:` / validation-risk context. Stage 05's `## What to Prototype` records explicit include/exclude decisions for high-priority journeys, and the validator warns when a high-priority upstream `UJ-###` is neither included nor explicitly excluded.
 
 ---
 
@@ -321,7 +325,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 **Still open (off-machine half):** an org-side copy still requires Indegene-owned git hosting — add per-PM private artifact repos to the same namespace as the telemetry sink (one IT request; see proposed fix part 2 below), then push the local repo to it. Tracked here until that hosting exists.
 
-**Symptom:** PM-OS syncs the *metrics about* the work but never the work itself. Every brief, scope, PRD, design spec, QA plan and TRD exists only in `~/pm-projects/<slug>/` on a single machine, unversioned. There is no record of what an artifact said before an edit beyond the agent-written `.history/` snapshots (which nothing validates — see entry #25), and no copy anywhere else.
+**Symptom:** PM-OS syncs the *metrics about* the work but never the work itself. Every brief, scope, PRD, design spec, QA plan and TRD exists only in `~/pm-projects/<slug>/` on a single machine unless the PM copies it elsewhere. Local git history now preserves approvals/edits offline, and generated `.history/` lineage is validated by entry #25's fix, but no org-side copy exists yet.
 
 **Evidence:**
 - `lib/git_sync.py:15` — `SYNCED_FILES = ["telemetry.jsonl", "feedback.jsonl"]`. Only these two files reach the central feedback repo; no `.md` artifact is ever synced.
@@ -337,10 +341,10 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-## 19. 🔴 No prioritization logic in the system; requirements carry no priority value
+## 19. 🟢 No prioritization logic in the system; requirements carry no priority value
 
 **Severity:** P1 — nothing can rank, sequence by value, or audit a selection decision. Blocks the scope-tier / delivery-increment work and is the root cause behind entry #10.
-**Status:** 🔴 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.6.
 
 **Symptom:** Nothing in PM-OS defines *how* priority is decided, and no requirement carries a priority value. Stage 03 instructs the agent to list stories "in priority order" — an ordering with no stated basis, no framework, and nothing machine-readable. A reader of the PRD or the handoff package cannot tell whether the order reflects value, risk, effort, dependency, or nothing at all.
 
@@ -356,18 +360,20 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 Additive to the traceability spine; no gate, hash, or status change. Prerequisite for the scope-tier / delivery-increment work, and it supplies the declared upstream priority entry #10 needs.
 
+**Fixed:** Stage 03 now requires a `## Prioritization Method` block for new PRDs, warns when `US-###`/`FR-###`/`REQ-###` blocks lack labeled `Priority:` values, indexes those values in `.traceability.yaml` schema v5, and surfaces them in `/pm-share --package` reference/story output.
+
 ---
 
-## 20. 🔴 Stage 08 (TRD) has no required-section contract
+## 20. 🟢 Stage 08 (TRD) has no required-section contract
 
 **Severity:** P1 — the artifact engineering depends on most is the least-validated in the system, and it is now load-bearing for the traceability spine and the Jira export.
-**Status:** 🔴 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.7.
 
 **Symptom:** A TRD can be nearly empty and pass validation. Every other contracted stage has a required-section list; stage 08 has none.
 
-**Evidence:** `lib/artifact_contracts.py:570-581` — `_validate_stage_08`'s own docstring states it: "Stage 08 (TRD) carries no required-section contract — existing TRDs predate one and adding a full list would fail them all." The only check is the GenAI-only, WARNING-level `MODEL_SERVING_INCOMPLETE`. Meanwhile `TSK-###` ids, `.traceability.yaml`'s `tasks:` map, and the whole `/pm-handoff jira` export are all derived from this artifact.
+**Original evidence:** Before v1.3.7, `_validate_stage_08`'s own docstring stated that Stage 08 carried no required-section contract because existing TRDs predated one. The only check was the GenAI-only, WARNING-level `MODEL_SERVING_INCOMPLETE`, while `TSK-###` ids, `.traceability.yaml`'s `tasks:` map, and the whole `/pm-handoff jira` export were all derived from this artifact.
 
-**Proposed fix:** Add `REQUIRED_SECTIONS["08"]` as **WARNING-only**, matching the pattern used for contract v2 and v3 — existing TRDs stay quiet, new ones are held to a shape. Bump `CONTRACT_VERSION`.
+**Fixed:** Stage 08 now has a warning-only required-section contract for new TRDs, including system context, architecture, data model, interface contracts, key flows, NFR implementation, risks, rollout, work breakdown, and open technical questions. Existing older TRDs are not hard-blocked, and stage 08 generation runs strict validation before telemetry so new outputs carry the shape.
 
 ---
 
@@ -423,10 +429,10 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 
 ---
 
-## 25. 🟠 `.history/` lineage is agent-written and completely unvalidated
+## 25. 🟢 `.history/` lineage is agent-written and completely unvalidated
 
 **Severity:** P2 — silently corrupts the approval-quality metrics, and a missing snapshot is indistinguishable from a legitimately-null one.
-**Status:** 🟠 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.11.
 
 **Symptom:** The only artifact-lineage record in PM-OS is written by the agent following `SKILL.md` instructions, and nothing ever checks it. Three consequences, all verified:
 1. If the agent skips or misnames a snapshot, `_latest_generated_snapshot` returns `None` and the edit-distance metrics silently become `None` — **indistinguishable from the legitimate null recorded for imported/backfilled stages that were never generated**.
@@ -445,6 +451,8 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 3. Keep a lightweight consistency check as a secondary, for projects already on disk whose agent-written history has never been validated: every stage with a `stage_generated` event should have a parseable snapshot whose hash matches.
 
 **Scope note:** touches a new script plus the write-outputs step in all nine stage skills — a path every stage depends on. Not a docs-only change; needs the test suite.
+
+**Fixed:** `scripts/pm_snapshot.py` owns generated `.history` snapshots by copying the just-written artifact, stamping/verifying `generated_hash`, and warning without blocking if lineage is degraded. All nine stage skills call it after writing the draft. `/pm-check` adds warning-only generated-snapshot presence and hash-match validation for projects already on disk.
 
 ---
 
@@ -465,10 +473,10 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 
 ---
 
-## 27. 🟠 Artifact contracts detect vocabulary, not meaning (the recurring-bug root cause)
+## 27. 🟢 Artifact contracts detect vocabulary, not meaning (the recurring-bug root cause)
 
 **Severity:** P2 — the shared root cause of entries #11 and #12, and of the pattern named in #13's closing note. Not a single defect: a substrate limitation that keeps producing defects.
-**Status:** 🟠 Open.
+**Status:** 🟢 Fixed, shipped in v1.3.8.
 
 **Symptom:** The traceability spine and every artifact contract are derived by pattern-matching Markdown prose. `lib/artifact_contracts.py` compiles 19 regexes in three classes of very different soundness:
 1. **ID patterns** (`:32-43` — `REQUIREMENT_ID_RE`, `TEST_CASE_ID_RE`, `JOURNEY_ID_RE`, `SCREEN_ID_RE`, `TASK_ID_RE`, …). Matching a stable token like `TSK-014`. Regex is the correct tool; not a problem.
@@ -478,6 +486,8 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 **Evidence:** the file:line references above, plus `lib/artifact_contracts.py:511-517`, where `_validate_stage_03` already checks journeys for required *fields* ("primary user", "context and trigger", "goal", "preconditions", "happy path", …) — but implements that as substring matching over normalized text rather than a real labeled-field parse.
 
 **Proposed fix — convert semantic questions into structural ones.** Not NLP or embeddings (`docs/reference/pm-os-spec.md` records that path as designed and deliberately abandoned; it would add a dependency and a fresh false-confidence surface). Instead, require **labeled fields** under each declaration: if a `US-###` must carry explicit `Happy path:` / `Edge cases:` / `Acceptance:` fields, then "does this story have acceptance criteria" becomes "does the `Acceptance:` field exist and is it non-empty" — a question regex answers soundly. The cue regexes retire, and the block splitters gain a reliable anchor instead of guessing at prose shape. This generalizes and hardens the pattern `_validate_stage_03` already gestures at, extending it to stories, test cases, screens, and tasks. Delivery shape: a `CONTRACT_VERSION` bump, **WARNING-only** for existing artifacts, matching how v2 and v3 shipped. Larger than a bug fix — it retires an entire recurring bug class rather than patching the next instance. See also the constraint note in `ARCHITECTURE.md` §4.
+
+**Fixed:** The contract layer now exposes labeled-field helpers and uses them for the high-risk declaration types that previously depended on loose cue matching: stage-03 journeys/stories, stage-04 screens, stage-06 test cases, and stage-08 tasks. The rollout is warning-only for existing artifacts and bumps the contract to v7.
 
 ---
 
@@ -490,13 +500,13 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 1. **"MVP" is prose; "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph that every downstream stage treats as binding via LLM judgment — no structured field, id, or flag. Stage 09's `V1`/`V2`/`Expansion` horizons carry **no `US-###`/`FR-###`** (stage 09 is forbidden from generating requirements), so there is no path from a roadmap horizon to a user story. The pipeline can only ever elaborate the single tier stage 02 named MVP, and what separates MVP from the full product is nowhere defined structurally.
 2. **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles.
 
-**Evidence:** `skills/pm-stage-02-scope/SKILL.md:155` (prose MVP boundary); `skills/pm-stage-09-roadmap/SKILL.md:14,202` (horizons, no requirement generation); `lib/artifact_contracts.py` (no `Tier`/priority field on `US`/`FR`; now includes Product Epic ownership checks); `scripts/pm_share.py` + `scripts/pm_handoff.py` now both consume `lib/delivery_map.py` for the Jira-native `Epic -> Story/Task -> Subtask` hierarchy; `tests/integration/test_share_package.py` compares the package epic refs against `pm_handoff.py plan`; `lib/traceability.py` + `scripts/pm_handoff.py` (a non-`approved` TRD contributes zero subtasks — the reason increments must be ungated).
+**Evidence:** `skills/pm-stage-02-scope/SKILL.md:155` (prose MVP boundary); `skills/pm-stage-09-roadmap/SKILL.md:14,202` (horizons, no requirement generation); `lib/artifact_contracts.py` (no `Tier:` field on `US`/`FR`; now includes Product Epic ownership and priority checks); `scripts/pm_share.py` + `scripts/pm_handoff.py` now both consume `lib/delivery_map.py` for the Jira-native `Epic -> Story/Task -> Subtask` hierarchy; `tests/integration/test_share_package.py` compares the package epic refs against `pm_handoff.py plan`; `lib/traceability.py` + `scripts/pm_handoff.py` (a non-`approved` TRD contributes zero subtasks — the reason increments must be ungated).
 
 **Proposed fix (designed in the plan, PM decisions 2026-07-27):**
 - **B0 (prerequisite bugfix):** ✅ shipped — Stage 03 has declared Product Epics and `pm-share --package` / `/pm-handoff jira` now share a Jira-native hierarchy: `EPIC-###` → `US-###` Story / `FR-###` Task → `TSK-###` Subtask/Task as dictated by Jira parentability.
-- **Scope tiers:** an optional `Tier:` (`mvp | v1 | v2 | later`, default `mvp`) on `US-###`/`FR-###`; stage 02 declares tiers + defines what "complete" means; stages 04–07 stay MVP-scoped by default so nothing downstream gets heavier. Depends on #19 (priority).
+- **Scope tiers:** an optional `Tier:` (`mvp | v1 | v2 | later`, default `mvp`) on `US-###`/`FR-###`; stage 02 declares tiers + defines what "complete" means; stages 04–07 stay MVP-scoped by default so nothing downstream gets heavier. Dependency #19 (priority) is now met.
 - **Tiered fidelity + `/pm-promote`:** non-MVP stories are lightweight stubs (the v2 mini-spec contract applies to `tier: mvp` only); promotion elevates a stub and triggers full-fidelity regeneration — deferred rigor paid at promotion, not skipped.
-- **Delivery increments:** an **ungated** `delivery.yaml` of `INC-###` grouping `TSK-###`, validated *against* stage 08/09 by `/pm-check` but never gated *by* them, so replanning a cycle never marks the TRD/roadmap stale. `--increment` scopes the Jira export; ticket keys are recorded per increment so later cycles never recreate earlier tickets. Depends on #20 (TRD contract).
+- **Delivery increments:** an **ungated** `delivery.yaml` of `INC-###` grouping `TSK-###`, validated *against* stage 08/09 by `/pm-check` but never gated *by* them, so replanning a cycle never marks the TRD/roadmap stale. `--increment` scopes the Jira export; ticket keys are recorded per increment so later cycles never recreate earlier tickets. Dependency #20 (TRD contract) is now met.
 - **Explicitly out of scope:** story points / effort / sprint dates / capacity / velocity — those belong to the tracker and to development, not PM-OS (backlog #22).
 
 Additive to the traceability spine throughout; no gate/hash/status/staleness change.
