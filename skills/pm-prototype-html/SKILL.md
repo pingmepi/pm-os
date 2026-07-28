@@ -3,7 +3,7 @@ name: pm-prototype-html
 description: Generate a working interactive HTML prototype from the approved prototype brief and design spec. Called automatically by stage 05 after the brief is written; also available standalone to regenerate the prototype without regenerating the brief.
 reads: ["03-prd.md", "04-design-spec.md", "05-prototype-brief.md"]
 writes: "05-prototype-mockup.html"
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 ---
 
 # Role and goal
@@ -44,6 +44,13 @@ Generate `05-prototype-mockup.html` as a **single self-contained HTML file**. Al
 - Represent loading, empty, error, success, degraded, and hard-stop behavior as states inside their owning screen unless the design explicitly defines them as separate destinations.
 - Use progress indicators only for genuinely sequential journeys where users complete ordered steps.
 - Implement sheets/dialogs as overlays that preserve the underlying context and return focus to their invoking control when closed.
+
+### Screen anchors and deep links (backlog #29)
+- Read `04-design-spec.md`'s `## Information Architecture` section and match each `SCR-###` id there to the screen/destination it names.
+- Give every top-level screen or destination container (the element that owns that screen's content — not every overlay/state inside it) an `id` attribute equal to its `SCR-###` id, e.g. `<section id="SCR-004">`. A screen that also has distinct sub-states rendered as separate destinations (per "Product topology" above) should carry the id on the container the PM would consider "arriving at that screen."
+- Add a small hash-router: on load, read `window.location.hash` (e.g. `#SCR-004`), and if it matches a rendered screen's `id`, navigate/reveal straight to that screen the same way an in-app navigation action would (respecting the same focus-management and state rules as any other navigation). This lets the handoff package link a developer directly to one screen instead of the prototype always opening at its default entry point.
+- This applies in **participant mode** — the anchors and router are how the handoff package links to a screen for review, not a reviewer-only feature.
+- `pm_validate_artifact.py 05-html --mode strict` checks that every `SCR-###` the design spec declares has a matching `id="SCR-###"` in the HTML; treat a failure here the same as any other validation failure (repair and rerun).
 
 ### Participant and reviewer modes
 - Participant mode is the default and must look like the product: no screen-state navigator, journey IDs, research questions, test-path shortcuts, generation metadata, or facilitator instructions.
@@ -158,6 +165,7 @@ Open it in a browser to review the interactive flows before approving the brief.
 - Every interaction in the brief must be reachable by clicking a button in the prototype.
 - The default participant experience must contain no reviewer chrome or research-question priming; `?review=1` must expose the review surface.
 - Product screens and states must match the approved IA rather than a generic wizard shell.
+- Every `SCR-###` the design spec declares has a matching `id="SCR-###"` on its screen container, and loading with that hash (`#SCR-###`) lands directly on it.
 - AI behavior must match `Interaction model`; retrieval-only products must not look generative.
 - Sample data must be domain-realistic and specific to this product.
 - The file must open correctly in a browser with no server and no internet connection.

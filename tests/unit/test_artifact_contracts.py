@@ -298,6 +298,51 @@ setInterval(() => {}, 10);
     assert "RETRIEVAL_USES_CONFIDENCE" in codes
 
 
+def test_html_missing_screen_anchor_is_flagged(tmp_path):
+    """Backlog #29: every SCR-### the design spec declares must have a matching
+    id="SCR-###" in the prototype HTML, or a handoff screen link would be dead."""
+    root = _project(tmp_path)
+    _write(root, "04-design-spec.md", """# Design
+## Information Architecture
+- **SCR-001 — Agency list**
+  - Purpose: the landing surface.
+  - Serves: US-001
+- **SCR-002 — Add agency form**
+  - Purpose: capture a new agency.
+  - Serves: US-001
+""")
+    html = root / "05-prototype-mockup.html"
+    html.write_text("""<!doctype html><html><body>
+<section id="SCR-001">Agency list</section>
+<script>const review = new URLSearchParams(window.location.search).get('review') === '1';</script>
+</body></html>""", encoding="utf-8")
+    findings = contracts.validate_prototype_html(root)
+    codes = {finding.code for finding in findings}
+    assert "SCREEN_ANCHOR_MISSING" in codes
+    missing = next(f for f in findings if f.code == "SCREEN_ANCHOR_MISSING")
+    assert "SCR-002" in missing.message
+    assert missing.severity == "ERROR"
+
+
+def test_html_with_all_screen_anchors_present_is_not_flagged(tmp_path):
+    """A prototype carrying an id="SCR-###" for every screen the design spec declares
+    passes the anchor check — no SCREEN_ANCHOR_MISSING finding (backlog #29)."""
+    root = _project(tmp_path)
+    _write(root, "04-design-spec.md", """# Design
+## Information Architecture
+- **SCR-001 — Agency list**
+  - Purpose: the landing surface.
+  - Serves: US-001
+""")
+    html = root / "05-prototype-mockup.html"
+    html.write_text("""<!doctype html><html><body>
+<section id="SCR-001">Agency list</section>
+<script>const review = new URLSearchParams(window.location.search).get('review') === '1';</script>
+</body></html>""", encoding="utf-8")
+    codes = {finding.code for finding in contracts.validate_prototype_html(root)}
+    assert "SCREEN_ANCHOR_MISSING" not in codes
+
+
 def test_retrieval_html_ignores_nested_review_only_content(tmp_path):
     root = _project(tmp_path)
     _write(root, "04-design-spec.md", """# Design
