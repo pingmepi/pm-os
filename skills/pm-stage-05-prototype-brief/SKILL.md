@@ -131,7 +131,11 @@ GenAI handling:
 
 ## What to Prototype
 
-<Describe the bounded product slice, user journey, MVP behavior, and design/PRD source this prototype should represent. State why this slice is the right one to prototype first.>
+<Describe the bounded product slice, user journey, MVP behavior, and design/PRD source this prototype should represent. State why this slice is the right one to prototype first. Start with an explicit inclusion/exclusion decision list for upstream journeys, ordered by their PRD `Prototype priority:` / validation-risk value:
+
+- `UJ-###` — included/excluded — <High/Medium/Low priority> — <reason, including why any high-priority journey is deferred>
+
+Every high-priority journey must either be included in the slice or have a stated exclusion reason.>
 
 ## Fidelity Level
 
@@ -177,6 +181,7 @@ For each screen, include enough layout and state detail for the renderer to crea
 # Writing guidance
 
 - Prototype the smallest slice that can answer the highest-risk product and design questions.
+- Use PRD `Prototype priority:` / validation-risk values on `UJ-###` journeys as the audit basis for slice selection; do not infer risk silently.
 - Anchor screens and interactions to the approved design spec and PRD.
 - Name the `UJ-###` journeys represented by the prototype slice and preserve their context, completion, and recovery behavior.
 - Include enough states to make the prototype useful, but avoid turning it into full product delivery.
@@ -303,6 +308,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Quality bar
 
 - What to Prototype must describe a bounded product slice, not the entire product.
+- What to Prototype must explicitly include or exclude every high-priority `UJ-###` journey and state the reason.
 - Fidelity Level must be justified by the questions the prototype needs to answer.
 - Screens to Include must be list-form, renderer-friendly, and map to the approved design spec and critical user flows.
 - Interactions to Demonstrate must be list-form and include meaningful states, not just page-to-page navigation.
@@ -315,7 +321,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 
 # Self-check before writing
 
-1. Does this prototype brief focus on the highest-risk or highest-value flows?
+1. Does this prototype brief focus on the highest-risk or highest-value flows using declared PRD `Prototype priority:` values, not silent inference?
 2. Does the slice reference the relevant `UJ-###` journeys and their recovery paths?
 3. Are participant and reviewer modes separated so research questions cannot prime participants?
 4. Are Screens to Include, Interactions to Demonstrate, and Questions the Prototype Should Answer written as bullets or numbered lists?
