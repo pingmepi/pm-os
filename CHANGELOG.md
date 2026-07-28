@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.6-1.3.11 — 2026-07-28
+
+### Added
+- **Artifact contract v7 and traceability schema v5.** Stage 03 now declares a `## Prioritization Method`, priority values on `US-###`/`FR-###`/`REQ-###`, and prototype-priority context on `UJ-###`; Stage 04 adds input-behavior reconciliation; Stage 05 records auditable high-priority journey include/exclude decisions; Stage 06 test cases and Stage 08 tasks now use explicit labeled fields. The traceability spine indexes PRD-declared priority values.
+- **Warning-only Stage 08 required-section contract.** New TRDs are held to the same structural expectations as the rest of the product pipeline without hard-failing legacy TRDs, superseding the older v1.3.0 behavior where Stage 08 was checked only for GenAI model-serving availability/fallback.
+- **Deterministic generated snapshots.** Stage skills now call `scripts/pm_snapshot.py` after writing a draft so generated `.history` snapshots are Python-created, hash-stamped, and checked by `/pm-check` as warning-only lineage evidence.
+
 ## 1.3.2 — 2026-07-23
 
 ### Fixed

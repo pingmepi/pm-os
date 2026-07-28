@@ -125,7 +125,7 @@ PM-OS models requirements as **flat nodes** with exactly one edge type in the wh
 | Prototype | 05 | **Frontend by definition** — emits an HTML mockup, demands "Screens to Include." No backend analogue (no "OpenAPI + mock server + sample request/response" path). |
 | Implementation | 08 TRD | **Strong on backend** — API/Interface Contracts, Data Model, Architecture (sync/async, data ownership, trust boundaries), Dependencies & Integrations, NFR implementation, GenAI serving. |
 
-**The structural inversion (the real problem):** backend design has exactly one home, and it is the **optional, uncontracted** stage 08 (no required-section contract — see `backlog.md` #20). Frontend design (04) is **mandatory and rigorously contracted**. So the surface most products lead with rigor on is the UI, and the backend-design surface lives in the stage most likely to be skipped and least likely to be validated — inverted for a backend-heavy product.
+**The structural inversion (the remaining problem):** backend design has exactly one home, and it is the **optional** stage 08. Stage 08 now has a warning-only required-section contract (backlog #20 is fixed), so the validation gap has narrowed; the sequencing gap remains because frontend design (04) is mandatory while backend design still lives in a capstone most likely to be skipped for UI-forward MVPs.
 
 **Traceability has no backend primitive.** The design-side anchor is `SCR-###` (screens). There is no `API-###`/`SVC-###`/`ENTITY-###`/`EVT-###`, and `UJ-###` ("user journey") presumes a UI actor. A system-to-system integration, batch job, or internal API has nothing to point at through the design layer — it can only reappear later as a `TSK-###` in the optional TRD. This is the same "interfaces are a missing primitive" gap as §4, seen from the layer axis instead of the capability axis: the `IF-` interface node §4 proposes is exactly what a backend seam would trace to.
 
@@ -134,7 +134,7 @@ PM-OS models requirements as **flat nodes** with exactly one edge type in the wh
 **Response options (none decided):**
 - **A — Surface-type flag.** Add a propagating `surface_type` dimension (like `genai_flag` / `project_type`, established precedent), letting 04/05 swap UI sections for interface/data-contract sections and letting a pure-backend product skip screen/prototype demands honestly. Cheapest; reuses the mode-flag pattern.
 - **B — `IF-`/data traceability primitive (from §4).** First-class interface/entity/event nodes so backend units trace through the design layer, not just the TRD. Additive to the spine; respects the golden rule.
-- **C — Give stage 08 a section contract (`backlog.md` #20)** so the one backend-design home stops being uncontracted — necessary regardless of A/B.
+- **C — Give stage 08 a section contract (`backlog.md` #20)** — ✅ shipped. This narrowed the backend-design rigor gap, but it does not by itself add backend primitives to stage 04/05 or make stage 08 mandatory.
 - **Not** a separate backend-design *stage* forking the pipeline — that violates "one linear chain, one artifact per stage." A surface-conditioned stage 04 (option A) is the shape-preserving version.
 
 **Open tension:** is backend under-service a *now* problem, or does it only bite when Indegene actually defines an API/data/service product? For a UI-forward product today, the frontend lean is harmless. Same "start native, split when forced" question as §2/§3 — logged, not resolved.

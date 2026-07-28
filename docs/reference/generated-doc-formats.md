@@ -219,15 +219,17 @@ Exactly these sections (same structure whether or not `genai_flag` is set; GenAI
 
 Base sections:
 
-These sections are the warning-only artifact contract for new v6 TRDs; missing
-or empty sections surface as validation warnings, not approval-blocking errors.
+These sections define the current Stage 03 contract. Required-section findings
+can block new generated drafts in strict mode; recommended/labeled-field gaps
+surface as warnings so existing artifacts stay approvable.
 
 - **`## Overview`** — The product, the user problem, the MVP boundary, and what this PRD covers.
 - **`## Goals and Non-Goals`** — The outcomes this release targets, followed by the explicit non-goals for this version.
+- **`## Prioritization Method`** — The framework used to order the PRD (for example RICE, MoSCoW, value-effort, or an explicit custom method) and how it was applied to this product.
 - **`## Product Epics`** — Product workstreams/outcome areas (`EPIC-###`) that become Jira Epics, each with Outcome, Scope, and Success signal. Stories and functional requirements cite exactly one declared epic with `Epic: EPIC-###`.
-- **`## User Journeys`** — End-to-end journeys (`### UJ-###`): primary user, trigger, goal, preconditions, happy path, failure paths, completion signal, and traceability to US/FR.
-- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor/trigger/outcome, exactly one `Epic: EPIC-###`, explicit happy path, edge cases / alternate paths, data fields, key UI steps with system behavior and Done criteria, scope/journey/requirement trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
-- **`## Functional Requirements`** — Required system behaviors, workflows, states, rules, and integrations (`FR-###`/`REQ-###`), each mapped to a story or scope item and exactly one declared `Epic: EPIC-###`.
+- **`## User Journeys`** — End-to-end journeys (`### UJ-###`): labeled primary user, trigger, goal, preconditions, happy path, failure paths, completion signal, prototype priority, and traceability to US/FR.
+- **`## User Stories with Acceptance Criteria`** — Prioritized stories (`US-###`): actor/trigger/outcome, exactly one `Epic: EPIC-###`, labeled `Priority:`, explicit happy path, edge cases / alternate paths, data fields, key UI steps with system behavior and Done criteria, scope/journey/requirement trace, and QA-testable acceptance criteria. `US-###` are stable traceability handles — only ever appended.
+- **`## Functional Requirements`** — Required system behaviors, workflows, states, rules, and integrations (`FR-###`/`REQ-###`), each mapped to a story or scope item, exactly one declared `Epic: EPIC-###`, and a labeled `Priority:`.
 - **`## Non-Functional Requirements`** — Performance, reliability, security, privacy, accessibility, auditability, maintainability, and operations — with measurable thresholds.
 - **`## Data & Governance`** — What data is collected/stored/processed, its sensitivity, owner, retention, access, consent/legal basis, residency/regime, and any third-party or model-provider sharing.
 - **`## Journey–Requirement Traceability`** *(recommended)* — Maps every `UJ-###` to its `US-###`/`FR-###`/NFRs and principal success/failure signal.
@@ -256,6 +258,7 @@ Exactly these sections (Markdown only; the HTML companion is generated separatel
 - **`## Journey-to-Flow Traceability`** — Maps every PRD `UJ-###` to entry point, screens/overlays, states, happy-path completion, recovery paths, and supporting `US-###`/`FR-###`.
 - **`## Key User Flows`** — Step-by-step critical flows: start state, user action, system response, decision/failure branch, completion state, and the requirement satisfied.
 - **`## Product UX Guardrails`** — Declares `Interaction model: retrieval-only | generative | mixed | non-AI`, the product mental model, approved vocabulary, prohibited UI patterns, and trust/safety constraints.
+- **`## Input Behavior Reconciliation`** *(recommended)* — Reconciles empty, invalid, ambiguous, and first-use input behavior against PRD edge cases, including any visible affordance needed beyond placeholder text.
 - **`## Design Principles`** — The design principles guiding this MVP's UI and interaction decisions.
 - **`## Component Inventory`** — Required components: purpose, placement, content/props, validation, and states (default/loading/empty/error/disabled/success/permission-denied), tied to PRD requirements.
 - **`## Responsive & Platform Behavior`** *(recommended)* — Platform, viewport, orientation, input-method, low-bandwidth, and responsive behavior (or a single fixed environment stated explicitly).
@@ -276,7 +279,7 @@ Design tokens must stay parseable for the companion HTML renderer. A GenAI flag 
 
 Exactly these sections. After the brief is written, stage 05 auto-invokes `pm-prototype-html` to produce a working HTML prototype.
 
-- **`## What to Prototype`** — The bounded product slice/journey/behavior and its design/PRD source, plus why this slice is the right one to prototype first.
+- **`## What to Prototype`** — The bounded product slice/journey/behavior and its design/PRD source, plus why this slice is the right one to prototype first. High-priority upstream `UJ-###` journeys must be explicitly included or excluded with a reason.
 - **`## Fidelity Level`** — The appropriate fidelity (wireframe, clickable mid-fi, polished mockup, static HTML) and why.
 - **`## Prototype Audience & Modes`** — Participant mode (the unbiased default experience) vs reviewer mode (facilitator surface holding journey IDs, research questions, build metadata).
 - **`## Screens to Include`** — Screens/modals/panels/empty/error states, each citing its design-spec `SCR-###` id and carrying purpose, primary content, controls, states, and design/PRD reference *(bulleted — the renderer extracts list items)*.
@@ -296,7 +299,7 @@ Exactly these sections. After the brief is written, stage 05 auto-invokes `pm-pr
 Base sections:
 
 - **`## Test Strategy`** — Testing approach, priorities, environments, test levels, manual vs automated coverage, must-pass gates, accepted limitations, and intentionally out-of-coverage areas.
-- **`## Functional Test Cases`** — Concrete cases (`TC-###`) grouped by feature/flow, each citing the `US-###`/`FR-###`/`REQ-###` it covers, with preconditions, test data, steps, expected results, priority, and pass/fail signal.
+- **`## Functional Test Cases`** — Concrete cases (`TC-###`) grouped by feature/flow, each using labeled fields for `Covers`, `Preconditions`, `Test data`, `Steps`, `Expected results`, `Priority`, and `Pass/fail signal`.
 - **`## Non-Functional Tests`** — Performance, reliability, accessibility, security/privacy, compatibility, and observability tests, including explicit Data & Governance verification (access control, retention/deletion, audit logging, data leakage).
 - **`## Edge Cases`** — Unusual states, invalid inputs, failure modes, permissions, data conditions, and recovery paths, each traced to a PRD/design/prototype/risk item.
 - **`## Acceptance Criteria`** — Release-level must-pass and should-pass conditions, accepted limitations, explicit no-go conditions, and who approves exceptions.
@@ -404,6 +407,7 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 | `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 4`); mirrors each artifact's frontmatter. |
 | `telemetry.jsonl` | `lib/telemetry.py` | Append-only, hash-chained event log (`prev_event_hash` → `event_hash`). |
 | `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v5): Product Epics (`EPIC-###`) with story/requirement membership and ticket slots, PRD-declared priority values on `US/FR/REQ`, requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). Legacy synthetic `EPIC-01` ticket refs are preserved as legacy metadata only. |
+| `.history/*.generated.md` | `pm_snapshot.py` after stage generation | Deterministic generated snapshot copied from the just-written artifact, with `generated_hash` stamped and warning-only verification available through `/pm-check`. |
 | `04-design-spec.html` | `hooks/post-approve.py` via `lib/html_render.py` (`templates/design-spec.html.j2`) | HTML companion rendered on stage-04 approval. |
 | `05-prototype-*.html` | `pm-prototype-html` (`templates/prototype-mockup.html.j2`) | Interactive prototype rendered after the stage-05 brief. |
 | `00-context/manifest.yaml` | `pm_context_import.py pack-manifest` | Assembles the context-wiki pack; records it in `.meta.yaml`. |

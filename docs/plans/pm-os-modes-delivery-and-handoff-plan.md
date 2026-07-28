@@ -1,6 +1,6 @@
 # PM-OS Modes, Delivery Model & Engineering Handoff Plan
 
-**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B partially built; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 is shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
+**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B partially built; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming note, resolved 2026-07-15.** A local, human-readable handoff-package generator briefly shipped under `skills/pm-handoff/` (PR #30), colliding with the `/pm-handoff <target>` name this plan reserves for Part B below. **Resolved by merging that local generator into `/pm-share --package`** (`scripts/pm_share.py`) instead — `pm-share` now covers both a raw text export and the decomposed per-story package, and the `pm-handoff` name is fully free again for Part B's external-tracker/design export when it gets built, exactly as this plan originally intended.
 
@@ -133,7 +133,7 @@ Small and localized:
 
 ## 8. Part B — Delivery model: scope tiers & delivery increments
 
-**Designed 2026-07-27 (Karan + Claude); partially built.** B0 shipped 2026-07-28, resolving the synthetic-epic vs. per-story export mismatch into a Jira-native hierarchy with declared Product Epics (`EPIC-###`). The remaining Part B work resolves two gaps the current linear pipeline still has by design: PM-OS defines exactly one tier of work ("the MVP", as prose) and hands it off exactly once. It adds a *scope-tier* dimension upstream and a *delivery-increment* dimension downstream, both **additive to the traceability spine — no change to the gate, hash, status, or staleness machinery** (the product-shape golden rule: grow the spine, not the state machine). Depends on backlog #19 (priority) and #20 (TRD section contract).
+**Designed 2026-07-27 (Karan + Claude); partially built.** B0 shipped 2026-07-28, resolving the synthetic-epic vs. per-story export mismatch into a Jira-native hierarchy with declared Product Epics (`EPIC-###`). Backlog #19 (priority) and #20 (TRD section contract) are now shipped prerequisites. The remaining Part B work resolves two gaps the current linear pipeline still has by design: PM-OS defines exactly one tier of work ("the MVP", as prose) and hands it off exactly once. It adds a *scope-tier* dimension upstream and a *delivery-increment* dimension downstream, both **additive to the traceability spine — no change to the gate, hash, status, or staleness machinery** (the product-shape golden rule: grow the spine, not the state machine).
 
 ### 8.1 The two gaps, verified
 
@@ -230,9 +230,9 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 | **A1** | Schema + `pm_new` (`--mode`, `--codebase`) + `pm_status` plumbing | — | ✅ shipped |
 | **A2** | Enhancement conditional blocks across stages 01–08; dogfood one real enhancement | A0, A1 | 🟡 dogfood open |
 | **B0** | Resolve the synthetic-epic vs. per-story export mismatch to one declared-Product-Epic Jira mapping (backlog #28) | — | ✅ shipped |
-| **B1** | Scope-tier attribute (`Tier:` on `US`/`FR`) + stage-02 tier declaration + stages 04–07 default-to-`mvp` filter | #19, B0 | 🔴 open |
+| **B1** | Scope-tier attribute (`Tier:` on `US`/`FR`) + stage-02 tier declaration + stages 04–07 default-to-`mvp` filter | #19 shipped, B0 | 🔴 open |
 | **B2** | Tiered-fidelity contract (v2 mini-spec checks apply to `tier: mvp` only) + `/pm-promote` | B1 | 🔴 open |
-| **B3** | Delivery-increment layer (`delivery.yaml`, `INC-###` by `TSK`) + `/pm-check` cross-validation | #20, B1 | 🔴 open |
+| **B3** | Delivery-increment layer (`delivery.yaml`, `INC-###` by `TSK`) + `/pm-check` cross-validation | #20 shipped, B1 | 🔴 open |
 | **C1** | `/pm-handoff jira` (export PRD/TRD → tickets); `--increment` scoping | A complete, B3 | 🟡 base shipped v1.2.0; `--increment` open |
 | **C2** | Figma *pull* to ground enhancement-mode design spec | C1 | 🔴 open |
 | **C3** | Figma *push* + spec §13 non-goal revision | C2 | 🔴 open |

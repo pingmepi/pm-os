@@ -398,8 +398,8 @@ Common flow:
 7. Read upstream artifacts per the skill's `reads` declaration.
 8. Render the stage prompt with upstream content injected.
 9. Generate output (model choice is **runtime-neutral**: the `deep-reasoning` tier for stages in `deep_reasoning_stages`, `standard` otherwise — see §7; no hardcoded provider model).
-10. Write generated content to `.history/<NN>-<name>.<timestamp>.generated.md`.
-11. Write same content to `<NN>-<name>.md` with frontmatter status=`draft`, `generated_hash` set.
+10. Write generated content to `<NN>-<name>.md` with frontmatter status=`draft`, `generated_hash` set.
+11. Run `pm_snapshot.py <NN>` to copy the written artifact into `.history/<NN>-<name>.<timestamp>.generated.md` and verify its `generated_hash`.
 12. Log `stage_generated` event with `generated_hash` and `prompt_version`.
 13. Increment `regeneration_count` in `.meta.yaml`.
 14. Print summary to PM: "Stage <NN> draft written to <path>. Review and run `/pm-approve <NN>` when ready, or re-run `/pm-stage-<NN>` to regenerate, or run `/pm-feedback <NN>` to capture notes."
@@ -482,23 +482,24 @@ Output sections: Problem, Target user, Why now, Success hypothesis, Out of scope
 Output sections: In scope, Out of scope, Constraints, Assumptions, Dependencies, MVP boundary, Open questions.
 
 ### Stage 03 — PRD (use Opus)
-Required output sections: Overview, Goals and non-goals, **User journeys**, User stories with acceptance criteria, Functional requirements, Non-functional requirements, Data & governance, Edge cases, Risks. Journeys use stable `UJ-###` identifiers and trace to stable `US-###` / `FR-###` identifiers.
+Required output sections: Overview, Goals and non-goals, **Prioritization method**, Product epics, **User journeys**, User stories with acceptance criteria, Functional requirements, Non-functional requirements, Data & governance, Edge cases, Risks. Journeys use stable `UJ-###` identifiers, prototype-priority labels, and traces to stable `US-###` / `FR-###` identifiers. Stories and requirements carry declared `Priority:` values and exactly one `Epic: EPIC-###`.
 Recommended sections: Journey–requirement traceability; Assumptions & open decisions.
 **When `genai_flag=true`:** add sections — Model selection rationale, Prompt/agent architecture, Tool/function inventory, Context window strategy, Fallback behavior, Output validation strategy.
 
 ### Stage 04 — Design Spec
 Required output sections: Information architecture, **Journey-to-flow traceability**, Key user flows, **Product UX guardrails**, Design principles, Component inventory, Typography, Color tokens, Spacing tokens, Iconography, Accessibility notes. Product UX guardrails declare `Interaction model: retrieval-only | generative | mixed | non-AI`.
-Recommended sections: Responsive & platform behavior; UX content rules.
+Recommended sections: Responsive & platform behavior; UX content rules; Input behavior reconciliation.
 **Companion HTML:** rendered from these tokens.
 
 ### Stage 05 — Prototype Brief
 Required output sections: What to prototype, Fidelity level, **Prototype audience & modes**, Screens to include, Interactions to demonstrate, Questions the prototype should answer, **Validation plan**, Non-goals for prototype.
 Recommended sections: Prototype data & scenarios; Known limitations.
+`What to prototype` records explicit include/exclude decisions for high-priority upstream `UJ-###` journeys so the slice choice is auditable.
 **Companion HTML:** interactive participant mode by default; reviewer navigation/questions/metadata appear only with `?review=1`. UI behavior follows the design's interaction model, not `genai_flag` alone.
 
 ### Artifact contracts (Stages 03–05)
 
-`scripts/pm_validate_artifact.py <03|04|05|05-html|06|08> --mode strict|warn` validates required sections, recommended sections, journey traceability, screen ids (`SCR-###` + `Serves:`), prototype modes, and high-signal HTML guardrails. Stage 08 has no required-section contract and is validated only for the GenAI model availability/fallback check. Stage skills run strict mode before generation telemetry; required-section errors must be repaired. Approval and context-import use warning mode: they surface and record findings but continue. Imported PM-authored documents are preserved rather than silently augmented with invented content. `pm-status` shows a warning count for any contract-validated artifact that has findings.
+`scripts/pm_validate_artifact.py <03|04|05|05-html|06|08> --mode strict|warn` validates required sections, recommended sections, journey traceability, Product Epic ownership, priority/prototype-priority labels, screen ids (`SCR-###` + `Serves:`), prototype modes, Stage 08 required-section shape, and high-signal HTML guardrails. Stage skills run strict mode before generation telemetry; approval and context-import use warning mode: they surface and record findings but continue. Imported PM-authored documents are preserved rather than silently augmented with invented content. `pm-status` shows a warning count for any contract-validated artifact that has findings.
 
 ### Stage 06 — QA Plan (use Opus)
 Output sections: Test strategy, Functional test cases, Non-functional tests, Edge cases, Acceptance criteria.
@@ -510,7 +511,7 @@ Output sections: North star metric, Input metrics, Output metrics, Guardrail met
 
 ### Stage 08 — TRD (optional, use Opus)
 Optional technical capstone. Always scaffolded (`optional: true` in `.meta.yaml`) but only runnable once stages 01–07 are approved; it reads the full pipeline and details how the product is built. Owned conceptually by engineering, not the PM. Separation of concerns: the PRD says **what/why**, the TRD says **how**.
-Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, **Work Breakdown**, Open technical questions.
+Output sections: System context, Architecture, Data model, Data governance & compliance implementation, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, **Work Breakdown**, Open technical questions.
 The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are part of the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v5, which also carries Product Epics in `epics:`, PRD-declared priority values on `US/FR/REQ`, and the design spec's `screens:` map) with a reserved `tickets: []` slot — only when the TRD is **approved**, and only tasks inside the `## Work Breakdown` section — and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
 **When `genai_flag=true`:** add sections — Model serving & selection, Prompt/agent architecture (implementation), Tool/function implementation, Context & retrieval engineering, Evaluation & guardrail implementation, Inference cost & latency engineering. (The PRD keeps its product-level GenAI sections; the TRD goes deeper into implementation.)
 
