@@ -315,14 +315,21 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
+   artifact_contract_version: 6
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
    Followed by the generated body.
 
-5. **Update `.meta.yaml`** — for stage 08, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly. Leave the stage's `optional` flag as-is.)
+5. **Validate the artifact contract:**
+   ```bash
+   python3 ~/.pm-os/scripts/pm_validate_artifact.py 08 --mode strict
+   ```
+   Section-shape findings are warnings only. If validation exits non-zero, repair `08-trd.md` and its history snapshot, recompute `generated_hash`, and rerun validation. Do not update metadata or log `stage_generated` until validation passes.
 
-6. **Log `stage_generated` event:**
+6. **Update `.meta.yaml`** — for stage 08, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly. Leave the stage's `optional` flag as-is.)
+
+7. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
@@ -339,7 +346,7 @@ After generating, do the following in order:
    "
    ```
 
-7. **Print to PM:**
+8. **Print to PM:**
    ```
    Stage 08 (TRD) draft written to 08-trd.md
 

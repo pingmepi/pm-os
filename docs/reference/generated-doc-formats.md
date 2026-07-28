@@ -219,6 +219,9 @@ Exactly these sections (same structure whether or not `genai_flag` is set; GenAI
 
 Base sections:
 
+These sections are the warning-only artifact contract for new v6 TRDs; missing
+or empty sections surface as validation warnings, not approval-blocking errors.
+
 - **`## Overview`** — The product, the user problem, the MVP boundary, and what this PRD covers.
 - **`## Goals and Non-Goals`** — The outcomes this release targets, followed by the explicit non-goals for this version.
 - **`## Product Epics`** — Product workstreams/outcome areas (`EPIC-###`) that become Jira Epics, each with Outcome, Scope, and Success signal. Stories and functional requirements cite exactly one declared epic with `Epic: EPIC-###`.
@@ -354,6 +357,7 @@ Base sections:
 - **`## Trade-offs & Alternatives Considered`** — The significant technical decisions, the alternatives weighed, and why the chosen path won.
 - **`## Technical Risks & Mitigations`** — Engineering risks (scaling cliffs, data-integrity hazards, integration fragility, security exposure) with concrete mitigations.
 - **`## Rollout, Migration & Deployment`** — Environments, migration/backfill needs, feature flags, rollback strategy, observability checks, and go/no-go criteria tied to QA and metrics.
+- **`## Work Breakdown`** — Build-ready `TSK-###` tasks, each with `Implements:`, `Description`, `Definition of Done`, and `Depends on`.
 - **`## Open Technical Questions`** — Unresolved technical decisions, including any product decision that technical reality calls into question.
 
 **If `genai_flag=true`,** append after `## Open Technical Questions`:
