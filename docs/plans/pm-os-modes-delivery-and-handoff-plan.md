@@ -3,6 +3,18 @@
 **Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B partially built; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming note, resolved 2026-07-15.** A local, human-readable handoff-package generator briefly shipped under `skills/pm-handoff/` (PR #30), colliding with the `/pm-handoff <target>` name this plan reserves for Part B below. **Resolved by merging that local generator into `/pm-share --package`** (`scripts/pm_share.py`) instead — `pm-share` now covers both a raw text export and the decomposed per-story package, and the `pm-handoff` name is fully free again for Part B's external-tracker/design export when it gets built, exactly as this plan originally intended.
+>
+> **Follow-up, 2026-07-28.** The 2026-07-15 merge above folded a local
+> handoff-package generator *into* `/pm-share --package`. This entry records
+> the reverse move: `/pm-share` (both modes — raw and `--package`) was folded
+> **into** `/pm-handoff`, which is now the single callable skill for all three
+> export shapes (raw text, a readable per-audience package split into
+> `handoff/{dev,design,qa,business}/`, and Jira tickets). `scripts/pm_share.py`
+> still exists and is still the mechanical engine for the raw/package modes —
+> only the skill-level entrypoint changed, exactly as the 2026-07-15 note
+> describes `scripts/pm_share.py` absorbing the mechanics of the former
+> `pm-handoff` skill. `pm-share` is not reserved for anything going forward;
+> do not resurrect it as a name without re-reading this history.
 
 > **Reconciliation note (2026-06-17):** Phase 2 shipped a general **stage-00 understanding framework** — a gated context wiki (`00-context-wiki.md`) + understanding doc (`00-context-understanding.md`) synthesized from PM-provided sources, plus the business statement as gated stage `00`. The codebase understanding described below should be implemented as **one more evidence source feeding that same framework** (the code becomes another source the wiki absorbs and the understanding doc summarizes), not as a separate bespoke `00-codebase-understanding.md` pipeline. Reuse `lib/project.py`'s stage-00 group, `migrate_meta`, and `pm_context_import.py` rather than duplicating them.
 **Author:** Karan (with Claude Code)

@@ -129,10 +129,13 @@ python3 ~/.pm-os/scripts/pm_status.py
 All core stages green. Optional close:
 
 ```
-/pm-share
+/pm-handoff --package
 ```
 
-> "And I can export the whole approved thread for eng, design, and QA."
+> "And with one command I hand off the approved thread — split into a folder
+> per team: dev, design, QA, and business, each with just what they need, and
+> every screen cross-linked to the prototype." (Or `/pm-handoff --raw` for a
+> plain text dump, or `/pm-handoff jira` to push it to Jira.)
 
 ---
 

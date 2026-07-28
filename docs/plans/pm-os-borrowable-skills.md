@@ -48,7 +48,7 @@ Cross-referencing the 11 stage skills + 10 utility skills against the available 
 
 1. **Discovery research is ungrounded (stages 01/02).** `pm-stage-01-brief` and `-02-scope` generate purely from the business statement + context overlay — no external grounding. `deep-research` (firecrawl/exa) and built-in `WebSearch` could enrich discovery with market/competitor/user evidence (Mode B/C, opt-in). **Likely the biggest current-product miss.**
 2. **`.docx` / `.pdf` intake conversion is an open Phase-2 "remaining" item.** The `pdf` and `docx` skills solve it directly for `/pm-context-import` (Mode C). Low effort, already-blocked work.
-3. **Share/export is text-only.** `pm-share` emits plain text; PMs share decks/docs. `pptx` / `docx` / `pdf` would let `pm-share` export a stakeholder deck or Word doc (Mode C, on demand).
+3. **Share/export is text-only.** `/pm-handoff --raw`/`--package` (the export modes of the single `pm-handoff` skill; formerly the standalone `pm-share`) emits plain text/Markdown; PMs share decks/docs. `pptx` / `docx` / `pdf` would let it export a stakeholder deck or Word doc (Mode C, on demand).
 4. **PM-OS's own docs drift.** `codebase-docs-alignment` / the `docs-audit` skill could be a maintenance routine for PM-OS's own `docs/` and skill catalog — and doubles as the engine for the Phase-3 brownfield drift signal.
 5. **LLM-output parsing is unguarded.** `pm_context_import.py` and backfill parse model output; `llm-output-hardening` patterns (null fields, malformed JSON, injection via extracted strings) belong in those Python paths (Mode B) and in the Phase 3.6 tests.
 6. **Stage generation has no authoring-quality scaffold.** Each stage skill is structured doc generation; `doc-coauthoring`'s "transfer context → iterate → verify it works for the reader" loop is a reusable pattern to tighten stage prompts (Mode B).
@@ -61,7 +61,7 @@ Cross-referencing the 11 stage skills + 10 utility skills against the available 
 
 - **Don't build tracker connectors.** Phases 4b / 5a / 6b should sit on **Linear / Atlassian (Jira) / Intercom MCP servers** (Mode A). This deletes the single highest-effort, highest-risk roadmap stream (auth, sync, provenance) while preserving the dry-run → confirm → store-references-only policy.
 - **Borrow process skills as content, not dependencies.** Test suite (`python-testing` / `tdd-workflow` / `eval-harness`), release readiness (`deployment-patterns` / `changelog-generator`), codebase understanding (`codebase-docs-alignment`), security (`security-review`) → lift their checklists into PM-OS's own portable skills (Mode B). Zero portability cost.
-- **Two quick current-product wins:** (a) wire `deep-research` / `WebSearch` into discovery stages 01/02; (b) use `pdf` / `docx` to close the open `.docx`/`.pdf` intake gap and to enrich `pm-share` exports.
+- **Two quick current-product wins:** (a) wire `deep-research` / `WebSearch` into discovery stages 01/02; (b) use `pdf` / `docx` to close the open `.docx`/`.pdf` intake gap and to enrich `/pm-handoff` exports.
 - **Keep gated paths self-contained.** External skills / MCP are enrichment behind opt-in / confirm — never on a gated stage path — so Claude/Codex parity holds.
 
 ---
