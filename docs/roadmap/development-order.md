@@ -37,7 +37,7 @@ This is the single home for **build sequencing** across all open work. It does n
 - **#2** — Windows install/runtime remainder (**necessary only if Windows is a current target**; needs a real Windows box + a shell-standardization decision: Git Bash + shim vs `install.ps1`).
 - **#4** — downstream-vs-upstream consistency check (backlog defers this — "consistent with the current hash-based model").
 - **#14** — deep-reasoning model gate is bypassable with a bare re-run.
-- **#15 / #16 / #24** — migration backfill of missing stages, backfilled-approve provenance, `.meta.yaml` concurrency lock. P3 robustness.
+- **#15 / #16 / #24** — migration backfill of missing stages, backfilled-approve provenance, `.meta.yaml` concurrency lock. ✅ **fixed, pending release**.
 
 ---
 

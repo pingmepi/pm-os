@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **P3 project-state robustness.** `migrate_meta()` backfills missing default scaffold stages without accidentally adding absent conditional pre-stages; approving draft backfills now preserves `origin`/`derived_from` provenance in `stage_approved`; `.meta.yaml` writes use a portable project-local lock plus atomic replacement, with `/pm-approve` and post-approval stale cascades protected by locked read-modify-write sections.
+
 ## 1.3.6-1.3.11 — 2026-07-28
 
 ### Added
