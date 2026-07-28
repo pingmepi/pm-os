@@ -12,6 +12,7 @@ from config import load_config
 from project import (
     resolve_project, load_meta, save_meta, get_stage,
     artifact_path, upstream_stage_ids, downstream_stage_ids, STAGE_NAMES,
+    meta_lock, MetaLockTimeout,
 )
 from hashing import hash_artifact_body, stage_content_hash, CompositeHashError
 from frontmatter import update_status, read as fm_read
@@ -128,19 +129,26 @@ def main():
     except Exception:
         pm = "unknown"
 
-    update_status(str(apath), "approved",
-                  approved_at=ts,
-                  approved_by=pm,
-                  content_hash=content_hash)
+    try:
+        with meta_lock(project_root):
+            update_status(str(apath), "approved",
+                          approved_at=ts,
+                          approved_by=pm,
+                          content_hash=content_hash)
 
-    meta = load_meta(project_root)
-    stage_meta = get_stage(meta, stage_id)
-    upstream = {uid: get_stage(meta, uid)["content_hash"] for uid in upstream_stage_ids(stage_id, meta)}
-    stage_meta["status"] = "approved"
-    stage_meta["approved_at"] = ts
-    stage_meta["content_hash"] = content_hash
-    stage_meta["upstream_hashes_at_approval"] = upstream
-    save_meta(meta, project_root)
+            meta = load_meta(project_root)
+            stage_meta = get_stage(meta, stage_id)
+            stage_origin = stage_meta.get("origin", fm.get("origin", "generated"))
+            derived_from = stage_meta.get("derived_from") or fm.get("derived_from")
+            upstream = {uid: get_stage(meta, uid)["content_hash"] for uid in upstream_stage_ids(stage_id, meta)}
+            stage_meta["status"] = "approved"
+            stage_meta["approved_at"] = ts
+            stage_meta["content_hash"] = content_hash
+            stage_meta["upstream_hashes_at_approval"] = upstream
+            save_meta(meta, project_root)
+    except MetaLockTimeout as e:
+        print(f"Error: could not approve stage {stage_id} because project state is locked: {e}")
+        sys.exit(1)
 
     if validation_findings:
         try:
@@ -180,7 +188,7 @@ def main():
             pass
 
     try:
-        log("stage_approved", project_root, stage_id, {
+        payload = {
             "approved_hash": content_hash,
             "generated_hash": generated_hash,
             "char_edit_distance": char_dist,
@@ -190,7 +198,11 @@ def main():
             "regeneration_count": regen_count,
             "implicit_reapproval": False,
             "reapproved_from_approved": reapproved_from_approved,
-        })
+            "origin": stage_origin,
+        }
+        if derived_from:
+            payload["derived_from"] = derived_from
+        log("stage_approved", project_root, stage_id, payload)
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
 

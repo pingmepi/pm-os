@@ -1,4 +1,7 @@
 import os
+import shutil
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -34,8 +37,84 @@ def load_meta(project_root=None) -> dict:
 def save_meta(meta_dict: dict, project_root=None) -> None:
     if project_root is None:
         project_root = resolve_project()
-    with open(project_root / ".meta.yaml", "w", encoding="utf-8") as f:
+    project_root = Path(project_root)
+    with meta_lock(project_root):
+        _write_meta_unlocked(meta_dict, project_root)
+
+
+def _write_meta_unlocked(meta_dict: dict, project_root: Path) -> None:
+    meta_path = project_root / ".meta.yaml"
+    tmp_path = project_root / f".meta.yaml.tmp.{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         yaml.dump(meta_dict, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    os.replace(tmp_path, meta_path)
+
+
+_HELD_META_LOCKS: dict[Path, int] = {}
+
+
+class MetaLockTimeout(TimeoutError):
+    """Raised when project state cannot be locked before the timeout."""
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+@contextmanager
+def meta_lock(project_root=None, timeout: Optional[float] = None,
+              stale_after: Optional[float] = None, poll: float = 0.1):
+    """Serialize `.meta.yaml` read-modify-write operations with a portable mkdir lock."""
+    if project_root is None:
+        project_root = resolve_project()
+    project_root = Path(project_root).resolve()
+    lock = project_root / ".meta.yaml.lock"
+
+    held = _HELD_META_LOCKS.get(lock, 0)
+    if held:
+        _HELD_META_LOCKS[lock] = held + 1
+        try:
+            yield
+        finally:
+            remaining = _HELD_META_LOCKS[lock] - 1
+            if remaining:
+                _HELD_META_LOCKS[lock] = remaining
+            else:
+                _HELD_META_LOCKS.pop(lock, None)
+        return
+
+    timeout = _env_float("PM_OS_META_LOCK_TIMEOUT", 600.0 if timeout is None else timeout)
+    stale_after = _env_float("PM_OS_META_LOCK_STALE_AFTER", 900.0 if stale_after is None else stale_after)
+    deadline = time.monotonic() + timeout
+    acquired = False
+    while True:
+        try:
+            os.mkdir(lock)
+            acquired = True
+            _HELD_META_LOCKS[lock] = 1
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > stale_after:
+                    shutil.rmtree(lock, ignore_errors=True)
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() >= deadline:
+                raise MetaLockTimeout(f"Timed out waiting for project state lock: {lock}")
+            time.sleep(poll)
+    try:
+        yield
+    finally:
+        if acquired:
+            _HELD_META_LOCKS.pop(lock, None)
+            shutil.rmtree(lock, ignore_errors=True)
 
 
 # Current .meta.yaml shape. Bump (and extend migrate_meta) when the shape
@@ -82,6 +161,8 @@ STAGE_DEPENDENCIES = {
 STAGE_OPTIONAL_DEPENDENCIES = {
     "09": ["08"],
 }
+
+DEFAULT_SCAFFOLD_STAGE_IDS = ["00", *CORE_STAGE_ORDER, "08", "09"]
 
 
 def artifact_path(project_root: Path, stage_id: str) -> Path:
@@ -200,6 +281,40 @@ def migrate_meta(meta: dict, project_root: Optional[Path] = None) -> bool:
         if "context_pack" not in meta:
             meta["context_pack"] = None
             changed = True
+
+    # Backfill any default scaffold stages missing from older project metadata.
+    # Do not inject absent conditional pre-stage docs (00c/00w/00u), because that
+    # would accidentally gate greenfield projects. Add them only if their artifact
+    # already exists on disk.
+    existing_ids = {s.get("id") for s in stages}
+    expected_ids = list(DEFAULT_SCAFFOLD_STAGE_IDS)
+    if project_root is not None:
+        for sid in ("00c", "00w", "00u"):
+            if sid not in existing_ids and artifact_path(Path(project_root), sid).exists():
+                expected_ids.append(sid)
+    order = {sid: i for i, sid in enumerate(STAGE_ORDER)}
+    for sid in expected_ids:
+        if sid in existing_ids:
+            continue
+        entry = {
+            "id": sid,
+            "name": STAGE_NAMES[sid],
+            "status": "pending",
+            "approved_at": None,
+            "content_hash": None,
+            "upstream_hashes_at_approval": {},
+            "regeneration_count": 0,
+            "optional": sid in {"08", "09"},
+            "origin": "generated",
+        }
+        idx = len(stages)
+        for i, stage in enumerate(stages):
+            if order.get(stage.get("id"), 999) > order[sid]:
+                idx = i
+                break
+        stages.insert(idx, entry)
+        existing_ids.add(sid)
+        changed = True
 
     if meta.get("schema_version", 1) < SCHEMA_VERSION:
         meta["schema_version"] = SCHEMA_VERSION

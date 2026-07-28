@@ -275,10 +275,10 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 ---
 
-## 15. 🟡 `migrate_meta()` does not backfill missing `STAGE_ORDER` stages (from codex-pr-audit)
+## 15. 🟢 `migrate_meta()` does not backfill missing `STAGE_ORDER` stages (from codex-pr-audit)
 
 **Severity:** P3 — low impact today (all new projects scaffold every stage), but upgrade correctness is broken for any project older than the current scaffolding.
-**Status:** 🟡 Open, low priority. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #9, PR #14, dated 2026-06-22).
+**Status:** 🟢 Fixed (this change), pending release.
 
 **Symptom:** `lib/project.py:migrate_meta()` handles schema v2→v4 field additions (`origin`, stage-00 injection, `project_type`/`codebase_path`/`codebase_ref`, `context_pack`) but never inserts a missing `STAGE_ORDER` entry generically. A pre-v0.4 project whose `stages[]` list predates later stages (e.g. 09) would still hit a `KeyError` in `pm_approve.py` trying to approve a stage `migrate_meta()` never backfilled.
 
@@ -286,18 +286,22 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 
 **Proposed fix:** Add a migration pass that inserts any `STAGE_ORDER` id absent from `stages[]` with `status: pending` and default fields, guarded by the existing schema-version check so already-migrated projects are untouched.
 
+**Fixed (this change):** `migrate_meta()` now backfills missing default scaffold stages (`00`, `01`–`09`) with pending/default metadata in canonical order, while only adding conditional `00c`/`00w`/`00u` stages when their artifact already exists on disk so greenfield projects are not accidentally gated. Tests: `test_migrate_meta_backfills_missing_default_stages`, `test_migrate_meta_backfills_present_conditional_pre_stage`.
+
 ---
 
-## 16. 🟡 Approving a backfilled artifact logs a generic `stage_approved`, losing origin (from codex-pr-audit)
+## 16. 🟢 Approving a backfilled artifact logs a generic `stage_approved`, losing origin (from codex-pr-audit)
 
 **Severity:** P3 — telemetry/provenance-analytics gap, not correctness-blocking.
-**Status:** 🟡 Open. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #10, PR #24, dated 2026-06-22).
+**Status:** 🟢 Fixed (this change), pending release.
 
 **Symptom:** `scripts/pm_context_import.py`'s `cmd_commit()` correctly logs `stage_backfilled_draft` with provenance, but once the PM later runs `/pm-approve`, `scripts/pm_approve.py` logs a plain `stage_approved` event with no `origin`/`derived_from` reference — an approved backfilled artifact becomes indistinguishable from a generated-then-approved one in telemetry.
 
 **Evidence:** `scripts/pm_approve.py` — the only `log(...)` calls are `artifact_validation_warning` and `stage_approved`; neither branches on the stage's `origin` field in `.meta.yaml`.
 
 **Proposed fix:** `pm_approve.py` should read the stage's `origin` from `.meta.yaml` at approval time and, when `origin == "backfilled"`, either log a distinct `stage_backfilled` (approved) event or augment `stage_approved`'s payload with `{"origin": "backfilled", "derived_from": [...]}` — additive, no schema change.
+
+**Fixed (this change):** `pm_context_import.py commit --kind backfilled --status draft` now persists `derived_from` in both `.meta.yaml` and artifact frontmatter, and `/pm-approve` includes `origin` plus `derived_from` in the `stage_approved` payload. Test: `test_approve_backfilled_draft_preserves_provenance`.
 
 ---
 
@@ -416,16 +420,18 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 
 ---
 
-## 24. 🟠 No concurrency control on project state
+## 24. 🟢 No concurrency control on project state
 
 **Severity:** P3 — latent; requires two concurrent sessions on one project to surface.
-**Status:** 🟠 Open.
+**Status:** 🟢 Fixed (this change), pending release.
 
 **Symptom:** Two agent sessions (or an agent and a PM shell) operating in the same project can interleave writes to `.meta.yaml`, losing one side's status update.
 
 **Evidence:** The only lock in the codebase guards the shared central-sync cache — `lib/git_sync.py:20-51` (`_lock_path`, an atomic `mkdir` lock with stale-lock stealing). `scripts/pm_approve.py` and the hooks read-modify-write `.meta.yaml` with no lock.
 
 **Proposed fix:** Reuse the portable `mkdir` lock already written for the sync cache, scoped per project root, around the read-modify-write of `.meta.yaml`.
+
+**Fixed (this change):** `lib/project.py` now provides a portable, re-entrant `.meta.yaml.lock` with stale-lock stealing and atomic `os.replace()` writes. `save_meta()` uses the lock, `/pm-approve` wraps the approval frontmatter/meta update in one locked section, and `post-approve.py` locks the downstream stale cascade. Tests: `test_meta_lock_times_out_when_another_writer_holds_it`, `test_approval_respects_project_state_lock`.
 
 ---
 

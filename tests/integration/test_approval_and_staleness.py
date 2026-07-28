@@ -30,6 +30,27 @@ def test_approval_syncs_frontmatter_and_meta(pmos, new_project):
                               consistency.CODE_META_FRONTMATTER_HASH_MISMATCH) for i in issues)
 
 
+def test_approval_respects_project_state_lock(pmos, new_project):
+    """A held .meta.yaml lock prevents approval before frontmatter/meta are changed."""
+    proj = new_project("approval-lock", "A problem")
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+    make_draft(proj, "01", body="Brief body.\n")
+    (proj / ".meta.yaml.lock").mkdir()
+
+    res = run_script(
+        pmos, "pm_approve.py", "01", cwd=proj,
+        extra_env={"PM_OS_META_LOCK_TIMEOUT": "0.01", "PM_OS_META_LOCK_STALE_AFTER": "999"},
+    )
+    assert res.returncode != 0
+    assert "project state is locked" in res.stdout
+
+    import frontmatter as fm
+    import project
+    fmd, _ = fm.read(str(proj / "01-brief.md"))
+    meta_stage = project.get_stage(project.load_meta(proj), "01")
+    assert fmd["status"] == meta_stage["status"] == "draft"
+
+
 def test_reapproving_upstream_cascades_downstream_stale(pmos, new_project):
     """Re-approving an upstream stage marks its downstream approved stages stale (so they get
     regenerated against new content) and logs stage_marked_stale."""

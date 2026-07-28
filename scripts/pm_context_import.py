@@ -273,11 +273,15 @@ def cmd_commit(args):
     meta = load_meta(root)
     stage_meta = _ensure_stage_entry(meta, stage_id, args.kind)
     stage_meta["origin"] = args.kind
+    if args.kind == "backfilled" and args.derived_from:
+        stage_meta["derived_from"] = args.derived_from
 
     fm, body = fm_read(str(apath))
     fm.setdefault("stage", f"{stage_id}-{STAGE_NAMES[stage_id]}")
     fm.setdefault("project", meta.get("project_slug"))
     fm["origin"] = args.kind
+    if args.kind == "backfilled" and args.derived_from:
+        fm["derived_from"] = args.derived_from
     if args.source_name:
         fm["source_filename"] = args.source_name
     if args.source_format:
@@ -300,6 +304,7 @@ def cmd_commit(args):
                     "prompt_version": args.prompt_version,
                     "notes": [],
                     "origin": args.kind,
+                    "derived_from": args.derived_from,
                 })
             except Exception as e:
                 print(f"Warning: telemetry logging failed: {e}")

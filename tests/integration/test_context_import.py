@@ -113,6 +113,31 @@ def test_commit_backfilled_draft(pmos, new_project):
     assert bf and bf[-1]["payload"]["origin"] == "backfilled"
 
 
+def test_approve_backfilled_draft_preserves_provenance(pmos, new_project):
+    """A draft backfill approved later via /pm-approve keeps its origin and derived_from
+    provenance in frontmatter, meta, and approval telemetry."""
+    proj = _ctx_proj(pmos, new_project)
+    write_artifact(proj / "01-brief.md", stage="01-brief", project=proj.name,
+                   status="draft", body="Lossy reverse-generated brief.\n")
+    res_commit = run_script(pmos, "pm_context_import.py", "commit", "01",
+                            "--kind", "backfilled", "--status", "draft",
+                            "--derived-from", "03", "--model", "claude-opus-4-8", cwd=proj)
+    assert res_commit.returncode == 0, res_commit.stderr
+
+    res_approve = run_script(pmos, "pm_approve.py", "01", cwd=proj)
+    assert res_approve.returncode == 0, res_approve.stderr
+
+    import frontmatter
+    import project
+    fm, _ = frontmatter.read(str(proj / "01-brief.md"))
+    meta_stage = project.get_stage(project.load_meta(proj), "01")
+    assert fm["origin"] == meta_stage["origin"] == "backfilled"
+    assert fm["derived_from"] == meta_stage["derived_from"] == "03"
+    approved = [e for e in read_events(proj) if e["event_type"] == "stage_approved" and e["stage"] == "01"]
+    assert approved[-1]["payload"]["origin"] == "backfilled"
+    assert approved[-1]["payload"]["derived_from"] == "03"
+
+
 # --- Adaptive context pack (v4) ----------------------------------------------
 
 def test_register_classifies_new_formats_with_modality(pmos, new_project):

@@ -134,6 +134,9 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_00c_in_stage_tables` — `00c` is in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES, STAGE_ORDER; positioned between `00` and `00w`.
 - `test_migrate_v2_to_v3` — adds `project_type`, `codebase_path`, `codebase_ref` to existing meta; bumps to schema v3; idempotent.
 - `test_migrate_v3_to_v4_adds_context_pack` — adds optional `context_pack` (null) and bumps to schema v4; existing stages/hashes untouched; idempotent (flat wikis stay flat).
+- `test_migrate_meta_backfills_missing_default_stages` — older metadata missing default scaffold stages gets `00`/`01`-`09` entries inserted in canonical order without adding absent conditional pre-stages.
+- `test_migrate_meta_backfills_present_conditional_pre_stage` — conditional pre-stage entries such as `00w` are added only when their artifact exists on disk.
+- `test_meta_lock_times_out_when_another_writer_holds_it` — a held `.meta.yaml.lock` blocks overlapping writers instead of allowing concurrent state mutation.
 - `test_has_context_pack_and_is_composite_stage` — `has_context_pack`/`is_composite_stage` flip on only when a `00-context/manifest.yaml` exists, and only for 00w (dual-mode switch).
 - `test_resolve_project_walks_up` / `test_resolve_project_not_found` — finds nearest `.meta.yaml`; raises when none.
 
@@ -317,7 +320,7 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.
-- context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
+- context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin; backfilled draft approval preserves `origin` + `derived_from` in frontmatter/meta/telemetry); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
 - adaptive context pack (v4): `register` ingests images/PPTX/XLSX with deterministic `modality` and lossy-by-default flags (`test_register_classifies_new_formats_with_modality`); `pack-manifest` builds a fixed-order manifest with per-member hashes and stamps `context_pack` into meta (`test_pack_manifest_builds_fixed_order_and_records_meta`); `pack-validate` detects a post-build member edit (`test_pack_validate_detects_post_build_edit`); committing/approving a 00w with a pack uses the composite hash, not the index body hash (`test_composite_00w_commit_and_approve_uses_composite_hash`); editing any pack member is drift through the real pre-stage gate (`test_editing_pack_member_is_drift_through_gate`); an unsafe manifest blocks approval (`test_invalid_pack_manifest_blocks_approval`); `upgrade-pack` snapshots the flat wiki, scaffolds `00-context/`, and drafts 00w without re-approving (`test_upgrade_pack_snapshots_flat_wiki_and_drafts`).
 - feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
 - `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path, `PM_OS_SYNC_BLOCKING=1` inline mode the fixture defaults to); the deferred default backgrounds the push so approval returns immediately yet the detached push still lands centrally (`test_deferred_approval_sync_does_not_block`, backlog #6); two syncs racing on the single shared cache serialize via the mkdir cache lock so both projects' telemetry lands instead of colliding on clone/index-lock/non-fast-forward (`test_concurrent_syncs_serialize_via_cache_lock`, Codex PR #34 follow-up); `pm_sync` backfills all projects; `--verify` reports chains intact.
@@ -336,7 +339,7 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 
 ### T7 — Negative/resilience + idempotency (`test_failure_recovery.py`, `test_idempotency.py`)
 **Purpose:** broken/hostile state fails safely; safe ops repeat cleanly.
-- malformed/missing `.meta.yaml`, not-in-project, no-frontmatter artifact, tampered telemetry, non-tty genai decision → clear failures.
+- malformed/missing `.meta.yaml`, locked project state, not-in-project, no-frontmatter artifact, tampered telemetry, non-tty genai decision → clear failures.
 - approve-already-approved no-op; `pm_status` stable; HTML render deterministic.
 
 ### T8 — Local-first & security (`tests/contracts/test_local_first_boundaries.py`)

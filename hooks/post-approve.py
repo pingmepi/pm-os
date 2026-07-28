@@ -13,7 +13,10 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-from project import resolve_project, load_meta, save_meta, get_stage, artifact_path, downstream_stage_ids
+from project import (
+    resolve_project, load_meta, save_meta, get_stage, artifact_path,
+    downstream_stage_ids, meta_lock, MetaLockTimeout,
+)
 from frontmatter import update_status
 from html_render import render_design_spec, render_prototype_mockup
 from telemetry import log
@@ -63,8 +66,6 @@ def main():
         print(f"[post-approve] ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
-    meta = load_meta(project_root)
-
     # --- Render companion HTML for stages with generated previews ---
     try:
         if stage_id == "04":
@@ -81,28 +82,35 @@ def main():
         print(f"[post-approve] WARNING: Could not render companion HTML: {e}", file=sys.stderr)
 
     # --- Cascade staleness to downstream approved stages ---
-    downstream_ids = downstream_stage_ids(stage_id, meta)
+    try:
+        with meta_lock(project_root):
+            meta = load_meta(project_root)
+            downstream_ids = downstream_stage_ids(stage_id, meta)
 
-    stale_logged = []
-    for did in downstream_ids:
-        try:
-            ds_meta = get_stage(meta, did)
-        except KeyError:
-            continue
-        if ds_meta["status"] == "approved":
-            ds_meta["status"] = "stale"
-            apath = artifact_path(project_root, did)
-            if apath.exists():
-                update_status(str(apath), "stale")
-            log("stage_marked_stale", project_root, did, {
-                "reason": "upstream_approved",
-                "triggering_upstream_stage": stage_id,
-            })
-            stale_logged.append(did)
+            stale_logged = []
+            for did in downstream_ids:
+                try:
+                    ds_meta = get_stage(meta, did)
+                except KeyError:
+                    continue
+                if ds_meta["status"] == "approved":
+                    ds_meta["status"] = "stale"
+                    apath = artifact_path(project_root, did)
+                    if apath.exists():
+                        update_status(str(apath), "stale")
+                    log("stage_marked_stale", project_root, did, {
+                        "reason": "upstream_approved",
+                        "triggering_upstream_stage": stage_id,
+                    })
+                    stale_logged.append(did)
 
-    if stale_logged:
-        save_meta(meta, project_root)
-        print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
+            if stale_logged:
+                save_meta(meta, project_root)
+                print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
+    except MetaLockTimeout as e:
+        print(f"[post-approve] WARNING: Could not lock project state for stale cascade: {e}",
+              file=sys.stderr)
+        meta = load_meta(project_root)
 
     # --- Rebuild the traceability spine when an ID-bearing stage is approved ---
     # Stage 03 (PRD) declares requirement ids; stage 04 (design spec) declares the

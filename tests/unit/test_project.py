@@ -168,6 +168,56 @@ def test_migrate_v3_to_v4_adds_context_pack(tmp_path):
     assert project.migrate_meta(meta, tmp_path) is False  # idempotent
 
 
+def test_migrate_meta_backfills_missing_default_stages(tmp_path):
+    """A project whose metadata predates later scaffold stages gets missing default
+    stages added in canonical order without injecting absent conditional 00c/00w/00u."""
+    meta = {
+        "schema_version": project.SCHEMA_VERSION,
+        "project_slug": "old-demo",
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "hash00", "origin": "generated"},
+            {"id": "01", "name": "brief", "status": "draft",
+             "content_hash": None, "origin": "generated"},
+        ],
+    }
+    changed = project.migrate_meta(meta, tmp_path)
+    assert changed is True
+    ids = [s["id"] for s in meta["stages"]]
+    assert ids == ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09"]
+    assert "00c" not in ids and "00w" not in ids and "00u" not in ids
+    assert project.get_stage(meta, "02")["status"] == "pending"
+    assert project.get_stage(meta, "08")["optional"] is True
+    assert project.migrate_meta(meta, tmp_path) is False
+
+
+def test_migrate_meta_backfills_present_conditional_pre_stage(tmp_path):
+    """Conditional stage-00 docs are backfilled only when their artifact already exists."""
+    (tmp_path / "00-context-wiki.md").write_text("---\nstatus: draft\n---\n# Wiki\n", encoding="utf-8")
+    meta = {
+        "schema_version": project.SCHEMA_VERSION,
+        "project_slug": "context-demo",
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "hash00", "origin": "generated"},
+        ],
+    }
+    assert project.migrate_meta(meta, tmp_path) is True
+    ids = [s["id"] for s in meta["stages"]]
+    assert "00w" in ids
+    assert "00c" not in ids and "00u" not in ids
+    assert ids.index("00w") < ids.index("01")
+
+
+def test_meta_lock_times_out_when_another_writer_holds_it(tmp_path):
+    """The portable project-state lock reports a timeout instead of allowing an
+    overlapping writer to proceed."""
+    (tmp_path / ".meta.yaml.lock").mkdir()
+    with pytest.raises(project.MetaLockTimeout):
+        with project.meta_lock(tmp_path, timeout=0.001, stale_after=999.0, poll=0.001):
+            pass
+
+
 def test_has_context_pack_and_is_composite_stage(tmp_path):
     """has_context_pack flips on only when a 00-context/manifest.yaml exists; is_composite_stage
     is True only for 00w with a manifest present (every other stage / flat 00w stays body-hashed)."""
