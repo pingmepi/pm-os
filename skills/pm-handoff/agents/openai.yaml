@@ -1,4 +1,11 @@
 interface:
-  display_name: "Handoff to Jira"
-  short_description: "Export the approved pipeline to Jira, or to an offline CSV"
-  default_prompt: "Use $pm-handoff jira to export my approved PM-OS pipeline to Jira — show me the dry-run plan first and wait for my confirmation before creating anything."
+  display_name: "Handoff & Share"
+  short_description: "Export the pipeline: raw text, handoff package, or Jira"
+  default_prompt: >
+    Use $pm-handoff jira to export my approved PM-OS pipeline to Jira — refresh
+    the local handoff package first, show me the dry-run plan, and wait for my
+    confirmation before creating anything (or $pm-handoff jira --offline for a
+    CSV I import myself). Use $pm-handoff --package [--audience
+    dev|design|qa|business] to build or refresh the readable handoff package
+    without touching Jira. Use $pm-handoff --raw [stage_id] for a plain text
+    dump of one or all approved stages.

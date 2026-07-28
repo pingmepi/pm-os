@@ -1,4 +1,0 @@
-interface:
-  display_name: "Share Artifacts"
-  short_description: "Export approved PM-OS artifacts, raw or as a readable package"
-  default_prompt: "Use $pm-share to export approved PM-OS artifacts — raw text by default, or $pm-share --package for a readable, per-story handoff package."
