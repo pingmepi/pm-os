@@ -666,7 +666,7 @@ Karan runs 2-3 real projects through the system. Captures feedback aggressively.
 
 ## 13. Out of scope for v1
 
-> ⚠️ **Superseded for later phases.** This list defined the boundary of the *original v1 kernel*. The canonical roadmap is now `docs/roadmap/current-state-review.md`, which deliberately brings several of these items **back into scope** in later phases — notably engineering handoff and MCP integrations beyond `pm-share` (Jira/Linear/Figma, Phase 4), and data-governance/compliance content (now required in PRD/QA/TRD as of v0.4.8). Treat the items below as out of scope **only for the v1 kernel**; where this list and the Current State Review disagree, the review wins.
+> ⚠️ **Superseded for later phases.** This list defined the boundary of the *original v1 kernel*. The canonical roadmap is now `docs/roadmap/current-state-review.md`, which deliberately brings several of these items **back into scope** in later phases — notably engineering handoff and MCP integrations beyond `pm-share` (Jira/Linear/Figma, Phase 4; the `pm-share` skill referenced throughout this section no longer exists on its own — its raw/package export modes were folded into `/pm-handoff` as of 2026-07-28), and data-governance/compliance content (now required in PRD/QA/TRD as of v0.4.8). Treat the items below as out of scope **only for the v1 kernel**; where this list and the Current State Review disagree, the review wins.
 
 Do not build these in the v1 kernel. If a design decision seems to require one, flag and stop.
 

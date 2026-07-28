@@ -1,12 +1,16 @@
 """pm-share package mode (Phase 4a) — the readable projection built by
-`scripts/pm_share.py --package` (merged from the former scripts/pm_handoff.py).
+`scripts/pm_share.py --package`, invoked via `/pm-handoff --package` (the
+`pm-share` skill was folded into `pm-handoff`; this script is unchanged).
 
 Approving 01/02/03/06 gives pm_share.py an approved pipeline + a
 .traceability.yaml spine. --package assembles per-story files in the boss
-house-format by walking US-### -> FR-### -> UJ-### -> covering TC-###, plus an
-overview and reference docs. It is a read-only projection: it must never touch the
-gate/hash/status state machine, every file is stamped with source provenance, and
-sections with no source content are flagged (not fabricated).
+house-format by walking US-### -> FR-### -> UJ-### -> covering TC-###, split
+into `handoff/{dev,design,qa,business}/` audience folders (2026-07-28
+audience-folder rework). It is a read-only projection: it must never touch the
+gate/hash/status state machine, every file is stamped with source provenance,
+and sections with no source content are flagged (not fabricated). Screen
+mentions link into the copied prototype when it carries a matching anchor
+(backlog #29).
 See docs/guides/testing.md §"Share package mode"."""
 import json
 
@@ -86,13 +90,15 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     assert res.returncode == 0, res.stderr
 
     pkg = proj / "handoff"
-    assert (pkg / "README.md").exists()
-    assert (pkg / "00-overview.md").exists()
-    assert (pkg / "epics" / "EPIC-001-agency-onboarding.md").exists()
-    assert (pkg / "epics" / "EPIC-002-agency-discovery.md").exists()
-    assert not (pkg / "epics" / "US-001-add-external-agency.md").exists()
+    assert (pkg / "README.md").exists()  # the top-level audience-folder hub
+    assert (pkg / "business" / "00-overview.md").exists()
+    assert (pkg / "dev" / "epics" / "EPIC-001-agency-onboarding.md").exists()
+    assert (pkg / "dev" / "epics" / "EPIC-002-agency-discovery.md").exists()
+    assert not (pkg / "dev" / "epics" / "US-001-add-external-agency.md").exists()
+    # Epics also duplicate into business (dev + business per the mapping table).
+    assert (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").exists()
 
-    story = (pkg / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (pkg / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "epic: EPIC-001" in story
     assert "priority: Must" in story
     assert "- **Priority:** Must" in story
@@ -104,14 +110,17 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     # Provenance stamp + non-canonical banner.
     assert "03-prd.md@" in story
     assert "DO NOT EDIT HERE" in story
+    # Stories are duplicated byte-identical into qa/ (dev+qa per the mapping table).
+    assert (pkg / "qa" / "stories" / "US-001-add-external-agency.md").read_text() == story
 
     # B0: pm-share and pm-handoff must decompose the same approved pipeline with
     # Jira-native refs: Product Epics as Jira Epics, with US-### items as stories.
+    # jira-plan.json lands at the handoff/ root, never inside an audience folder.
     assert run_script(pmos, "pm_handoff.py", "plan", cwd=proj).returncode == 0
     plan = json.loads((pkg / "jira-plan.json").read_text())
     jira_epics = {item["ref"] for item in plan["items"] if item["type"] == "Epic"}
     jira_stories = {item["ref"] for item in plan["items"] if item["type"] == "Story"}
-    package_epics = {path.name.split("-", 2)[0] + "-" + path.name.split("-", 2)[1] for path in (pkg / "epics").glob("EPIC-*.md")}
+    package_epics = {path.name.split("-", 2)[0] + "-" + path.name.split("-", 2)[1] for path in (pkg / "dev" / "epics").glob("EPIC-*.md")}
     assert package_epics == jira_epics == {"EPIC-001", "EPIC-002"}
     assert jira_stories == {"US-001", "US-002"}
 
@@ -122,7 +131,7 @@ def test_package_flags_unsourced_sections_instead_of_fabricating(pmos, new_proje
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
     # US-002 has no covering test case and no FR — those must be flagged, not invented.
-    story = (proj / "handoff" / "stories" / "US-002-list-agencies.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
     assert "— not captured in source —" in story
 
 
@@ -150,7 +159,7 @@ Given valid fields, the agency is saved.
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
-    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "FR-001" in story
     assert "UJ-001" in story
     assert "TC-001" in story
@@ -177,7 +186,7 @@ def test_package_keeps_full_body_for_single_line_test_cases(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
-    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "Verify the agency saves with a valid code" in story
     assert "Verify a duplicate code is rejected" in story
 
@@ -188,11 +197,15 @@ def test_package_overview_and_reference_docs(pmos, new_project):
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
     pkg = proj / "handoff"
 
-    assert "Collections users at mid-size banks" in (pkg / "00-overview.md").read_text()
-    assert "MoSCoW" in (pkg / "reference" / "prioritization.md").read_text()
-    assert "[Prioritization method](reference/prioritization.md)" in (pkg / "README.md").read_text()
-    assert "Pitboss" in (pkg / "reference" / "impact-analysis.md").read_text()
-    assert "under 2s" in (pkg / "reference" / "nfrs.md").read_text()
+    assert "Collections users at mid-size banks" in (pkg / "business" / "00-overview.md").read_text()
+    assert "MoSCoW" in (pkg / "dev" / "reference" / "prioritization.md").read_text()
+    assert "[Prioritization method](reference/prioritization.md)" in (pkg / "dev" / "README.md").read_text()
+    assert "Pitboss" in (pkg / "dev" / "reference" / "impact-analysis.md").read_text()
+    assert "under 2s" in (pkg / "dev" / "reference" / "nfrs.md").read_text()
+    # impact-analysis and nfrs also duplicate into qa (so a dev-only link never dangles
+    # in the qa story files, which cite impact-analysis too).
+    assert "Pitboss" in (pkg / "qa" / "reference" / "impact-analysis.md").read_text()
+    assert "under 2s" in (pkg / "qa" / "reference" / "nfrs.md").read_text()
 
 
 def test_package_is_read_only_and_does_not_touch_state_machine(pmos, new_project):
@@ -258,7 +271,8 @@ def test_package_refuses_an_edited_prd(pmos, new_project):
 
 def test_package_refuses_destructive_output_dir(pmos, new_project):
     """--output pointing at the project root (or cwd) must be refused before any
-    rmtree, so a stray --output . can never erase .meta.yaml/approved artifacts."""
+    mkdir/audience work, so a stray --output . can never erase .meta.yaml/approved
+    artifacts."""
     proj = new_project("handoff-destructive", "A problem")
     _approve_pipeline(pmos, proj)
 
@@ -270,23 +284,106 @@ def test_package_refuses_destructive_output_dir(pmos, new_project):
     assert (proj / "03-prd.md").exists()
 
 
-def test_package_refuses_existing_unmarked_dir(pmos, new_project):
-    """An existing non-empty directory that this tool did not generate (no
-    .pm-os-handoff marker) must not be deleted — only a prior package is cleared."""
-    proj = new_project("handoff-unmarked", "A problem")
+def test_package_does_not_touch_unrelated_files_in_output_root(pmos, new_project):
+    """--output pointing at an existing directory with unrelated content no longer
+    refuses outright: the handoff ROOT is never destructively wiped since the
+    audience-folder rework (only handoff/<audience>/ is) — it's just mkdir'd
+    non-destructively, so pre-existing unrelated files are left alone and audience
+    subfolders are created alongside them."""
+    proj = new_project("handoff-unrelated-root", "A problem")
     _approve_pipeline(pmos, proj)
     target = proj / "existing-docs"
     target.mkdir()
     (target / "keepme.md").write_text("important\n", encoding="utf-8")
 
     res = run_script(pmos, "pm_share.py", "--package", "--output", str(target), cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert (target / "keepme.md").exists()
+    assert (target / "dev" / ".pm-os-handoff").exists()
+
+
+def test_package_refuses_existing_unmarked_audience_dir(pmos, new_project):
+    """An existing non-empty AUDIENCE subfolder that this tool did not generate (no
+    .pm-os-handoff marker) must not be deleted — only a prior package's audience
+    folder is cleared. The marker guard now lives one level deeper than the
+    handoff root (see _prepare_audience_dir)."""
+    proj = new_project("handoff-unmarked", "A problem")
+    _approve_pipeline(pmos, proj)
+    target = proj / "handoff" / "dev"
+    target.mkdir(parents=True)
+    (target / "keepme.md").write_text("important\n", encoding="utf-8")
+
+    res = run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj)
     assert res.returncode != 0
     assert (target / "keepme.md").exists()
 
+    (target / "keepme.md").unlink()
+    target.rmdir()
+
     # A prior package (carrying the marker) IS safely regenerated in place.
+    assert run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj).returncode == 0
+    assert (proj / "handoff" / "dev" / ".pm-os-handoff").exists()
+    assert run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj).returncode == 0
+
+
+def test_package_audience_scoped_rebuild_leaves_others_untouched(pmos, new_project):
+    """--audience dev rebuilds only handoff/dev/ — handoff/design/, /qa/, /business/
+    (built by an earlier full run) must be byte-for-byte untouched, even after the
+    PRD changes and dev/ picks up the change."""
+    proj = new_project("handoff-audience-scope", "A problem")
+    _approve_pipeline(pmos, proj)
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
-    assert (proj / "handoff" / ".pm-os-handoff").exists()
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    other_before = {
+        p: p.read_text() for p in (proj / "handoff").rglob("*")
+        if p.is_file() and "dev" not in p.relative_to(proj / "handoff").parts
+    }
+    assert other_before  # sanity: design/qa/business actually produced files
+
+    # Change the PRD and re-approve so dev/ has something new to pick up.
+    changed_prd = _PRD.replace("Add external agency", "Add external agency FAST")
+    make_draft(proj, "03", body=changed_prd)
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+
+    assert run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency-fast.md").read_text()
+    assert "Add external agency FAST" in story
+
+    for path, content_before in other_before.items():
+        assert path.read_text() == content_before, f"{path} changed during a dev-only rebuild"
+
+
+def test_package_audience_conflict_stops_before_any_content_write(pmos, new_project):
+    """If one of several requested audiences has an unmarked-conflict directory,
+    the prepare pass raises before the content-write pass begins for ANY audience
+    — so no audience folder ends up with stale content silently served. Audiences
+    already validated+wiped before the conflicting one (dev, design — "qa" is
+    third in the fixed dev/design/qa/business order) are left as empty,
+    marker-less directories rather than falsely marked as rebuilt; audiences after
+    the conflict (business) are never even created."""
+    proj = new_project("handoff-audience-conflict", "A problem")
+    _approve_pipeline(pmos, proj)
+    conflict = proj / "handoff" / "qa"
+    conflict.mkdir(parents=True)
+    (conflict / "keepme.md").write_text("important\n", encoding="utf-8")
+
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode != 0
+    assert (conflict / "keepme.md").exists()
+    assert not (proj / "handoff" / "dev" / ".pm-os-handoff").exists()
+    assert not (proj / "handoff" / "dev" / "stories").exists()
+    assert not (proj / "handoff" / "business").exists()
+
+
+def test_package_audience_flag_requires_package(pmos, new_project):
+    """--audience without --package is a hard error, not a silently ignored flag —
+    a load-bearing flag that looks like it should do something must fail loudly."""
+    proj = new_project("handoff-audience-noflag", "A problem")
+    _approve_pipeline(pmos, proj)
+    res = run_script(pmos, "pm_share.py", "--audience", "dev", cwd=proj)
+    assert res.returncode != 0
+    assert "--package" in (res.stdout + res.stderr)
 
 
 def test_raw_mode_unchanged_by_the_merge(pmos, new_project):
@@ -353,7 +450,7 @@ def test_package_maps_screens_to_each_story(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "## Screens this story touches" in story
     assert "SCR-001 · Agency list" in story and "SCR-002 · Add agency form" in story
     assert "the landing surface listing every agency" in story  # the screen's own body
@@ -361,7 +458,7 @@ def test_package_maps_screens_to_each_story(pmos, new_project):
     assert "04-design-spec.md@" in story  # provenance includes the design spec
 
     # US-002 is served by SCR-001 only.
-    other = (proj / "handoff" / "stories" / "US-002-list-agencies.md").read_text()
+    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
     assert "**Screens:** SCR-001" in other and "SCR-002" not in other
 
 
@@ -375,12 +472,14 @@ def test_package_screen_map_reference_lists_coverage_both_ways(pmos, new_project
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    screen_map = (proj / "handoff" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
     assert "| SCR-001 | Agency list | US-001, UJ-001 |" in screen_map
     assert "## Stories with no screen" in screen_map
     assert "US-002 · List agencies" in screen_map
     assert "04-design-spec.md@" in screen_map  # stamped with its source
-    assert "[Screen map](reference/screen-map.md)" in (proj / "handoff" / "README.md").read_text()
+    assert "[Screen map](reference/screen-map.md)" in (proj / "handoff" / "design" / "README.md").read_text()
+    # screen-map is duplicated into qa/ too (design + qa per the mapping table).
+    assert (proj / "handoff" / "qa" / "reference" / "screen-map.md").read_text() == screen_map
 
 
 def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
@@ -402,12 +501,12 @@ def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
     # The story file resolves SCR-001 through the journey.
-    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "SCR-001" in story
     # ...and the reverse map must not contradict it: both stories are covered, so no
     # story may appear under "Stories with no screen". Deriving coverage from each
     # screen's literal `serves` ids (the bug) would report US-001 uncovered here.
-    screen_map = (proj / "handoff" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
     tail = screen_map.split("## Stories with no screen")[-1] if "## Stories with no screen" in screen_map else ""
     assert "US-001 · Add external agency" not in tail, "US-001 is covered via its journey but reported uncovered"
     assert "US-002 · List agencies" not in tail
@@ -421,9 +520,9 @@ def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
     _approve_pipeline(pmos, proj)
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
     assert "**Screens:** — not captured in source —" in story
-    screen_map = (proj / "handoff" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
     assert "— not captured in source —" in screen_map
     assert "SCR-###" in screen_map  # tells the PM how to fix it
 
@@ -458,10 +557,10 @@ def test_package_excludes_screens_from_an_unapproved_design_spec(pmos, new_proje
     res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
     assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
-    screen_map = (pkg / "reference" / "screen-map.md").read_text()
+    screen_map = (pkg / "design" / "reference" / "screen-map.md").read_text()
     assert "SCR-099" not in screen_map, "unapproved screen leaked into the package"
     assert "Unreleased admin console" not in screen_map
-    story = next((pkg / "stories").glob("US-001-*.md")).read_text()
+    story = next((pkg / "dev" / "stories").glob("US-001-*.md")).read_text()
     assert "SCR-099" not in story
 
 
@@ -482,5 +581,60 @@ def test_package_resolves_screens_from_a_stale_on_disk_index(pmos, new_project):
 
     res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
     assert res.returncode == 0, res.stderr
-    story = next((proj / "handoff" / "stories").glob("US-001-*.md")).read_text()
+    story = next((proj / "handoff" / "dev" / "stories").glob("US-001-*.md")).read_text()
     assert "SCR-001" in story, "stale on-disk index silently hid the screens"
+
+
+# --- screen links into the prototype (backlog #29) ---------------------------
+
+def test_screen_link_emitted_when_anchor_present(pmos, new_project):
+    """When the copied prototype carries a matching id="SCR-###" anchor, both the
+    story file and the screen map link straight to it."""
+    proj = _project_with_screens(pmos, new_project, "handoff-screen-link-anchored")
+    (proj / "05-prototype-mockup.html").write_text(
+        '<!doctype html><html><body>'
+        '<section id="SCR-001">Agency list</section>'
+        '<section id="SCR-002">Add agency form</section>'
+        "</body></html>",
+        encoding="utf-8",
+    )
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "../wireframes/prototype.html#SCR-001" in story
+    assert "../wireframes/prototype.html#SCR-002" in story
+
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
+    assert "../wireframes/prototype.html#SCR-001" in screen_map
+
+    # The prototype itself is duplicated into dev (not just design/qa), since dev
+    # stories now link into it.
+    assert (proj / "handoff" / "dev" / "wireframes" / "prototype.html").exists()
+
+
+def test_screen_link_falls_back_when_anchor_absent(pmos, new_project):
+    """A prototype that predates the anchor requirement (backlog #29) still gets
+    copied in and linked to — just without a working hash, never a dead link, and
+    the design spec's screen bodies are always shown either way."""
+    proj = _project_with_screens(pmos, new_project, "handoff-screen-link-noanchor")
+    (proj / "05-prototype-mockup.html").write_text(
+        "<!doctype html><html><body><div>No anchors here.</div></body></html>",
+        encoding="utf-8",
+    )
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "#SCR-001" not in story
+    assert "../wireframes/prototype.html" in story  # plain link, not a dead hash
+
+
+def test_screen_link_omitted_without_a_prototype(pmos, new_project):
+    """No 05-prototype-mockup.html at all: screens still resolve and render, they
+    just carry no prototype link and no wireframes/ folder is created."""
+    proj = _project_with_screens(pmos, new_project, "handoff-screen-link-noproto")
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "SCR-001" in story
+    assert "prototype.html" not in story
+    assert not (proj / "handoff" / "dev" / "wireframes").exists()

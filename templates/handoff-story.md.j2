@@ -10,7 +10,7 @@ generated_at: {{ generated_at }}
 
 <!-- GENERATED — DO NOT EDIT HERE. This file is a read-only projection of the
 approved pipeline. Edit the canonical source ({{ canonical_source }}) and
-regenerate with /pm-share --package. Direct edits here are overwritten and are
+regenerate with /pm-handoff --package. Direct edits here are overwritten and are
 not tracked by the state machine. -->
 
 # {{ story_id }} · {{ title }}
@@ -25,6 +25,9 @@ not tracked by the state machine. -->
 {% if screens %}{% for screen in screens %}### {{ screen.id }} · {{ screen.name }}
 
 {{ screen.body }}
+{% if screen.link %}
+**Prototype:** [Open {{ screen.id }} in the interactive prototype]({{ screen.link }})
+{% endif %}
 
 {% endfor %}{% else %}— not captured in source —
 

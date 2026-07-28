@@ -1272,6 +1272,20 @@ def validate_prototype_html(project_root: Path | str, path: Path | str | None = 
     if re.search(r"flat hierarchy|one screen|single[- ]surface", design_body, re.IGNORECASE) and re.search(r"Step\s+1\s+of", text, re.IGNORECASE):
         findings.append(Finding("WARNING", "STATE_RENDERED_AS_STEP", "Single-surface product appears to render states as sequential steps."))
 
+    # Every screen the design spec declares must be directly linkable in the
+    # prototype (handoff-package screen links depend on this, backlog #29) —
+    # an ERROR here means a story/screen-map link would point at nothing.
+    if design_body:
+        declared_screens = split_screen_blocks(information_architecture_section(design_body))
+        for scr_id in declared_screens:
+            if not re.search(rf'id=["\']{re.escape(scr_id)}["\']', text, re.IGNORECASE):
+                findings.append(Finding(
+                    "ERROR", "SCREEN_ANCHOR_MISSING",
+                    f"{scr_id} is declared in the design spec but has no matching "
+                    f'id="{scr_id}" element in the prototype — handoff screen links '
+                    "would be dead. Add the anchor and a hash-router entry for it.",
+                ))
+
     inputs = re.findall(r"<(?:input|textarea)\b[^>]*\bid=[\"']([^\"']+)[\"']", text, re.IGNORECASE)
     for input_id in inputs:
         if not re.search(rf"<label\b[^>]*\bfor=[\"']{re.escape(input_id)}[\"']", text, re.IGNORECASE):

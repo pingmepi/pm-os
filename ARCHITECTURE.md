@@ -86,7 +86,7 @@ flowchart TD
     subgraph Skills["skills/"]
         S1["pm-stage-NN-*<br/>(generate artifact)"]
         S2["pm-approve"]
-        S3["pm-new / pm-status<br/>pm-feedback / pm-share / pm-sync"]
+        S3["pm-new / pm-status<br/>pm-feedback / pm-handoff / pm-sync"]
         S4["pm-os-install / pm-os-update<br/>pm-os-verify"]
         S5["pm-context-import"]
         S6["pm-prototype-html<br/>(standalone HTML regen)"]
@@ -161,7 +161,7 @@ flowchart TD
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count. |
 | `skills/pm-feedback` → `scripts/pm_feedback.py` | Appends a rating/tags/free-text entry to `feedback.jsonl`; logs `feedback_submitted` into the hash chain; triggers a central sync. |
 | `skills/pm-sync` → `scripts/pm_sync.py` | Manual catch-up sync of **all** projects' telemetry/feedback to the central repo (`git_sync.push_all`); `--verify` validates every project's hash chain. |
-| `skills/pm-share` → `scripts/pm_share.py` | Two modes, both read-only projections that never touch gate/hash/status. Default: a single stage or all approved/edited stages, concatenated verbatim, to stdout or a file. `--package`: a decomposed handoff package (`handoff/`) — one self-contained file per user story in house format, assembled by walking the traceability spine (`US-### → FR-###s → UJ-### journey → covering TC-###s → serving SCR-### screens`), plus overview/reference docs (including `reference/screen-map.md`, the screen→stories reverse view) and an optional `--html` index. |
+| `skills/pm-handoff` → `scripts/pm_share.py` + `scripts/pm_handoff.py` | The single export skill, three modes. `--raw`/`scripts/pm_share.py` (default): a single stage or all approved/edited stages, concatenated verbatim, to stdout or a file — read-only, never touches gate/hash/status. `--package`/`scripts/pm_share.py --package [--audience dev\|design\|qa\|business]`: a decomposed handoff package written per-audience under `handoff/{dev,design,qa,business}/` — one self-contained story file per user story (dev, qa), assembled by walking the traceability spine (`US-### → FR-###s → UJ-### journey → covering TC-###s → serving SCR-### screens`, each screen linked into the copied prototype when it carries a matching anchor), plus overview/epic/reference docs duplicated into whichever audience folders they serve, and an optional `--html` index per folder. `--audience` scopes a rebuild to one folder, leaving siblings untouched. Bare/`jira`/`--offline` → `scripts/pm_handoff.py`: Jira ticket export (dry-run → confirm → create → record, or an offline CSV), refreshing the local package first unless `--no-package-refresh` is passed. |
 | `skills/pm-os-verify` → `scripts/pm_os_verify.py` | Health-checks the *installed* `~/.pm-os` for a runtime: `git` binary on PATH, all 9 `lib` module imports (including `html_render`, `context`, `text_metrics`), gate hooks, all 4 Jinja2 templates, config keys + `projects_dir` existence, installed skills count, plus three deterministic self-tests — gate (`pre-stage.py` blocks unapproved upstream / allows first stage), telemetry (append + hash chain + `push_all` status), and artifact contracts (detects missing PRD sections). |
 | `skills/pm-prototype-html` | Standalone skill to generate or regenerate `05-prototype-mockup.html` from the approved prototype brief and design spec without re-running the full stage 05 brief generation. Auto-invoked by `pm-stage-05-prototype-brief` after the brief is written; also callable directly to rebuild the prototype only. |
 | `skills/pm-update-roadmap-tracking` → `scripts/discover_tracking_context.py` | Reads roadmap, implementation-plan, and status docs in a product root; calls `discover_tracking_context.py` to surface recent git/doc change signals; updates only the relevant tracking docs with evidence-backed status changes, risks, and next steps. |
@@ -321,7 +321,7 @@ Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/op
 | `lib/edit_distance.py`, `lib/embeddings.py` | **Replaced/deferred.** Character and normalized edit distance are implemented in `lib/text_metrics.py`; embedding-based semantic distance is not built and is only recorded when the approving agent supplies an estimate. |
 | `hooks/post-tool-use.py` | **Not built.** Out-of-band edits are detected lazily by `pre-stage.py` on the next stage run, not on every tool use. |
 | `hooks/session-end.py` | **Not built.** Telemetry writes are synchronous; `telemetry.flush_pending()` is a no-op. |
-| Full MCP `pm-share` integration | `pm_share.py` exports a text bundle; no live connector. |
+| Full MCP export integration for the local package | `pm_share.py` (invoked via `/pm-handoff --package`/`--raw`) exports a text bundle/handoff package; no live connector — only the Jira export path (`pm_handoff.py`) has one. |
 | `sentence-transformers` dependency | Not installed. Runtime deps are `pyyaml`, `jinja2` only (git operations shell out to `git`). |
 
 Everything else in this document reflects code that exists and runs on `main`.

@@ -44,3 +44,17 @@ def test_parse_sections_no_headings_defaults_overview():
     sections = html_render._parse_sections("just a paragraph, no headings\n")
     assert len(sections) == 1
     assert sections[0]["title"] == "Overview"
+
+
+def test_prototype_screens_carry_scr_anchor_when_declared():
+    """The lo-fi fallback renderer extracts the SCR-### id from each 'Screens to Include'
+    item so the mockup is deep-linkable at `#SCR-###`, matching the anchor requirement the
+    pm-prototype-html skill and validator enforce (backlog #29). Screens named without an
+    id (a design spec predating screen ids) carry an empty screen_id, not a bogus one."""
+    screens = [
+        "SCR-001 - Agency list - purpose; content; controls",
+        "Plain screen with no id",
+    ]
+    result = html_render._prototype_screens(screens, interactions=[], components=[])
+    assert result[0]["screen_id"] == "SCR-001"
+    assert result[1]["screen_id"] == ""

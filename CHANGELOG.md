@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **`/pm-share` folded into `/pm-handoff` — one export skill.** The separate `pm-share` skill is retired; `/pm-handoff` now covers all three export shapes behind one argument grammar: `--raw [stage_id]` (the old raw text dump), `--package [--audience dev|design|qa|business]` (the readable handoff package), and the existing Jira export (bare / `jira` / `jira --offline`). `scripts/pm_share.py` is unchanged and still runs the raw/package mechanics — only the skill entrypoint moved. The Jira flow now also refreshes the local package first (skippable with `--no-package-refresh`). This reverses the earlier 2026-07-15 merge that folded a local generator *into* `/pm-share`; see the follow-up note in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md`.
+- **Handoff package is split by audience.** `/pm-handoff --package` now writes `handoff/{dev,design,qa,business}/`, each folder carrying only what that audience needs (stories in dev/qa, epics in dev/business, the overview in business, the screen map + prototype in design/qa, etc.; cross-audience docs are duplicated whole). `--audience <name>` rebuilds a single folder and leaves the others untouched; omitting it rebuilds all four. The destructive wipe-with-marker guard moved down from the `handoff/` root to each `handoff/<audience>/`, so `pm_handoff.py`'s root-level `jira-plan.*`/`jira-import.*` files can no longer collide with a package build in either run order (previously an unmarked `handoff/` from a Jira run would make a later `--package` refuse).
+
+### Added
+- **Screen deep-links in the handoff package (backlog #29, dev-lead feedback).** Every screen a story touches — and every row of `reference/screen-map.md` — now links directly into the copied interactive prototype at `wireframes/prototype.html#SCR-###`. `pm-prototype-html` (`prompt_version` 0.3.0) requires each screen container to carry an `id="SCR-###"` anchor plus a hash-router, `validate_prototype_html` enforces it (new `SCREEN_ANCHOR_MISSING` error), and the lo-fi fallback renderer (`render_prototype_mockup`) emits the same anchors. A prototype generated before this change still copies in and links — as a plain link, never a dead hash — so existing projects degrade safely; regenerate with `/pm-prototype-html` to get the anchors.
+
 ## 1.3.6-1.3.11 — 2026-07-28
 
 ### Added

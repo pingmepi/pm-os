@@ -160,7 +160,7 @@
       <div class="screen-stack" aria-label="Prototype screens">
         <h2>Lo-Fi Screens</h2>
         {% for screen in screens %}
-        <article class="screen">
+        <article class="screen"{% if screen.screen_id %} id="{{ screen.screen_id }}"{% endif %}>
           <div class="screen-bar">
             <strong>{{ screen.title }}</strong>
             <span class="pill">{{ screen.eyebrow }}</span>

@@ -179,22 +179,26 @@ Claude: /pm-sync                 Codex: $pm-sync
 - `pm-sync` pushes all projects' telemetry and feedback to the team repo. Each approval triggers this automatically **in the background** (so approval never waits on the network push); run `pm-sync` manually to verify or retry a backgrounded sync, backfill a machine that was offline, or pass `--verify` to validate every project's hash chain.
 
 ### 4.5 Share approved artifacts
+
+`/pm-handoff` is the single export skill — raw text, a readable per-audience
+package, or Jira tickets.
+
 ```text
-Claude: /pm-share                Codex: $pm-share
+Claude: /pm-handoff --raw                Codex: $pm-handoff --raw
 ```
-Use this to export the approved chain for stakeholders who don't run PM-OS. Share **approved** artifacts, not raw drafts, so external readers don't mistake a draft for a decision. By default this is a raw text dump of one stage (`/pm-share 03`) or every approved stage; write it to a file with `--output <file>`.
+Use this to export the approved chain for stakeholders who don't run PM-OS. Share **approved** artifacts, not raw drafts, so external readers don't mistake a draft for a decision. By default this is a raw text dump of one stage (`/pm-handoff --raw 03`) or every approved stage; write it to a file with `--output <file>`.
 
 **Readable handoff package (`--package`).**
 ```text
-Claude: /pm-share --package      Codex: $pm-share --package
+Claude: /pm-handoff --package      Codex: $pm-handoff --package
 ```
-Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/`: one Product Epic index per declared `EPIC-###`, one self-contained file per user story (walking the traceability spine EPIC → US → FR → journey → covering test cases → serving `SCR-###` screens), plus an overview and reference docs (including `reference/screen-map.md`, the screen → stories reverse view). Add `--html` for a cross-linked `handoff/index.html`, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA re-approval to refresh the package.
+Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get one self-contained file per user story (walking the traceability spine EPIC → US → FR → journey → covering test cases → serving `SCR-###` screens, each screen linked into the copied prototype), business gets the overview and epic index, design/qa get `reference/screen-map.md` (the screen → stories reverse view) and the prototype. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
 
 **Export to Jira (`/pm-handoff`).**
 ```text
 Claude: /pm-handoff jira         Codex: $pm-handoff jira
 ```
-Turns the approved pipeline into tracker tickets keyed to PM-OS's stable ids using Jira's default hierarchy: each declared `EPIC-###` becomes a Jira Epic, each `US-###` becomes a Story under its declared epic, each `FR-###`/`REQ-###` becomes a Task under its declared epic, and each approved TRD `TSK-###` becomes a Subtask when it implements exactly one exported Story/Task. Same-epic multi-ref `TSK-###` items become Tasks under that epic; cross-epic or unresolved tasks stay unparented for review. It requires an **approved** PRD and always runs **dry-run → you confirm → create → record** — nothing is created in Jira without an explicit yes, and only ticket keys come back into `.traceability.yaml`.
+Turns the approved pipeline into tracker tickets keyed to PM-OS's stable ids using Jira's default hierarchy: each declared `EPIC-###` becomes a Jira Epic, each `US-###` becomes a Story under its declared epic, each `FR-###`/`REQ-###` becomes a Task under its declared epic, and each approved TRD `TSK-###` becomes a Subtask when it implements exactly one exported Story/Task. Same-epic multi-ref `TSK-###` items become Tasks under that epic; cross-epic or unresolved tasks stay unparented for review. It requires an **approved** PRD and always runs **(refresh local package) → dry-run → you confirm → create → record** — the same `/pm-handoff` also refreshes `handoff/{dev,design,qa,business}/` first, skippable with `--no-package-refresh`. Nothing is created in Jira without an explicit yes, and only ticket keys come back into `.traceability.yaml`.
 
 Two routes:
 - **Connector** (default) — creates the tickets directly through the Atlassian MCP. Needs that connector authorized for your session; PM-OS never handles tokens.
@@ -261,8 +265,9 @@ Re-running creates *new* tickets — it does not detect ones you already created
 | Capture feedback | `/pm-feedback 0N` | `$pm-feedback 0N` |
 | Sync telemetry/feedback | `/pm-sync` | `$pm-sync` |
 | Regenerate HTML prototype | `/pm-prototype-html` | `$pm-prototype-html` |
-| Share approved set (raw text) | `/pm-share` | `$pm-share` |
-| Handoff package (per-story files) | `/pm-share --package` | `$pm-share --package` |
+| Share approved set (raw text) | `/pm-handoff --raw` | `$pm-handoff --raw` |
+| Handoff package (per-audience files) | `/pm-handoff --package` | `$pm-handoff --package` |
+| Handoff to Jira | `/pm-handoff jira` | `$pm-handoff jira` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 
 **Pipeline order:** (00 business statement) → [00w context wiki* + 00u understanding doc* + 00c codebase understanding*, if using `/pm-context-import`] → 01 brief → 02 scope → 03 PRD* → 04 design spec* → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap*, optional; uses approved TRD when available).

@@ -147,9 +147,16 @@ def _prototype_screens(screens: list[str], interactions: list[str], components: 
 
     prototype = []
     for index, screen in enumerate(screens):
+        # Carry the SCR-### id (when the brief's "Screens to Include" cites one) onto
+        # the rendered screen container so the lo-fi fallback is deep-linkable at
+        # `#SCR-###`, matching the interactive prototype the pm-prototype-html skill
+        # builds and the anchors the handoff package links to (backlog #29). The
+        # screens stack in one page, so a plain id anchor is enough — no hash-router.
+        scr_match = re.search(r"SCR-\d{3,}", screen, re.IGNORECASE)
         prototype.append(
             {
                 "title": screen,
+                "screen_id": scr_match.group(0).upper() if scr_match else "",
                 "eyebrow": "Start" if index == 0 else f"Step {index + 1}",
                 "components": _rotate(components, index, 4),
                 "interactions": _rotate(interactions, index, 3),
