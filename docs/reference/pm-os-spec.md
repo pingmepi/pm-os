@@ -204,7 +204,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
-artifact_contract_version: 4   # present on contract-validated Stage 03–06 generations
+artifact_contract_version: 5   # present on contract-validated Stage 03–06 generations
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---
@@ -511,7 +511,7 @@ Output sections: North star metric, Input metrics, Output metrics, Guardrail met
 ### Stage 08 — TRD (optional, use Opus)
 Optional technical capstone. Always scaffolded (`optional: true` in `.meta.yaml`) but only runnable once stages 01–07 are approved; it reads the full pipeline and details how the product is built. Owned conceptually by engineering, not the PM. Separation of concerns: the PRD says **what/why**, the TRD says **how**.
 Output sections: System context, Architecture, Data model, API/interface contracts, Key technical flows, Tech stack & rationale, Non-functional implementation, Dependencies & integrations, Trade-offs & alternatives considered, Technical risks & mitigations, Rollout/migration/deployment, **Work Breakdown**, Open technical questions.
-The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are part of the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v4, which also carries Product Epics in `epics:` and the design spec's `screens:` map) with a reserved `tickets: []` slot — only when the TRD is **approved**, and only tasks inside the `## Work Breakdown` section — and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
+The **Work Breakdown** enumerates discrete engineering tasks with stable `TSK-###` ids, each tracing (`Implements:`) to the PRD requirement(s) it delivers (Phase 3.5b). These are part of the handoff spine: `.traceability.yaml` indexes them under a `tasks:` map (schema v5, which also carries Product Epics in `epics:`, PRD-declared priority values on `US/FR/REQ`, and the design spec's `screens:` map) with a reserved `tickets: []` slot — only when the TRD is **approved**, and only tasks inside the `## Work Breakdown` section — and the tracker export (`/pm-handoff`, Phase 4b) keys tickets off them. `/pm-check` validates that `TSK-###` ids are unique, sequential, and each traces to a real PRD requirement.
 **When `genai_flag=true`:** add sections — Model serving & selection, Prompt/agent architecture (implementation), Tool/function implementation, Context & retrieval engineering, Evaluation & guardrail implementation, Inference cost & latency engineering. (The PRD keeps its product-level GenAI sections; the TRD goes deeper into implementation.)
 
 ---

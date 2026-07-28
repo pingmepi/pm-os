@@ -339,6 +339,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             "story_id": story_id,
             "title": title,
             "epic": epic_ref or NOT_CAPTURED,
+            "priority": delivery.priorities.get(story_id) or NOT_CAPTURED,
             "story_body": _strip_decl_line(block, story_id) or NOT_CAPTURED,
             "requirements": [r for r in reqs if r != story_id],
             "journeys": journeys,
@@ -359,6 +360,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
             "title": title,
             "filename": filename,
             "epic": epic_ref,
+            "priority": delivery.priorities.get(story_id),
             "requirements": [r for r in reqs if r != story_id],
         })
 
@@ -428,6 +430,7 @@ def build_package(root: Path, out_dir: Path, with_html: bool = False) -> list[Pa
 
     # --- reference docs ---
     references = {
+        "prioritization.md": ("Prioritization Method", _section_of(prd_body, "prioritization method"), prd_stamp),
         "user-journeys.md": ("User Journeys", _section_of(prd_body, "user journeys"), prd_stamp),
         "impact-analysis.md": ("Impact Analysis", _section_of(prd_body, "impact analysis"), prd_stamp),
         "nfrs.md": ("Non-Functional Requirements", _section_of(prd_body, "non-functional requirements"), prd_stamp),
@@ -569,6 +572,7 @@ def _readme(project_name: str, when: str, story_index, epic_index, sources, has_
     lines += [
         "",
         "## Reference",
+        "- [Prioritization method](reference/prioritization.md)",
         "- [User journeys](reference/user-journeys.md)",
         "- [Screen map](reference/screen-map.md) — which screens serve which stories",
         "- [QA scenarios](reference/qa-scenarios.md)",
@@ -604,7 +608,8 @@ def _write_html_index(out_dir: Path, project_name: str, when: str, story_index, 
         f"{epic_items}</ul>"
         f"<h2>User stories</h2><ul>{items}</ul>"
         f"<h2>Reference</h2>"
-        f'<ul><li><a href="reference/user-journeys.md">User journeys</a></li>'
+        f'<ul><li><a href="reference/prioritization.md">Prioritization method</a></li>'
+        f'<li><a href="reference/user-journeys.md">User journeys</a></li>'
         f'<li><a href="reference/screen-map.md">Screen map</a></li>'
         f'<li><a href="reference/qa-scenarios.md">QA scenarios</a></li>'
         f'<li><a href="reference/impact-analysis.md">Impact analysis</a></li>'

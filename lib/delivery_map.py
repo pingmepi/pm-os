@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from artifact_contracts import (
     FUNCTIONAL_REQ_ID_RE,
     JOURNEY_ID_RE,
+    block_priority,
     block_epic_refs,
     split_epic_blocks,
     split_functional_requirement_blocks,
@@ -36,6 +37,7 @@ class PrdDeliveryMap:
     journey_blocks: dict[str, str] = field(default_factory=dict)
     story_to_epic: dict[str, str] = field(default_factory=dict)
     requirement_to_epic: dict[str, str] = field(default_factory=dict)
+    priorities: dict[str, str] = field(default_factory=dict)
     story_requirements: dict[str, list[str]] = field(default_factory=dict)
     story_journeys: dict[str, list[str]] = field(default_factory=dict)
     unassigned: list[str] = field(default_factory=list)
@@ -125,6 +127,11 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
         for req_id, block in requirement_blocks.items()
         if (epic_id := single_epic_ref(block, declared_epics))
     }
+    priorities = {
+        block_id: priority
+        for block_id, block in {**story_blocks, **requirement_blocks}.items()
+        if (priority := block_priority(block))
+    }
 
     story_requirements: dict[str, list[str]] = {}
     story_journeys: dict[str, list[str]] = {}
@@ -157,6 +164,7 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
         journey_blocks=journey_blocks,
         story_to_epic=story_to_epic,
         requirement_to_epic=requirement_to_epic,
+        priorities=priorities,
         story_requirements=story_requirements,
         story_journeys=story_journeys,
         unassigned=list(dict.fromkeys(unassigned)),

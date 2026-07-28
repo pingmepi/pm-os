@@ -36,6 +36,9 @@ def _valid_prd() -> str:
 Test product.
 ## Goals and Non-Goals
 Goal and exclusions.
+## Prioritization Method
+MoSCoW. Must-have items are needed for the MVP launch path; Should/Could items
+are deferred when they do not block the primary completion signal.
 ## User Journeys
 ### UJ-001 — Complete the primary task
 **Primary user:** Operator
@@ -48,11 +51,13 @@ Goal and exclusions.
 **Traceability:** US-001, FR-001.
 ## User Stories with Acceptance Criteria
 ### US-001 — Complete work
+Priority: Must
 Happy path: The operator opens the item, reviews it, and completes it.
 Edge cases / alternate paths: If required data is unavailable, show recovery guidance.
 Acceptance criteria are observable.
 ## Functional Requirements
 - FR-001 — Complete the work.
+  Priority: Must
 ## Non-Functional Requirements
 Measurable reliability.
 ## Data & Governance
@@ -506,10 +511,11 @@ def test_user_story_without_acceptance_warns_not_errors(tmp_path):
     root = _project(tmp_path)
     body = _valid_prd().replace(
         "### US-001 — Complete work\n"
+        "Priority: Must\n"
         "Happy path: The operator opens the item, reviews it, and completes it.\n"
         "Edge cases / alternate paths: If required data is unavailable, show recovery guidance.\n"
         "Acceptance criteria are observable.\n",
-        "### US-001 — Complete work\nThe operator opens the item.\n",
+        "### US-001 — Complete work\nPriority: Must\nThe operator opens the item.\n",
     )
     _write(root, "03-prd.md", body)
     findings = contracts.validate_artifact(root, "03")
@@ -541,6 +547,39 @@ def test_contract_version_1_is_still_supported(tmp_path):
     _write(root, "03-prd.md", _valid_prd(), contract_version=1)
     codes = {f.code for f in contracts.validate_artifact(root, "03")}
     assert "CONTRACT_VERSION_MISSING" not in codes
+
+
+def test_prd_prioritization_method_and_values_are_warning_only(tmp_path):
+    """Contract v5 makes prioritization auditable without blocking existing PRDs:
+    missing method/story/requirement priority values warn, while complete labeled
+    values are clean for those checks."""
+    root = _project(tmp_path)
+    body = (
+        _valid_prd()
+        .replace(
+            "## Prioritization Method\n"
+            "MoSCoW. Must-have items are needed for the MVP launch path; Should/Could items\n"
+            "are deferred when they do not block the primary completion signal.\n",
+            "",
+        )
+        .replace("  Priority: Must\n", "")
+        .replace("Priority: Must\n", "")
+    )
+    _write(root, "03-prd.md", body, contract_version=5)
+    findings = contracts.validate_artifact(root, "03")
+    codes = {f.code for f in findings}
+    assert {
+        "PRIORITIZATION_METHOD_MISSING",
+        "USER_STORY_PRIORITY_MISSING",
+        "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING",
+    }.issubset(codes)
+    assert contracts.error_count(findings) == 0
+
+    _write(root, "03-prd.md", _valid_prd(), contract_version=5)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "PRIORITIZATION_METHOD_MISSING" not in codes
+    assert "USER_STORY_PRIORITY_MISSING" not in codes
+    assert "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING" not in codes
 
 
 def test_impact_analysis_is_a_recommended_prd_section(tmp_path):

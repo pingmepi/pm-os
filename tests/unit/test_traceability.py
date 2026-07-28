@@ -39,11 +39,14 @@ _PRD = """# PRD
 **Success signal:** Audit trail is visible.
 ## Functional Requirements
 - FR-001 — Do the thing.
+  - Priority: Must
   - Epic: EPIC-001
 - FR-002 — Audit the thing.
+  - Priority: Should
   - Epic: EPIC-002
 ## User Stories with Acceptance Criteria
 ### US-001 — Story
+Priority: Must
 Epic: EPIC-001
 ok
 """
@@ -203,18 +206,21 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v4_with_tasks_epics_and_screens_maps(tmp_path):
-    """The index declares schema_version 4 and carries tasks, Product Epics, and
-    screens maps."""
+def test_index_is_schema_v5_with_priorities_tasks_epics_and_screens_maps(tmp_path):
+    """The index declares schema_version 5 and carries priority, tasks, Product
+    Epics, and screens maps."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 4
+    assert index["schema_version"] == 5
     assert "tasks" in index and "epics" in index and "screens" in index
     assert index["epics"]["EPIC-001"]["tickets"] == []
     assert index["epics"]["EPIC-001"]["stories"] == ["US-001"]
     assert index["epics"]["EPIC-002"]["requirements"] == ["FR-002"]
     assert index["requirements"]["FR-001"]["epic"] == "EPIC-001"
+    assert index["requirements"]["US-001"]["priority"] == "Must"
+    assert index["requirements"]["FR-001"]["priority"] == "Must"
+    assert index["requirements"]["FR-002"]["priority"] == "Should"
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):

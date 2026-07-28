@@ -39,18 +39,24 @@ _PRD = """## Product Epics
 ## User Journeys
 ### UJ-001 — Manage agencies
 Primary user: Collections user. Traceability: US-001.
+## Prioritization Method
+MoSCoW. Must items cover the MVP approval path; Should items improve discovery
+without blocking first release.
 ## User Stories with Acceptance Criteria
 ### US-001 — Add external agency
+Priority: Must
 Epic: EPIC-001
 As a Collections user, I want to add agencies, so that cases can be allocated.
 Traceability: UJ-001, FR-001.
 Data fields: Agency Code, Status.
 Acceptance: agency saved with status Sent for approval.
 ### US-002 — List agencies
+Priority: Should
 Epic: EPIC-002
 As a user, I want to list agencies.
 ## Functional Requirements
 FR-001 — The system stores agencies.
+Priority: Must
 Epic: EPIC-001
 ## Non-Functional Requirements
 Performance: list loads under 2s for 10k agencies.
@@ -88,6 +94,8 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
 
     story = (pkg / "stories" / "US-001-add-external-agency.md").read_text()
     assert "epic: EPIC-001" in story
+    assert "priority: Must" in story
+    assert "- **Priority:** Must" in story
     # Assembled from the spine: both covering test cases resolved and listed together.
     assert "TC-001" in story and "TC-002" in story
     assert "TC-001, TC-002" in story  # the joined "Covering test cases" line
@@ -181,6 +189,8 @@ def test_package_overview_and_reference_docs(pmos, new_project):
     pkg = proj / "handoff"
 
     assert "Collections users at mid-size banks" in (pkg / "00-overview.md").read_text()
+    assert "MoSCoW" in (pkg / "reference" / "prioritization.md").read_text()
+    assert "[Prioritization method](reference/prioritization.md)" in (pkg / "README.md").read_text()
     assert "Pitboss" in (pkg / "reference" / "impact-analysis.md").read_text()
     assert "under 2s" in (pkg / "reference" / "nfrs.md").read_text()
 
