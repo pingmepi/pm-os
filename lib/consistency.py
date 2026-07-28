@@ -64,6 +64,8 @@ CODE_SCREEN_ORPHAN = "SCREEN_ORPHAN"
 CODE_SCREEN_UNKNOWN_REQ = "SCREEN_UNKNOWN_REQ"
 CODE_SCREEN_IDS_MISSING = "SCREEN_IDS_MISSING"
 CODE_STORY_HAS_NO_SCREEN = "STORY_HAS_NO_SCREEN"
+CODE_HISTORY_SNAPSHOT_MISSING = "HISTORY_SNAPSHOT_MISSING"
+CODE_HISTORY_SNAPSHOT_HASH_MISMATCH = "HISTORY_SNAPSHOT_HASH_MISMATCH"
 
 
 @dataclass(frozen=True)
@@ -121,6 +123,7 @@ def check_project(project_root) -> list[Issue]:
         lambda: _check_context_yaml_parses(project_root),
         lambda: _check_trd_task_ids(project_root, stages, paths, exists),
         lambda: _check_screen_ids(project_root, stages, paths, exists),
+        lambda: _check_history_lineage(project_root, stages, paths, exists),
     )
     for check in checks:
         try:
@@ -130,6 +133,54 @@ def check_project(project_root) -> list[Issue]:
                 CODE_CHECK_FAILED, "error", None,
                 f"An internal consistency check failed unexpectedly: {e}",
                 "This is likely a bug in lib/consistency.py — report it.",
+            ))
+    return issues
+
+
+def _history_snapshots(project_root: Path, apath: Path) -> list[Path]:
+    history = project_root / ".history"
+    if not history.is_dir():
+        return []
+    return sorted(history.glob(f"{apath.stem}.*.generated.md"))
+
+
+def _check_history_lineage(project_root: Path, stages: list[dict], paths: dict[str, Path], exists: dict[str, bool]) -> list[Issue]:
+    issues: list[Issue] = []
+    for stage in stages:
+        sid = stage.get("id")
+        if sid not in STAGE_NAMES or not exists.get(sid):
+            continue
+        apath = paths[sid]
+        try:
+            fm, _body = fm_read(str(apath))
+        except Exception:
+            continue
+        generated_hash = fm.get("generated_hash")
+        if not generated_hash:
+            continue
+        snapshots = _history_snapshots(project_root, apath)
+        if not snapshots:
+            issues.append(Issue(
+                CODE_HISTORY_SNAPSHOT_MISSING, "warning", sid,
+                f"{apath.name} declares generated_hash but has no generated snapshot in .history/",
+                f"Regenerate stage {sid} or run `python3 ~/.pm-os/scripts/pm_snapshot.py {sid}` after writing the artifact.",
+            ))
+            continue
+        matching = False
+        unreadable: list[str] = []
+        for snap in snapshots:
+            try:
+                if hash_artifact_body(str(snap)) == generated_hash:
+                    matching = True
+                    break
+            except Exception:
+                unreadable.append(snap.name)
+        if not matching:
+            detail = f" Unreadable snapshots: {', '.join(unreadable)}." if unreadable else ""
+            issues.append(Issue(
+                CODE_HISTORY_SNAPSHOT_HASH_MISMATCH, "warning", sid,
+                f"No generated snapshot for {apath.name} matches its generated_hash.{detail}",
+                f"Regenerate stage {sid} or run `python3 ~/.pm-os/scripts/pm_snapshot.py {sid}` after correcting the artifact hash.",
             ))
     return issues
 

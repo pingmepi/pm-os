@@ -114,6 +114,15 @@ def test_product_artifact_skills_enforce_current_contracts():
         assert f"pm_validate_artifact.py {stage_id} --mode strict" in body
 
 
+def test_stage_skills_use_python_snapshot_helper():
+    """Generated artifact history is owned by pm_snapshot.py, not by hand-written
+    agent copies inside each stage skill."""
+    for sid in STAGE_IDS:
+        body = (stage_skill_dir(sid) / "SKILL.md").read_text()
+        assert f"pm_snapshot.py {sid}" in body, f"stage {sid}: missing snapshot helper call"
+        assert "Save to history" not in body, f"stage {sid}: still asks the agent to hand-write history"
+
+
 def test_context_import_skill_produces_modular_pack():
     """The context-import skill must instruct producing the modular pack the engine
     consumes (evidence ledger + source inventory + manifest assembly), and must NOT

@@ -237,9 +237,9 @@ Rules:
 
 After generating, do the following in order:
 
-1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the same final frontmatter and body for both history and `04-design-spec.md` so the generated draft and history snapshot match.
+1. **Prepare final frontmatter and body.** Generate the body first, then prepare final frontmatter with the values below. Use the final frontmatter and body for `04-design-spec.md`; the snapshot helper copies that exact artifact into `.history/` after it is written.
 
-2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary history file for this step, replace any placeholder hash with the computed hash before the final history and artifact writes.
+2. **Compute generated_hash:** compute the hash from the artifact body that will be written. If you use a temporary file for this step, replace any placeholder hash with the computed hash before the final artifact write.
 
    ```bash
    python3 -c "
@@ -249,13 +249,7 @@ After generating, do the following in order:
    "
    ```
 
-3. **Save to history:**
-   ```text
-   .history/04-design-spec.<ISO8601-timestamp>.generated.md
-   ```
-   Write the full final content (frontmatter + body, including the computed `generated_hash`) to this file.
-
-4. **Write `04-design-spec.md`** with the same frontmatter:
+3. **Write `04-design-spec.md`** with the same frontmatter:
    ```yaml
    ---
    stage: 04-design-spec
@@ -273,11 +267,18 @@ After generating, do the following in order:
    ```
    Followed by the generated body.
 
+4. **Write generated snapshot:**
+   Immediately after writing the artifact, run:
+```bash
+python3 ~/.pm-os/scripts/pm_snapshot.py 04
+```
+This helper stamps/verifies `generated_hash` and copies the exact artifact into `.history/`. If it prints a warning, surface it to the PM but continue; snapshot lineage is warning-only.
+
 5. **Validate the artifact contract:**
    ```bash
    python3 ~/.pm-os/scripts/pm_validate_artifact.py 04 --mode strict
    ```
-   If validation exits non-zero, repair the artifact and history snapshot, recompute the hash, and rerun validation before metadata or telemetry updates. Recommended-section warnings are non-blocking.
+   If validation exits non-zero, repair the artifact, recompute the hash, rerun the snapshot helper, and rerun validation before metadata or telemetry updates. Recommended-section warnings are non-blocking.
 
 6. **Update `.meta.yaml`** - for stage 04, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
 
