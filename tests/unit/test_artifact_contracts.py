@@ -134,6 +134,86 @@ Keyboard and screen reader.
     assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
 
 
+def test_design_warns_when_prd_empty_invalid_behavior_is_missing(tmp_path):
+    """Stage 04 should visibly reconcile PRD input edge behavior instead of letting
+    a contradictory or incomplete design reach the prototype unnoticed."""
+    root = _project(tmp_path)
+    prd = _valid_prd().replace(
+        "## Edge Cases\nUnavailable data.\n",
+        "## Edge Cases\nEmpty submit shows low-confidence recovery. Invalid input shows correction guidance.\n",
+    )
+    _write(root, "03-prd.md", prd)
+    body = """# Design Spec
+## Information Architecture
+Single surface.
+## Journey-to-Flow Traceability
+UJ-001 maps to the primary flow.
+## Key User Flows
+Start, act, recover, finish.
+## Product UX Guardrails
+Interaction model: retrieval-only
+## Design Principles
+Trust first.
+## Component Inventory
+Form and result.
+## Responsive & Platform Behavior
+Tablet first.
+## UX Content Rules
+Use find language.
+## Typography
+Readable.
+## Color Tokens
+Semantic.
+## Spacing Tokens
+Four-point scale.
+## Iconography
+Meaningful only.
+## Accessibility Notes
+Keyboard and screen reader.
+"""
+    _write(root, "04-design-spec.md", body, contract_version=7)
+    warning = next(f for f in contracts.validate_artifact(root, "04") if f.code == "DESIGN_PRD_EDGE_BEHAVIOR_MISSING")
+    assert "empty" in warning.message and "invalid" in warning.message
+
+
+def test_design_warns_on_placeholder_without_discoverability_affordance(tmp_path):
+    """If a spec uses placeholder text while saying inputs are not placeholder-only,
+    it must name the actual label/helper/hint affordance."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _valid_prd())
+    body = """# Design Spec
+## Information Architecture
+Single surface.
+## Journey-to-Flow Traceability
+UJ-001 maps to the primary flow.
+## Key User Flows
+Start, act, recover, finish.
+## Product UX Guardrails
+Interaction model: retrieval-only
+## Design Principles
+Trust first.
+## Component Inventory
+Search input uses placeholder "Enter query".
+## Responsive & Platform Behavior
+Tablet first.
+## UX Content Rules
+Use find language.
+## Typography
+Readable.
+## Color Tokens
+Semantic.
+## Spacing Tokens
+Four-point scale.
+## Iconography
+Meaningful only.
+## Accessibility Notes
+Inputs must not be placeholder-only.
+"""
+    _write(root, "04-design-spec.md", body, contract_version=7)
+    codes = {f.code for f in contracts.validate_artifact(root, "04")}
+    assert "INPUT_DISCOVERABILITY_AFFORDANCE_MISSING" in codes
+
+
 def test_prototype_brief_requires_modes_validation_and_a_journey(tmp_path):
     root = _project(tmp_path)
     _write(root, "03-prd.md", _valid_prd())

@@ -187,7 +187,7 @@ REQUIRED_SECTIONS = {
 
 RECOMMENDED_SECTIONS = {
     "03": ["Prioritization Method", "Journey-Requirement Traceability", "Assumptions & Open Decisions", "Impact Analysis"],
-    "04": ["Responsive & Platform Behavior", "UX Content Rules"],
+    "04": ["Input Behavior Reconciliation", "Responsive & Platform Behavior", "UX Content Rules"],
     "05": ["Prototype Data & Scenarios", "Known Limitations"],
     "06": ["Requirement-Test Traceability"],
 }
@@ -1015,6 +1015,67 @@ def _interaction_model(sections: dict[str, str]) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def _upstream_prd_sections(project_root: Path) -> dict[str, str]:
+    path = artifact_path(project_root, "03")
+    if not path.exists():
+        return {}
+    try:
+        _fm, body = fm_read(str(path))
+    except Exception:
+        return {}
+    return _sections(body)
+
+
+def _validate_design_edge_behavior_alignment(project_root: Path, design_body: str) -> list[Finding]:
+    prd_sections = _upstream_prd_sections(project_root)
+    prd_edge_text = "\n".join(
+        part for part in (
+            _section(prd_sections, "Edge Cases") or "",
+            _section(prd_sections, "User Stories with Acceptance Criteria") or "",
+        )
+        if part
+    )
+    if not prd_edge_text.strip():
+        return []
+    checks = {
+        "empty": r"\bempty\b|\bblank\b|\bmissing\b|\bno\s+input\b",
+        "invalid": r"\binvalid\b|\bmalformed\b|\bbad\s+input\b",
+    }
+    missing = [
+        label for label, pattern in checks.items()
+        if re.search(pattern, prd_edge_text, re.IGNORECASE)
+        and not re.search(pattern, design_body or "", re.IGNORECASE)
+    ]
+    if not missing:
+        return []
+    return [Finding(
+        "WARNING", "DESIGN_PRD_EDGE_BEHAVIOR_MISSING",
+        "Design spec does not reconcile PRD input edge behavior for: "
+        + ", ".join(missing),
+    )]
+
+
+def _validate_input_discoverability(sections: dict[str, str], body: str) -> list[Finding]:
+    text = body or ""
+    if not re.search(r"\bplaceholder\b", text, re.IGNORECASE):
+        return []
+    accessibility = _section(sections, "Accessibility Notes") or ""
+    if not re.search(r"not\s+placeholder-only|placeholder-only", accessibility, re.IGNORECASE):
+        return []
+    positive_affordance_text = "\n".join([
+        _section(sections, "Component Inventory") or "",
+        _section(sections, "Input Behavior Reconciliation") or "",
+        accessibility,
+    ])
+    if re.search(r"\b(label|helper text|help text|hint|description|aria-label|visible affordance)\b", positive_affordance_text, re.IGNORECASE):
+        return []
+    return [Finding(
+        "WARNING", "INPUT_DISCOVERABILITY_AFFORDANCE_MISSING",
+        "Design spec references placeholder-only input risk but does not name a visible "
+        "label, helper text, hint, description, or aria-label affordance.",
+    )]
+
+
 def _validate_stage_04(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings = _validate_journey_references(project_root, body, "04")
     if _interaction_model(sections) is None:
@@ -1023,6 +1084,8 @@ def _validate_stage_04(project_root: Path, sections: dict[str, str], body: str) 
             "Product UX Guardrails must declare Interaction model: retrieval-only | generative | mixed | non-AI.",
         ))
     findings.extend(_validate_screens(_section(sections, "Information Architecture") or ""))
+    findings.extend(_validate_design_edge_behavior_alignment(project_root, body))
+    findings.extend(_validate_input_discoverability(sections, body))
     return findings
 
 
