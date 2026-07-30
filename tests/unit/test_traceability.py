@@ -146,6 +146,27 @@ def test_scenarios_for_requirement_both_directions(tmp_path):
     assert trace.requirements_for_scenario(root, "tc-001") == ["US-001", "FR-001"]
 
 
+def test_uncovered_requirements_span_all_tiers_with_labels(tmp_path):
+    """`/pm-trace`'s coverage report is a whole-product inspector (not a pipeline
+    gate): it lists uncovered requirements across *all* tiers so a PM can audit
+    deferred coverage too, and `uncovered_requirement_tiers` labels each with its
+    tier (deferred shown, not hidden). Reference-only phantom ids are still excluded
+    by the underlying resolver."""
+    root = _project(tmp_path)
+    prd = _PRD.replace(
+        "- FR-002 — Audit the thing.\n  - Priority: Should\n  - Epic: EPIC-002\n",
+        "- FR-002 — Audit the thing.\n  - Priority: Should\n  - Epic: EPIC-002\n  - Tier: later\n",
+    )
+    _write(root, "03-prd.md", prd)
+    # TC-001 covers FR-001; US-001 (mvp) and FR-002 (deferred) are both uncovered.
+    _write(root, "06-qa-plan.md", "## Functional Test Cases\n### TC-001 — only FR-001\nsteps\n")
+    trace.rebuild(root)
+    # Whole product: the deferred FR-002 is still surfaced as a gap.
+    assert trace.uncovered_requirements(root) == ["FR-002", "US-001"]
+    # ...but labeled with its tier so it reads as roadmap context, not an mvp gap.
+    assert trace.uncovered_requirement_tiers(root) == {"FR-002": "later", "US-001": "mvp"}
+
+
 def test_uncovered_requirements_reports_gaps(tmp_path):
     """A requirement no scenario references is reported as uncovered."""
     root = _project(tmp_path)

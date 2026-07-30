@@ -486,10 +486,30 @@ def requirements_for_task(project_root: Path | str, tsk_id: str) -> list[str]:
 
 
 def uncovered_requirements(project_root: Path | str) -> list[str]:
-    """Requirement ids that have no covering TC-### (a coverage gap)."""
+    """Declared requirement ids with no covering TC-### — the coverage gaps surfaced
+    by the ``/pm-trace`` inspector.
+
+    Deliberately **whole-product**, unlike the pipeline coverage *gates* (QA / screen
+    / TRD checks) which scope to the mvp band. ``/pm-trace`` is an on-demand audit
+    tool, not a stage warning, so a PM can see deferred (`v1`/`v2`/`later`) coverage
+    too; the caller labels each id with its tier. Reference-only phantom ids
+    (``declared`` False — an id cited in a trace but with no PRD block) are excluded:
+    they are not requirements, so they cannot be uncovered ones."""
     index = _index_for_query(project_root)
     return sorted(
         req_id
         for req_id, entry in (index.get("requirements") or {}).items()
-        if not (entry.get("test_cases") or [])
+        if (entry or {}).get("declared") and not (entry.get("test_cases") or [])
     )
+
+
+def uncovered_requirement_tiers(project_root: Path | str) -> dict[str, str]:
+    """``{req_id: tier}`` for every uncovered requirement (same predicate as
+    ``uncovered_requirements``), so callers can tier-label the gap list from a single
+    index read. Tier defaults to ``mvp`` when untagged."""
+    index = _index_for_query(project_root)
+    return {
+        req_id: ((entry or {}).get("tier") or DEFAULT_TIER)
+        for req_id, entry in (index.get("requirements") or {}).items()
+        if (entry or {}).get("declared") and not (entry.get("test_cases") or [])
+    }
