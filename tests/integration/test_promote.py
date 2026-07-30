@@ -73,6 +73,25 @@ def test_promote_preview_rejects_reference_only_id(pmos, new_project):
     assert "not a declared" in (res.stdout + res.stderr)
 
 
+_PRD_TYPO_TIER = """## Functional Requirements
+- FR-001 — Work.
+## User Stories with Acceptance Criteria
+### US-001 — Login
+- **Tier:** mpv
+Acceptance: works.
+"""
+
+
+def test_promote_preview_rejects_invalid_current_tier(pmos, new_project):
+    """A declared block with a typo'd tier (the validator only warns) must not crash
+    the preview — it errors with an actionable message, not an uncaught ValueError."""
+    proj = new_project("promote-typo", "A problem")
+    make_draft(proj, "03", body=_PRD_TYPO_TIER)
+    res = run_script(pmos, "pm_promote.py", "US-001", cwd=proj)
+    assert res.returncode != 0
+    assert "unrecognized tier" in (res.stdout + res.stderr)
+
+
 def test_status_shows_tier_counts(pmos, new_project):
     """pm_status prints a whole-product tier breakdown once a PRD carries tiers."""
     proj = new_project("status-tiers", "A problem")

@@ -68,6 +68,11 @@ def preview(req_id: str, to: str | None = None, demote: bool = False) -> None:
     # reality, not the last-approved index.
     entry = (traceability.build_index(root).get("requirements") or {}).get(req_id) or {}
     current = entry.get("tier") or DEFAULT_TIER
+    if current not in _TIER_ORDER:
+        raise SystemExit(
+            f"{req_id} has an unrecognized tier '{current}' in the PRD. "
+            f"Fix its `Tier:` field (one of {', '.join(_TIER_ORDER)}) before promoting."
+        )
 
     if to:
         target = to.lower()
