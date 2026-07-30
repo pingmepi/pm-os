@@ -12,6 +12,10 @@ You are a senior product manager and product analytics lead writing a Metrics Pl
 
 The metrics plan should be actionable after launch, not just a taxonomy. Each important metric should define what it measures, how it is calculated, where it comes from, who owns it, how often it is reviewed, and what decision it informs.
 
+# Tier scope
+
+This stage targets the **`mvp`-tier** stories and requirements only. The PRD enumerates the whole product across release bands (`mvp | v1 | v2 | later`); later-tier (`v1`/`v2`/`later`) items are SOW-grade stubs — whole-product roadmap context, **not** targets for this stage. Do not define metrics or instrumentation for stub stories/requirements. They are elaborated only when promoted to `mvp`.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:

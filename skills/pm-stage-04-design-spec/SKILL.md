@@ -31,6 +31,10 @@ This stage benefits from the strongest reasoning model available in the current 
 
 This check is advisory: it reads your own session model only when the runtime exposes it. Do not require the PM to run a model-switch command if the current model already appears suitable or cannot be inspected. The frontmatter `model_tier:` value records the recommended model tier.
 
+# Tier scope
+
+This stage targets the **`mvp`-tier** stories and requirements only. The PRD enumerates the whole product across release bands (`mvp | v1 | v2 | later`); later-tier (`v1`/`v2`/`later`) items are SOW-grade stubs — whole-product roadmap context, **not** targets for this stage. Do not create screens, flows, or components for stub stories/requirements. They are elaborated only when promoted to `mvp`.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -338,7 +342,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 
 # Self-check before writing
 
-1. Does every major screen or component trace back to an approved PRD requirement — and does every `SCR-###` carry a `Serves:` line, with every user story served by at least one screen (or explicitly noted as screenless)?
+1. Does every major screen or component trace back to an approved PRD requirement — and does every `SCR-###` carry a `Serves:` line, with every **`mvp`-tier** user story served by at least one screen (or explicitly noted as screenless)? (Later-tier stub stories are roadmap context — do not create screens for them.)
 2. Is every PRD journey mapped to UI flows, screens/overlays, states, and recovery paths?
 3. Does Product UX Guardrails declare the correct interaction model and prohibit misleading patterns?
 4. Does Input Behavior Reconciliation preserve PRD empty/invalid-input behavior and avoid placeholder-only discoverability?
