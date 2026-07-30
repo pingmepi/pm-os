@@ -367,8 +367,10 @@ def build_package(
     )
 
     # Shared PRD delivery map: stories, requirements, journeys, and declared
-    # Product Epics. This is the same decomposition `pm_handoff.py` uses.
-    delivery = build_prd_delivery_map(prd_body)
+    # Product Epics. This is the same decomposition `pm_handoff.py` uses. The
+    # handoff package is what to build now, so scope to the mvp band — deferred
+    # (v1/v2/later) stubs are roadmap context, not per-audience build items.
+    delivery = build_prd_delivery_map(prd_body, mvp_only=True)
 
     # --- prototype: read once, detect anchors once (backlog #29) ---
     proto = root / "05-prototype-mockup.html"

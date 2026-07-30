@@ -184,7 +184,9 @@ def build_plan(root: Path) -> dict:
         raise SystemExit("Error: no approved PRD (03-prd.md) found — nothing to export.")
 
     prd_stamp = _stamp(root, "03")
-    delivery = build_prd_delivery_map(prd_body)
+    # Jira tickets are build work — scope to the mvp band so deferred (v1/v2/later)
+    # SOW-grade stubs stay roadmap context, not Stories/Tasks/Epics (AGENTS.md).
+    delivery = build_prd_delivery_map(prd_body, mvp_only=True)
     story_blocks = delivery.story_blocks
     fr_blocks = delivery.requirement_blocks
 
