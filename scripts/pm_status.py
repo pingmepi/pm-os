@@ -10,6 +10,7 @@ sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os
 from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
 from artifact_contracts import validate_artifact
+import traceability
 from consistency import check_project, summary_line
 
 STAGE_LABELS = {
@@ -94,6 +95,18 @@ def main():
         origin = s.get("origin", "generated")
         status_tag = f"{status} · {origin}" if origin in ("imported", "backfilled") else status
         print(f"  {s['id']} {label} [{status_tag}]{detail}{notes_str}{contract_str}{opt}")
+
+    # Whole-product tier breakdown (from the PRD requirements, when present).
+    try:
+        by_tier = traceability.requirements_by_tier(traceability.build_index(root))
+        if by_tier:
+            order = ["mvp", "v1", "v2", "later"]
+            parts = [f"{t}: {len(by_tier[t])}" for t in order if t in by_tier]
+            parts += [f"{t}: {len(v)}" for t, v in by_tier.items() if t not in order]
+            print()
+            print("Tiers: " + "  ".join(parts))
+    except Exception:
+        pass
 
     tpath = root / "telemetry.jsonl"
     events = []
