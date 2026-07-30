@@ -50,7 +50,27 @@ def test_promote_preview_unknown_requirement_errors(pmos, new_project):
     make_draft(proj, "03", body=_TIERED_PRD)
     res = run_script(pmos, "pm_promote.py", "US-999", "--to", "mvp", cwd=proj)
     assert res.returncode != 0
-    assert "not found" in (res.stdout + res.stderr)
+    assert "not a declared" in (res.stdout + res.stderr)
+
+
+_PRD_REFERENCES_UNDECLARED_FR = """## Functional Requirements
+- FR-001 — Complete the work.
+## User Stories with Acceptance Criteria
+### US-001 — Core login
+- **Tier:** mvp
+- **Traceability:** FR-999
+Acceptance: works.
+"""
+
+
+def test_promote_preview_rejects_reference_only_id(pmos, new_project):
+    """A requirement merely referenced in the PRD (no declaring block) is rejected —
+    the traceability index would report a tier, but there is no block to re-tag."""
+    proj = new_project("promote-refonly", "A problem")
+    make_draft(proj, "03", body=_PRD_REFERENCES_UNDECLARED_FR)
+    res = run_script(pmos, "pm_promote.py", "FR-999", "--to", "mvp", cwd=proj)
+    assert res.returncode != 0
+    assert "not a declared" in (res.stdout + res.stderr)
 
 
 def test_status_shows_tier_counts(pmos, new_project):

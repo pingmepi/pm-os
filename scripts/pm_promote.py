@@ -17,8 +17,14 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
-from project import resolve_project, load_meta, get_stage, downstream_stage_ids, STAGE_NAMES  # noqa: E402
-from artifact_contracts import TIERS, DEFAULT_TIER  # noqa: E402
+from project import resolve_project, load_meta, get_stage, downstream_stage_ids, STAGE_NAMES, artifact_path  # noqa: E402
+from artifact_contracts import (  # noqa: E402
+    DEFAULT_TIER,
+    TIERS,
+    split_functional_requirement_blocks,
+    split_user_story_blocks,
+)
+from frontmatter import read as fm_read  # noqa: E402
 import traceability  # noqa: E402
 
 # Release bands ordered earliest → latest. Promote steps toward mvp; demote away.
@@ -34,17 +40,33 @@ def _step_tier(current: str, promote: bool) -> str | None:
 def preview(req_id: str, to: str | None = None, demote: bool = False) -> None:
     root = resolve_project()
     meta = load_meta(root)
-    # Build fresh from the current PRD body so the preview reflects unsaved-tier
-    # reality, not the last-approved index.
-    index = traceability.build_index(root)
     req_id = req_id.upper()
 
-    entry = (index.get("requirements") or {}).get(req_id)
-    if entry is None:
-        raise SystemExit(
-            f"Requirement {req_id} not found in the PRD. Promote operates on "
-            f"US-###/FR-### ids declared in 03-prd.md."
+    # Gate on ids actually DECLARED as a US/FR block in the PRD. An id merely
+    # referenced (e.g. a story tracing to an undeclared FR-999) has no block to
+    # re-tag, so promoting it is meaningless — even though the traceability index,
+    # which indexes every referenced id, would happily report a tier.
+    prd_path = artifact_path(root, "03")
+    prd_body = ""
+    if prd_path.exists():
+        try:
+            _fm, prd_body = fm_read(str(prd_path))
+        except Exception:
+            prd_body = ""
+    declared = {
+        d.upper() for d in (
+            set(split_user_story_blocks(prd_body)) | set(split_functional_requirement_blocks(prd_body))
         )
+    }
+    if req_id not in declared:
+        raise SystemExit(
+            f"{req_id} is not a declared US-###/FR-### block in the PRD "
+            f"(absent, or only referenced). Promote operates on declared story/requirement blocks."
+        )
+
+    # Build fresh from the current PRD body so the preview reflects unsaved-tier
+    # reality, not the last-approved index.
+    entry = (traceability.build_index(root).get("requirements") or {}).get(req_id) or {}
     current = entry.get("tier") or DEFAULT_TIER
 
     if to:
