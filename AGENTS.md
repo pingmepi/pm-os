@@ -48,7 +48,7 @@ project creation, gates, approvals, telemetry, and sharing.
 The core product pipeline has seven approved stages:
 
 1. `01-brief.md` - product brief
-2. `02-scope.md` - MVP scope
+2. `02-scope.md` - product scope, tiered into release bands (`mvp | v1 | v2 | later`); the MVP is the `mvp`-tagged band. Downstream stages focus on the `mvp` tier by default.
 3. `03-prd.md` - product requirements document
 4. `04-design-spec.md` - design specification
 5. `05-prototype-brief.md` - prototype brief

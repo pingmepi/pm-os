@@ -191,6 +191,7 @@ GenAI handling:
 
 - Anchor scope to the success hypothesis from stage 01.
 - Scope the whole product, tiered. Enumerate everything the product will include and tag each In-Scope item with its release tier; the phase-roadmap (next stage) sequences these tiers into phases. Do not fully specify later tiers here — that is the PRD's job on promotion.
+- Downstream stages (PRD, design, QA, metrics) focus on the `mvp` tier by default; later tiers are whole-product context and roadmap input, elaborated only when promoted. Tiering the scope must not broaden what the MVP itself commits to build.
 - Prefer crisp bullets or short paragraphs inside sections, whichever is clearer.
 - Keep the **`mvp` tier** narrow. If a feature is not essential to validating the core hypothesis, tag it `v1`/`v2`/`later` (still In Scope, still visible) rather than folding it into the mvp band.
 - In Scope should enumerate the whole product across tiers; the `mvp`-tagged items should form a coherent minimum journey, not a loose backlog.
