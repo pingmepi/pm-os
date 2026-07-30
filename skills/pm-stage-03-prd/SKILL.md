@@ -182,7 +182,7 @@ These `US-###` ids are the **stable traceability handles** for the whole pipelin
 
 ## Functional Requirements
 
-<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. For each `FR-###`/`REQ-###`, include exactly one labeled `Epic: EPIC-###` line pointing to a declared Product Epic and one labeled `Priority:` line using the same framework declared in `## Prioritization Method`. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
+<Describe the required system behaviors, workflows, states, rules, and integrations implied by the user stories. Use stable IDs such as `FR-001` (you may also use `REQ-001` for an umbrella requirement), state observable behavior, and map each major requirement to a user story or scope item. For each `FR-###`/`REQ-###`, include exactly one labeled `Epic: EPIC-###` line pointing to a declared Product Epic, one labeled `Priority:` line using the same framework declared in `## Prioritization Method`, and one labeled `Tier:` line (`mvp | v1 | v2 | later`, default `mvp`) carried from the approved scope so deferred requirements are not silently treated as MVP. Like `US-###`, these `FR-###`/`REQ-###` ids are stable traceability handles — keep them constant across regenerations; only append new ids, never renumber existing ones.>
 
 ## Non-Functional Requirements
 

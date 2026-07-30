@@ -1181,6 +1181,18 @@ def test_non_mvp_stub_missing_traceability_warns(tmp_path):
     assert "US-100" in stubf.message and "Traceability" in stubf.message
 
 
+def test_functional_requirement_invalid_tier_warns(tmp_path):
+    """An FR with a typo'd Tier raises FUNCTIONAL_REQUIREMENT_TIER_INVALID (Codex P1:
+    FRs carry and are validated on their scope tier, like stories)."""
+    root = _project(tmp_path)
+    body = _valid_prd().replace(
+        "- FR-001 — Complete the work.\n  Priority: Must",
+        "- FR-001 — Complete the work.\n  Priority: Must\n  Tier: bogus")
+    _write(root, "03-prd.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "FUNCTIONAL_REQUIREMENT_TIER_INVALID" in codes
+
+
 def test_invalid_tier_is_flagged_and_kept_on_mvp_checks(tmp_path):
     """A typo'd tier (e.g. `mpv`) is surfaced as USER_STORY_TIER_INVALID and is NOT
     treated as a non-mvp stub — it stays on the full mvp mini-spec, so a typo can't

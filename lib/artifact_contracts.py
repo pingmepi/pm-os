@@ -875,6 +875,16 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "Functional requirements with no labeled `Priority:` value: "
             + ", ".join(missing_requirement_priority),
         ))
+    invalid_requirement_tier = sorted(
+        req_id for req_id, block in requirement_blocks.items()
+        if not is_valid_tier(block_tier(block))
+    )
+    if invalid_requirement_tier:
+        findings.append(Finding(
+            "WARNING", "FUNCTIONAL_REQUIREMENT_TIER_INVALID",
+            "Functional requirements with an unrecognized Tier (use mvp|v1|v2|later): "
+            + ", ".join(invalid_requirement_tier),
+        ))
     if declared_epics:
         def _validate_epic_ownership(kind: str, blocks: dict[str, str]) -> None:
             missing: list[str] = []
