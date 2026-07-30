@@ -80,14 +80,20 @@ it was only applied to whichever stage a reviewer happened to name:
    lowest (most-included) tier of the requirements it serves/traces to.** Serving
    *any* `mvp` requirement puts it in the mvp band; tracing *only* to deferred
    requirements makes it deferred.
-3. **Downstream stages (04–09) operate on the mvp band only** by default — they
-   generate for mvp requirements and mvp-band derived entities, and treat
-   deferred items as roadmap context, never as build targets.
-4. **Every coverage/self-check computes its upstream set from the mvp band**, not
-   the full requirement/journey set. A compliant MVP-only artifact legitimately
-   omits deferred items; counting those omissions as gaps is the recurring bug.
-   An id merely *referenced* in a trace (no declaring block) is not a
-   requirement and never counts toward coverage.
+3. **Downstream stages (04–09) and the build handoff operate on the mvp band
+   only** by default — they generate for mvp requirements and mvp-band derived
+   entities, and treat deferred items as roadmap context, never as build targets.
+   The Jira export and the readable handoff package (`build_prd_delivery_map(...,
+   mvp_only=True)`) must not turn deferred SOW-grade stubs into tickets or package
+   items.
+4. **Every pipeline coverage/self-check computes its upstream set from the mvp
+   band**, not the full requirement/journey set. A compliant MVP-only artifact
+   legitimately omits deferred items; counting those omissions as gaps is the
+   recurring bug. An id merely *referenced* in a trace (no declaring block) is not
+   a requirement and never counts toward coverage. **Exception:** on-demand
+   *inspectors* like `/pm-trace` are deliberately whole-product — they surface
+   deferred coverage too, tier-labeled, because they inform rather than gate. The
+   phantom-id exclusion still applies everywhere.
 
 When you add a stage, a validator, or a skill self-check, wire it to the mvp
 band from the start rather than asserting full upstream coverage.
