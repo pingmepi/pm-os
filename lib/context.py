@@ -80,6 +80,26 @@ def global_entry_path(item):
     return _global_entry(item)[0]
 
 
+def _merge_globals(base, proj):
+    """Union global entries by file *path*, with the project entry winning.
+
+    A project scoping (mapping form) for a file must override the base's
+    bare-string entry for the same file — otherwise both survive and the file
+    injects into every stage anyway (and twice in the scoped stage), so the
+    project-level stage-affinity override silently has no effect.
+    """
+    by_path: dict = {}
+    order: list = []
+    for item in list(base or []) + list(proj or []):
+        path = global_entry_path(item)
+        if path is None:
+            continue
+        if path not in by_path:
+            order.append(path)
+        by_path[path] = item  # later (project) entry wins for the same path
+    return [by_path[p] for p in order]
+
+
 def _load_manifest(ctx_dir: Path) -> dict:
     path = ctx_dir / "context.yaml"
     if not path.exists():
@@ -158,7 +178,7 @@ def resolve_context(stage_id: str, project_root=None) -> dict:
             if key not in ("global", "stages"):
                 manifest[key] = value
 
-        manifest["global"] = _union(base_manifest.get("global"), proj_manifest.get("global"))
+        manifest["global"] = _merge_globals(base_manifest.get("global"), proj_manifest.get("global"))
 
         base_stages = base_manifest.get("stages") or {}
         proj_stages = proj_manifest.get("stages") or {}

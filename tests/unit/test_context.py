@@ -108,6 +108,24 @@ def test_global_stage_affinity_filters(pmos):
     assert "ACME everywhere line." in out_02
 
 
+def test_scoped_project_global_overrides_base_bare_entry(pmos, tmp_path):
+    """F1 fix: a project manifest that scopes a global file the base declares as a
+    bare string must OVERRIDE the base entry (merge by path) — so the file injects
+    only into the scoped stage, not every stage, and never twice."""
+    ctx = _seed(pmos)
+    (ctx / "global" / "company.md").write_text("# Company\nSCOPED company line.\n", encoding="utf-8")
+    (ctx / "context.yaml").write_text(
+        "schema_version: 1\nglobal:\n  - global/company.md\n", encoding="utf-8")
+    proj = tmp_path / "proj"
+    (proj / "context").mkdir(parents=True)
+    (proj / "context" / "context.yaml").write_text(
+        "global:\n  - file: global/company.md\n    stages: ['06']\n", encoding="utf-8")
+    out_06 = context.render_context("06", str(proj))
+    out_02 = context.render_context("02", str(proj))
+    assert out_06.count("SCOPED company line.") == 1, "scoped global must inject once, not twice"
+    assert "SCOPED company line." not in out_02, "project scoping must win → not every stage"
+
+
 def test_apply_modes_emit_correct_directive(pmos):
     """The stage's apply mode (augment/override/reference-only) drives the directive in the
     rendered block; here override → 'REPLACE' guidance."""
