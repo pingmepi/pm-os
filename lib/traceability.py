@@ -90,10 +90,12 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # `handoff_epics:` map with first-class PRD-declared `epics:` and a reverse `epic`
 # field on each requirement. v5 adds a `priority` field to PRD-declared
 # requirements and user stories. v6 adds a `tier` field (mvp | v1 | v2 | later,
-# default mvp) so the whole product can be filtered by release band. The file is
-# derived, so older files upgrade on rebuild; old synthetic epic ticket refs are
-# preserved under `legacy_handoff_epics`.
-TRACEABILITY_SCHEMA_VERSION = 6
+# default mvp) so the whole product can be filtered by release band. v7 adds a
+# `declared` flag (True only for ids with a real US/FR block) so tier groups and
+# counts exclude reference-only phantom ids. The file is derived, so older files
+# upgrade on rebuild; old synthetic epic ticket refs are preserved under
+# `legacy_handoff_epics`.
+TRACEABILITY_SCHEMA_VERSION = 7
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
@@ -176,6 +178,7 @@ def build_index(project_root: Path | str) -> dict:
             "epic": None,
             "priority": None,
             "tier": DEFAULT_TIER,
+            "declared": False,
             "test_cases": [],
             "tasks": [],
             "screens": [],
@@ -217,6 +220,7 @@ def build_index(project_root: Path | str) -> dict:
         }.items():
             entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
             entry["tier"] = block_tier(block)
+            entry["declared"] = True  # has a real US/FR declaring block in the PRD
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
@@ -285,13 +289,16 @@ def build_index(project_root: Path | str) -> dict:
 def requirements_by_tier(index: dict) -> dict:
     """Group requirement ids by release tier (mvp | v1 | v2 | later | <other>).
 
-    Reads the derived index built by ``build_index``. A requirement with no tier
-    recorded counts as ``mvp`` (the default), so pre-tier projects group cleanly.
-    Lets a stage skill or tool quickly filter the MVP slice out of the whole
-    product without re-parsing the PRD.
+    Reads the derived index built by ``build_index``. Only requirements actually
+    **declared** by a PRD US/FR block are grouped — ids that are merely referenced
+    (e.g. a story tracing to an undeclared ``FR-999``) are excluded so tier totals
+    and the MVP slice never count phantom requirements. A declared requirement with
+    no explicit tier counts as ``mvp`` (the default).
     """
     out: dict[str, list[str]] = {}
     for req_id, entry in (index.get("requirements") or {}).items():
+        if not (entry or {}).get("declared"):
+            continue
         tier = (entry or {}).get("tier") or DEFAULT_TIER
         out.setdefault(tier, []).append(req_id)
     return out

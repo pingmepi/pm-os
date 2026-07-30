@@ -58,7 +58,7 @@ def test_traceability_records_requirement_tier(pmos, new_project):
 
     import yaml
     data = yaml.safe_load((proj / ".traceability.yaml").read_text())
-    assert data["schema_version"] == 6
+    assert data["schema_version"] == 7
     reqs = data["requirements"]
     assert reqs["US-001"]["tier"] == "mvp"
     assert reqs["US-002"]["tier"] == "v1"

@@ -206,13 +206,14 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v6_with_priorities_tasks_epics_screens_and_tier_maps(tmp_path):
-    """The index declares schema_version 6 and carries priority, tasks, Product
-    Epics, screens, and tier fields. Requirements with no `Tier:` default to mvp."""
+def test_index_is_schema_v7_with_priorities_tasks_epics_screens_tier_and_declared(tmp_path):
+    """The index declares schema_version 7 and carries priority, tasks, Product
+    Epics, screens, tier, and declared fields. Requirements with no `Tier:` default
+    to mvp; declared PRD blocks are flagged declared."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 6
+    assert index["schema_version"] == 7
     assert "tasks" in index and "epics" in index and "screens" in index
     assert index["epics"]["EPIC-001"]["tickets"] == []
     assert index["epics"]["EPIC-001"]["stories"] == ["US-001"]
@@ -221,8 +222,26 @@ def test_index_is_schema_v6_with_priorities_tasks_epics_screens_and_tier_maps(tm
     assert index["requirements"]["US-001"]["priority"] == "Must"
     assert index["requirements"]["FR-001"]["priority"] == "Must"
     assert index["requirements"]["FR-002"]["priority"] == "Should"
-    # v6: untagged requirements default to the mvp tier.
+    # v6: untagged requirements default to the mvp tier. v7: declared blocks flagged.
     assert index["requirements"]["US-001"]["tier"] == "mvp"
+    assert index["requirements"]["US-001"]["declared"] is True
+
+
+def test_requirements_by_tier_excludes_reference_only_ids(tmp_path):
+    """Ids merely referenced in the PRD (no declaring US/FR block) are flagged
+    `declared: False` and excluded from tier groups, so pm_status counts and
+    mvp_requirements never include phantom requirements (Codex P2)."""
+    root = _project(tmp_path)
+    prd = ("## User Stories with Acceptance Criteria\n"
+           "### US-001 — Login\n- **Tier:** mvp\n- **Traceability:** FR-999\n"
+           "## Functional Requirements\n- FR-001 — Work.\n")
+    _write(root, "03-prd.md", prd)
+    index = trace.build_index(root)
+    flat = [r for ids in trace.requirements_by_tier(index).values() for r in ids]
+    assert "US-001" in flat and "FR-001" in flat  # declared blocks included
+    assert "FR-999" not in flat                    # referenced only → excluded
+    assert index["requirements"]["FR-999"]["declared"] is False
+    assert "FR-999" not in trace.mvp_requirements(index)
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):
