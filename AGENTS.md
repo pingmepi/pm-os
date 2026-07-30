@@ -98,6 +98,28 @@ it was only applied to whichever stage a reviewer happened to name:
 When you add a stage, a validator, or a skill self-check, wire it to the mvp
 band from the start rather than asserting full upstream coverage.
 
+### Changing a cross-cutting property (census before you fix)
+
+`tier` is cross-cutting: it flows from PRD blocks into every downstream reader of
+requirements/journeys/stories/tasks. Adding it took **six review rounds** because
+each fix chased the one site the reviewer named instead of the whole class. When
+you introduce or change any property that many consumers read, follow this before
+writing the first fix — it generalizes the tier rule above to any shared concept:
+
+1. **State the invariant in one sentence** (e.g. "every pipeline coverage consumer
+   operates on the mvp band; inspectors are the whole-product exception").
+2. **Census, then fix.** `grep` the *concept* across the **whole tree** (`lib/`
+   **and** `scripts/`, validators, exports, health checks, inspectors, the derived
+   index), and list every consumer with a disposition (fix / N-A + why). A
+   reviewer's finding is a **sample, not the population** — lead with this list;
+   never claim "swept" without it.
+3. **Prefer one choke-point, then trace every consumer to it.** A shared helper or
+   filtered view only helps the consumers that actually flow through it — a second,
+   parallel source of the same data (e.g. the Jira task stream vs. the delivery map)
+   is where the next leak hides.
+4. **Census the data states too**, not just code paths: old on-disk formats and
+   schema versions are part of the class — plan the migration/rebuild path.
+
 ## Project State
 
 - PM-OS projects are plain local directories, usually under the configured
