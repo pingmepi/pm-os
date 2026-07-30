@@ -71,8 +71,10 @@ for each requested audience:
 - `epics/EPIC-###-*.md` (dev, business) — one story/requirement index per
   Product Epic declared in the PRD.
 - `stories/US-###-*.md` (dev, qa) — one self-contained story per file,
-  including the `SCR-###` screens that story touches and a link into the
-  interactive prototype for each, when available.
+  including the `SCR-###` screens that story touches (with a link into the
+  interactive prototype for each, when available), the QA scenarios covering
+  it, and — when the TRD (stage 08) is approved — the `TSK-###` backend/
+  technical tasks that implement it.
 - `reference/` — `user-journeys.md` (all four), `prioritization.md` (dev,
   business), `impact-analysis.md` (dev, qa, business), `nfrs.md` (dev, qa),
   `qa-scenarios.md` (qa), `screen-map.md` (design, qa — the reverse view:

@@ -44,8 +44,10 @@ from artifact_contracts import (  # noqa: E402
     _sections,
     information_architecture_section,
     split_screen_blocks,
+    split_task_blocks,
     split_test_case_blocks,
     split_user_story_blocks,
+    work_breakdown_section,
 )
 from delivery_map import build_prd_delivery_map, title_of  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
@@ -332,6 +334,13 @@ def build_package(
     design_body = None
     if _stage_status(meta, "04") == "approved":
         _design_fm, design_body = _read_artifact(root, "04")
+    # TRD tasks (the backend/technical work implementing each requirement) come from
+    # stage 08, and only when it is exactly `approved` — same rule as the design spec.
+    # A draft/stale/edited TRD contributes no tasks (the fresh spine excludes them too),
+    # so a story then renders "not captured in source" for backend work.
+    trd_body = None
+    if _stage_status(meta, "08") == "approved":
+        _trd_fm, trd_body = _read_artifact(root, "08")
 
     if prd_body is None:
         raise SystemExit("Error: no approved PRD (03-prd.md) found — nothing to hand off.")
@@ -349,6 +358,12 @@ def build_package(
     # approved (gated above) — the story template then renders "not captured in source".
     screen_blocks = (
         split_screen_blocks(information_architecture_section(design_body)) if design_body else {}
+    )
+    # TRD Work Breakdown tasks (TSK-###), so each story can name the backend/technical
+    # work implementing it. Empty for a TRD that is absent or not currently approved
+    # (gated above) — the story template then renders "not captured in source".
+    task_blocks = (
+        split_task_blocks(work_breakdown_section(trd_body)) if trd_body else {}
     )
 
     # Shared PRD delivery map: stories, requirements, journeys, and declared
@@ -369,6 +384,7 @@ def build_package(
 
     prd_stamp = _stamp(root, "03")
     design_stamp = _stamp(root, "04")
+    trd_stamp = _stamp(root, "08")
 
     # --- compute all content ONCE in memory, keyed by output-fragment path ---
     # (render once, write into every audience folder a category belongs to —
@@ -417,9 +433,29 @@ def build_package(
         if screen_ids:
             covered_story_ids.add(story_id)
 
+        # Backend/technical work: the TRD tasks implementing this story's requirements
+        # (resolved over reqs only — a TSK implements a requirement, never a journey —
+        # mirroring the test-case resolution). Against the fresh spine, so a
+        # non-approved TRD contributes nothing.
+        tsk_ids: list[str] = []
+        for r in reqs:
+            for tsk in traceability.tasks_for_requirement(root, r, index=spine):
+                if tsk not in tsk_ids:
+                    tsk_ids.append(tsk)
+        tasks = [
+            {
+                "id": tsk,
+                "name": _story_title(tsk, task_blocks.get(tsk, "")),
+                "body": _strip_decl_line(task_blocks.get(tsk, ""), tsk) or NOT_CAPTURED,
+            }
+            for tsk in tsk_ids
+        ]
+
         generated_from = [s for s in (prd_stamp, _stamp(root, "06")) if s]
         if screens and design_stamp:
             generated_from.append(design_stamp)
+        if tasks and trd_stamp:
+            generated_from.append(trd_stamp)
         rendered = _render_story({
             "story_id": story_id,
             "title": title,
@@ -432,6 +468,8 @@ def build_package(
             "test_case_ids": tc_ids,
             "screens": screens,
             "screen_ids": screen_ids,
+            "tasks": tasks,
+            "task_ids": tsk_ids,
             "generated_from": generated_from,
             "canonical_source": "03-prd.md",
             "generated_at": now,

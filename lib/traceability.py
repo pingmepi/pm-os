@@ -377,10 +377,17 @@ def requirements_for_scenario(project_root: Path | str, tc_id: str) -> list[str]
     return list(entry.get("requirements") or []) if entry else []
 
 
-def tasks_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
-    """Return the TSK-### ids that implement ``req_id`` (case-insensitive)."""
+def tasks_for_requirement(
+    project_root: Path | str, req_id: str, index: dict | None = None
+) -> list[str]:
+    """Return the TSK-### ids that implement ``req_id`` (case-insensitive).
+
+    Pass ``index`` to resolve against an already-built index instead of the on-disk
+    one — callers exporting a package build it fresh so a stale ``.traceability.yaml``
+    cannot resolve tasks a non-approved TRD should no longer contribute (mirrors
+    ``screens_for_requirement``)."""
     req_id = req_id.upper()
-    index = _index_for_query(project_root)
+    index = index if index is not None else _index_for_query(project_root)
     entry = (index.get("requirements") or {}).get(req_id)
     if entry and entry.get("tasks"):
         return list(entry.get("tasks") or [])

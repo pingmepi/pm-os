@@ -638,3 +638,53 @@ def test_screen_link_omitted_without_a_prototype(pmos, new_project):
     assert "SCR-001" in story
     assert "prototype.html" not in story
     assert not (proj / "handoff" / "dev" / "wireframes").exists()
+
+
+# --- backend work: TRD tasks per story (option 1) ----------------------------
+
+_TRD = """## Architecture
+Layered services over the existing agency store.
+## Work Breakdown
+### TSK-001 — Build the agency store write path
+- **Implements:** FR-001
+### TSK-002 — Add the agency-list query
+- **Implements:** FR-001
+"""
+
+
+def test_package_maps_backend_tasks_to_each_story(pmos, new_project):
+    """With an approved TRD, each story file lists the TSK-### backend tasks that
+    implement its requirements (resolved through the spine over the story's FRs),
+    carries each task's body, adds a "Backend tasks:" traceability line, and the
+    TRD joins the story's provenance stamps."""
+    proj = new_project("handoff-backend", "A problem")
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", _QA), ("08", _TRD)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "## Backend work (TRD tasks)" in story
+    assert "TSK-001" in story and "TSK-002" in story
+    assert "Build the agency store write path" in story  # the task's own body
+    assert "**Backend tasks:** TSK-001, TSK-002" in story
+    assert "08-trd.md@" in story  # provenance includes the TRD
+
+    # US-002 cites no FR, so no task implements it — backend work is flagged, not invented.
+    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    assert "## Backend work (TRD tasks)" in other
+    assert "**Backend tasks:** — not captured in source —" in other
+
+
+def test_package_without_trd_degrades_backend_to_not_captured(pmos, new_project):
+    """A project with no approved TRD still packages: the Backend work section and
+    the traceability line show the not-captured marker rather than being omitted or
+    fabricated — the same graceful degradation as screens without a design spec."""
+    proj = new_project("handoff-no-trd", "A problem")
+    _approve_pipeline(pmos, proj)
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "## Backend work (TRD tasks)" in story
+    assert "**Backend tasks:** — not captured in source —" in story
+    assert "08-trd.md@" not in story  # no TRD in provenance when there are no tasks

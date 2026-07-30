@@ -8,6 +8,7 @@
 
 ### Added
 - **Screen deep-links in the handoff package (backlog #29, dev-lead feedback).** Every screen a story touches — and every row of `reference/screen-map.md` — now links directly into the copied interactive prototype at `wireframes/prototype.html#SCR-###`. `pm-prototype-html` (`prompt_version` 0.3.0) requires each screen container to carry an `id="SCR-###"` anchor plus a hash-router, `validate_prototype_html` enforces it (new `SCREEN_ANCHOR_MISSING` error), and the lo-fi fallback renderer (`render_prototype_mockup`) emits the same anchors. A prototype generated before this change still copies in and links — as a plain link, never a dead hash — so existing projects degrade safely; regenerate with `/pm-prototype-html` to get the anchors.
+- **Backend work per story in the handoff package (dev-lead feedback).** When the TRD (stage 08) is approved, each `dev`/`qa` story file gains a **"Backend work (TRD tasks)"** section listing the `TSK-###` tasks that implement the story's requirements — the local-package counterpart of the Jira export's Subtasks, and the backend half of the same dev-lead ask that drove the screen links. Resolved through the fresh traceability spine over the story's FRs (so a non-approved TRD contributes nothing), with a `**Backend tasks:**` traceability line and the TRD added to the story's provenance. A project with no approved TRD degrades to `— not captured in source —`, same as screens without a design spec.
 
 ## 1.3.6-1.3.11 — 2026-07-28
 
