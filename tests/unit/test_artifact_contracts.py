@@ -346,6 +346,63 @@ No production integration.
     assert contracts.error_count(findings) == 0
 
 
+def test_prototype_priority_check_is_scoped_to_mvp_journeys(tmp_path):
+    """A high-priority *deferred-only* journey (serves only a v1/v2/later story) is
+    roadmap context the mvp prototype correctly omits — it must NOT trigger
+    `PROTOTYPE_PRIORITY_DECISION_MISSING`. A high-priority *mvp* journey left
+    undecided must still warn, so the check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # UJ-002 is deferred (serves only US-002, tagged v1) yet high-priority.
+    prd = _valid_prd().replace(
+        "**Traceability:** US-001, FR-001.\n",
+        "**Traceability:** US-001, FR-001.\n"
+        "### UJ-002 — Deferred high-priority journey\n"
+        "**Prototype priority:** High\n**Traceability:** US-002.\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-002 — Later work\n- **Tier:** v1\nValue: later.\nSize: M.\n"
+        "Rationale: deferred.\nDepends on: US-001.\nAcceptance intent: later.\n"
+        "Traceability: FR-001.\n### US-001 — Complete work\n",
+    )
+    _write(root, "03-prd.md", prd, contract_version=7)
+    # Prototype brief decides the mvp journey UJ-001 but never mentions UJ-002.
+    body = """# Prototype Brief
+## What to Prototype
+Include UJ-001 (the primary slice). No mention of any deferred journey.
+## Fidelity Level
+Interactive HTML.
+## Prototype Audience & Modes
+Participant mode is the default; reviewer mode is enabled separately.
+## Screens to Include
+Primary screen serving UJ-001.
+## Interactions to Demonstrate
+Complete the task.
+## Prototype Data & Scenarios
+Synthetic scenario.
+## Questions the Prototype Should Answer
+Can users finish?
+## Validation Plan
+Participants complete tasks against a current-experience comparator. Measures and evidence use a decision threshold. Facilitator guidance avoids bias and priming.
+## Known Limitations
+Simulated backend.
+## Non-Goals for Prototype
+No production integration.
+"""
+    _write(root, "05-prototype-brief.md", body)
+    findings = contracts.validate_artifact(root, "05")
+    decision_warnings = [f for f in findings if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING"]
+    assert not decision_warnings, (
+        "deferred-only journey must not demand a prototype decision: "
+        f"{[f.message for f in decision_warnings]}"
+    )
+
+    # Control: leave the mvp journey UJ-001 undecided → it must still warn (and only it).
+    body_missing_mvp = body.replace("Include UJ-001 (the primary slice). ", "")
+    _write(root, "05-prototype-brief.md", body_missing_mvp)
+    warn = next(f for f in contracts.validate_artifact(root, "05") if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING")
+    assert "UJ-001" in warn.message and "UJ-002" not in warn.message
+
+
 def test_retrieval_html_flags_generic_generation_patterns(tmp_path):
     root = _project(tmp_path)
     _write(root, "04-design-spec.md", """# Design

@@ -23,6 +23,7 @@ from telemetry import verify_chain
 from artifact_contracts import (
     JOURNEY_ID_RE,
     information_architecture_section,
+    mvp_band_requirement_ids,
     requirement_ids,
     screen_id_declarations,
     screen_serves,
@@ -408,9 +409,13 @@ def _check_trd_task_ids(project_root, stages, paths, exists) -> list[Issue]:
                     "Point the Implements: line at a requirement id that exists in the approved PRD (or add it there).",
                 ))
 
-    # Coverage: every PRD user story / functional requirement is implemented (WARNING).
-    if prd_reqs:
-        to_cover = {r for r in prd_reqs if r.split("-", 1)[0] in ("US", "FR")}
+    # Coverage: every *mvp-band* PRD user story / functional requirement is
+    # implemented (WARNING). The TRD plans the mvp slice only (AGENTS.md), so a
+    # deferred (v1/v2/later) requirement legitimately has no task — scoping to the
+    # mvp band keeps a compliant tiered TRD from false-flagging.
+    mvp_reqs = mvp_band_requirement_ids(prd_body)
+    if mvp_reqs:
+        to_cover = {r for r in mvp_reqs if r.split("-", 1)[0] in ("US", "FR")}
         uncovered = sorted(to_cover - implemented)
         if uncovered:
             issues.append(Issue(
@@ -493,10 +498,15 @@ def _check_screen_ids(project_root, stages, paths, exists) -> list[Issue]:
                     "Point the Serves: line at ids that exist in the approved PRD (or add them there).",
                 ))
 
-    # Coverage: every PRD user story is served by some screen (WARNING).
-    if known_ids:
-        stories = {r for r in known_ids if r.startswith("US-")}
-        unserved = sorted(stories - served)
+    # Coverage: every *mvp-band* PRD user story is served by some screen (WARNING).
+    # The design stage builds mvp-tier screens only (AGENTS.md), so a deferred story
+    # legitimately has no screen — scope the coverage set to the mvp band so a
+    # compliant tiered design doesn't false-flag. (An id merely referenced but not
+    # declared as a story block is excluded too — it is not a story that needs a
+    # screen.)
+    mvp_stories = {r for r in mvp_band_requirement_ids(prd_body) if r.startswith("US-")}
+    if mvp_stories:
+        unserved = sorted(mvp_stories - served)
         if unserved:
             issues.append(Issue(
                 CODE_STORY_HAS_NO_SCREEN, "warning", "04",

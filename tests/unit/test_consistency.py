@@ -348,3 +348,67 @@ def test_screens_outside_information_architecture_are_ignored(tmp_path):
         "## Information Architecture\nProse only.\n"
         "## Key User Flows\n- **SCR-009 — stray**\n  - Serves: US-001\n")
     assert _screen_codes(root) == [consistency.CODE_SCREEN_IDS_MISSING]
+
+
+# --- Tier scope: /pm-check coverage checks respect the mvp band -----------------
+
+_PRD_TIERED = """# PRD
+## User Stories with Acceptance Criteria
+### US-001 — mvp story
+- **Tier:** mvp
+### US-002 — deferred story
+- **Tier:** v1
+## Functional Requirements
+- FR-010 — mvp requirement
+  - **Tier:** mvp
+- FR-011 — deferred requirement
+  - **Tier:** later
+"""
+
+
+def _project_with_tiered_prd(tmp_path: Path, *, extra_stage, artifact_name, artifact_stage, body) -> Path:
+    """Approved tiered PRD + one downstream artifact (04 design or 08 TRD)."""
+    _write_meta(tmp_path, [
+        _stage("03", status="approved", content_hash="x"),
+        _stage(extra_stage, status="draft"),
+    ])
+    frontmatter.write(str(tmp_path / "03-prd.md"),
+                      {"stage": "03-prd", "status": "approved", "content_hash": "x"}, _PRD_TIERED)
+    frontmatter.write(str(tmp_path / artifact_name),
+                      {"stage": artifact_stage, "status": "draft"}, body)
+    return tmp_path
+
+
+def test_trd_coverage_ignores_deferred_requirements(tmp_path):
+    """TRD_REQ_NOT_IMPLEMENTED is scoped to the mvp band: a deferred (v1/v2/later)
+    requirement the TRD correctly omits raises no coverage warning, while an
+    uncovered mvp requirement still does."""
+    root = _project_with_tiered_prd(
+        tmp_path, extra_stage="08", artifact_name="08-trd.md", artifact_stage="08-trd",
+        # Covers the mvp FR-010 but not the mvp US-001; deferred US-002/FR-011 omitted.
+        body="## Work Breakdown\n### TSK-001 — one\n- **Implements:** FR-010\n",
+    )
+    issues = [i for i in consistency.check_project(root) if i.code == consistency.CODE_TRD_REQ_NOT_IMPLEMENTED]
+    assert issues, "an uncovered mvp requirement should still warn"
+    assert "US-001" in issues[0].message
+    assert "US-002" not in issues[0].message and "FR-011" not in issues[0].message
+
+
+def test_story_screen_coverage_ignores_deferred_stories(tmp_path):
+    """STORY_HAS_NO_SCREEN is scoped to the mvp band: a deferred story with no screen
+    raises no warning (design builds mvp screens only), while an unserved mvp story
+    still does."""
+    root = _project_with_tiered_prd(
+        tmp_path, extra_stage="04", artifact_name="04-design-spec.md", artifact_stage="04-design-spec",
+        # SCR-001 serves the mvp US-001; deferred US-002 has no screen (correctly).
+        body="## Information Architecture\n- **SCR-001 — main**\n  - Serves: US-001\n",
+    )
+    issues = [i for i in consistency.check_project(root) if i.code == consistency.CODE_STORY_HAS_NO_SCREEN]
+    assert not issues, f"deferred story must not be a screen-coverage gap: {[i.message for i in issues]}"
+
+    # Control: leave the mvp story US-001 unserved too → it must still warn (only it).
+    frontmatter.write(str(root / "04-design-spec.md"),
+                      {"stage": "04-design-spec", "status": "draft"},
+                      "## Information Architecture\n- **SCR-001 — main**\n  - Serves: FR-010\n")
+    warn = [i for i in consistency.check_project(root) if i.code == consistency.CODE_STORY_HAS_NO_SCREEN]
+    assert warn and "US-001" in warn[0].message and "US-002" not in warn[0].message

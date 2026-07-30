@@ -1104,19 +1104,30 @@ def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
     }
 
 
-def _upstream_requirement_ids(project_root: Path) -> set[str]:
-    """The **MVP band** of requirement ids (REQ/US/FR-###) *declared* by a block in
-    the approved PRD — the set a QA plan is expected to cover. Empty when the PRD is
-    absent or carries no stable ids, so existing prose PRDs never trigger a false
-    coverage gap.
+def mvp_band_requirement_ids(prd_body: str) -> set[str]:
+    """The **mvp band**: requirement ids (US/FR/REQ-###) *declared* by a block in the
+    PRD body whose tier is not explicitly deferred. This is the single source of
+    truth for "what a downstream build artifact is expected to cover" — every
+    coverage check (QA, screens, TRD tasks) routes through it so they agree.
 
-    Scoped to the mvp tier deliberately: downstream stages operate on the mvp band
-    (AGENTS.md), so a compliant MVP-only QA plan legitimately omits deferred
-    (v1/v2/later) requirements — counting those as coverage gaps would warn on every
-    tiered PRD. Only *declared* blocks count; an id merely referenced in a trace
-    (e.g. `FR-999`) has no block to cover and is not a real requirement here. An
-    untagged block defaults to mvp, so a pre-tiering PRD is unchanged. This mirrors
-    the mvp-band derivation in ``_validate_stage_03``."""
+    - Only *declared* blocks count; an id merely referenced in a trace (e.g. a story
+      tracing to an undeclared `FR-999`) has no block and is not a requirement here.
+    - An untagged or typo'd-tier block defaults to mvp (fail-safe): a pre-tiering PRD
+      is unchanged, and a typo never silently drops a requirement from coverage.
+    Empty when the PRD carries no stable ids, so prose-only PRDs never false-flag."""
+    sections = _sections(prd_body or "")
+    blocks: dict[str, str] = {}
+    blocks.update(split_user_story_blocks(_section(sections, "User Stories with Acceptance Criteria") or ""))
+    blocks.update(split_functional_requirement_blocks(_section(sections, "Functional Requirements") or ""))
+    return {rid for rid, block in blocks.items() if block_tier(block) not in ("v1", "v2", "later")}
+
+
+def _upstream_requirement_ids(project_root: Path) -> set[str]:
+    """The mvp band of the approved PRD — the set a QA plan is expected to cover.
+    Deliberately mvp-scoped: downstream stages operate on the mvp band (AGENTS.md),
+    so a compliant MVP-only QA plan legitimately omits deferred requirements and
+    counting those as gaps would warn on every tiered PRD. See
+    ``mvp_band_requirement_ids`` for the shared derivation."""
     path = artifact_path(project_root, "03")
     if not path.exists():
         return set()
@@ -1124,14 +1135,7 @@ def _upstream_requirement_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    sections = _sections(body)
-    blocks: dict[str, str] = {}
-    blocks.update(split_user_story_blocks(_section(sections, "User Stories with Acceptance Criteria") or ""))
-    blocks.update(split_functional_requirement_blocks(_section(sections, "Functional Requirements") or ""))
-    # mvp band == everything not explicitly deferred; an unrecognized tier stays in
-    # (fail-safe: a typo'd tier is still expected to be covered rather than silently
-    # dropped from the coverage set).
-    return {rid for rid, block in blocks.items() if block_tier(block) not in ("v1", "v2", "later")}
+    return mvp_band_requirement_ids(body)
 
 
 def _validate_journey_references(project_root: Path, body: str, stage_id: str) -> list[Finding]:
@@ -1273,11 +1277,18 @@ def _validate_screens(ia_section: str) -> list[Finding]:
 def _validate_stage_05(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings = _validate_journey_references(project_root, body, "05")
     what_to_prototype = _section(sections, "What to Prototype") or ""
+    # Only mvp-band journeys are prototype candidates — a deferred-only journey (one
+    # that serves no mvp requirement) is roadmap context the mvp prototype correctly
+    # omits, so it must not demand an include/exclude decision. Reuse the same derived
+    # mvp-journey filter the stage-04 journey-reference check uses.
+    mvp_journeys = _upstream_journey_ids(project_root)
     high_priority_journeys = [
         journey_id for journey_id, priority in _upstream_journey_priorities(project_root).items()
-        if _norm(priority) in {"high", "critical", "must", "must-have", "high risk", "high-risk"}
-        or "high" in _norm(priority)
-        or "critical" in _norm(priority)
+        if journey_id.upper() in mvp_journeys and (
+            _norm(priority) in {"high", "critical", "must", "must-have", "high risk", "high-risk"}
+            or "high" in _norm(priority)
+            or "critical" in _norm(priority)
+        )
     ]
     missing_decisions = sorted(
         journey_id for journey_id in high_priority_journeys
