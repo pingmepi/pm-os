@@ -1165,3 +1165,19 @@ def test_non_mvp_stub_missing_commitment_fields_warns(tmp_path):
     stub = next(f for f in findings if f.code == "USER_STORY_STUB_FIELDS_MISSING")
     assert "US-100" in stub.message  # missing Size, Rationale, Depends on, Acceptance intent
     assert not any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)
+
+
+def test_invalid_tier_is_flagged_and_kept_on_mvp_checks(tmp_path):
+    """A typo'd tier (e.g. `mpv`) is surfaced as USER_STORY_TIER_INVALID and is NOT
+    treated as a non-mvp stub — it stays on the full mvp mini-spec, so a typo can't
+    silently exempt a story from the acceptance/happy-path/edge checks."""
+    root = _project(tmp_path)
+    typo = "### US-100 — Reporting\n- **Tier:** mpv\n- **Value:** trends.\n"
+    body = _valid_prd().replace("## Functional Requirements", typo + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    assert any(f.code == "USER_STORY_TIER_INVALID" and "US-100" in f.message for f in findings)
+    # held to the mvp mini-spec: US-100 has no happy path → flagged (not stub-exempt)...
+    assert any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)
+    # ...and never routed to the stub path.
+    assert not any(f.code == "USER_STORY_STUB_FIELDS_MISSING" and "US-100" in f.message for f in findings)

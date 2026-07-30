@@ -778,8 +778,19 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     # edge cases, traceability) is required of `mvp` stories only; non-mvp stories
     # are SOW-grade stubs checked for lightweight commitment fields instead.
     # Untagged stories default to mvp, so a PRD with no tiers validates as before.
-    mvp_story_blocks = {us: b for us, b in story_blocks.items() if block_tier(b) == DEFAULT_TIER}
-    stub_story_blocks = {us: b for us, b in story_blocks.items() if block_tier(b) != DEFAULT_TIER}
+    # Only *valid* later bands take the stub path — an unrecognized (typo'd) tier
+    # stays on the full mvp mini-spec so a typo never silently exempts a story, and
+    # is surfaced explicitly.
+    story_tiers = {us: block_tier(b) for us, b in story_blocks.items()}
+    stub_story_blocks = {us: story_blocks[us] for us, t in story_tiers.items() if t in ("v1", "v2", "later")}
+    mvp_story_blocks = {us: story_blocks[us] for us, t in story_tiers.items() if t not in ("v1", "v2", "later")}
+    invalid_tier = sorted(us for us, t in story_tiers.items() if not is_valid_tier(t))
+    if invalid_tier:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_TIER_INVALID",
+            "User stories with an unrecognized Tier (use mvp|v1|v2|later): "
+            + ", ".join(invalid_tier),
+        ))
     missing_story_priority = sorted(
         us_id for us_id, block in mvp_story_blocks.items()
         if not block_priority(block)
