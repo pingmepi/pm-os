@@ -48,7 +48,7 @@ project creation, gates, approvals, telemetry, and sharing.
 The core product pipeline has seven approved stages:
 
 1. `01-brief.md` - product brief
-2. `02-scope.md` - MVP scope
+2. `02-scope.md` - product scope, tiered into release bands (`mvp | v1 | v2 | later`); the MVP is the `mvp`-tagged band. Downstream stages focus on the `mvp` tier by default.
 3. `03-prd.md` - product requirements document
 4. `04-design-spec.md` - design specification
 5. `05-prototype-brief.md` - prototype brief
@@ -64,6 +64,61 @@ after stages 01-07 are approved. It scopes the path from MVP to a deliverable
 product and later horizons without expanding the MVP. If stage 08 is approved,
 stage 09 uses the TRD as technical delivery context; otherwise it runs from the
 approved product pipeline alone.
+
+### Release tiers (read before adding or changing any stage)
+
+Tier (`mvp | v1 | v2 | later`) is a **cross-cutting property**, not a stage-03
+detail. Every stage and every check must honor these rules so tier scope stays
+consistent end-to-end — this is the one rule the pipeline kept re-breaking when
+it was only applied to whichever stage a reviewer happened to name:
+
+1. **Tier is declared only on `US-###` and `FR-###`/`REQ-###` blocks in the
+   PRD** (via `- **Tier:** <band>`). Absent → `mvp`. The `mvp` band is every
+   *declared* block whose tier is not `v1`/`v2`/`later`.
+2. **Derived entities carry no tier tag of their own.** A journey (`UJ-###`),
+   screen (`SCR-###`), test case (`TC-###`), or task (`TSK-###`) **inherits the
+   lowest (most-included) tier of the requirements it serves/traces to.** Serving
+   *any* `mvp` requirement puts it in the mvp band; tracing *only* to deferred
+   requirements makes it deferred.
+3. **Downstream stages (04–09) and the build handoff operate on the mvp band
+   only** by default — they generate for mvp requirements and mvp-band derived
+   entities, and treat deferred items as roadmap context, never as build targets.
+   The Jira export and the readable handoff package (`build_prd_delivery_map(...,
+   mvp_only=True)`) must not turn deferred SOW-grade stubs into tickets or package
+   items.
+4. **Every pipeline coverage/self-check computes its upstream set from the mvp
+   band**, not the full requirement/journey set. A compliant MVP-only artifact
+   legitimately omits deferred items; counting those omissions as gaps is the
+   recurring bug. An id merely *referenced* in a trace (no declaring block) is not
+   a requirement and never counts toward coverage. **Exception:** on-demand
+   *inspectors* like `/pm-trace` are deliberately whole-product — they surface
+   deferred coverage too, tier-labeled, because they inform rather than gate. The
+   phantom-id exclusion still applies everywhere.
+
+When you add a stage, a validator, or a skill self-check, wire it to the mvp
+band from the start rather than asserting full upstream coverage.
+
+### Changing a cross-cutting property (census before you fix)
+
+`tier` is cross-cutting: it flows from PRD blocks into every downstream reader of
+requirements/journeys/stories/tasks. Adding it took **six review rounds** because
+each fix chased the one site the reviewer named instead of the whole class. When
+you introduce or change any property that many consumers read, follow this before
+writing the first fix — it generalizes the tier rule above to any shared concept:
+
+1. **State the invariant in one sentence** (e.g. "every pipeline coverage consumer
+   operates on the mvp band; inspectors are the whole-product exception").
+2. **Census, then fix.** `grep` the *concept* across the **whole tree** (`lib/`
+   **and** `scripts/`, validators, exports, health checks, inspectors, the derived
+   index), and list every consumer with a disposition (fix / N-A + why). A
+   reviewer's finding is a **sample, not the population** — lead with this list;
+   never claim "swept" without it.
+3. **Prefer one choke-point, then trace every consumer to it.** A shared helper or
+   filtered view only helps the consumers that actually flow through it — a second,
+   parallel source of the same data (e.g. the Jira task stream vs. the delivery map)
+   is where the next leak hides.
+4. **Census the data states too**, not just code paths: old on-disk formats and
+   schema versions are part of the class — plan the migration/rebuild path.
 
 ## Project State
 

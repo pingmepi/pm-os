@@ -367,8 +367,10 @@ def build_package(
     )
 
     # Shared PRD delivery map: stories, requirements, journeys, and declared
-    # Product Epics. This is the same decomposition `pm_handoff.py` uses.
-    delivery = build_prd_delivery_map(prd_body)
+    # Product Epics. This is the same decomposition `pm_handoff.py` uses. The
+    # handoff package is what to build now, so scope to the mvp band — deferred
+    # (v1/v2/later) stubs are roadmap context, not per-audience build items.
+    delivery = build_prd_delivery_map(prd_body, mvp_only=True)
 
     # --- prototype: read once, detect anchors once (backlog #29) ---
     proto = root / "05-prototype-mockup.html"
@@ -551,7 +553,10 @@ def build_package(
     reference_docs: dict[str, tuple[str, str]] = {}  # category -> (filename, content)
     plain_references = {
         "prioritization": ("prioritization.md", "Prioritization Method", _section_of(prd_body, "prioritization method"), prd_stamp),
-        "user_journeys": ("user-journeys.md", "User Journeys", _section_of(prd_body, "user journeys"), prd_stamp),
+        # Render from the mvp-only delivery map, not the raw PRD section, so a
+        # deferred-only journey (serves only v1/v2/later requirements) doesn't ship
+        # in the build package (AGENTS.md derived-tier rule).
+        "user_journeys": ("user-journeys.md", "User Journeys", "\n".join(delivery.journey_blocks.values()), prd_stamp),
         "impact_analysis": ("impact-analysis.md", "Impact Analysis", _section_of(prd_body, "impact analysis"), prd_stamp),
         "nfrs": ("nfrs.md", "Non-Functional Requirements", _section_of(prd_body, "non-functional requirements"), prd_stamp),
         "qa_scenarios": (

@@ -14,12 +14,23 @@ from artifact_contracts import (
     JOURNEY_ID_RE,
     block_priority,
     block_epic_refs,
+    block_tier,
+    requirement_ids,
     split_epic_blocks,
     split_functional_requirement_blocks,
     split_user_story_blocks,
     _section,
     _sections,
 )
+
+_DEFERRED_TIERS = ("v1", "v2", "later")
+
+
+def _is_deferred(block: str) -> bool:
+    """A story/requirement block explicitly tagged to a later release band. An
+    untagged or typo'd tier is *not* deferred (fail-safe: it stays in the mvp band),
+    matching block_tier's default and the coverage-validator convention."""
+    return block_tier(block) in _DEFERRED_TIERS
 
 
 @dataclass(frozen=True)
@@ -100,7 +111,16 @@ def single_epic_ref(block: str, declared_epics: set[str]) -> str | None:
     return refs[0] if refs[0] in declared_epics else None
 
 
-def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
+def build_prd_delivery_map(prd_body: str, *, mvp_only: bool = False) -> PrdDeliveryMap:
+    """Decompose the approved PRD body into a delivery map.
+
+    ``mvp_only`` scopes the map to the **mvp band** — the build handoff (Jira export
+    and the readable package) must not turn deferred (`v1`/`v2`/`later`) SOW-grade
+    stubs into build tickets or package items; deferred work is roadmap context
+    (AGENTS.md). When True, deferred story/requirement blocks are dropped, journeys
+    that serve *only* deferred requirements are dropped (derived-tier rule), and an
+    epic left with no remaining member is dropped. Default False keeps the whole
+    product — the traceability spine and any full-product consumer rely on that."""
     sections = _sections(prd_body or "")
     epic_blocks = split_epic_blocks(_section(sections, "Product Epics") or "")
     story_blocks = split_user_story_blocks(
@@ -110,6 +130,20 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
         _section(sections, "Functional Requirements") or ""
     )
     journey_blocks = _split_blocks(_section(sections, "User Journeys") or "", _UJ_BLOCK_START_RE)
+
+    if mvp_only:
+        # Ids declared anywhere in the PRD, before filtering — a journey referencing
+        # only *undeclared* ids can't be proven deferred, so it is kept (fail-safe).
+        declared_ids = set(story_blocks) | set(requirement_blocks)
+        story_blocks = {sid: b for sid, b in story_blocks.items() if not _is_deferred(b)}
+        requirement_blocks = {rid: b for rid, b in requirement_blocks.items() if not _is_deferred(b)}
+        kept_ids = set(story_blocks) | set(requirement_blocks)
+
+        def _journey_in_mvp(block: str) -> bool:
+            traced = {i for i in requirement_ids(block) if i in declared_ids}
+            return not traced or bool(traced & kept_ids)
+
+        journey_blocks = {jid: b for jid, b in journey_blocks.items() if _journey_in_mvp(b)}
 
     epics = {
         epic_id: Epic(epic_id, title_of(epic_id, block), body_of(block, epic_id))
@@ -156,6 +190,14 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
     for req_id in requirement_blocks:
         if declared_epics and req_id not in requirement_to_epic:
             unassigned.append(req_id)
+
+    if mvp_only:
+        # An epic whose every child was deferred now has no member — don't emit it as
+        # a Jira Epic / package epic. Epics keep their declared identity during
+        # mapping above (so an mvp child of a mixed epic still resolves); only the
+        # output set is pruned here.
+        members = set(story_to_epic.values()) | set(requirement_to_epic.values())
+        epics = {eid: e for eid, e in epics.items() if eid in members}
 
     return PrdDeliveryMap(
         epics=epics,

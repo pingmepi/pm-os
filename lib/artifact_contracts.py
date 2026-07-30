@@ -252,6 +252,31 @@ def block_priority(block: str) -> str | None:
     return labeled_field(block, "Priority")
 
 
+TIERS = ("mvp", "v1", "v2", "later")
+DEFAULT_TIER = "mvp"
+
+
+def is_valid_tier(tier: str) -> bool:
+    """Whether ``tier`` is one of the recognized release bands."""
+    return (tier or "").strip().lower() in TIERS
+
+
+def block_tier(block: str) -> str:
+    """Release tier declared by a story/requirement block; defaults to ``mvp``.
+
+    Reads a ``Tier:`` / ``- **Tier:** <val>`` labeled field so the whole product
+    can be filtered by release band (mvp | v1 | v2 | later). Absence → ``mvp`` so
+    existing single-tier PRDs are unchanged. An unrecognized value is returned
+    lower-cased as-is (not coerced) so a validator can flag it.
+    """
+    raw = labeled_field(block, "Tier")
+    if not raw:
+        return DEFAULT_TIER
+    # Consumers normalize labeled-field values (the regex leaves a trailing `**`
+    # from `- **Tier:** mvp`); mirror delivery_map's strip-of-bold convention.
+    return raw.strip().strip("*").strip().lower()
+
+
 def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
     """Remove specific one-line labeled fields before prose cue checks."""
     wanted = {_norm(label) for label in labels}
@@ -749,8 +774,25 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     if not USER_STORY_ID_RE.search(stories):
         findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers so traceability survives regeneration."))
     story_blocks = split_user_story_blocks(stories)
+    # Tiered fidelity (D2): the full mini-spec (priority, acceptance, happy path,
+    # edge cases, traceability) is required of `mvp` stories only; non-mvp stories
+    # are SOW-grade stubs checked for lightweight commitment fields instead.
+    # Untagged stories default to mvp, so a PRD with no tiers validates as before.
+    # Only *valid* later bands take the stub path — an unrecognized (typo'd) tier
+    # stays on the full mvp mini-spec so a typo never silently exempts a story, and
+    # is surfaced explicitly.
+    story_tiers = {us: block_tier(b) for us, b in story_blocks.items()}
+    stub_story_blocks = {us: story_blocks[us] for us, t in story_tiers.items() if t in ("v1", "v2", "later")}
+    mvp_story_blocks = {us: story_blocks[us] for us, t in story_tiers.items() if t not in ("v1", "v2", "later")}
+    invalid_tier = sorted(us for us, t in story_tiers.items() if not is_valid_tier(t))
+    if invalid_tier:
+        findings.append(Finding(
+            "WARNING", "USER_STORY_TIER_INVALID",
+            "User stories with an unrecognized Tier (use mvp|v1|v2|later): "
+            + ", ".join(invalid_tier),
+        ))
     missing_story_priority = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not block_priority(block)
     )
     if missing_story_priority:
@@ -759,10 +801,10 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "User stories with no labeled `Priority:` value: "
             + ", ".join(missing_story_priority),
         ))
-    # v2 (WARNING-only): each story block should carry acceptance criteria so the
-    # handoff can render a Done/acceptance section per story instead of a blank.
+    # v2 (WARNING-only): each mvp story block should carry acceptance criteria so
+    # the handoff can render a Done/acceptance section per story instead of a blank.
     unacc = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field_any(block, ("Acceptance criteria", "Acceptance", "Acceptance (Done)"))
     )
     if unacc:
@@ -771,7 +813,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no visible acceptance criteria: {', '.join(unacc)}",
         ))
     missing_happy = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field(block, "Happy path")
     )
     if missing_happy:
@@ -780,7 +822,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no explicit happy path: {', '.join(missing_happy)}",
         ))
     missing_edges = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field_any(block, ("Edge cases / alternate paths", "Edge cases", "Alternate paths"))
     )
     if missing_edges:
@@ -789,7 +831,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no explicit edge cases / alternate paths: {', '.join(missing_edges)}",
         ))
     missing_traceability = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field(block, "Traceability")
     )
     if missing_traceability:
@@ -797,6 +839,27 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "WARNING", "USER_STORY_TRACEABILITY_FIELD_MISSING",
             "User stories with no labeled `Traceability:` field: "
             + ", ".join(missing_traceability),
+        ))
+    # Non-MVP tiers (v1/v2/later) are SOW-grade stubs (D2): require only the
+    # lightweight commitment fields, not the full mvp mini-spec above.
+    stub_missing = {
+        us_id: missing_labeled_fields(block, {
+            "Value": ("Value",),
+            "Size": ("Size", "Estimate"),
+            "Rationale": ("Rationale",),
+            "Depends on": ("Depends on", "Dependencies"),
+            "Acceptance intent": ("Acceptance intent",),
+            "Traceability": ("Traceability",),
+        })
+        for us_id, block in stub_story_blocks.items()
+    }
+    stub_missing = {us: m for us, m in stub_missing.items() if m}
+    if stub_missing:
+        detail = "; ".join(f"{us} ({', '.join(m)})" for us, m in sorted(stub_missing.items()))
+        findings.append(Finding(
+            "WARNING", "USER_STORY_STUB_FIELDS_MISSING",
+            "Non-MVP (v1/v2/later) user stories are SOW-grade stubs and should carry "
+            f"Value, Size, Rationale, Depends on, Acceptance intent, and Traceability: {detail}",
         ))
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):
@@ -811,6 +874,16 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "WARNING", "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING",
             "Functional requirements with no labeled `Priority:` value: "
             + ", ".join(missing_requirement_priority),
+        ))
+    invalid_requirement_tier = sorted(
+        req_id for req_id, block in requirement_blocks.items()
+        if not is_valid_tier(block_tier(block))
+    )
+    if invalid_requirement_tier:
+        findings.append(Finding(
+            "WARNING", "FUNCTIONAL_REQUIREMENT_TIER_INVALID",
+            "Functional requirements with an unrecognized Tier (use mvp|v1|v2|later): "
+            + ", ".join(invalid_requirement_tier),
         ))
     if declared_epics:
         def _validate_epic_ownership(kind: str, blocks: dict[str, str]) -> None:
@@ -973,6 +1046,18 @@ def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) 
 
 
 def _upstream_journey_ids(project_root: Path) -> set[str]:
+    """The **mvp-band** upstream journeys (`UJ-###`) — the ones downstream design /
+    prototype stages are expected to map. Journeys carry no `Tier:` of their own, so
+    a journey inherits the tier of the requirements it traces to: it is mvp-band if
+    it serves *any* mvp requirement, and deferred only when every *declared*
+    requirement it traces to is `v1`/`v2`/`later`. Deferred-only journeys are dropped
+    here so they never register as `JOURNEY_FLOW_TRACE_MISSING` against a design spec
+    that correctly omits them (AGENTS.md derived-tier rule).
+
+    Fail-safe: a journey with no resolvable declared trace (untagged PRD, or it only
+    references undeclared ids) is kept as mvp — we never silently drop a journey we
+    cannot prove is deferred. So a pre-tiering PRD (no tiers anywhere) is unchanged:
+    every journey defaults to mvp and stays in the set."""
     path = artifact_path(project_root, "03")
     if not path.exists():
         return set()
@@ -980,7 +1065,26 @@ def _upstream_journey_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    return {match.upper() for match in JOURNEY_ID_RE.findall(body)}
+    sections = _sections(body)
+    # Declared requirement tiers, from the same two sections _upstream_requirement_ids
+    # trusts. Only declared blocks get a tier; referenced-but-undeclared ids are not
+    # consulted for the journey's tier (they have no authoritative band).
+    req_tier: dict[str, str] = {}
+    for section_name, splitter in (
+        ("User Stories with Acceptance Criteria", split_user_story_blocks),
+        ("Functional Requirements", split_functional_requirement_blocks),
+    ):
+        for rid, block in splitter(_section(sections, section_name) or "").items():
+            req_tier[rid] = block_tier(block)
+
+    mvp_journeys: set[str] = set()
+    for journey_id, block in _blocks(_section(sections, "User Journeys") or "", r"^###\s+(UJ-\d{3})\b.*$"):
+        traced = [r for r in requirement_ids(block) if r in req_tier]
+        # No declared trace → fail-safe keep as mvp; otherwise mvp-band iff it serves
+        # at least one non-deferred (mvp) requirement.
+        if not traced or any(req_tier[r] not in ("v1", "v2", "later") for r in traced):
+            mvp_journeys.add(journey_id.upper())
+    return mvp_journeys
 
 
 def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
@@ -1000,10 +1104,30 @@ def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
     }
 
 
+def mvp_band_requirement_ids(prd_body: str) -> set[str]:
+    """The **mvp band**: requirement ids (US/FR/REQ-###) *declared* by a block in the
+    PRD body whose tier is not explicitly deferred. This is the single source of
+    truth for "what a downstream build artifact is expected to cover" — every
+    coverage check (QA, screens, TRD tasks) routes through it so they agree.
+
+    - Only *declared* blocks count; an id merely referenced in a trace (e.g. a story
+      tracing to an undeclared `FR-999`) has no block and is not a requirement here.
+    - An untagged or typo'd-tier block defaults to mvp (fail-safe): a pre-tiering PRD
+      is unchanged, and a typo never silently drops a requirement from coverage.
+    Empty when the PRD carries no stable ids, so prose-only PRDs never false-flag."""
+    sections = _sections(prd_body or "")
+    blocks: dict[str, str] = {}
+    blocks.update(split_user_story_blocks(_section(sections, "User Stories with Acceptance Criteria") or ""))
+    blocks.update(split_functional_requirement_blocks(_section(sections, "Functional Requirements") or ""))
+    return {rid for rid, block in blocks.items() if block_tier(block) not in ("v1", "v2", "later")}
+
+
 def _upstream_requirement_ids(project_root: Path) -> set[str]:
-    """Requirement ids (REQ/US/FR-###) declared in the approved PRD, used to check
-    QA-plan coverage. Empty when the PRD is absent or carries no stable ids — so
-    existing prose PRDs never trigger a false coverage gap."""
+    """The mvp band of the approved PRD — the set a QA plan is expected to cover.
+    Deliberately mvp-scoped: downstream stages operate on the mvp band (AGENTS.md),
+    so a compliant MVP-only QA plan legitimately omits deferred requirements and
+    counting those as gaps would warn on every tiered PRD. See
+    ``mvp_band_requirement_ids`` for the shared derivation."""
     path = artifact_path(project_root, "03")
     if not path.exists():
         return set()
@@ -1011,7 +1135,7 @@ def _upstream_requirement_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    return set(requirement_ids(body))
+    return mvp_band_requirement_ids(body)
 
 
 def _validate_journey_references(project_root: Path, body: str, stage_id: str) -> list[Finding]:
@@ -1153,11 +1277,18 @@ def _validate_screens(ia_section: str) -> list[Finding]:
 def _validate_stage_05(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     findings = _validate_journey_references(project_root, body, "05")
     what_to_prototype = _section(sections, "What to Prototype") or ""
+    # Only mvp-band journeys are prototype candidates — a deferred-only journey (one
+    # that serves no mvp requirement) is roadmap context the mvp prototype correctly
+    # omits, so it must not demand an include/exclude decision. Reuse the same derived
+    # mvp-journey filter the stage-04 journey-reference check uses.
+    mvp_journeys = _upstream_journey_ids(project_root)
     high_priority_journeys = [
         journey_id for journey_id, priority in _upstream_journey_priorities(project_root).items()
-        if _norm(priority) in {"high", "critical", "must", "must-have", "high risk", "high-risk"}
-        or "high" in _norm(priority)
-        or "critical" in _norm(priority)
+        if journey_id.upper() in mvp_journeys and (
+            _norm(priority) in {"high", "critical", "must", "must-have", "high risk", "high-risk"}
+            or "high" in _norm(priority)
+            or "critical" in _norm(priority)
+        )
     ]
     missing_decisions = sorted(
         journey_id for journey_id in high_priority_journeys

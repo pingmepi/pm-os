@@ -15,6 +15,13 @@ handoff package) alongside the existing Jira ticket export. `scripts/pm_share.py
 still does the raw/package mechanics; `scripts/pm_handoff.py` still does the
 Jira mechanics — only the skill-level entrypoint changed.
 
+**Tier scope.** The Jira export and the readable handoff package are **build
+handoffs — scoped to the mvp band**. Deferred (`v1`/`v2`/`later`) SOW-grade
+stubs are whole-product roadmap context, not build tickets or package items, so
+they are excluded automatically (`build_prd_delivery_map(..., mvp_only=True)`).
+A PM who wants a deferred item built must first `/pm-promote` it into `mvp`. The
+raw `--raw` dump is unfiltered — it mirrors the approved artifact text verbatim.
+
 # Modes
 
 `$ARGUMENTS` is parsed as prose, same as before — look for `--package` or

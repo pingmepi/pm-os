@@ -61,13 +61,17 @@ from typing import Optional
 import yaml
 
 from artifact_contracts import (
+    DEFAULT_TIER,
     REQUIREMENT_ID_RE,
+    block_tier,
     information_architecture_section,
     requirement_ids,
     screen_serves,
+    split_functional_requirement_blocks,
     split_screen_blocks,
     split_task_blocks,
     split_test_case_blocks,
+    split_user_story_blocks,
     task_implements,
     work_breakdown_section,
 )
@@ -85,9 +89,13 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # screens does this story touch". v4 replaces the temporary synthetic
 # `handoff_epics:` map with first-class PRD-declared `epics:` and a reverse `epic`
 # field on each requirement. v5 adds a `priority` field to PRD-declared
-# requirements and user stories. The file is derived, so older files upgrade on
-# rebuild; old synthetic epic ticket refs are preserved under `legacy_handoff_epics`.
-TRACEABILITY_SCHEMA_VERSION = 5
+# requirements and user stories. v6 adds a `tier` field (mvp | v1 | v2 | later,
+# default mvp) so the whole product can be filtered by release band. v7 adds a
+# `declared` flag (True only for ids with a real US/FR block) so tier groups and
+# counts exclude reference-only phantom ids. The file is derived, so older files
+# upgrade on rebuild; old synthetic epic ticket refs are preserved under
+# `legacy_handoff_epics`.
+TRACEABILITY_SCHEMA_VERSION = 7
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
@@ -169,6 +177,8 @@ def build_index(project_root: Path | str) -> dict:
             "source": source,
             "epic": None,
             "priority": None,
+            "tier": DEFAULT_TIER,
+            "declared": False,
             "test_cases": [],
             "tasks": [],
             "screens": [],
@@ -201,6 +211,16 @@ def build_index(project_root: Path | str) -> dict:
         for req_id, priority in delivery.priorities.items():
             entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
             entry["priority"] = priority
+
+        # Release tier per requirement (mvp | v1 | v2 | later), read from each
+        # US/FR block's `Tier:` field. Absent → mvp, so pre-tier PRDs are unchanged.
+        for req_id, block in {
+            **split_user_story_blocks(prd_body),
+            **split_functional_requirement_blocks(prd_body),
+        }.items():
+            entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
+            entry["tier"] = block_tier(block)
+            entry["declared"] = True  # has a real US/FR declaring block in the PRD
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
@@ -264,6 +284,29 @@ def build_index(project_root: Path | str) -> dict:
         "legacy_handoff_epics": legacy_handoff_epics,
         "screens": screens,
     }
+
+
+def requirements_by_tier(index: dict) -> dict:
+    """Group requirement ids by release tier (mvp | v1 | v2 | later | <other>).
+
+    Reads the derived index built by ``build_index``. Only requirements actually
+    **declared** by a PRD US/FR block are grouped — ids that are merely referenced
+    (e.g. a story tracing to an undeclared ``FR-999``) are excluded so tier totals
+    and the MVP slice never count phantom requirements. A declared requirement with
+    no explicit tier counts as ``mvp`` (the default).
+    """
+    out: dict[str, list[str]] = {}
+    for req_id, entry in (index.get("requirements") or {}).items():
+        if not (entry or {}).get("declared"):
+            continue
+        tier = (entry or {}).get("tier") or DEFAULT_TIER
+        out.setdefault(tier, []).append(req_id)
+    return out
+
+
+def mvp_requirements(index: dict) -> list[str]:
+    """The requirement ids tagged ``mvp`` (the default tier)."""
+    return requirements_by_tier(index).get(DEFAULT_TIER, [])
 
 
 def _merge_reserved(old: dict, new: dict) -> dict:
@@ -350,8 +393,17 @@ def rebuild(project_root: Path | str) -> dict:
 # --- Resolver queries --------------------------------------------------------
 
 def _index_for_query(project_root: Path | str) -> dict:
-    """Use the on-disk index if present, else build fresh in memory."""
-    return load_index(project_root) or build_index(project_root)
+    """Use the on-disk index if present **and current-schema**, else build fresh in
+    memory. A legacy `.traceability.yaml` (schema < 7) lacks per-requirement fields
+    like ``tier`` and ``declared``, so trusting it would make tier/declared-aware
+    queries (e.g. ``uncovered_requirements``) silently wrong after an upgrade — a
+    stale index that omits ``declared`` would reject every real requirement. Building
+    fresh in memory (no write) keeps the query correct without mutating the on-disk
+    file; ``rebuild`` is the explicit path that rewrites it."""
+    index = load_index(project_root)
+    if index and index.get("schema_version") == TRACEABILITY_SCHEMA_VERSION:
+        return index
+    return build_index(project_root)
 
 
 def scenarios_for_requirement(project_root: Path | str, req_id: str) -> list[str]:
@@ -443,10 +495,30 @@ def requirements_for_task(project_root: Path | str, tsk_id: str) -> list[str]:
 
 
 def uncovered_requirements(project_root: Path | str) -> list[str]:
-    """Requirement ids that have no covering TC-### (a coverage gap)."""
+    """Declared requirement ids with no covering TC-### — the coverage gaps surfaced
+    by the ``/pm-trace`` inspector.
+
+    Deliberately **whole-product**, unlike the pipeline coverage *gates* (QA / screen
+    / TRD checks) which scope to the mvp band. ``/pm-trace`` is an on-demand audit
+    tool, not a stage warning, so a PM can see deferred (`v1`/`v2`/`later`) coverage
+    too; the caller labels each id with its tier. Reference-only phantom ids
+    (``declared`` False — an id cited in a trace but with no PRD block) are excluded:
+    they are not requirements, so they cannot be uncovered ones."""
     index = _index_for_query(project_root)
     return sorted(
         req_id
         for req_id, entry in (index.get("requirements") or {}).items()
-        if not (entry.get("test_cases") or [])
+        if (entry or {}).get("declared") and not (entry.get("test_cases") or [])
     )
+
+
+def uncovered_requirement_tiers(project_root: Path | str) -> dict[str, str]:
+    """``{req_id: tier}`` for every uncovered requirement (same predicate as
+    ``uncovered_requirements``), so callers can tier-label the gap list from a single
+    index read. Tier defaults to ``mvp`` when untagged."""
+    index = _index_for_query(project_root)
+    return {
+        req_id: ((entry or {}).get("tier") or DEFAULT_TIER)
+        for req_id, entry in (index.get("requirements") or {}).items()
+        if (entry or {}).get("declared") and not (entry.get("test_cases") or [])
+    }

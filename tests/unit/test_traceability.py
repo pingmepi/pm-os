@@ -146,6 +146,54 @@ def test_scenarios_for_requirement_both_directions(tmp_path):
     assert trace.requirements_for_scenario(root, "tc-001") == ["US-001", "FR-001"]
 
 
+def test_uncovered_requirements_span_all_tiers_with_labels(tmp_path):
+    """`/pm-trace`'s coverage report is a whole-product inspector (not a pipeline
+    gate): it lists uncovered requirements across *all* tiers so a PM can audit
+    deferred coverage too, and `uncovered_requirement_tiers` labels each with its
+    tier (deferred shown, not hidden). Reference-only phantom ids are still excluded
+    by the underlying resolver."""
+    root = _project(tmp_path)
+    prd = _PRD.replace(
+        "- FR-002 — Audit the thing.\n  - Priority: Should\n  - Epic: EPIC-002\n",
+        "- FR-002 — Audit the thing.\n  - Priority: Should\n  - Epic: EPIC-002\n  - Tier: later\n",
+    )
+    _write(root, "03-prd.md", prd)
+    # TC-001 covers FR-001; US-001 (mvp) and FR-002 (deferred) are both uncovered.
+    _write(root, "06-qa-plan.md", "## Functional Test Cases\n### TC-001 — only FR-001\nsteps\n")
+    trace.rebuild(root)
+    # Whole product: the deferred FR-002 is still surfaced as a gap.
+    assert trace.uncovered_requirements(root) == ["FR-002", "US-001"]
+    # ...but labeled with its tier so it reads as roadmap context, not an mvp gap.
+    assert trace.uncovered_requirement_tiers(root) == {"FR-002": "later", "US-001": "mvp"}
+
+
+def test_query_rebuilds_a_stale_schema_index(tmp_path):
+    """Round-6 Codex P2: a legacy on-disk `.traceability.yaml` (schema < 7) has no
+    per-requirement `declared` field, so trusting it would make the declared-aware
+    `uncovered_requirements` reject every real requirement and falsely report full
+    coverage. `_index_for_query` must rebuild when the on-disk schema is outdated."""
+    import yaml
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    # QA covers only FR-001, so the real gaps are US-001 and FR-002.
+    _write(root, "06-qa-plan.md", "## Functional Test Cases\n### TC-001 — only FR-001\nsteps\n")
+    # Plant a stale schema-6 index that (a) omits `declared` and (b) claims everything
+    # is covered — exactly the shape that silently hid gaps before the fix.
+    stale = {
+        "schema_version": 6,
+        "requirements": {
+            "US-001": {"test_cases": ["TC-001"]},
+            "FR-001": {"test_cases": ["TC-001"]},
+            "FR-002": {"test_cases": ["TC-002"]},
+        },
+        "test_cases": {}, "tasks": {},
+    }
+    trace.traceability_path(root).write_text(yaml.dump(stale), encoding="utf-8")
+    # The query must rebuild (schema mismatch) and surface the real gaps, not trust
+    # the stale "all covered" index.
+    assert trace.uncovered_requirements(root) == ["FR-002", "US-001"]
+
+
 def test_uncovered_requirements_reports_gaps(tmp_path):
     """A requirement no scenario references is reported as uncovered."""
     root = _project(tmp_path)
@@ -206,13 +254,14 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v5_with_priorities_tasks_epics_and_screens_maps(tmp_path):
-    """The index declares schema_version 5 and carries priority, tasks, Product
-    Epics, and screens maps."""
+def test_index_is_schema_v7_with_priorities_tasks_epics_screens_tier_and_declared(tmp_path):
+    """The index declares schema_version 7 and carries priority, tasks, Product
+    Epics, screens, tier, and declared fields. Requirements with no `Tier:` default
+    to mvp; declared PRD blocks are flagged declared."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 5
+    assert index["schema_version"] == 7
     assert "tasks" in index and "epics" in index and "screens" in index
     assert index["epics"]["EPIC-001"]["tickets"] == []
     assert index["epics"]["EPIC-001"]["stories"] == ["US-001"]
@@ -221,6 +270,26 @@ def test_index_is_schema_v5_with_priorities_tasks_epics_and_screens_maps(tmp_pat
     assert index["requirements"]["US-001"]["priority"] == "Must"
     assert index["requirements"]["FR-001"]["priority"] == "Must"
     assert index["requirements"]["FR-002"]["priority"] == "Should"
+    # v6: untagged requirements default to the mvp tier. v7: declared blocks flagged.
+    assert index["requirements"]["US-001"]["tier"] == "mvp"
+    assert index["requirements"]["US-001"]["declared"] is True
+
+
+def test_requirements_by_tier_excludes_reference_only_ids(tmp_path):
+    """Ids merely referenced in the PRD (no declaring US/FR block) are flagged
+    `declared: False` and excluded from tier groups, so pm_status counts and
+    mvp_requirements never include phantom requirements (Codex P2)."""
+    root = _project(tmp_path)
+    prd = ("## User Stories with Acceptance Criteria\n"
+           "### US-001 — Login\n- **Tier:** mvp\n- **Traceability:** FR-999\n"
+           "## Functional Requirements\n- FR-001 — Work.\n")
+    _write(root, "03-prd.md", prd)
+    index = trace.build_index(root)
+    flat = [r for ids in trace.requirements_by_tier(index).values() for r in ids]
+    assert "US-001" in flat and "FR-001" in flat  # declared blocks included
+    assert "FR-999" not in flat                    # referenced only → excluded
+    assert index["requirements"]["FR-999"]["declared"] is False
+    assert "FR-999" not in trace.mvp_requirements(index)
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):

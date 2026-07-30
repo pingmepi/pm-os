@@ -15,7 +15,11 @@ schema_version: 1
 active_pack: indegene
 description: Indegene life-sciences PM context
 
-# Applied to every project, every stage.
+# Company-wide context. Each entry applies to every stage by default. To scope a
+# block to specific stages only, use the mapping form with a `stages:` list — e.g.
+#   - file: global/guardrails.md
+#     stages: ["06", "08"]   # inject guardrails only into QA + TRD
+# Bare strings (below) still apply everywhere; this keeps existing packs unchanged.
 global:
   - global/company.md
   - global/team.md

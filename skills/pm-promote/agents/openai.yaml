@@ -1,0 +1,4 @@
+interface:
+  display_name: "Promote Tier"
+  short_description: "Move a requirement between release tiers (mvp/v1/v2/later)"
+  default_prompt: "Use $pm-promote to move a requirement between release tiers, e.g. $pm-promote US-007 --to mvp."

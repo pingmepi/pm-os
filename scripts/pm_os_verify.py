@@ -289,7 +289,11 @@ def check_context_pack(r: Result):
         r.add(False, "Context overlay manifest parses", str(e).splitlines()[0])
         return
 
-    referenced = list(data.get("global", []) or [])
+    referenced = [
+        (g.get("file") or g.get("path")) if isinstance(g, dict) else g
+        for g in (data.get("global", []) or [])
+    ]
+    referenced = [r for r in referenced if r]
     for entry in (data.get("stages") or {}).values():
         entry = entry or {}
         if entry.get("format"):

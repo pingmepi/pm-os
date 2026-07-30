@@ -50,9 +50,10 @@ def main():
         tasks = index.get("tasks") or {}
         print(f"Rebuilt {trace.TRACEABILITY_FILENAME}: "
               f"{len(reqs)} requirement(s), {len(tcs)} test case(s), {len(tasks)} task(s).")
-        uncovered = trace.uncovered_requirements(root)
-        if uncovered:
-            print(f"Requirements with no covering scenario: {', '.join(uncovered)}")
+        tiers = trace.uncovered_requirement_tiers(root)
+        if tiers:
+            labeled = ", ".join(f"{rid} ({tiers[rid]})" for rid in sorted(tiers))
+            print(f"Requirements with no covering scenario: {labeled}")
         return
 
     if args.command == "requirement":
@@ -83,11 +84,11 @@ def main():
         return
 
     if args.command == "coverage":
-        uncovered = trace.uncovered_requirements(root)
-        if uncovered:
-            print("Requirements with no covering scenario:")
-            for req_id in uncovered:
-                print(f"  {req_id}")
+        tiers = trace.uncovered_requirement_tiers(root)
+        if tiers:
+            print("Requirements with no covering scenario (all tiers; deferred are roadmap context):")
+            for req_id in sorted(tiers):
+                print(f"  {req_id} ({tiers[req_id]})")
         else:
             print("All requirements are covered by at least one scenario.")
         return

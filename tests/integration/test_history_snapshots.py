@@ -44,3 +44,31 @@ def test_pm_check_warns_when_generated_snapshot_missing_or_mismatched(pmos, new_
     bad.write_text(apath.read_text(encoding="utf-8").replace("Generated body.", "Different body."), encoding="utf-8")
     issues = consistency.check_project(proj)
     assert any(i.code == consistency.CODE_HISTORY_SNAPSHOT_HASH_MISMATCH and i.stage == "01" for i in issues)
+
+
+def test_pm_check_healthy_when_generated_snapshot_matches(pmos, new_project):
+    """A generated snapshot whose body hash matches the artifact's ``generated_hash``
+    must be reported as **healthy** — no `HISTORY_SNAPSHOT_HASH_MISMATCH`. Guards a
+    real regression: `_check_history_lineage` hashes each snapshot via
+    ``hash_artifact_body``; when that name was not imported into consistency.py every
+    snapshot raised `NameError`, was swallowed by the broad `except`, and got
+    misreported as an unreadable mismatch — so pm_check warned on *every* stage even
+    when a matching snapshot existed. The pre-existing mismatch test could not catch
+    this (an all-unreadable run still trips the mismatch code); only asserting the
+    matching path stays clean does."""
+    proj = new_project("snapshot-match", "A problem")
+    apath = make_draft(proj, "01", body="Generated body.\n")
+    fm, body = frontmatter.read(str(apath))
+    fm["generated_hash"] = hash_artifact_body(str(apath))
+    frontmatter.write(str(apath), fm, body)
+
+    # pm_snapshot writes a byte-exact generated snapshot into .history/.
+    res = run_script(pmos, "pm_snapshot.py", "01", cwd=proj)
+    assert res.returncode == 0, res.stderr
+
+    issues = consistency.check_project(proj)
+    lineage = [i for i in issues if i.stage == "01" and i.code in (
+        consistency.CODE_HISTORY_SNAPSHOT_HASH_MISMATCH,
+        consistency.CODE_HISTORY_SNAPSHOT_MISSING,
+    )]
+    assert not lineage, f"matching snapshot must be healthy, got: {[(i.code, i.message) for i in lineage]}"

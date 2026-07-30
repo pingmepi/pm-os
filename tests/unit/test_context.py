@@ -84,6 +84,48 @@ def test_filled_global_surfaces_and_strips_guidance(pmos):
     assert "Term / acronym" not in out, "untouched glossary table must not leak"
 
 
+def test_global_stage_affinity_filters(pmos):
+    """F1: a global entry with `stages: [...]` is injected ONLY into those stages;
+    a bare-string global entry still applies to every stage (backward compatible)."""
+    ctx = _seed(pmos)
+    (ctx / "global" / "company.md").write_text("# Company\nACME everywhere line.\n", encoding="utf-8")
+    (ctx / "global" / "compliance.md").write_text("# Compliance\nQA-only compliance line.\n", encoding="utf-8")
+    (ctx / "context.yaml").write_text(
+        "schema_version: 1\n"
+        "global:\n"
+        "  - global/company.md\n"
+        "  - file: global/compliance.md\n"
+        "    stages: ['06']\n",
+        encoding="utf-8",
+    )
+    out_06 = context.render_context("06", None)
+    out_02 = context.render_context("02", None)
+    # scoped global: only its listed stage
+    assert "QA-only compliance line." in out_06
+    assert "QA-only compliance line." not in out_02
+    # bare-string global: every stage (regression)
+    assert "ACME everywhere line." in out_06
+    assert "ACME everywhere line." in out_02
+
+
+def test_scoped_project_global_overrides_base_bare_entry(pmos, tmp_path):
+    """F1 fix: a project manifest that scopes a global file the base declares as a
+    bare string must OVERRIDE the base entry (merge by path) — so the file injects
+    only into the scoped stage, not every stage, and never twice."""
+    ctx = _seed(pmos)
+    (ctx / "global" / "company.md").write_text("# Company\nSCOPED company line.\n", encoding="utf-8")
+    (ctx / "context.yaml").write_text(
+        "schema_version: 1\nglobal:\n  - global/company.md\n", encoding="utf-8")
+    proj = tmp_path / "proj"
+    (proj / "context").mkdir(parents=True)
+    (proj / "context" / "context.yaml").write_text(
+        "global:\n  - file: global/company.md\n    stages: ['06']\n", encoding="utf-8")
+    out_06 = context.render_context("06", str(proj))
+    out_02 = context.render_context("02", str(proj))
+    assert out_06.count("SCOPED company line.") == 1, "scoped global must inject once, not twice"
+    assert "SCOPED company line." not in out_02, "project scoping must win → not every stage"
+
+
 def test_apply_modes_emit_correct_directive(pmos):
     """The stage's apply mode (augment/override/reference-only) drives the directive in the
     rendered block; here override → 'REPLACE' guidance."""

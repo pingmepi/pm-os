@@ -135,6 +135,73 @@ Keyboard and screen reader.
     assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
 
 
+def test_design_journey_coverage_is_scoped_to_mvp_band(tmp_path):
+    """A journey inherits its tier from the requirements it serves. A design spec
+    that omits a *deferred-only* journey (traces only to a `v1`/`v2`/`later` story)
+    must NOT raise `JOURNEY_FLOW_TRACE_MISSING` for it — otherwise the mvp-only design
+    contract contradicts itself. An omitted *mvp-band* journey must still be flagged,
+    so the check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # UJ-002 is deferred: it traces only to US-002, which is tagged v1. US-002 is a
+    # declared stub so its tier resolves; UJ-002 therefore derives to the v1 band.
+    prd = _valid_prd().replace(
+        "**Traceability:** US-001, FR-001.\n",
+        "**Traceability:** US-001, FR-001.\n"
+        "### UJ-002 — A later-tier journey\n"
+        "**Primary user:** Operator\n**Context and trigger:** A deferred need.\n"
+        "**Goal:** Do the later thing.\n**Preconditions:** Access.\n"
+        "**Happy path:** Later flow.\n**Alternate/failure paths:** Recover.\n"
+        "**Completion signal:** Done.\n**Prototype priority:** Low\n"
+        "**Traceability:** US-002.\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-002 — Later work\n- **Tier:** v1\nValue: later.\nSize: M.\n"
+        "Rationale: deferred.\nDepends on: US-001.\nAcceptance intent: later.\n"
+        "Traceability: FR-001.\n### US-001 — Complete work\n",
+    )
+    _write(root, "03-prd.md", prd)
+    # Design references only the mvp journey UJ-001 (correctly omits deferred UJ-002).
+    body = """# Design Spec
+## Information Architecture
+Single surface.
+## Journey-to-Flow Traceability
+UJ-001 maps to the primary flow.
+## Key User Flows
+Start, act, recover, finish.
+## Product UX Guardrails
+Interaction model: retrieval-only
+## Design Principles
+Trust first.
+## Component Inventory
+Form and result.
+## Responsive & Platform Behavior
+Tablet first.
+## UX Content Rules
+Use find language.
+## Typography
+Readable.
+## Color Tokens
+Semantic.
+## Spacing Tokens
+Four-point scale.
+## Iconography
+Meaningful only.
+## Accessibility Notes
+Keyboard and screen reader.
+"""
+    _write(root, "04-design-spec.md", body)
+    findings = contracts.validate_artifact(root, "04")
+    gap = [f for f in findings if f.code == "JOURNEY_FLOW_TRACE_MISSING"]
+    assert not gap, f"deferred-only journey must not be a coverage gap: {[f.message for f in gap]}"
+
+    # Control: omitting the *mvp* journey UJ-001 must still be flagged.
+    body_missing_mvp = body.replace("UJ-001 maps to the primary flow.", "No journeys mapped.")
+    _write(root, "04-design-spec.md", body_missing_mvp)
+    gap2 = [f for f in contracts.validate_artifact(root, "04") if f.code == "JOURNEY_FLOW_TRACE_MISSING"]
+    assert gap2 and "UJ-001" in gap2[0].message, "mvp journey coverage must still be enforced"
+    assert "UJ-002" not in gap2[0].message
+
+
 def test_design_warns_when_prd_empty_invalid_behavior_is_missing(tmp_path):
     """Stage 04 should visibly reconcile PRD input edge behavior instead of letting
     a contradictory or incomplete design reach the prototype unnoticed."""
@@ -277,6 +344,63 @@ No production integration.
     warning = next(f for f in findings if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING")
     assert "UJ-001" in warning.message
     assert contracts.error_count(findings) == 0
+
+
+def test_prototype_priority_check_is_scoped_to_mvp_journeys(tmp_path):
+    """A high-priority *deferred-only* journey (serves only a v1/v2/later story) is
+    roadmap context the mvp prototype correctly omits — it must NOT trigger
+    `PROTOTYPE_PRIORITY_DECISION_MISSING`. A high-priority *mvp* journey left
+    undecided must still warn, so the check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # UJ-002 is deferred (serves only US-002, tagged v1) yet high-priority.
+    prd = _valid_prd().replace(
+        "**Traceability:** US-001, FR-001.\n",
+        "**Traceability:** US-001, FR-001.\n"
+        "### UJ-002 — Deferred high-priority journey\n"
+        "**Prototype priority:** High\n**Traceability:** US-002.\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-002 — Later work\n- **Tier:** v1\nValue: later.\nSize: M.\n"
+        "Rationale: deferred.\nDepends on: US-001.\nAcceptance intent: later.\n"
+        "Traceability: FR-001.\n### US-001 — Complete work\n",
+    )
+    _write(root, "03-prd.md", prd, contract_version=7)
+    # Prototype brief decides the mvp journey UJ-001 but never mentions UJ-002.
+    body = """# Prototype Brief
+## What to Prototype
+Include UJ-001 (the primary slice). No mention of any deferred journey.
+## Fidelity Level
+Interactive HTML.
+## Prototype Audience & Modes
+Participant mode is the default; reviewer mode is enabled separately.
+## Screens to Include
+Primary screen serving UJ-001.
+## Interactions to Demonstrate
+Complete the task.
+## Prototype Data & Scenarios
+Synthetic scenario.
+## Questions the Prototype Should Answer
+Can users finish?
+## Validation Plan
+Participants complete tasks against a current-experience comparator. Measures and evidence use a decision threshold. Facilitator guidance avoids bias and priming.
+## Known Limitations
+Simulated backend.
+## Non-Goals for Prototype
+No production integration.
+"""
+    _write(root, "05-prototype-brief.md", body)
+    findings = contracts.validate_artifact(root, "05")
+    decision_warnings = [f for f in findings if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING"]
+    assert not decision_warnings, (
+        "deferred-only journey must not demand a prototype decision: "
+        f"{[f.message for f in decision_warnings]}"
+    )
+
+    # Control: leave the mvp journey UJ-001 undecided → it must still warn (and only it).
+    body_missing_mvp = body.replace("Include UJ-001 (the primary slice). ", "")
+    _write(root, "05-prototype-brief.md", body_missing_mvp)
+    warn = next(f for f in contracts.validate_artifact(root, "05") if f.code == "PROTOTYPE_PRIORITY_DECISION_MISSING")
+    assert "UJ-001" in warn.message and "UJ-002" not in warn.message
 
 
 def test_retrieval_html_flags_generic_generation_patterns(tmp_path):
@@ -469,6 +593,31 @@ def test_qa_plan_uncovered_requirement_warns_not_errors(tmp_path):
     gap = [f for f in findings if f.code == "REQUIREMENT_COVERAGE_GAP"]
     assert gap and gap[0].severity == "WARNING"
     assert "FR-002" in gap[0].message
+    assert contracts.error_count(findings) == 0
+
+
+def test_qa_coverage_ignores_deferred_requirements(tmp_path):
+    """A QA plan is expected to cover only the **mvp band**. A deferred
+    (`v1`/`v2`/`later`) requirement left uncovered must NOT raise a coverage gap —
+    downstream stages operate on the mvp band, so omitting deferred work is correct,
+    not a gap. An uncovered *mvp* requirement in the same PRD must still warn, so the
+    check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # FR-001 (mvp, covered by the QA plan), FR-002 (mvp, uncovered → should warn),
+    # FR-003 (later, uncovered → must NOT warn).
+    prd = _valid_prd().replace(
+        "- FR-001 — Complete the work.\n  Priority: Must\n",
+        "- FR-001 — Complete the work.\n  Priority: Must\n"
+        "- FR-002 — Audit the work.\n  Priority: Must\n"
+        "- FR-003 — Archive old work.\n  Priority: Could\n  Tier: later\n",
+    )
+    _write(root, "03-prd.md", prd)
+    _write(root, "06-qa-plan.md", _valid_qa())
+    findings = contracts.validate_artifact(root, "06")
+    gap = [f for f in findings if f.code == "REQUIREMENT_COVERAGE_GAP"]
+    assert gap, "an uncovered mvp requirement should still warn"
+    assert "FR-002" in gap[0].message
+    assert "FR-003" not in gap[0].message, "deferred requirement must not be a coverage gap"
     assert contracts.error_count(findings) == 0
 
 
@@ -1115,3 +1264,95 @@ def test_screen_without_purpose_warns(tmp_path):
     _write(root, "04-design-spec.md", _design_spec(ia), contract_version=7)
     warning = next(f for f in contracts.validate_artifact(root, "04") if f.code == "SCREEN_FIELDS_MISSING")
     assert "SCR-001" in warning.message
+
+
+def test_block_tier_defaults_parses_and_preserves_invalid():
+    """F2: block_tier reads a `Tier:` field — absent → 'mvp'; a valid value is
+    parsed lower-cased; an unrecognized value is preserved (not coerced) so a
+    validator can flag it. is_valid_tier gates the recognized bands."""
+    assert contracts.block_tier("### US-001 — X\nAcceptance: ok.\n") == "mvp"
+    assert contracts.block_tier("### US-002 — X\n- **Tier:** V1\n") == "v1"
+    assert contracts.block_tier("### US-003 — X\n- **Tier:** bogus\n") == "bogus"
+    assert contracts.is_valid_tier("mvp") and contracts.is_valid_tier("LATER")
+    assert not contracts.is_valid_tier("bogus")
+
+
+def test_non_mvp_story_is_stub_not_full_minispec(tmp_path):
+    """D2 tiered fidelity: a `v1` story is a SOW-grade stub — it is NOT held to the
+    mvp mini-spec (acceptance / happy path / edge cases), and a complete stub raises
+    no stub-field warning."""
+    root = _project(tmp_path)
+    good_stub = (
+        "### US-100 — Reporting\n"
+        "- **Tier:** v1\n"
+        "- **Value:** Managers see weekly trends.\n"
+        "- **Size:** M\n"
+        "- **Rationale:** Requested by pilot leads.\n"
+        "- **Depends on:** US-001\n"
+        "- **Acceptance intent:** A weekly trend view exists.\n"
+        "- **Traceability:** FR-001\n"
+    )
+    body = _valid_prd().replace("## Functional Requirements", good_stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    # US-001 (mvp) is complete and US-100 (v1) is exempt → no mini-spec warnings.
+    assert "USER_STORY_ACCEPTANCE_MISSING" not in codes
+    assert "USER_STORY_HAPPY_PATH_MISSING" not in codes
+    assert "USER_STORY_EDGE_CASES_MISSING" not in codes
+    # a complete stub raises no stub-field warning.
+    assert "USER_STORY_STUB_FIELDS_MISSING" not in codes
+
+
+def test_non_mvp_stub_missing_commitment_fields_warns(tmp_path):
+    """A non-mvp stub missing its SOW-grade commitment fields raises
+    USER_STORY_STUB_FIELDS_MISSING (WARNING), and is NOT held to the mvp mini-spec."""
+    root = _project(tmp_path)
+    bare_stub = "### US-100 — Reporting\n- **Tier:** v1\n- **Value:** Managers see trends.\n"
+    body = _valid_prd().replace("## Functional Requirements", bare_stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    stub = next(f for f in findings if f.code == "USER_STORY_STUB_FIELDS_MISSING")
+    assert "US-100" in stub.message  # missing Size, Rationale, Depends on, Acceptance intent
+    assert not any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)
+
+
+def test_non_mvp_stub_missing_traceability_warns(tmp_path):
+    """A non-mvp stub must keep its Traceability link (scope/journey/FR); a stub with
+    every other commitment field but no Traceability still warns (Codex P2)."""
+    root = _project(tmp_path)
+    stub = ("### US-100 — Reporting\n- **Tier:** v1\n- **Value:** trends.\n"
+            "- **Size:** M\n- **Rationale:** asked.\n- **Depends on:** US-001\n"
+            "- **Acceptance intent:** a view exists.\n")  # no Traceability
+    body = _valid_prd().replace("## Functional Requirements", stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    stubf = next(f for f in findings if f.code == "USER_STORY_STUB_FIELDS_MISSING")
+    assert "US-100" in stubf.message and "Traceability" in stubf.message
+
+
+def test_functional_requirement_invalid_tier_warns(tmp_path):
+    """An FR with a typo'd Tier raises FUNCTIONAL_REQUIREMENT_TIER_INVALID (Codex P1:
+    FRs carry and are validated on their scope tier, like stories)."""
+    root = _project(tmp_path)
+    body = _valid_prd().replace(
+        "- FR-001 — Complete the work.\n  Priority: Must",
+        "- FR-001 — Complete the work.\n  Priority: Must\n  Tier: bogus")
+    _write(root, "03-prd.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "FUNCTIONAL_REQUIREMENT_TIER_INVALID" in codes
+
+
+def test_invalid_tier_is_flagged_and_kept_on_mvp_checks(tmp_path):
+    """A typo'd tier (e.g. `mpv`) is surfaced as USER_STORY_TIER_INVALID and is NOT
+    treated as a non-mvp stub — it stays on the full mvp mini-spec, so a typo can't
+    silently exempt a story from the acceptance/happy-path/edge checks."""
+    root = _project(tmp_path)
+    typo = "### US-100 — Reporting\n- **Tier:** mpv\n- **Value:** trends.\n"
+    body = _valid_prd().replace("## Functional Requirements", typo + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    assert any(f.code == "USER_STORY_TIER_INVALID" and "US-100" in f.message for f in findings)
+    # held to the mvp mini-spec: US-100 has no happy path → flagged (not stub-exempt)...
+    assert any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)
+    # ...and never routed to the stub path.
+    assert not any(f.code == "USER_STORY_STUB_FIELDS_MISSING" and "US-100" in f.message for f in findings)
