@@ -36,9 +36,7 @@ Edit `03-prd.md` (the source of truth for `US-###`/`FR-###` tiers):
 2. **Match fidelity to the new tier:**
    - Promoting **into `mvp`** → elaborate the story to the full stage-03 mini-spec: Happy path, Edge cases / alternate paths, Data fields, Key UI steps (with per-step system process + Acceptance + corner cases/exceptions), Acceptance criteria, Priority, and Traceability. Use the approved brief/scope + the story's stub fields as the seed; do not invent scope beyond what the item already commits to.
    - Demoting **out of `mvp`** → reduce the story to a SOW-grade stub: keep Story, Epic, Tier, Value, Size, Rationale, Depends on, Acceptance intent, Traceability; drop the full mini-spec detail.
-3. **Keep the scope consistent:** if the matching item in `02-scope.md` carries a tier tag, update it to the same tier so scope and PRD agree.
-
-If the item also appears in the approved scope and that edit matters upstream, note it — but do not edit stages other than the PRD/scope here.
+**Edit only the PRD here.** The PRD is the authoritative source of `US-###`/`FR-###` tiers, and the cost preview models a stage-03 edit. Do **not** also edit `02-scope.md` in this operation: editing an approved scope creates upstream hash drift the preview never disclosed and would need its own re-approval (with a larger cascade). If the scope's tier tag should change to match, do that as a **separate** `02` scope edit + `/pm-approve 02 --reapprove` afterwards, accepting its own cascade.
 
 # 4. Validate
 
@@ -50,11 +48,19 @@ Section/fidelity findings are warnings; a promoted-to-mvp story should now carry
 
 # 5. Re-approve + let staleness cascade
 
-Tell the PM the re-tag edited the PRD body, so the PRD is now `edited` (hash drift). To make it stick and cascade correctly:
+The re-tag edited the PRD body. Re-approve it so the change sticks and cascades:
 
-```
-/pm-approve 03            # re-approve the PRD (cascades stale to approved downstream)
-```
+- **If the PRD was already approved** (the LOW/CASCADE cases) use **`--reapprove`** — a plain `/pm-approve 03` sees status `approved` and **exits early without recomputing the hash or cascading staleness**, so the tier change would never take effect:
+
+  ```
+  /pm-approve 03 --reapprove
+  ```
+
+- **If the PRD was still a draft** (the FREE case) a normal approve is correct:
+
+  ```
+  /pm-approve 03
+  ```
 
 Then regenerate any downstream stage the preview flagged as re-staled, in order. Do not touch gate/hash/status yourself — approval and the staleness cascade are the state machine's job.
 
@@ -75,4 +81,4 @@ log('requirement_promoted', Path('.'), '03', {
 
 # Print to PM
 
-Summarize: the requirement moved `<from>` → `<to>`, whether it was free or cascaded, what you regenerated, and the next step (`/pm-approve 03`, then regenerate any re-staled downstream stages).
+Summarize: the requirement moved `<from>` → `<to>`, whether it was free or cascaded, what you regenerated, and the next step (`/pm-approve 03 --reapprove` if the PRD was already approved, else `/pm-approve 03`, then regenerate any re-staled downstream stages).
