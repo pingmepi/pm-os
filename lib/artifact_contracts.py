@@ -849,6 +849,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "Rationale": ("Rationale",),
             "Depends on": ("Depends on", "Dependencies"),
             "Acceptance intent": ("Acceptance intent",),
+            "Traceability": ("Traceability",),
         })
         for us_id, block in stub_story_blocks.items()
     }
@@ -858,7 +859,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
         findings.append(Finding(
             "WARNING", "USER_STORY_STUB_FIELDS_MISSING",
             "Non-MVP (v1/v2/later) user stories are SOW-grade stubs and should carry "
-            f"Value, Size, Rationale, Depends on, and Acceptance intent: {detail}",
+            f"Value, Size, Rationale, Depends on, Acceptance intent, and Traceability: {detail}",
         ))
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):

@@ -1167,6 +1167,20 @@ def test_non_mvp_stub_missing_commitment_fields_warns(tmp_path):
     assert not any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)
 
 
+def test_non_mvp_stub_missing_traceability_warns(tmp_path):
+    """A non-mvp stub must keep its Traceability link (scope/journey/FR); a stub with
+    every other commitment field but no Traceability still warns (Codex P2)."""
+    root = _project(tmp_path)
+    stub = ("### US-100 — Reporting\n- **Tier:** v1\n- **Value:** trends.\n"
+            "- **Size:** M\n- **Rationale:** asked.\n- **Depends on:** US-001\n"
+            "- **Acceptance intent:** a view exists.\n")  # no Traceability
+    body = _valid_prd().replace("## Functional Requirements", stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    stubf = next(f for f in findings if f.code == "USER_STORY_STUB_FIELDS_MISSING")
+    assert "US-100" in stubf.message and "Traceability" in stubf.message
+
+
 def test_invalid_tier_is_flagged_and_kept_on_mvp_checks(tmp_path):
     """A typo'd tier (e.g. `mpv`) is surfaced as USER_STORY_TIER_INVALID and is NOT
     treated as a non-mvp stub — it stays on the full mvp mini-spec, so a typo can't
