@@ -33,6 +33,10 @@ This stage benefits from the strongest reasoning model available in the current 
 
 This check is advisory: it reads your own session model only when the runtime exposes it. Do not require the PM to run a model-switch command if the current model already appears suitable or cannot be inspected. The frontmatter `model_tier:` value records the recommended model tier.
 
+# Tier scope
+
+This TRD designs and plans the **`mvp`-tier** slice only. The PRD enumerates the whole product across release bands (`mvp | v1 | v2 | later`); later-tier (`v1`/`v2`/`later`) requirements are SOW-grade stubs — whole-product roadmap context, **not** build targets. Do not create technical flows or Work Breakdown tasks for non-mvp requirements (they would become `/pm-handoff` tickets); they are elaborated only when promoted to `mvp`.
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -213,7 +217,7 @@ Write a Technical Requirements Document with these base sections.
 Task-ID rules:
 - IDs are `TSK-###`, **unique** and **sequentially numbered from `TSK-001`** within this TRD — no gaps, no reuse.
 - Every `TSK-###` must **Implements** at least one requirement ID that actually exists in the approved PRD (`US-###` / `FR-###` / `REQ-###`) or an explicitly cited NFR/governance requirement — an orphan task that traces to nothing is invalid.
-- Every functional requirement in the approved PRD (`US-###` / `FR-###`) should be delivered by at least one task, so the work breakdown fully covers the approved scope. Note any deliberate deferral inline rather than silently dropping a requirement.
+- Every **`mvp`-tier** functional requirement in the approved PRD (`US-###` / `FR-###`) should be delivered by at least one task, so the work breakdown fully covers the MVP. **Do not create tasks for `v1`/`v2`/`later` (non-mvp) requirements** — those are whole-product roadmap context, not build work for this TRD, and the tasks feed `/pm-handoff` tickets. Note any deliberate deferral of an mvp requirement inline rather than silently dropping it.
 
 ## Open Technical Questions
 
@@ -375,7 +379,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - The TRD must implement the approved scope and PRD without expanding or re-scoping them.
 - Architecture and Data Model must be concrete enough for an engineer to begin implementation.
 - Major technical requirements and decisions should use stable IDs where helpful and trace to scope, PRD, QA, metrics, or explicit constraints.
-- The Work Breakdown must enumerate `TSK-###` tasks that are unique, sequentially numbered, and each traced via `Implements:` to an existing PRD requirement (or a cited NFR/governance requirement); together they must cover every functional requirement in the approved PRD.
+- The Work Breakdown must enumerate `TSK-###` tasks that are unique, sequentially numbered, and each traced via `Implements:` to an existing PRD requirement (or a cited NFR/governance requirement); together they must cover every **`mvp`-tier** functional requirement in the approved PRD, and must **not** create tasks for non-mvp (`v1`/`v2`/`later`) requirements.
 - API / Interface Contracts must include auth, error semantics, idempotency, rate limits, versioning, and compatibility where relevant.
 - Non-Functional Implementation must tie each choice to a specific PRD NFR target.
 - Data Governance & Compliance Implementation must specify concrete controls (access, encryption, audit, retention/deletion) tied to PRD governance requirements, and for GenAI must state what data leaves to third-party model providers.
@@ -396,7 +400,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 6. Do rollout and deployment plans define feature flags, rollback, observability, and go/no-go criteria tied to QA and metrics?
 7. Do the Trade-offs show real alternatives, not a single foregone conclusion?
 8. Did the TRD avoid re-opening or silently changing any scoped/PRD product decision?
-9. Does the Work Breakdown enumerate unique, sequential `TSK-###` tasks, each `Implements:`-traced to a real PRD requirement (or cited NFR/governance requirement), with every functional requirement covered by at least one task?
+9. Does the Work Breakdown enumerate unique, sequential `TSK-###` tasks, each `Implements:`-traced to a real PRD requirement (or cited NFR/governance requirement), with every **`mvp`-tier** functional requirement covered by at least one task and **no** tasks created for non-mvp (`v1`/`v2`/`later`) requirements?
 10. If `genai_flag=true`, are the GenAI sections operational and buildable rather than restating the PRD?
 11. If `genai_flag=true`, does Model Serving & Selection give every model role a pinned primary, a fallback chain, a verified access path, a failover trigger, and a deprecation/re-validation plan — all traced to the PRD's Model Selection Rationale?
 12. If `genai_flag=false`, is the TRD complete without any AI-specific content?
