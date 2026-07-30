@@ -65,6 +65,33 @@ product and later horizons without expanding the MVP. If stage 08 is approved,
 stage 09 uses the TRD as technical delivery context; otherwise it runs from the
 approved product pipeline alone.
 
+### Release tiers (read before adding or changing any stage)
+
+Tier (`mvp | v1 | v2 | later`) is a **cross-cutting property**, not a stage-03
+detail. Every stage and every check must honor these rules so tier scope stays
+consistent end-to-end — this is the one rule the pipeline kept re-breaking when
+it was only applied to whichever stage a reviewer happened to name:
+
+1. **Tier is declared only on `US-###` and `FR-###`/`REQ-###` blocks in the
+   PRD** (via `- **Tier:** <band>`). Absent → `mvp`. The `mvp` band is every
+   *declared* block whose tier is not `v1`/`v2`/`later`.
+2. **Derived entities carry no tier tag of their own.** A journey (`UJ-###`),
+   screen (`SCR-###`), test case (`TC-###`), or task (`TSK-###`) **inherits the
+   lowest (most-included) tier of the requirements it serves/traces to.** Serving
+   *any* `mvp` requirement puts it in the mvp band; tracing *only* to deferred
+   requirements makes it deferred.
+3. **Downstream stages (04–09) operate on the mvp band only** by default — they
+   generate for mvp requirements and mvp-band derived entities, and treat
+   deferred items as roadmap context, never as build targets.
+4. **Every coverage/self-check computes its upstream set from the mvp band**, not
+   the full requirement/journey set. A compliant MVP-only artifact legitimately
+   omits deferred items; counting those omissions as gaps is the recurring bug.
+   An id merely *referenced* in a trace (no declaring block) is not a
+   requirement and never counts toward coverage.
+
+When you add a stage, a validator, or a skill self-check, wire it to the mvp
+band from the start rather than asserting full upstream coverage.
+
 ## Project State
 
 - PM-OS projects are plain local directories, usually under the configured

@@ -1046,6 +1046,18 @@ def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) 
 
 
 def _upstream_journey_ids(project_root: Path) -> set[str]:
+    """The **mvp-band** upstream journeys (`UJ-###`) — the ones downstream design /
+    prototype stages are expected to map. Journeys carry no `Tier:` of their own, so
+    a journey inherits the tier of the requirements it traces to: it is mvp-band if
+    it serves *any* mvp requirement, and deferred only when every *declared*
+    requirement it traces to is `v1`/`v2`/`later`. Deferred-only journeys are dropped
+    here so they never register as `JOURNEY_FLOW_TRACE_MISSING` against a design spec
+    that correctly omits them (AGENTS.md derived-tier rule).
+
+    Fail-safe: a journey with no resolvable declared trace (untagged PRD, or it only
+    references undeclared ids) is kept as mvp — we never silently drop a journey we
+    cannot prove is deferred. So a pre-tiering PRD (no tiers anywhere) is unchanged:
+    every journey defaults to mvp and stays in the set."""
     path = artifact_path(project_root, "03")
     if not path.exists():
         return set()
@@ -1053,7 +1065,26 @@ def _upstream_journey_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    return {match.upper() for match in JOURNEY_ID_RE.findall(body)}
+    sections = _sections(body)
+    # Declared requirement tiers, from the same two sections _upstream_requirement_ids
+    # trusts. Only declared blocks get a tier; referenced-but-undeclared ids are not
+    # consulted for the journey's tier (they have no authoritative band).
+    req_tier: dict[str, str] = {}
+    for section_name, splitter in (
+        ("User Stories with Acceptance Criteria", split_user_story_blocks),
+        ("Functional Requirements", split_functional_requirement_blocks),
+    ):
+        for rid, block in splitter(_section(sections, section_name) or "").items():
+            req_tier[rid] = block_tier(block)
+
+    mvp_journeys: set[str] = set()
+    for journey_id, block in _blocks(_section(sections, "User Journeys") or "", r"^###\s+(UJ-\d{3})\b.*$"):
+        traced = [r for r in requirement_ids(block) if r in req_tier]
+        # No declared trace → fail-safe keep as mvp; otherwise mvp-band iff it serves
+        # at least one non-deferred (mvp) requirement.
+        if not traced or any(req_tier[r] not in ("v1", "v2", "later") for r in traced):
+            mvp_journeys.add(journey_id.upper())
+    return mvp_journeys
 
 
 def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
@@ -1074,9 +1105,18 @@ def _upstream_journey_priorities(project_root: Path) -> dict[str, str]:
 
 
 def _upstream_requirement_ids(project_root: Path) -> set[str]:
-    """Requirement ids (REQ/US/FR-###) declared in the approved PRD, used to check
-    QA-plan coverage. Empty when the PRD is absent or carries no stable ids — so
-    existing prose PRDs never trigger a false coverage gap."""
+    """The **MVP band** of requirement ids (REQ/US/FR-###) *declared* by a block in
+    the approved PRD — the set a QA plan is expected to cover. Empty when the PRD is
+    absent or carries no stable ids, so existing prose PRDs never trigger a false
+    coverage gap.
+
+    Scoped to the mvp tier deliberately: downstream stages operate on the mvp band
+    (AGENTS.md), so a compliant MVP-only QA plan legitimately omits deferred
+    (v1/v2/later) requirements — counting those as coverage gaps would warn on every
+    tiered PRD. Only *declared* blocks count; an id merely referenced in a trace
+    (e.g. `FR-999`) has no block to cover and is not a real requirement here. An
+    untagged block defaults to mvp, so a pre-tiering PRD is unchanged. This mirrors
+    the mvp-band derivation in ``_validate_stage_03``."""
     path = artifact_path(project_root, "03")
     if not path.exists():
         return set()
@@ -1084,7 +1124,14 @@ def _upstream_requirement_ids(project_root: Path) -> set[str]:
         _fm, body = fm_read(str(path))
     except Exception:
         return set()
-    return set(requirement_ids(body))
+    sections = _sections(body)
+    blocks: dict[str, str] = {}
+    blocks.update(split_user_story_blocks(_section(sections, "User Stories with Acceptance Criteria") or ""))
+    blocks.update(split_functional_requirement_blocks(_section(sections, "Functional Requirements") or ""))
+    # mvp band == everything not explicitly deferred; an unrecognized tier stays in
+    # (fail-safe: a typo'd tier is still expected to be covered rather than silently
+    # dropped from the coverage set).
+    return {rid for rid, block in blocks.items() if block_tier(block) not in ("v1", "v2", "later")}
 
 
 def _validate_journey_references(project_root: Path, body: str, stage_id: str) -> list[Finding]:

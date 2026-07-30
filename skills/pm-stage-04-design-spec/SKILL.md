@@ -35,6 +35,8 @@ This check is advisory: it reads your own session model only when the runtime ex
 
 This stage targets the **`mvp`-tier** stories and requirements only. The PRD enumerates the whole product across release bands (`mvp | v1 | v2 | later`); later-tier (`v1`/`v2`/`later`) items are SOW-grade stubs — whole-product roadmap context, **not** targets for this stage. Do not create screens, flows, or components for stub stories/requirements. They are elaborated only when promoted to `mvp`.
 
+**Journeys inherit their tier — they carry no `Tier:` tag of their own.** A `UJ-###` journey's effective tier is the **lowest (most-included) band** of the `US-###`/`FR-###` it serves: a journey that serves *any* `mvp` story/requirement is in the mvp band; a journey that serves **only** deferred (`v1`/`v2`/`later`) items is itself deferred. Read each journey's traced ids from the PRD, look up their `Tier:`, and derive the journey's band before mapping it. **Only mvp-band journeys are targets for this stage** — do not build flows, screens, states, or recovery paths for a journey whose every traced requirement is deferred. Wherever this stage says "every journey" below, read it as "every mvp-band journey."
+
 # Pre-flight
 
 Before generating, run the pre-stage gate:
@@ -172,7 +174,7 @@ Rules:
 
 ## Journey-to-Flow Traceability
 
-<Map every PRD `UJ-###` to its entry point, screens or overlays, important states, happy-path completion, recovery paths, and supporting `US-###` / `FR-###`. Distinguish a user journey from a UI flow.>
+<Map every **mvp-band** PRD `UJ-###` (see Tier scope — a journey serving only deferred requirements is out of scope) to its entry point, screens or overlays, important states, happy-path completion, recovery paths, and supporting `US-###` / `FR-###`. Distinguish a user journey from a UI flow.>
 
 ## Key User Flows
 
@@ -228,7 +230,7 @@ Rules:
 - Treat the PRD as binding. Design should clarify requirements, not create new product scope.
 - Favor practical implementation guidance over mood-board language.
 - Make flows concrete enough that a designer could sketch screens and an engineer could infer component states.
-- Treat PRD journeys as binding context. Map each journey to flows without turning loading, empty, error, success, or degraded states into sequential screens unless the IA explicitly requires that topology.
+- Treat mvp-band PRD journeys as binding context (see Tier scope). Map each mvp-band journey to flows without turning loading, empty, error, success, or degraded states into sequential screens unless the IA explicitly requires that topology.
 - Every major screen, flow, and component should trace to an approved PRD user story, functional requirement, non-functional requirement, or edge case.
 - Include error, empty, loading, disabled, and success states where they matter.
 - Keep design tokens usable, restrained, and parseable for the companion HTML renderer. Avoid decorative token sets that do not map to the MVP.
@@ -329,7 +331,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Quality bar
 
 - Information Architecture must include a clear screen/page inventory declared as stable `SCR-###` screens — sequential, never reused across regenerations, each with a `Serves:` line tracing to the PRD ids it supports. These ids are the design half of the handoff spine; without them the handoff package cannot tell a developer which screens a story touches.
-- Journey-to-Flow Traceability must reference every PRD `UJ-###` and preserve its start, completion, and recovery context.
+- Journey-to-Flow Traceability must reference every **mvp-band** PRD `UJ-###` (a journey whose every traced requirement is deferred is out of scope — see Tier scope) and preserve its start, completion, and recovery context.
 - Input Behavior Reconciliation must explicitly carry forward PRD empty/invalid-input edge behavior and must name discoverability affordances for any input that uses placeholder text.
 - Product UX Guardrails must declare the interaction model and prevent AI or navigation patterns that contradict the PRD.
 - Every major screen, flow, and component must trace to an approved PRD requirement, story, non-functional requirement, or edge case.
@@ -343,7 +345,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 # Self-check before writing
 
 1. Does every major screen or component trace back to an approved PRD requirement — and does every `SCR-###` carry a `Serves:` line, with every **`mvp`-tier** user story served by at least one screen (or explicitly noted as screenless)? (Later-tier stub stories are roadmap context — do not create screens for them.)
-2. Is every PRD journey mapped to UI flows, screens/overlays, states, and recovery paths?
+2. Is every **mvp-band** PRD journey mapped to UI flows, screens/overlays, states, and recovery paths? (A journey serving only deferred requirements is roadmap context — do not map it. See Tier scope.)
 3. Does Product UX Guardrails declare the correct interaction model and prohibit misleading patterns?
 4. Does Input Behavior Reconciliation preserve PRD empty/invalid-input behavior and avoid placeholder-only discoverability?
 5. Are the key flows clear enough to sketch without another scoping conversation?

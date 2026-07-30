@@ -135,6 +135,73 @@ Keyboard and screen reader.
     assert contracts.error_count(findings) == 0, contracts.format_findings(findings)
 
 
+def test_design_journey_coverage_is_scoped_to_mvp_band(tmp_path):
+    """A journey inherits its tier from the requirements it serves. A design spec
+    that omits a *deferred-only* journey (traces only to a `v1`/`v2`/`later` story)
+    must NOT raise `JOURNEY_FLOW_TRACE_MISSING` for it — otherwise the mvp-only design
+    contract contradicts itself. An omitted *mvp-band* journey must still be flagged,
+    so the check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # UJ-002 is deferred: it traces only to US-002, which is tagged v1. US-002 is a
+    # declared stub so its tier resolves; UJ-002 therefore derives to the v1 band.
+    prd = _valid_prd().replace(
+        "**Traceability:** US-001, FR-001.\n",
+        "**Traceability:** US-001, FR-001.\n"
+        "### UJ-002 — A later-tier journey\n"
+        "**Primary user:** Operator\n**Context and trigger:** A deferred need.\n"
+        "**Goal:** Do the later thing.\n**Preconditions:** Access.\n"
+        "**Happy path:** Later flow.\n**Alternate/failure paths:** Recover.\n"
+        "**Completion signal:** Done.\n**Prototype priority:** Low\n"
+        "**Traceability:** US-002.\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-002 — Later work\n- **Tier:** v1\nValue: later.\nSize: M.\n"
+        "Rationale: deferred.\nDepends on: US-001.\nAcceptance intent: later.\n"
+        "Traceability: FR-001.\n### US-001 — Complete work\n",
+    )
+    _write(root, "03-prd.md", prd)
+    # Design references only the mvp journey UJ-001 (correctly omits deferred UJ-002).
+    body = """# Design Spec
+## Information Architecture
+Single surface.
+## Journey-to-Flow Traceability
+UJ-001 maps to the primary flow.
+## Key User Flows
+Start, act, recover, finish.
+## Product UX Guardrails
+Interaction model: retrieval-only
+## Design Principles
+Trust first.
+## Component Inventory
+Form and result.
+## Responsive & Platform Behavior
+Tablet first.
+## UX Content Rules
+Use find language.
+## Typography
+Readable.
+## Color Tokens
+Semantic.
+## Spacing Tokens
+Four-point scale.
+## Iconography
+Meaningful only.
+## Accessibility Notes
+Keyboard and screen reader.
+"""
+    _write(root, "04-design-spec.md", body)
+    findings = contracts.validate_artifact(root, "04")
+    gap = [f for f in findings if f.code == "JOURNEY_FLOW_TRACE_MISSING"]
+    assert not gap, f"deferred-only journey must not be a coverage gap: {[f.message for f in gap]}"
+
+    # Control: omitting the *mvp* journey UJ-001 must still be flagged.
+    body_missing_mvp = body.replace("UJ-001 maps to the primary flow.", "No journeys mapped.")
+    _write(root, "04-design-spec.md", body_missing_mvp)
+    gap2 = [f for f in contracts.validate_artifact(root, "04") if f.code == "JOURNEY_FLOW_TRACE_MISSING"]
+    assert gap2 and "UJ-001" in gap2[0].message, "mvp journey coverage must still be enforced"
+    assert "UJ-002" not in gap2[0].message
+
+
 def test_design_warns_when_prd_empty_invalid_behavior_is_missing(tmp_path):
     """Stage 04 should visibly reconcile PRD input edge behavior instead of letting
     a contradictory or incomplete design reach the prototype unnoticed."""
@@ -469,6 +536,31 @@ def test_qa_plan_uncovered_requirement_warns_not_errors(tmp_path):
     gap = [f for f in findings if f.code == "REQUIREMENT_COVERAGE_GAP"]
     assert gap and gap[0].severity == "WARNING"
     assert "FR-002" in gap[0].message
+    assert contracts.error_count(findings) == 0
+
+
+def test_qa_coverage_ignores_deferred_requirements(tmp_path):
+    """A QA plan is expected to cover only the **mvp band**. A deferred
+    (`v1`/`v2`/`later`) requirement left uncovered must NOT raise a coverage gap —
+    downstream stages operate on the mvp band, so omitting deferred work is correct,
+    not a gap. An uncovered *mvp* requirement in the same PRD must still warn, so the
+    check is scoped, not disabled."""
+    root = _project(tmp_path)
+    # FR-001 (mvp, covered by the QA plan), FR-002 (mvp, uncovered → should warn),
+    # FR-003 (later, uncovered → must NOT warn).
+    prd = _valid_prd().replace(
+        "- FR-001 — Complete the work.\n  Priority: Must\n",
+        "- FR-001 — Complete the work.\n  Priority: Must\n"
+        "- FR-002 — Audit the work.\n  Priority: Must\n"
+        "- FR-003 — Archive old work.\n  Priority: Could\n  Tier: later\n",
+    )
+    _write(root, "03-prd.md", prd)
+    _write(root, "06-qa-plan.md", _valid_qa())
+    findings = contracts.validate_artifact(root, "06")
+    gap = [f for f in findings if f.code == "REQUIREMENT_COVERAGE_GAP"]
+    assert gap, "an uncovered mvp requirement should still warn"
+    assert "FR-002" in gap[0].message
+    assert "FR-003" not in gap[0].message, "deferred requirement must not be a coverage gap"
     assert contracts.error_count(findings) == 0
 
 
