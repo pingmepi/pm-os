@@ -104,7 +104,13 @@ def preview(req_id: str, to: str | None = None, demote: bool = False) -> None:
         names = ", ".join(f"{d} ({STAGE_NAMES[d]})" for d in will_restale)
         print(f"  Cost: CASCADE — on re-approval of the PRD these re-stale: {names}")
 
-    if target == "mvp":
+    # Fidelity coupling is a user-story property only. A functional requirement's
+    # behavior text is tier-invariant, so an FR/REQ tier change is a re-tag with no
+    # fidelity elaboration/reduction (matches skills/pm-promote/SKILL.md).
+    is_story = req_id.upper().startswith("US-")
+    if not is_story:
+        print(f"  {req_id} is a functional requirement → re-tag only; its behavior text is tier-invariant (no fidelity change).")
+    elif target == "mvp":
         print(f"  {req_id} enters the MVP band → its mini-spec must be elaborated to full fidelity.")
     elif current == "mvp":
         print(f"  {req_id} leaves the MVP band → it becomes a SOW-grade stub.")
