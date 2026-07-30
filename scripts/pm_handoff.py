@@ -279,6 +279,13 @@ def build_plan(root: Path) -> dict:
     for tsk_id in index_tasks:
         implements = index_tasks[tsk_id].get("implements") or []
         exportable_impls = [ref for ref in implements if ref in item_by_ref]
+        # The delivery map is mvp-only, so `item_by_ref` holds only mvp-band items. A
+        # task that implements requirement(s) but none in the mvp band (i.e. it serves
+        # only deferred v1/v2/later work) has no exportable parent — don't emit it as a
+        # Jira ticket (AGENTS.md: the handoff is the mvp band). A task with no
+        # `implements` at all (orphan) is left to /pm-check rather than silently dropped.
+        if implements and not exportable_impls:
+            continue
         parent_ref = None
         issue_type = "Task"
         if len(exportable_impls) == 1:

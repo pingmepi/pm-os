@@ -208,6 +208,31 @@ def test_package_overview_and_reference_docs(pmos, new_project):
     assert "under 2s" in (pkg / "qa" / "reference" / "nfrs.md").read_text()
 
 
+def test_package_journeys_reference_excludes_deferred_journeys(pmos, new_project):
+    """Round-6 Codex P2: the package's `user-journeys.md` reference renders from the
+    mvp-only delivery map (`delivery.journey_blocks`), not the raw PRD section, so a
+    journey serving only deferred (`v1`) work is not shipped in the build package."""
+    proj = new_project("handoff-jref", "A problem")
+    prd = _PRD.replace(
+        "### UJ-001 — Manage agencies\nPrimary user: Collections user. Traceability: US-001.\n",
+        "### UJ-001 — Manage agencies\nPrimary user: Collections user. Traceability: US-001.\n"
+        "### UJ-002 — Discover agencies\nPrimary user: Collections user. Traceability: US-002.\n",
+    ).replace(
+        "### US-002 — List agencies\nPriority: Should\nEpic: EPIC-002\n",
+        "### US-002 — List agencies\nPriority: Should\nTier: v1\nEpic: EPIC-002\n",
+    )
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    refs = list(proj.glob("handoff/**/user-journeys.md"))
+    assert refs, "expected a user-journeys.md reference doc"
+    text = refs[0].read_text()
+    assert "UJ-001" in text
+    assert "UJ-002" not in text, "deferred-only journey must not ship in the package reference"
+
+
 def test_package_is_read_only_and_does_not_touch_state_machine(pmos, new_project):
     """Generating the package must not change .meta.yaml, artifact hashes, or statuses."""
     proj = new_project("handoff-readonly", "A problem")

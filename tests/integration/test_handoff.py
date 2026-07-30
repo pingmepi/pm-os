@@ -111,6 +111,34 @@ def test_plan_maps_jira_native_hierarchy(pmos, new_project):
     assert "TSK-999" not in items
 
 
+def test_plan_excludes_deferred_tier_items(pmos, new_project):
+    """Round-6 Codex P1: the Jira export is the mvp band. A deferred (`v1`) story /
+    requirement / epic must not become tickets, and a TRD task implementing *only* a
+    deferred requirement must not become a Task — while a task implementing any mvp
+    requirement stays exportable."""
+    proj = new_project("ho-tier", "A problem")
+    # EPIC-002 / US-002 / FR-002 are deferred to v1; EPIC-001 side stays mvp.
+    prd = _PRD_BODY.replace(
+        "### US-002 — Rep filters by specialty\nEpic: EPIC-002\nCovers FR-002.\n",
+        "### US-002 — Rep filters by specialty\nEpic: EPIC-002\nTier: v1\nCovers FR-002.\n",
+    ).replace(
+        "- **FR-002 (should):** Filter content by specialty.\n  - Epic: EPIC-002\n",
+        "- **FR-002 (should):** Filter content by specialty.\n  - Epic: EPIC-002\n  - Tier: v1\n",
+    )
+    _approve(pmos, proj, "03", prd)
+    _approve(pmos, proj, "08", _TRD_BODY)
+
+    res = run_script(pmos, "pm_handoff.py", "plan", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    items = {i["ref"]: i for i in json.loads((proj / "handoff" / "jira-plan.json").read_text())["items"]}
+    # Deferred items are excluded entirely.
+    for deferred in ("US-002", "FR-002", "EPIC-002", "TSK-002"):
+        assert deferred not in items, f"{deferred} is deferred and must not be exported"
+    # Mvp items (and a task spanning mvp+deferred, which still touches FR-001) remain.
+    for kept in ("US-001", "FR-001", "EPIC-001", "TSK-001", "TSK-004"):
+        assert kept in items, f"{kept} is mvp-band and must stay exportable"
+
+
 def test_plan_without_trd_exports_prd_only(pmos, new_project):
     """With no approved TRD, `plan` still exports PRD stories + functional requirements
     and simply carries no TRD subtasks."""
