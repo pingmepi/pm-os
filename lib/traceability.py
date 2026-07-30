@@ -393,8 +393,17 @@ def rebuild(project_root: Path | str) -> dict:
 # --- Resolver queries --------------------------------------------------------
 
 def _index_for_query(project_root: Path | str) -> dict:
-    """Use the on-disk index if present, else build fresh in memory."""
-    return load_index(project_root) or build_index(project_root)
+    """Use the on-disk index if present **and current-schema**, else build fresh in
+    memory. A legacy `.traceability.yaml` (schema < 7) lacks per-requirement fields
+    like ``tier`` and ``declared``, so trusting it would make tier/declared-aware
+    queries (e.g. ``uncovered_requirements``) silently wrong after an upgrade — a
+    stale index that omits ``declared`` would reject every real requirement. Building
+    fresh in memory (no write) keeps the query correct without mutating the on-disk
+    file; ``rebuild`` is the explicit path that rewrites it."""
+    index = load_index(project_root)
+    if index and index.get("schema_version") == TRACEABILITY_SCHEMA_VERSION:
+        return index
+    return build_index(project_root)
 
 
 def scenarios_for_requirement(project_root: Path | str, req_id: str) -> list[str]:

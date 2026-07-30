@@ -167,6 +167,33 @@ def test_uncovered_requirements_span_all_tiers_with_labels(tmp_path):
     assert trace.uncovered_requirement_tiers(root) == {"FR-002": "later", "US-001": "mvp"}
 
 
+def test_query_rebuilds_a_stale_schema_index(tmp_path):
+    """Round-6 Codex P2: a legacy on-disk `.traceability.yaml` (schema < 7) has no
+    per-requirement `declared` field, so trusting it would make the declared-aware
+    `uncovered_requirements` reject every real requirement and falsely report full
+    coverage. `_index_for_query` must rebuild when the on-disk schema is outdated."""
+    import yaml
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    # QA covers only FR-001, so the real gaps are US-001 and FR-002.
+    _write(root, "06-qa-plan.md", "## Functional Test Cases\n### TC-001 — only FR-001\nsteps\n")
+    # Plant a stale schema-6 index that (a) omits `declared` and (b) claims everything
+    # is covered — exactly the shape that silently hid gaps before the fix.
+    stale = {
+        "schema_version": 6,
+        "requirements": {
+            "US-001": {"test_cases": ["TC-001"]},
+            "FR-001": {"test_cases": ["TC-001"]},
+            "FR-002": {"test_cases": ["TC-002"]},
+        },
+        "test_cases": {}, "tasks": {},
+    }
+    trace.traceability_path(root).write_text(yaml.dump(stale), encoding="utf-8")
+    # The query must rebuild (schema mismatch) and surface the real gaps, not trust
+    # the stale "all covered" index.
+    assert trace.uncovered_requirements(root) == ["FR-002", "US-001"]
+
+
 def test_uncovered_requirements_reports_gaps(tmp_path):
     """A requirement no scenario references is reported as uncovered."""
     root = _project(tmp_path)
