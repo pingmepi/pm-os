@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 from project import STAGE_NAMES, artifact_path, load_meta, upstream_stage_ids
-from hashing import CompositeHashError, stage_content_hash
+from hashing import CompositeHashError, hash_artifact_body, stage_content_hash
 from frontmatter import read as fm_read
 from telemetry import verify_chain
 from artifact_contracts import (
