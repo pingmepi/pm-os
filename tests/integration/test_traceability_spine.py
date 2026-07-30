@@ -27,11 +27,48 @@ steps
 """
 
 
+_TIERED_PRD_BODY = """## Functional Requirements
+- FR-001 — Complete the work.
+## User Stories with Acceptance Criteria
+### US-001 — Core login
+- **Tier:** mvp
+Acceptance: works.
+### US-002 — Reports
+- **Tier:** v1
+Acceptance: later phase.
+### US-003 — Export
+Acceptance: no tier tagged here.
+"""
+
+
 def _approve_prd_and_qa(pmos, proj):
     make_draft(proj, "03", body=_PRD_BODY)
     assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
     make_draft(proj, "06", body=_QA_BODY)
     assert run_script(pmos, "pm_approve.py", "06", cwd=proj).returncode == 0
+
+
+def test_traceability_records_requirement_tier(pmos, new_project):
+    """F2: build_index records a `tier` per requirement (from each US/FR block's
+    `Tier:` field, default mvp), and requirements_by_tier groups the whole product
+    so the MVP slice is filterable without re-parsing the PRD."""
+    proj = new_project("trace-tier", "A problem")
+    make_draft(proj, "03", body=_TIERED_PRD_BODY)
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+
+    import yaml
+    data = yaml.safe_load((proj / ".traceability.yaml").read_text())
+    assert data["schema_version"] == 6
+    reqs = data["requirements"]
+    assert reqs["US-001"]["tier"] == "mvp"
+    assert reqs["US-002"]["tier"] == "v1"
+    assert reqs["US-003"]["tier"] == "mvp"  # untagged defaults to mvp
+
+    import traceability
+    by_tier = traceability.requirements_by_tier(data)
+    assert by_tier["v1"] == ["US-002"]
+    assert "US-002" not in traceability.mvp_requirements(data)
+    assert {"US-001", "US-003"}.issubset(set(traceability.mvp_requirements(data)))
 
 
 def test_approval_builds_traceability_dotfile(pmos, new_project):

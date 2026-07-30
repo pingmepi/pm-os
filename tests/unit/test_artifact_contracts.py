@@ -1115,3 +1115,53 @@ def test_screen_without_purpose_warns(tmp_path):
     _write(root, "04-design-spec.md", _design_spec(ia), contract_version=7)
     warning = next(f for f in contracts.validate_artifact(root, "04") if f.code == "SCREEN_FIELDS_MISSING")
     assert "SCR-001" in warning.message
+
+
+def test_block_tier_defaults_parses_and_preserves_invalid():
+    """F2: block_tier reads a `Tier:` field — absent → 'mvp'; a valid value is
+    parsed lower-cased; an unrecognized value is preserved (not coerced) so a
+    validator can flag it. is_valid_tier gates the recognized bands."""
+    assert contracts.block_tier("### US-001 — X\nAcceptance: ok.\n") == "mvp"
+    assert contracts.block_tier("### US-002 — X\n- **Tier:** V1\n") == "v1"
+    assert contracts.block_tier("### US-003 — X\n- **Tier:** bogus\n") == "bogus"
+    assert contracts.is_valid_tier("mvp") and contracts.is_valid_tier("LATER")
+    assert not contracts.is_valid_tier("bogus")
+
+
+def test_non_mvp_story_is_stub_not_full_minispec(tmp_path):
+    """D2 tiered fidelity: a `v1` story is a SOW-grade stub — it is NOT held to the
+    mvp mini-spec (acceptance / happy path / edge cases), and a complete stub raises
+    no stub-field warning."""
+    root = _project(tmp_path)
+    good_stub = (
+        "### US-100 — Reporting\n"
+        "- **Tier:** v1\n"
+        "- **Value:** Managers see weekly trends.\n"
+        "- **Size:** M\n"
+        "- **Rationale:** Requested by pilot leads.\n"
+        "- **Depends on:** US-001\n"
+        "- **Acceptance intent:** A weekly trend view exists.\n"
+        "- **Traceability:** FR-001\n"
+    )
+    body = _valid_prd().replace("## Functional Requirements", good_stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    # US-001 (mvp) is complete and US-100 (v1) is exempt → no mini-spec warnings.
+    assert "USER_STORY_ACCEPTANCE_MISSING" not in codes
+    assert "USER_STORY_HAPPY_PATH_MISSING" not in codes
+    assert "USER_STORY_EDGE_CASES_MISSING" not in codes
+    # a complete stub raises no stub-field warning.
+    assert "USER_STORY_STUB_FIELDS_MISSING" not in codes
+
+
+def test_non_mvp_stub_missing_commitment_fields_warns(tmp_path):
+    """A non-mvp stub missing its SOW-grade commitment fields raises
+    USER_STORY_STUB_FIELDS_MISSING (WARNING), and is NOT held to the mvp mini-spec."""
+    root = _project(tmp_path)
+    bare_stub = "### US-100 — Reporting\n- **Tier:** v1\n- **Value:** Managers see trends.\n"
+    body = _valid_prd().replace("## Functional Requirements", bare_stub + "## Functional Requirements")
+    _write(root, "03-prd.md", body)
+    findings = contracts.validate_artifact(root, "03")
+    stub = next(f for f in findings if f.code == "USER_STORY_STUB_FIELDS_MISSING")
+    assert "US-100" in stub.message  # missing Size, Rationale, Depends on, Acceptance intent
+    assert not any(f.code == "USER_STORY_HAPPY_PATH_MISSING" and "US-100" in f.message for f in findings)

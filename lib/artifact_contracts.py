@@ -252,6 +252,31 @@ def block_priority(block: str) -> str | None:
     return labeled_field(block, "Priority")
 
 
+TIERS = ("mvp", "v1", "v2", "later")
+DEFAULT_TIER = "mvp"
+
+
+def is_valid_tier(tier: str) -> bool:
+    """Whether ``tier`` is one of the recognized release bands."""
+    return (tier or "").strip().lower() in TIERS
+
+
+def block_tier(block: str) -> str:
+    """Release tier declared by a story/requirement block; defaults to ``mvp``.
+
+    Reads a ``Tier:`` / ``- **Tier:** <val>`` labeled field so the whole product
+    can be filtered by release band (mvp | v1 | v2 | later). Absence → ``mvp`` so
+    existing single-tier PRDs are unchanged. An unrecognized value is returned
+    lower-cased as-is (not coerced) so a validator can flag it.
+    """
+    raw = labeled_field(block, "Tier")
+    if not raw:
+        return DEFAULT_TIER
+    # Consumers normalize labeled-field values (the regex leaves a trailing `**`
+    # from `- **Tier:** mvp`); mirror delivery_map's strip-of-bold convention.
+    return raw.strip().strip("*").strip().lower()
+
+
 def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
     """Remove specific one-line labeled fields before prose cue checks."""
     wanted = {_norm(label) for label in labels}
@@ -749,8 +774,14 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
     if not USER_STORY_ID_RE.search(stories):
         findings.append(Finding("ERROR", "USER_STORY_IDS_MISSING", "User stories must use stable US-### identifiers so traceability survives regeneration."))
     story_blocks = split_user_story_blocks(stories)
+    # Tiered fidelity (D2): the full mini-spec (priority, acceptance, happy path,
+    # edge cases, traceability) is required of `mvp` stories only; non-mvp stories
+    # are SOW-grade stubs checked for lightweight commitment fields instead.
+    # Untagged stories default to mvp, so a PRD with no tiers validates as before.
+    mvp_story_blocks = {us: b for us, b in story_blocks.items() if block_tier(b) == DEFAULT_TIER}
+    stub_story_blocks = {us: b for us, b in story_blocks.items() if block_tier(b) != DEFAULT_TIER}
     missing_story_priority = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not block_priority(block)
     )
     if missing_story_priority:
@@ -759,10 +790,10 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "User stories with no labeled `Priority:` value: "
             + ", ".join(missing_story_priority),
         ))
-    # v2 (WARNING-only): each story block should carry acceptance criteria so the
-    # handoff can render a Done/acceptance section per story instead of a blank.
+    # v2 (WARNING-only): each mvp story block should carry acceptance criteria so
+    # the handoff can render a Done/acceptance section per story instead of a blank.
     unacc = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field_any(block, ("Acceptance criteria", "Acceptance", "Acceptance (Done)"))
     )
     if unacc:
@@ -771,7 +802,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no visible acceptance criteria: {', '.join(unacc)}",
         ))
     missing_happy = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field(block, "Happy path")
     )
     if missing_happy:
@@ -780,7 +811,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no explicit happy path: {', '.join(missing_happy)}",
         ))
     missing_edges = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field_any(block, ("Edge cases / alternate paths", "Edge cases", "Alternate paths"))
     )
     if missing_edges:
@@ -789,7 +820,7 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             f"User stories with no explicit edge cases / alternate paths: {', '.join(missing_edges)}",
         ))
     missing_traceability = sorted(
-        us_id for us_id, block in story_blocks.items()
+        us_id for us_id, block in mvp_story_blocks.items()
         if not labeled_field(block, "Traceability")
     )
     if missing_traceability:
@@ -797,6 +828,26 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
             "WARNING", "USER_STORY_TRACEABILITY_FIELD_MISSING",
             "User stories with no labeled `Traceability:` field: "
             + ", ".join(missing_traceability),
+        ))
+    # Non-MVP tiers (v1/v2/later) are SOW-grade stubs (D2): require only the
+    # lightweight commitment fields, not the full mvp mini-spec above.
+    stub_missing = {
+        us_id: missing_labeled_fields(block, {
+            "Value": ("Value",),
+            "Size": ("Size", "Estimate"),
+            "Rationale": ("Rationale",),
+            "Depends on": ("Depends on", "Dependencies"),
+            "Acceptance intent": ("Acceptance intent",),
+        })
+        for us_id, block in stub_story_blocks.items()
+    }
+    stub_missing = {us: m for us, m in stub_missing.items() if m}
+    if stub_missing:
+        detail = "; ".join(f"{us} ({', '.join(m)})" for us, m in sorted(stub_missing.items()))
+        findings.append(Finding(
+            "WARNING", "USER_STORY_STUB_FIELDS_MISSING",
+            "Non-MVP (v1/v2/later) user stories are SOW-grade stubs and should carry "
+            f"Value, Size, Rationale, Depends on, and Acceptance intent: {detail}",
         ))
     requirements = _section(sections, "Functional Requirements") or ""
     if not FUNCTIONAL_REQ_ID_RE.search(requirements):

@@ -206,13 +206,13 @@ _TRD = """# TRD
 """
 
 
-def test_index_is_schema_v5_with_priorities_tasks_epics_and_screens_maps(tmp_path):
-    """The index declares schema_version 5 and carries priority, tasks, Product
-    Epics, and screens maps."""
+def test_index_is_schema_v6_with_priorities_tasks_epics_screens_and_tier_maps(tmp_path):
+    """The index declares schema_version 6 and carries priority, tasks, Product
+    Epics, screens, and tier fields. Requirements with no `Tier:` default to mvp."""
     root = _project(tmp_path)
     _write(root, "03-prd.md", _PRD)
     index = trace.build_index(root)
-    assert index["schema_version"] == 5
+    assert index["schema_version"] == 6
     assert "tasks" in index and "epics" in index and "screens" in index
     assert index["epics"]["EPIC-001"]["tickets"] == []
     assert index["epics"]["EPIC-001"]["stories"] == ["US-001"]
@@ -221,6 +221,8 @@ def test_index_is_schema_v5_with_priorities_tasks_epics_and_screens_maps(tmp_pat
     assert index["requirements"]["US-001"]["priority"] == "Must"
     assert index["requirements"]["FR-001"]["priority"] == "Must"
     assert index["requirements"]["FR-002"]["priority"] == "Should"
+    # v6: untagged requirements default to the mvp tier.
+    assert index["requirements"]["US-001"]["tier"] == "mvp"
 
 
 def test_build_index_links_tasks_and_requirements(tmp_path):

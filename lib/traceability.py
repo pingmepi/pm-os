@@ -61,13 +61,17 @@ from typing import Optional
 import yaml
 
 from artifact_contracts import (
+    DEFAULT_TIER,
     REQUIREMENT_ID_RE,
+    block_tier,
     information_architecture_section,
     requirement_ids,
     screen_serves,
+    split_functional_requirement_blocks,
     split_screen_blocks,
     split_task_blocks,
     split_test_case_blocks,
+    split_user_story_blocks,
     task_implements,
     work_breakdown_section,
 )
@@ -85,9 +89,11 @@ TRACEABILITY_FILENAME = ".traceability.yaml"
 # screens does this story touch". v4 replaces the temporary synthetic
 # `handoff_epics:` map with first-class PRD-declared `epics:` and a reverse `epic`
 # field on each requirement. v5 adds a `priority` field to PRD-declared
-# requirements and user stories. The file is derived, so older files upgrade on
-# rebuild; old synthetic epic ticket refs are preserved under `legacy_handoff_epics`.
-TRACEABILITY_SCHEMA_VERSION = 5
+# requirements and user stories. v6 adds a `tier` field (mvp | v1 | v2 | later,
+# default mvp) so the whole product can be filtered by release band. The file is
+# derived, so older files upgrade on rebuild; old synthetic epic ticket refs are
+# preserved under `legacy_handoff_epics`.
+TRACEABILITY_SCHEMA_VERSION = 6
 
 # Reserved cross-reference slots that later phases populate. Kept here so the
 # generated file shape is stable and forward-compatible.
@@ -169,6 +175,7 @@ def build_index(project_root: Path | str) -> dict:
             "source": source,
             "epic": None,
             "priority": None,
+            "tier": DEFAULT_TIER,
             "test_cases": [],
             "tasks": [],
             "screens": [],
@@ -201,6 +208,15 @@ def build_index(project_root: Path | str) -> dict:
         for req_id, priority in delivery.priorities.items():
             entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
             entry["priority"] = priority
+
+        # Release tier per requirement (mvp | v1 | v2 | later), read from each
+        # US/FR block's `Tier:` field. Absent → mvp, so pre-tier PRDs are unchanged.
+        for req_id, block in {
+            **split_user_story_blocks(prd_body),
+            **split_functional_requirement_blocks(prd_body),
+        }.items():
+            entry = requirements.setdefault(req_id, _new_requirement(req_id, artifact_path(project_root, "03").name))
+            entry["tier"] = block_tier(block)
 
     # Test cases + their covering requirement links come from the QA plan.
     if qa_body:
@@ -264,6 +280,26 @@ def build_index(project_root: Path | str) -> dict:
         "legacy_handoff_epics": legacy_handoff_epics,
         "screens": screens,
     }
+
+
+def requirements_by_tier(index: dict) -> dict:
+    """Group requirement ids by release tier (mvp | v1 | v2 | later | <other>).
+
+    Reads the derived index built by ``build_index``. A requirement with no tier
+    recorded counts as ``mvp`` (the default), so pre-tier projects group cleanly.
+    Lets a stage skill or tool quickly filter the MVP slice out of the whole
+    product without re-parsing the PRD.
+    """
+    out: dict[str, list[str]] = {}
+    for req_id, entry in (index.get("requirements") or {}).items():
+        tier = (entry or {}).get("tier") or DEFAULT_TIER
+        out.setdefault(tier, []).append(req_id)
+    return out
+
+
+def mvp_requirements(index: dict) -> list[str]:
+    """The requirement ids tagged ``mvp`` (the default tier)."""
+    return requirements_by_tier(index).get(DEFAULT_TIER, [])
 
 
 def _merge_reserved(old: dict, new: dict) -> dict:
