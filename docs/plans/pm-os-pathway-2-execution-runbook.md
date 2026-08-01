@@ -28,13 +28,13 @@ Execute the loops in order. **Each loop is a strict cycle — do not skip a phas
 - **Non-interactive safety:** any new interactive path needs an env/flag escape and a non-tty branch (mirror `PM_OS_EDITED_UPSTREAM_CHOICE`). New escape: `PM_OS_INTERVIEW=skip` and `--interview-answers <file>`.
 - **Cross-runtime:** any skill change updates **both** `SKILL.md` and `agents/openai.yaml`.
 - **Catalog:** every new test gets a one-line docstring and an entry in `docs/guides/testing.md` (Loop 6).
-- **Contract cap:** the interview asks **≤5** questions; skipped questions become **known unknowns**, never silent assumptions. The interview **never self-approves** any stage-00 doc.
+- **Interview contract:** **coverage-driven, not a fixed count** — ask only load-bearing gaps the provided sources don't already answer, **batched by topic in strictly decreasing order of impact** (highest-impact first), soft ~5 per round, PM may skip/stop anytime. Skipped/unanswered → **known unknowns**, never silent assumptions. The interview **never self-approves** any stage-00 doc.
 
 ---
 
 ## 1. Definition of done (E1, pathway 2)
 
-- A pathway-2 import (prototype/design provided, **no** `--codebase`) whose `preflight` rates an upstream gap ⚠️/⛔ triggers the interview; it asks ≤5 ranked questions; answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and fabricates nothing.
+- A pathway-2 import (prototype/design + any supporting context provided, **no** `--codebase`) whose `preflight` rates an upstream gap ⚠️/⛔ triggers the interview; it asks **coverage-driven** questions — batched by topic, decreasing impact, only for residual gaps the sources don't already answer; answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and fabricates nothing.
 - Interview answers are registered in `.sources.yaml` as a PM-authored source (high confidence) and flow into the wiki/evidence.
 - Non-interactively (`--interview-answers <file>` or `PM_OS_INTERVIEW=skip`/non-tty) the flow completes without hanging; unanswered → known unknowns.
 - `/pm-new` routes uniformly (new/prototype/enhancement) with tailored next-step guidance; `[1]`/`[2]` are fully wired; `[3]` is presented but falls through to today's enhancement behavior (its full promotion is E2); the chosen route is recorded in telemetry.
@@ -110,8 +110,8 @@ Execute the loops in order. **Each loop is a strict cycle — do not skip a phas
 
 ## Loop 4 — SKILL.md interview step (+ openai.yaml)
 
-- **AIM:** `/pm-context-import` gains a **Step 4b — Interview** between preflight (Step 4) and the understanding doc (Step 5), realizing Phase 5: fires when preflight yields ⚠️/⛔ (or the assumption register has high-impact `[inferred]` rows), asks **≤5 ranked** questions (broad for pathway 2 — problem/why, target user, success criteria, descope history, non-goals, decision authority), calls `record-interview` with the answers, records skips as known unknowns, honors the non-tty/`PM_OS_INTERVIEW` escape, and **never self-approves**.
-- **TESTS (first):** contract test in `tests/contracts/` (see existing skill/doc contract tests for the pattern; marker `contract`). `test_context_import_skill_has_interview_step`: read `skills/pm-context-import/SKILL.md` and assert it contains: an interview step keyed to preflight ⚠️/⛔ verdicts, the literal ≤5 cap, a `record-interview` invocation, the `PM_OS_INTERVIEW` escape, the words "known unknown", and a "do not self-approve" instruction. (This is a drift/contract test — cheap, guards the prose contract.)
+- **AIM:** `/pm-context-import` gains a **Step 4b — Interview** between preflight (Step 4) and the understanding doc (Step 5), realizing Phase 5: fires when preflight yields ⚠️/⛔ (or the assumption register has high-impact `[inferred]` rows), asks **coverage-driven** questions over the *residual* gaps — batched by topic in **strictly decreasing order of impact** (problem/why → users & pains → success criteria → scope boundary → non-goals/descope → constraints → decision authority), soft ~5 per round, skipping any topic the provided sources already answer — calls `record-interview` with the answers, records skips as known unknowns, honors the non-tty/`PM_OS_INTERVIEW` escape, and **never self-approves**.
+- **TESTS (first):** contract test in `tests/contracts/` (see existing skill/doc contract tests for the pattern; marker `contract`). `test_context_import_skill_has_interview_step`: read `skills/pm-context-import/SKILL.md` and assert it contains: an interview step keyed to preflight ⚠️/⛔ verdicts, the coverage-driven contract (batched by topic, **decreasing order of impact**, ask only gaps the sources don't already answer — assert those phrases; explicitly assert there is **no** fixed numeric total), a `record-interview` invocation, the `PM_OS_INTERVIEW` escape, the words "known unknown", and a "do not self-approve" instruction. (This is a drift/contract test — cheap, guards the prose contract.)
 - **CODE:** edit `skills/pm-context-import/SKILL.md` (add Step 4b) and mirror the capability in `skills/pm-context-import/agents/openai.yaml`.
 - **VERIFICATION:** `python3 -m pytest -m contract -q` (or the file), then `python3 -m pytest -q`.
 - **PASS-IF-GREEN:** green; full suite ≥ 347.
@@ -156,7 +156,7 @@ Execute the loops in order. **Each loop is a strict cycle — do not skip a phas
 
 - If a loop's regression gate goes red and the cause isn't obvious, revert that loop's code changes (`git checkout -- <files>` for tracked files; delete new untracked files) and re-approach — never advance on red.
 - If any step tempts you to modify `~/.pm-os` or a runtime skill dir "to test," stop: run against the working copy via the test harness instead (`tests/conftest.py` builds an isolated temp install).
-- Escalate to the PM (do not guess) if: the `.sources.yaml`/telemetry schema needs a breaking change; the interview would need to exceed 5 questions to be useful; or preflight verdicts turn out not to be a usable trigger signal (may need a small `preflight --json` addition — a new mini-loop, tested first).
+- Escalate to the PM (do not guess) if: the `.sources.yaml`/telemetry schema needs a breaking change; the coverage-driven interview can't determine which gaps are load-bearing from the feasibility map (may need a richer signal); or preflight verdicts turn out not to be a usable trigger signal (may need a small `preflight --json` addition — a new mini-loop, tested first).
 
 ---
 

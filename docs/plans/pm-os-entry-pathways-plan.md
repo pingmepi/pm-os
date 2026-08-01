@@ -3,7 +3,7 @@
 **Status:** 🟡 Draft plan (2026-08-01). Design only — no code. **Build order decided 2026-08-01: pathway 2 (prototype → dev handoff) first; pathway 3 (codebase) later.** Remaining open decisions in §8.
 **Author:** Karan (with Claude Code)
 **Companion:** `pm-os-consistency-spine-plan.md` — the consistency-spine + v1.4.1 fixes half of the same next-development arc. This doc is the entry-pathways half.
-**Realizes / supersedes:** the reserved **Phase 5 "thin-context discovery interview"** in `adaptive-context-intelligence-pack.md` (≤5 ranked questions, skippable, answers registered as a PM-authored source, skips → known unknowns). This plan does not invent a competing interview; it realizes that Phase 5 and makes it **pathway-aware** and **feasibility-map-driven**. Fold Phase 5 into this plan (Open decision #5).
+**Realizes / supersedes:** the reserved **Phase 5 "thin-context discovery interview"** in `adaptive-context-intelligence-pack.md` (originally a ≤5-question nudge for thin inputs, skippable, answers registered as a PM-authored source, skips → known unknowns). This plan realizes that Phase 5 and makes it **pathway-aware** and **feasibility-map-driven** — and, for pathway 2's *reconstruction* case, **replaces the fixed ≤5 cap with a coverage-driven, batched model** (§4): Phase 5's small cap suits a thin-input nudge, not the fuller WHY/scope reconstruction a prototype needs. Fold Phase 5 into this plan (Open decision #5).
 **Does not depend on:** the abandoned `feat/whole-product-foundation` branch (scope tiers / increments / promote).
 
 ---
@@ -44,7 +44,7 @@ What are you starting from?
 ```
 
 - **[1] New** → proceed greenfield: `/pm-stage-01-brief`.
-- **[2] Prototype** (pathway 2) → `/pm-context-import <prototype + design docs>` (adopt + interview for the missing why/scope).
+- **[2] Prototype** (pathway 2) → `/pm-context-import <prototype + any supporting context you have>` (adopt everything provided + interview for the *residual* missing why/scope).
 - **[3] Enhancement** (pathway 3) → prompt for the codebase, **promote** the project to enhancement, then `/pm-context-import --codebase <…>`.
 
 Uniform to *use* (always `/pm-new`) and uniform to *consume* (always: created → pick type → told exactly what's next). It also removes the trap where a prototype PM silently lands in greenfield and skips context-import.
@@ -65,15 +65,15 @@ The gap is not "start from a PRD/prototype" (that exists). The gap is: when the 
 An interactive elicitation step that **converts feasibility verdicts from ⚠️/⛔ to ✅** by asking the PM for the information the downstream entry artifact threw away — realizing the reserved Phase 5 discovery interview and wiring it to the feasibility map.
 
 **Contract (inherited from Phase 5, non-negotiable):**
-- **≤5 questions**, ranked by downstream impact; the PM may skip any.
+- **As many questions as the missing coverage requires — not a fixed count.** Ask only **load-bearing gaps**: ones the feasibility map flags as blocking a faithful backfill or driving a downstream stage, and that the **provided sources don't already answer**. Batch by topic and ask in **strictly decreasing order of impact** (highest-impact topic first), with a **soft cap of ~5 per topic round** to stay digestible. The PM may skip any question or stop early; skipped/unanswered → known unknowns. (A thin prototype is typically several rounds; a well-documented one, a short round or none.)
 - Answers are **registered as a PM-authored source** (traceable, high-confidence, reusable) — via `pm_context_import.py register … --type context` so provenance flows into the wiki/evidence ledger.
 - **Skips → known unknowns**, recorded in the wiki's `## Open questions & uncertainties` and the understanding doc's assumption register — **never converted into silent assumptions.**
 - Judgment lives in `SKILL.md`; Python only moves bytes (register the answers, re-run preflight).
 
-**How questions are chosen (feasibility-driven):** rank the gaps by (a) preflight verdict severity (⛔ > ⚠️), (b) how many downstream stages the gap blocks, and (c) high-impact `[inferred]` rows in the assumption register / unresolved conflicts. Ask about the *substance the entry artifact cannot carry* — problem/why, target user, success criteria, descope history, non-goals, scope boundary, decision authority — capped at five.
+**How questions are chosen (feasibility-driven):** rank the gaps by (a) preflight verdict severity (⛔ > ⚠️), (b) how many downstream stages the gap blocks, and (c) high-impact `[inferred]` rows in the assumption register / unresolved conflicts. Ask about the *substance the entry artifact cannot carry* — in decreasing-impact topic order: problem/why → target users & pains → success criteria → scope boundary → non-goals/descope history → hard constraints → decision authority. Each topic is a short round (soft ~5), highest-impact topic first, and any topic the provided sources already cover is skipped entirely.
 
 **Pathway-aware tuning (same primitive, opposite weight):**
-- **Pathway 2 (prototype, thin source):** the interview carries the bulk — it is effectively a guided brief/scope reconstruction. Most of the five questions spend here.
+- **Pathway 2 (prototype, thin source):** the interview carries the bulk — a guided brief/scope reconstruction, typically several topic rounds. It shrinks by exactly however much supporting context the PM also brought (see §5) — anything the sources answer isn't asked.
 - **Pathway 3 (codebase, rich source):** narrow — the code answers WHAT/HOW, so the questions target *intent the code can't express*: why the product exists, what this change **is and isn't** (scope + regression boundary), the success bar, what must **not** change.
 
 **Non-interactive safety (per repo convention):** an env/flag escape and a non-tty branch — e.g. `--interview-answers <file>` to supply answers unattended, and `PM_OS_INTERVIEW=skip` (or a non-tty session) records every question as a known unknown and proceeds without blocking. Mirrors `PM_OS_EDITED_UPSTREAM_CHOICE`.
@@ -84,7 +84,9 @@ An interactive elicitation step that **converts feasibility verdicts from ⚠️
 
 The prototype **is** the product definition; there is no code, no users, no back-compat. The job is to recover the WHY/scope beneath it and **formalize forward** to a dev/design-ready pipeline.
 
-Flow: `/pm-context-import <prototype + design docs>` → doc-scan (no `00c`) → `preflight` (expect ⚠️/⛔ on 01–03 because a prototype is stage ~04/05) → **interview (broad)** upgrades verdicts → backfill 01–03 at the raised fidelity → adopt the prototype/design as its stage → normal pipeline forward (06 QA, 07 metrics, 08 TRD) → `/pm-handoff`.
+**Bring everything, not just the prototype.** `/pm-context-import` already ingests **any mix of sources** in one call — research, briefs, PRD fragments, notes, call transcripts, design docs, the prototype — as a folder or a file list (Step 1 registers them recursively; Step 2 classifies each as *adopt-as-stage* vs *context-only*; all feed the wiki/evidence). So additional context is a first-class input **today** — the prototype is simply the highest-fidelity *adoptable* artifact, and everything else grounds the backfill. Crucially, this is what **shrinks the interview**: the more the sources already answer, the fewer residual gaps remain, so the interview asks only what's *still* missing after all provided context is ingested.
+
+Flow: `/pm-context-import <prototype + any supporting context you have>` → doc-scan (no `00c`) → `preflight` (expect ⚠️/⛔ on the upstream gaps the sources don't cover) → **interview (broad, decreasing-impact rounds)** over the *residual* gaps → backfill 01–03 at the raised fidelity → adopt the prototype/design as its stage → normal pipeline forward (06 QA, 07 metrics, 08 TRD) → `/pm-handoff`.
 
 ## 6. Pathway 3 — Live product + codebase
 
@@ -99,7 +101,7 @@ Independently shippable; ordered by dependency. Each ships with tests (`docs/gui
 | Phase | Work | Files | Depends on |
 |---|---|---|---|
 | **E0** | **Uniform front door + routing (§2b).** `/pm-new` always scaffolds identically, then an interactive routing prompt (new/prototype/enhancement, mirroring the GenAI prompt) sets the type and prints tailored next-step guidance; `--entry`/`--codebase`/env are the non-tty escape. Chosen route recorded in telemetry. **Pathway-2 milestone scope:** `[1]`/`[2]` fully wired; `[3]` presented but falls through to today's `--mode enhancement --codebase` behavior — the **promote-to-enhancement setter** (`project_type` + `codebase_path` + `00c`) lands with **E2 / pathway 3**. | `scripts/pm_new.py`, `skills/pm-new/SKILL.md` (+ `agents/openai.yaml`), telemetry | — |
-| **E1** | **Interview primitive (realizes Phase 5), pathway-2 tuning.** New context-import Step (feasibility-driven ≤5 questions), register answers as a PM source, re-run preflight, record skips as known unknowns; non-tty/flag escape | `skills/pm-context-import/SKILL.md`, `scripts/pm_context_import.py` (register-answers helper + preflight re-run) | E0 |
+| **E1** | **Interview primitive (realizes Phase 5), pathway-2 tuning.** New context-import Step (coverage-driven questions, batched by topic in decreasing-impact order, over residual gaps only), register answers as a PM source, re-run preflight, record skips as known unknowns; non-tty/flag escape | `skills/pm-context-import/SKILL.md`, `scripts/pm_context_import.py` (register-answers helper + preflight re-run) | E0 |
 | **E2** | **Pathway-3 tuning (narrow) + scoped delta.** Finish enhancement-mode per-stage delta-framing blocks (modes plan §5 / A2 dogfood); scoped-delta handling; interview targets intent only | stage `SKILL.md` 01–08 enhancement blocks, `skills/pm-context-import/SKILL.md` | E1, modes Part A |
 | **E3** | Standalone `/pm-interview` re-run against remaining known-unknowns; provenance + telemetry polish; surface known-unknowns in `/pm-status` | new `skills/pm-interview/` (+ `agents/openai.yaml`), `scripts/pm_status.py` | E1 |
 
@@ -108,7 +110,7 @@ Independently shippable; ordered by dependency. Each ships with tests (`docs/gui
 ### Acceptance criteria (targets)
 
 - [ ] `/pm-new` always scaffolds identically, then routes: it asks new/prototype/enhancement, sets the type, and prints the correct next step for each (greenfield / context-import / context-import --codebase); non-interactively the `--entry`/`--codebase`/env escape preserves today's behavior. The chosen route is recorded in telemetry, and `[3]` promotes the project to enhancement (`project_type` + `codebase_path` + `00c`).
-- [ ] On a pathway-2 import where `preflight` rates a gap ⚠️/⛔, the interview asks **≤5 ranked** questions; answering them raises the affected backfill's fidelity/confidence and the verdict; skipping records a known unknown and never fabricates.
+- [ ] On a pathway-2 import where `preflight` rates a gap ⚠️/⛔, the interview asks **coverage-driven** questions — batched by topic, in **strictly decreasing order of impact**, only for load-bearing gaps the provided sources don't already answer (soft ~5 per round, no hard total); answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and never fabricates.
 - [ ] Interview answers appear in `.sources.yaml` as a PM-authored source and feed the wiki/evidence ledger with high confidence.
 - [ ] Non-interactively (`--interview-answers <file>` or non-tty), the flow completes without hanging; skipped questions become known unknowns.
 - [ ] Pathway 3 runs a scoped-delta pipeline grounded in `00c`, with enhancement delta-framing active in stages 01–08; the interview is narrow (intent), not a full re-derivation.
@@ -127,7 +129,7 @@ Independently shippable; ordered by dependency. Each ships with tests (`docs/gui
 - Rebuilding the abandoned tiers/increments/promote work (that's a separate, deferred delivery-model effort).
 - Any backend/service — everything stays local files + agent judgment.
 - Weakening a gate: the interview informs generation; it never approves, and the three stage-00 docs remain human-approved.
-- Exceeding the ≤5-question cap or converting a skipped question into a silent assumption.
+- Interrogation: ask only load-bearing gaps the provided sources don't already answer, batched and skippable — never a fixed quota, and never converting a skipped question into a silent assumption.
 
 ---
 
