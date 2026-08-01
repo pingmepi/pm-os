@@ -32,8 +32,13 @@ SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
 # Requirement IDs are the stable handles the traceability spine links against. The
 # PRD already emits user-story (US-###) and functional-requirement (FR-###) ids;
 # REQ-### is accepted as an explicit umbrella requirement id for projects that
-# prefer it. All three are "requirement ids" for traceability purposes.
-REQUIREMENT_ID_RE = re.compile(r"\b(?:REQ|US|FR)-\d{3,}\b", re.IGNORECASE)
+# prefer it, and NFR-### for non-functional requirements. All are "requirement ids"
+# for traceability purposes (an NFR is a requirement a test case can cover).
+# NFR ids are commonly short-form (NFR-5), so the NFR arm allows 1+ digits; the
+# REQ/US/FR arms keep the established 3-digit convention unchanged. The NFR arm has
+# its own \b anchor because a single alternation \b before the group would let
+# "FR" match inside "NFR" and never reach the NFR branch (backlog #32).
+REQUIREMENT_ID_RE = re.compile(r"\b(?:REQ|US|FR)-\d{3,}\b|\bNFR-\d+\b", re.IGNORECASE)
 TEST_CASE_ID_RE = re.compile(r"\bTC-\d{3,}\b", re.IGNORECASE)
 USER_STORY_ID_RE = re.compile(r"\bUS-\d{3,}\b", re.IGNORECASE)
 FUNCTIONAL_REQ_ID_RE = re.compile(r"\b(?:FR|REQ)-\d{3,}\b", re.IGNORECASE)

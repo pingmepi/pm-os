@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 from project import STAGE_NAMES, artifact_path, load_meta, upstream_stage_ids
-from hashing import CompositeHashError, stage_content_hash
+from hashing import CompositeHashError, hash_artifact_body, stage_content_hash
 from frontmatter import read as fm_read
 from telemetry import verify_chain
 from artifact_contracts import (
@@ -48,6 +48,7 @@ CODE_META_FRONTMATTER_HASH_MISMATCH = "META_FRONTMATTER_HASH_MISMATCH"
 CODE_BODY_HASH_DRIFT = "BODY_HASH_DRIFT"
 CODE_CONTEXT_PACK_INVALID = "CONTEXT_PACK_INVALID"
 CODE_APPROVED_UPSTREAM_NOT_READY = "APPROVED_UPSTREAM_NOT_READY"
+CODE_DOWNSTREAM_UPSTREAM_STALE = "DOWNSTREAM_UPSTREAM_STALE"
 CODE_TELEMETRY_CHAIN_BROKEN = "TELEMETRY_CHAIN_BROKEN"
 CODE_CONTEXT_YAML_UNPARSEABLE = "CONTEXT_YAML_UNPARSEABLE"
 CODE_SOURCES_YAML_UNPARSEABLE = "SOURCES_YAML_UNPARSEABLE"
@@ -119,6 +120,7 @@ def check_project(project_root) -> list[Issue]:
         lambda: _check_meta_frontmatter_sync(stages, paths, exists),
         lambda: _check_body_hash_drift(project_root, stages, paths, exists),
         lambda: _check_upstream_approval_shape(meta, stages),
+        lambda: _check_downstream_upstream_hashes(meta, stages),
         lambda: _check_telemetry_chain(project_root),
         lambda: _check_context_yaml_parses(project_root),
         lambda: _check_trd_task_ids(project_root, stages, paths, exists),
@@ -321,6 +323,47 @@ def _check_upstream_approval_shape(meta, stages) -> list[Issue]:
                     CODE_APPROVED_UPSTREAM_NOT_READY, "error", sid,
                     f"Stage {sid} is approved but upstream {uid} is '{ustatus}'",
                     f"Re-approve/regenerate {uid} first, or re-approve {sid} once {uid} is settled.",
+                ))
+    return issues
+
+
+def _check_downstream_upstream_hashes(meta, stages) -> list[Issue]:
+    """Detect an approved stage resting on an upstream that has since changed.
+
+    Each approved stage records, in ``upstream_hashes_at_approval``, the content_hash
+    of every upstream at the moment it was approved. When an upstream is re-approved the
+    stale cascade demotes its downstream approved stages to ``stale``. If that cascade is
+    interrupted (a timeout/crash after the upstream approval is written but before the
+    cascade runs — backlog #31), the downstream stays ``approved`` while its recorded
+    upstream hash no longer matches the upstream's current hash: an approved stage built
+    on an approval that no longer exists in that form.
+
+    This consumes ``upstream_hashes_at_approval`` (previously written but read nowhere)
+    and is complementary to `_check_upstream_approval_shape` (which only inspects upstream
+    *status*, not hashes, so it cannot see a mismatch under an upstream that is still
+    ``approved``). Read-only: report so the PM can re-approve."""
+    issues: list[Issue] = []
+    stage_by_id = {s["id"]: s for s in stages if s.get("id")}
+    for stage in stages:
+        sid = stage.get("id")
+        if sid not in STAGE_NAMES or stage.get("status") != "approved":
+            continue
+        recorded = stage.get("upstream_hashes_at_approval") or {}
+        for uid, at_approval in recorded.items():
+            upstream = stage_by_id.get(uid)
+            if upstream is None or upstream.get("status") != "approved":
+                # A non-approved upstream is already reported by the status check above;
+                # only a still-approved upstream whose hash moved is this invariant's job.
+                continue
+            current = upstream.get("content_hash")
+            if current and at_approval and current != at_approval:
+                issues.append(Issue(
+                    CODE_DOWNSTREAM_UPSTREAM_STALE, "error", sid,
+                    f"Stage {sid} is approved against an older {uid} "
+                    f"(hash at approval {str(at_approval)[:12]}…, current {str(current)[:12]}…) — "
+                    f"a downstream stale-cascade was likely interrupted after {uid} was re-approved.",
+                    f"Re-approve stage {sid} (/pm-approve {sid}) so it reflects the current {uid}, "
+                    f"or re-run the {uid} approval to cascade staleness.",
                 ))
     return issues
 

@@ -122,3 +122,37 @@ def test_stage_05_approval_renders_prototype_html(pmos, new_project):
     res = run_script(pmos, "pm_approve.py", "05", cwd=proj)
     assert res.returncode == 0, res.stderr
     assert (proj / "05-prototype-mockup.html").exists()
+
+
+def test_pm_check_flags_downstream_approved_against_changed_upstream(pmos, new_project):
+    """Regression for backlog #31: if an approval's stale-cascade is interrupted
+    (timeout/crash after the upstream is re-approved but before downstream cascade),
+    a downstream stage stays `approved` while its recorded upstream hash no longer
+    matches the upstream's current content_hash. /pm-check must detect this invalid
+    state — the upstream_hashes_at_approval field was written but never read."""
+    import consistency
+    import project
+
+    proj = new_project("half-approved", "A problem")
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+    for sid in ("01", "02", "03"):
+        make_draft(proj, sid)
+        assert run_script(pmos, "pm_approve.py", sid, cwd=proj).returncode == 0
+    make_draft(proj, "04", body="## Information Architecture\nNav.\n\n## States\nLoading.\n")
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+
+    # A correctly-approved chain has no such mismatch.
+    assert not any(i.code == consistency.CODE_DOWNSTREAM_UPSTREAM_STALE
+                   for i in consistency.check_project(proj))
+
+    # Simulate the interrupted cascade: 04 stays approved, but its recorded upstream
+    # hash for 03 is stale (03 moved forward; the downstream cascade never ran).
+    meta = project.load_meta(proj)
+    recorded = project.get_stage(meta, "04")["upstream_hashes_at_approval"]
+    assert "03" in recorded
+    recorded["03"] = "0" * 16
+    project.save_meta(meta, proj)
+
+    issues = consistency.check_project(proj)
+    assert any(i.code == consistency.CODE_DOWNSTREAM_UPSTREAM_STALE and i.stage == "04"
+               for i in issues), [i.code for i in issues]

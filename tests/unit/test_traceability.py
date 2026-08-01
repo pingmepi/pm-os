@@ -435,3 +435,20 @@ def test_missing_design_spec_yields_empty_screens(tmp_path):
     assert trace.build_index(root)["screens"] == {}
     assert trace.screens_for_requirement(root, "FR-001") == []
     assert trace.requirements_for_screen(root, "SCR-001") == []
+
+
+def test_build_index_links_nfr_requirements(tmp_path):
+    """Regression for backlog #32: a QA test case covering NFR-### ids must record
+    them in its requirements. Previously the resolver dropped NFR ids, so an
+    NFR-covering test case landed with empty requirements in .traceability.yaml."""
+    root = _project(tmp_path)
+    _write(root, "03-prd.md", _PRD)
+    qa = (
+        "# QA Plan\n## Functional Test Cases\n"
+        "### TC-001 — Primary (covers US-001, FR-001)\nsteps\n"
+        "### TC-050 — Latency budget (covers NFR-5, NFR-008)\nsteps\n"
+    )
+    _write(root, "06-qa-plan.md", qa)
+    index = trace.build_index(root)
+    assert index["test_cases"]["TC-050"]["requirements"] == ["NFR-5", "NFR-008"]
+    assert "NFR-5" in index["requirements"]

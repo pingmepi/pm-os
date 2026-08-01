@@ -1115,3 +1115,16 @@ def test_screen_without_purpose_warns(tmp_path):
     _write(root, "04-design-spec.md", _design_spec(ia), contract_version=7)
     warning = next(f for f in contracts.validate_artifact(root, "04") if f.code == "SCREEN_FIELDS_MISSING")
     assert "SCR-001" in warning.message
+
+
+def test_requirement_ids_includes_nfr_long_and_short_forms():
+    """Regression for backlog #32: NFR-### ids were dropped by REQUIREMENT_ID_RE —
+    no NFR arm, the \\b before FR blocked NFR-008, and \\d{3,} rejected NFR-5 — so a
+    QA test case covering only NFRs resolved to empty requirements in
+    .traceability.yaml. Existing REQ/US/FR matching must stay unchanged."""
+    ids = contracts.requirement_ids("Covers: NFR-5, NFR-008, US-001, FR-012.")
+    assert "NFR-5" in ids
+    assert "NFR-008" in ids
+    assert "US-001" in ids and "FR-012" in ids
+    # The existing arms keep their 3-digit convention — no accidental loosening.
+    assert contracts.requirement_ids("see US-1 and FR-2") == []
