@@ -534,6 +534,129 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 
 **Explicitly out of scope:** screenshot/image capture (would need Playwright or similar as a new runtime dependency — declined in favor of the links-only approach); a backend-artifact equivalent (needs its own definition of what a "backend screen" reference even is before scoping).
 
+## 30. 🟢 `/pm-check` reports every generated snapshot "unreadable" (missing import)
+
+**Severity:** P1 — the health check meant to catch the other defects is itself silently broken; it emits false lineage warnings on every project that has generated snapshots.
+**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01.
+
+**Fixed:** `hash_artifact_body` is now imported in `lib/consistency.py`; the swallowed `NameError` is gone. Regression: `test_pm_check_accepts_matching_generated_snapshot` (`tests/integration/test_history_snapshots.py`) — a matching snapshot now yields no lineage warning (the pre-existing test only covered missing/mismatch).
+
+**Symptom:** `/pm-check` flags `HISTORY_SNAPSHOT_HASH_MISMATCH` with "Unreadable snapshots: …" for every stage whose frontmatter carries a `generated_hash`. (A companion symptom — "reports everything not approved" — was reported but **not reproduced in code**; see note.)
+
+**Root cause:** `lib/consistency.py:173` calls `hash_artifact_body(str(snap))`, but that name is never imported — the imports at `lib/consistency.py:19-23` bring in `CompositeHashError, stage_content_hash` and `fm_read`, **not** `hash_artifact_body`. The resulting `NameError` is swallowed by the per-snapshot `except Exception` at `:176`, so every snapshot lands in `unreadable`, `matching` never becomes `True`, and `_check_history_lineage` (`:147-185`) always warns. The glob (`:144`, `{stem}.*.generated.md`) and the snapshot naming/hashing (`scripts/pm_snapshot.py:52,57`) are otherwise correct, so the check works the moment the import is fixed.
+
+**Note (unconfirmed half):** No path in `lib/consistency.py` misreports approval status — `_check_meta_frontmatter_sync` (`:243-277`) and `_check_upstream_approval_shape` (`:307-325`) are correct, and the `NameError` is contained inside the snapshot loop. The "not approved" symptom is likely a paraphrase of the false snapshot-warning flood, or genuine fallout from entry #31. Needs the actual `/pm-check` output from the affected project to close.
+
+**Proposed fix:** Add `hash_artifact_body` to the `from hashing import …` line at `lib/consistency.py:20`. One line; `_check_history_lineage` is the only consumer. Regression test that a project with a valid generated snapshot produces **no** lineage warning.
+
+---
+
+## 31. 🟡 Approval can leave a partially-transitioned pipeline (approve→cascade not atomic; invariant never read)
+
+**Severity:** P1 — silent invalid state: downstream stages left `approved` against an obsolete upstream approval, with no detector anywhere.
+**Status:** 🟡 **Detector fixed** (this change, branch `fix/v1.4.1-consistency-defects`); the atomicity refactor (Part 1) remains open. Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
+
+**Fixed (detector — Part 2):** `lib/consistency.py` gains `_check_downstream_upstream_hashes` (`DOWNSTREAM_UPSTREAM_STALE`), which flags any `approved` stage whose recorded `upstream_hashes_at_approval[uid]` ≠ the (still-approved) upstream's current `content_hash` — finally consuming the written-but-unread field, and repairing already-corrupted projects (the PM re-approves the flagged stage). Regression: `test_pm_check_flags_downstream_approved_against_changed_upstream` (`tests/integration/test_approval_and_staleness.py`). **Still open (atomicity — Part 1):** making the approve→cascade a single atomic unit (so the window can't open) touches the core state machine (`pm_approve.py` + `post-approve.py` + the pre-stage gate) and is deliberately left for its own focused pass; the detector makes the state visible and repairable in the meantime.
+
+**Symptom:** If stage 03's approval command times out or crashes **after** the approval is durably written but **before** the stale-cascade runs, stages 04–08 remain `approved` while stage 03's body/hash has moved — approved downstream stages resting on an upstream approval that no longer exists in that form. Nothing detects or repairs it on the next run.
+
+**Root cause / window:** `scripts/pm_approve.py` commits stage 03 first — frontmatter (`update_status`, `:131`), then meta including the recomputed `content_hash` and the stage's own `upstream_hashes_at_approval` (`save_meta`, `:143`) — logs telemetry (`:182-195`), and only then spawns `hooks/post-approve.py` as a **separate subprocess** (`:197-205`). The downstream stale-cascade lives entirely inside that subprocess (`hooks/post-approve.py:83-105`, persisted at `:104`). The crash window is **after `pm_approve.py:143` and before `post-approve.py:104`.**
+
+**Why nothing catches it:**
+- `hooks/pre-stage.py:151-168` only re-hashes *upstream* stages against their own recorded `content_hash`. Stage 03's recorded hash was already updated at approval, so there is no drift to detect — 03 looks cleanly approved and the stale downstreams are never revisited.
+- `/pm-check`: `_check_upstream_approval_shape` (`lib/consistency.py:307-325`) checks upstream *status* only; `_check_body_hash_drift` (`:280-304`) compares a stage against its *own* recorded hash. Neither compares a downstream stage's `upstream_hashes_at_approval[uid]` to the upstream's current `content_hash`.
+- The `upstream_hashes_at_approval` field is **written** (`pm_approve.py:142`, `pm_context_import.py:335`, scaffolded in `pm_new.py`/`project.py`) but **read nowhere** — the one piece of state that could detect this is never consulted.
+
+**Proposed fix (two parts, both worth doing):**
+1. **Atomicity:** run the stale-cascade inline in `pm_approve.py` before it returns, **or** make `post-approve.py` idempotent and re-runnable so a crash leaves either the old state or the fully-cascaded state — never the half state.
+2. **Detector (also repairs already-corrupted projects):** add a `/pm-check` invariant (and a `pre-stage.py` signal) that flags any `approved` downstream stage whose `upstream_hashes_at_approval[uid]` ≠ the upstream's current `content_hash`, finally consuming the recorded field. This is entry #4's downstream-consistency check made concrete.
+
+**Blast radius:** core state machine (`pm_approve.py` + `post-approve.py` + pre-stage gate) plus a new `/pm-check` invariant. Keep the two synchronized sources of truth (meta + frontmatter) in lockstep; the deferred background sync (entry #6) already doesn't gate approval, so only the approve→cascade window matters. Part 2 (the detector) is low-risk and independently valuable even before the atomicity refactor.
+
+---
+
+## 32. 🟢 Traceability resolver silently drops NFR identifiers
+
+**Severity:** P1 — silent data-integrity loss: NFR coverage a QA plan explicitly declares vanishes from `.traceability.yaml`, and NFR-only test cases are flagged untraced.
+**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: a TC citing `NFR-5, NFR-7, US-001` resolves to `['US-001']`).
+
+**Fixed:** `REQUIREMENT_ID_RE` now adds an `NFR` arm with its own `\b` anchor and 1+ digits — `r"\b(?:REQ|US|FR)-\d{3,}\b|\bNFR-\d+\b"` — so the existing REQ/US/FR matching is byte-identical and NFR short/long forms resolve. Every consumer routes through `requirement_ids`, so the single edit fixes them all; `_id_kind`'s default already buckets NFR as `requirement`. Regressions: `test_requirement_ids_includes_nfr_long_and_short_forms` (`tests/unit/test_artifact_contracts.py`), `test_build_index_links_nfr_requirements` (`tests/unit/test_traceability.py`). Existing projects must re-approve 03/04/06/08 to regenerate `.traceability.yaml`.
+
+**Symptom:** QA test cases that cover `NFR-###` ids (e.g. `NFR-5`/`NFR-7`/`NFR-8`) end up with **empty `requirements`** in `.traceability.yaml`; NFR blocks are never treated as requirements; a TC covering only NFRs trips `TEST_CASE_TRACE_MISSING`.
+
+**Root cause:** `REQUIREMENT_ID_RE = re.compile(r"\b(?:REQ|US|FR)-\d{3,}\b", re.IGNORECASE)` at `lib/artifact_contracts.py:36`. Two independent failures: (a) no `NFR` arm, and the leading `\b` before `FR` means `NFR-008` doesn't even match the `FR-` arm (no word boundary between `N` and `F`); (b) `\d{3,}` rejects the common short forms `NFR-5`/`NFR-7`.
+
+**Producer/consumer census — every site inherits the blindness (all route through this one regex):**
+- `requirement_ids()` `:51-57` (shared extractor) · `screen_serves()` `:537-550` · `task_implements()` `:576-588` · `_FR_BLOCK_START_RE`/`FUNCTIONAL_REQ_ID_RE` `:39,460-463` (FR block splitting also excludes NFR) · `_validate_stage_06` `:934,965` · journey trace check `:735-736` · `_upstream_requirement_ids` `:1003-1014` · `lib/traceability.py:181,208-219` (index build) and `_id_kind` `:105-112` (no `NFR` mapping) · `lib/consistency.py:391,476` (screen/task checks) · both handoff exporters consume the resulting index.
+
+**Proposed fix:** Add an `NFR` arm and relax the digit count centrally: `re.compile(r"\b(?:REQ|US|FR|NFR)-\d{1,}\b", re.IGNORECASE)` (or `\d{2,}`), plus an `NFR` case in `_id_kind`. One regex edit fixes every consumer — which is also the blast radius: it changes FR-block detection and coverage semantics project-wide, so re-run the full pipeline/QA validation to confirm no over-matching. Existing projects must re-approve stages 03/04/06/08 to regenerate `.traceability.yaml` with the newly-linkable NFR coverage.
+
+---
+
+## 33. 🟢 Generated story files can have invalid YAML frontmatter
+
+**Severity:** P2 (medium-high) — any story whose title or priority contains a colon-space produces a non-parseable artifact.
+**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: `yaml.safe_load` raises `ScannerError` on a rendered story).
+
+**Fixed:** `_render_story` now serializes the frontmatter fields with `yaml.safe_dump` and injects a single `{{ frontmatter }}` block; `templates/handoff-story.md.j2` no longer interpolates raw scalars. Regression: `test_story_frontmatter_is_valid_yaml_when_title_has_colon` (`tests/integration/test_share_package.py`).
+
+**Symptom:** Per-story files from `/pm-handoff --package` carry malformed YAML frontmatter — e.g. a title `Search: filters & sort` renders `title: Search: filters & sort` ("mapping values are not allowed here").
+
+**Root cause:** `templates/handoff-story.md.j2:2-8` interpolates free-form values into frontmatter completely unquoted (`title: {{ title }}`, `epic:`, `priority:`, `generated_from`). `title` comes from `_story_title()` (`scripts/pm_share.py:230-240`), extracted from the PRD story declaration line; `priority` is a secondary risk (`P1: high`).
+
+**Proposed fix:** Build the frontmatter with `yaml.safe_dump` in `_render_story()` (`scripts/pm_share.py:265-281`), or quote the scalars in the template (`title: {{ title | tojson }}`, and the same for `epic`/`priority`/`canonical_source`). Contained — that template is the only per-story template; the sibling epic/overview files use no YAML frontmatter.
+
+---
+
+## 34. 🟢 Business audience epic files contain dangling story links
+
+**Severity:** P2 — dead relative links in a shipped audience package.
+**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01.
+
+**Fixed:** each epic is rendered in two variants — a linked one (`content`) for audiences that carry the story files and a plain-text one (`content_plain`) for those that don't (business); the write loop picks per audience based on whether `stories` ∈ its categories. Regression: `test_business_epic_has_no_dangling_story_links` (`tests/integration/test_share_package.py`).
+
+**Symptom:** `handoff/business/epics/*.md` link to `../stories/US-XXX-….md`, but the business audience never receives a `stories/` folder, so every such link dangles. (Dev has both folders — fine; QA has stories but not epics — no epic links there.)
+
+**Root cause:** The audience routing table (`scripts/pm_share.py:84-99`) assigns `epics: {dev, business}` but `stories: {dev, qa}`. Epic bodies are computed **once** for all audiences (`:512-548`) and hard-code links into the stories folder — `scripts/pm_share.py:524`. In `business/` the epics are written (`:608-613`) but `stories/` is never created.
+
+**Proposed fix:** Either add `business` to the `stories` set, or (leaner) make the epic renderer audience-aware — emit story references as plain `US-XXX` text when `stories` ∉ the target audience. The latter means moving the epic render inside the per-audience loop or post-processing its links, since the body is currently deduped across audiences.
+
+---
+
+## 35. 🟢 Global Information-Architecture prose leaks into generated story files
+
+**Severity:** P2 — global design narrative bleeds into individual story screen slices.
+**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: a trailing IA note was absorbed into the preceding screen block).
+
+**Fixed:** a new render-time helper `_screen_body` bounds a bullet-declared screen to the lines more indented than its declaration (its own sub-list), dropping any trailing non-indented prose; heading-style screens keep their full body. The shared `_split_id_blocks` is untouched (it still splits US/FR/TC/TSK). Regression: `test_global_ia_prose_does_not_leak_into_story_screen_body` (`tests/integration/test_share_package.py`).
+
+**Symptom:** Prose from the design spec's `## Information Architecture` section that isn't under its own heading (e.g. a trailing "all screens share the global header…" note) gets copied verbatim into every story file that touches the preceding `SCR-###`.
+
+**Root cause:** Story screen bodies come from `split_screen_blocks(information_architecture_section(design_body))` (`scripts/pm_share.py:359-361`). `_split_id_blocks` (`lib/artifact_contracts.py:367-393`) bounds a screen block only at the next `SCR-###` declaration or the next Markdown heading, so interstitial/trailing prose folds into the preceding screen. The stage-04 skill explicitly asks the author to write a global hierarchy/navigation narrative in that section (`skills/pm-stage-04-design-spec/SKILL.md:150-167`), so such prose is common.
+
+**Proposed fix:** Tighten the screen slice at **render time** in `scripts/pm_share.py` (bound a bullet-declared screen to its own indented sub-list; stop at the first non-indented, non-child line, or strip content after the last recognized labeled sub-bullet). Prefer this over changing the shared `_split_id_blocks`, which also splits US/FR/TC/TSK blocks — altering it broadly is risky. Alternatively, require design screens under a dedicated `### Screens` sub-heading so a heading terminates each block.
+
+---
+
+## 36. 🟢 Per-story handoff packages overstate screen scope (journey-inflated)
+
+**Severity:** P2 — a story's package attributes every screen in its journey, not just screens that directly trace to it. (Screen half only — the reported QA overstatement was **not** reproduced; see note.)
+**Status:** 🟢 **Fixed (screen half)** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Screen half verified against v1.4.1 code 2026-08-01; QA half unconfirmed (not a code bug — QA is scoped to the story's own requirements).
+
+**Fixed:** per-story screens now resolve **direct-first** — screens serving the story's requirements, then a journey fallback that attributes a journey's screens to a story only when the screen names *no* story/requirement of its own (a journey-only screen). A screen that names specific stories is no longer pulled into every other story sharing the journey; the journey-only coverage case still resolves; `covered_story_ids` moves in lockstep automatically. Regression: `test_journey_shared_screen_not_attributed_to_every_story` (`tests/integration/test_share_package.py`); the existing journey-only coverage test still passes.
+
+**Symptom:** A story's "Screens this story touches" bundles all screens whose `Serves:` names the story's journey — including screens that directly serve a *different* story and merely share the journey.
+
+**Root cause:** `scripts/pm_share.py:419-423` resolves a story's screens over **requirements *and* journeys** (`for ref in reqs + journeys`), and `screens_for_requirement` returns every screen whose `Serves:` names that journey (`lib/traceability.py:402-422`). A `UJ-###` is a multi-story flow, so the join is over-broad. The reverse `_screen_map_table` derives its "covered" set from `covered_story_ids` (`pm_share.py:433-434,683-687`), populated by the same over-broad pass — so the screen map stays *consistent with* the overstated story files rather than independently correct.
+
+**Note (QA half not confirmed):** Test cases are resolved over `reqs` only (`pm_share.py:409-413`) — journeys are deliberately excluded — and `reqs` come from `delivery.story_requirements` (`lib/delivery_map.py:140-151`, direct links). So QA scope is not journey-inflated in code. If QA overstatement was observed, it more likely stems from a **broad requirement shared across stories**; confirm against a real example before changing the QA path.
+
+**Proposed fix:** Resolve per-story screens over `reqs` only (drop `+ journeys` at `pm_share.py:420`), or keep journey screens but tag them "via journey `UJ-###`" so they're distinguishable from direct story→screen traces. `covered_story_ids` must move in lockstep (journey-only-covered stories would otherwise be reported screenless unless the "via journey" tagging is used).
+
+---
+
+_Entries 30-36 recorded 2026-08-01, each verified against the v1.4.1 code before logging (defect investigation this session); the fix design + consistency-spine roadmap lives in `docs/plans/pm-os-consistency-spine-plan.md`._
+
 ---
 
 _Recorded 2026-06-20 during v0.5.6 rollout testing (entries 1-3); entry 4 recorded 2026-07-09 (IMP-002); entries 5-9 recorded 2026-07-09 during a demo-project run (IMP-001, IMP-003 through IMP-006); entry 10 recorded 2026-07-14 while reviewing stage-05 slice selection; entries 11-13 recorded 2026-07-15 during a RepAssist v1.0.8→v1.0.10 dogfooding pass (IMP-007 through IMP-009), each verified against the current codebase before being logged; entries 14-17 recorded 2026-07-15 during a docs cleanup pass, migrated from `docs/archive/codex-pr-audit.md` (dated 2026-06-22, since archived) — of that audit's 11 originally-open items, 7 were re-verified as already fixed (folded into the archived doc's resolution note) and these 4 were re-verified as still open. **Entries 18-28 recorded 2026-07-27** from a structural review of PM-OS's limitations against a full PDLC (business, product, and technical levels), each verified against the current codebase before being logged; PM decisions taken during that review are marked inline (#19 prioritization shape, #21 severity, #22 boundary, #25 deterministic snapshot, #28 delivery model). #28's design is captured in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B rather than inline here. **Entry 29 recorded 2026-07-28** during handoff-package refinement scoping, prompted by a dev lead request for a visual FE screen reference; fixed the same day, bundled with the `/pm-share`→`/pm-handoff` consolidation and audience-scoped package split. Roadmap-level gaps surfaced in the same review — missing discovery/research stages, the regulatory/compliance gate, the commercial/services layer, localization and UX-writing workflows, and the metrics-late/feasibility-late ordering — were deliberately **not** logged here; they belong in `current-state-review.md` (§3, "Roadmap-level lifecycle gaps") and `product-shape-and-flexibility-brainstorm.md`, since this file tracks verified gaps in built things. All documentation-only unless noted. Changes above land via the normal commit → push → `pm_os_update.py` path; they are inert until then._

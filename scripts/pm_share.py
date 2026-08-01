@@ -38,6 +38,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from artifact_contracts import (  # noqa: E402
@@ -262,6 +264,37 @@ def _strip_decl_line(block: str, decl_id: str | None = None) -> str:
     return cleaned.strip()
 
 
+def _screen_body(block: str, scr_id: str) -> str:
+    """Screen body for a story file, trimmed to the screen's own content.
+
+    A bullet-declared screen (`- **SCR-001 — …**` with indented sub-bullets) is bounded
+    to its indented sub-list: any following non-indented prose (e.g. a global
+    Information-Architecture narrative that isn't under its own heading, which
+    _split_id_blocks folds into the preceding screen's block) is dropped rather than
+    leaking into every story that touches the screen (backlog #35). A heading-declared
+    screen keeps its full body — its content legitimately sits at column 0."""
+    lines = block.rstrip().splitlines()
+    if not lines:
+        return ""
+    first = lines[0]
+    if not re.match(r"\s*[-*+]\s", first):  # heading/single-line — legitimately unindented
+        return _strip_decl_line(block, scr_id)
+    # Bullet-declared: keep only the lines more indented than the declaration (its own
+    # sub-list). The first line at or below the declaration's indent is a new bullet or
+    # unrelated prose and ends the screen.
+    decl_indent = len(first) - len(first.lstrip())
+    kept: list[str] = []
+    for line in lines[1:]:
+        if line.strip() == "":
+            kept.append(line)
+            continue
+        if (len(line) - len(line.lstrip())) > decl_indent:
+            kept.append(line)
+        else:
+            break
+    return "\n".join(kept).strip()
+
+
 def _render_story(ctx: dict) -> str:
     """Render the per-story Markdown via the overridable template.
 
@@ -278,7 +311,22 @@ def _render_story(ctx: dict) -> str:
         lstrip_blocks=True,
         keep_trailing_newline=True,
     )
-    return env.get_template("handoff-story.md.j2").render(**ctx)
+    # Serialize the frontmatter as a single YAML block rather than interpolating each
+    # scalar unquoted in the template — a title/priority containing a colon-space
+    # (e.g. "Search: filters and sort") otherwise emits invalid YAML (backlog #33).
+    fm_fields = {
+        "story_id": ctx.get("story_id"),
+        "title": ctx.get("title"),
+        "epic": ctx.get("epic"),
+        "priority": ctx.get("priority"),
+        "generated_from": list(ctx.get("generated_from") or []),
+        "canonical_source": ctx.get("canonical_source"),
+        "generated_at": ctx.get("generated_at"),
+    }
+    frontmatter_block = yaml.safe_dump(
+        fm_fields, default_flow_style=False, sort_keys=False, allow_unicode=True
+    )
+    return env.get_template("handoff-story.md.j2").render(frontmatter=frontmatter_block, **ctx)
 
 
 def _screen_link(scr_id: str, has_proto: bool, anchored_ids: set[str]) -> str | None:
@@ -416,16 +464,31 @@ def build_package(
             for tc in tc_ids
         ]
 
+        # Screens this story touches. Direct attribution first: screens that serve one
+        # of the story's requirements (its US id + any FR/REQ). Then a journey fallback:
+        # a screen that serves one of the story's journeys but names NO story/requirement
+        # of its own (a journey-only screen) is attributed to every story in that journey.
+        # A screen that DOES name specific stories/requirements is left to those — without
+        # this, every screen in a multi-story journey was over-attributed to all its
+        # stories (backlog #36), while the journey-only coverage case still resolves.
         screen_ids: list[str] = []
-        for ref in reqs + journeys:
+        for ref in reqs:
             for scr in traceability.screens_for_requirement(root, ref, index=spine):
                 if scr not in screen_ids:
+                    screen_ids.append(scr)
+        for journey in journeys:
+            for scr in traceability.screens_for_requirement(root, journey, index=spine):
+                if scr in screen_ids:
+                    continue
+                serves = traceability.requirements_for_screen(root, scr, index=spine)
+                names_specific = any(not sid.upper().startswith("UJ-") for sid in serves)
+                if not names_specific:
                     screen_ids.append(scr)
         screens = [
             {
                 "id": scr,
                 "name": _story_title(scr, screen_blocks.get(scr, "")),
-                "body": _strip_decl_line(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
+                "body": _screen_body(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
                 "link": _screen_link(scr, has_proto, anchored_ids),
             }
             for scr in screen_ids
@@ -510,7 +573,7 @@ def build_package(
     epics: list[dict] = []  # {id, title, filename, content}
     epic_index: list[dict] = []
     for epic_ref, epic_rec in delivery.epics.items():
-        epic_lines = [
+        header = [
             "## Outcome and scope",
             "",
             epic_rec.body.strip() or NOT_CAPTURED,
@@ -519,12 +582,22 @@ def build_package(
             "",
         ]
         epic_stories = [story for story in story_index if story.get("epic") == epic_ref]
+        # Two story-list variants: a linked one for audiences that carry the story
+        # files (dev/qa), and a plain-text one for audiences that don't (business) —
+        # otherwise the ../stories/ links dangle where no stories/ folder exists
+        # (backlog #34).
+        linked_story_lines: list[str] = []
+        plain_story_lines: list[str] = []
         if epic_stories:
             for story in epic_stories:
-                epic_lines.append(f"- **{story['id']}** [{story['title']}](../stories/{story['filename']})")
+                linked_story_lines.append(
+                    f"- **{story['id']}** [{story['title']}](../stories/{story['filename']})"
+                )
+                plain_story_lines.append(f"- **{story['id']}** {story['title']}")
         else:
-            epic_lines.append(NOT_CAPTURED)
-        epic_lines += [
+            linked_story_lines.append(NOT_CAPTURED)
+            plain_story_lines.append(NOT_CAPTURED)
+        footer = [
             "",
             "## Functional requirements in this epic",
             "",
@@ -534,17 +607,26 @@ def build_package(
             if req_epic == epic_ref
         ]
         if epic_requirements:
-            epic_lines += [f"- {req}" for req in epic_requirements]
+            footer += [f"- {req}" for req in epic_requirements]
         else:
-            epic_lines.append(NOT_CAPTURED)
-        doc = _stamped_doc(
-            f"{epic_ref} · {epic_rec.title}",
-            [prd_stamp] if prd_stamp else [],
-            now,
-            "\n".join(epic_lines) + "\n",
-        )
+            footer.append(NOT_CAPTURED)
+
+        def _epic_doc(story_lines: list[str]) -> str:
+            return _stamped_doc(
+                f"{epic_ref} · {epic_rec.title}",
+                [prd_stamp] if prd_stamp else [],
+                now,
+                "\n".join(header + story_lines + footer) + "\n",
+            )
+
         filename = f"{epic_ref}-{_slug(epic_rec.title, epic_ref.lower())}.md"
-        epics.append({"id": epic_ref, "title": epic_rec.title, "filename": filename, "content": doc})
+        epics.append({
+            "id": epic_ref,
+            "title": epic_rec.title,
+            "filename": filename,
+            "content": _epic_doc(linked_story_lines),
+            "content_plain": _epic_doc(plain_story_lines),
+        })
         epic_index.append({"id": epic_ref, "title": epic_rec.title, "filename": filename})
 
     # --- reference docs ---
@@ -607,9 +689,12 @@ def build_package(
 
         if "epics" in cats:
             (aud_dir / "epics").mkdir(parents=True, exist_ok=True)
+            # Link into ../stories/ only when this audience actually carries the
+            # story files; otherwise use the plain-text variant (backlog #34).
+            epic_key = "content" if "stories" in cats else "content_plain"
             for epic in epics:
                 path = aud_dir / "epics" / epic["filename"]
-                path.write_text(epic["content"], encoding="utf-8")
+                path.write_text(epic[epic_key], encoding="utf-8")
                 written.append(path)
 
         if "overview" in cats:

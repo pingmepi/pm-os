@@ -688,3 +688,103 @@ def test_package_without_trd_degrades_backend_to_not_captured(pmos, new_project)
     assert "## Backend work (TRD tasks)" in story
     assert "**Backend tasks:** — not captured in source —" in story
     assert "08-trd.md@" not in story  # no TRD in provenance when there are no tasks
+
+
+def test_story_frontmatter_is_valid_yaml_when_title_has_colon(pmos, new_project):
+    """Regression for backlog #33: a story title containing a colon-space (e.g.
+    'Search: filters and sort') produced invalid YAML frontmatter, because the
+    template interpolated the title unquoted (`title: Search: filters and sort`).
+    The rendered story's frontmatter must parse and round-trip the title."""
+    import frontmatter
+
+    proj = new_project("story-yaml", "A problem")
+    prd = _PRD.replace("### US-001 — Add external agency",
+                       "### US-001 — Search: filters and sort")
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    stories_dir = proj / "handoff" / "dev" / "stories"
+    matches = list(stories_dir.glob("US-001-*.md"))
+    assert len(matches) == 1, [p.name for p in stories_dir.glob("*.md")]
+    fm, _body = frontmatter.read(str(matches[0]))  # raises yaml.YAMLError if invalid
+    assert fm["title"] == "Search: filters and sort"
+    assert fm["story_id"] == "US-001"
+
+
+def test_business_epic_has_no_dangling_story_links(pmos, new_project):
+    """Regression for backlog #34: business epic files linked into ../stories/, but
+    the business audience gets no stories/ folder, so every link dangled. Business
+    epics must reference stories as plain text; dev epics (which have stories) keep
+    working links that resolve."""
+    proj = new_project("epic-links", "A problem")
+    _approve_pipeline(pmos, proj)
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    pkg = proj / "handoff"
+
+    biz_epic = (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").read_text()
+    assert "US-001" in biz_epic                    # story still referenced
+    assert "../stories/" not in biz_epic           # but not as a dangling link
+    assert not (pkg / "business" / "stories").exists()
+
+    dev_epic = (pkg / "dev" / "epics" / "EPIC-001-agency-onboarding.md").read_text()
+    assert "](../stories/US-001-add-external-agency.md)" in dev_epic  # dev link present...
+    assert (pkg / "dev" / "stories" / "US-001-add-external-agency.md").exists()  # ...and resolves
+
+
+def test_journey_shared_screen_not_attributed_to_every_story(pmos, new_project):
+    """Regression for backlog #36: a screen serving one story directly plus a shared
+    journey was attributed to *every* story in that journey. A screen that names
+    specific stories/requirements must go only to those; the journey fallback applies
+    only to screens that name no story/requirement directly (preserving the
+    journey-only coverage case)."""
+    proj = new_project("screen-journey-scope", "A problem")
+    # Put both US-001 and US-002 in journey UJ-001.
+    prd = _PRD.replace(
+        "Primary user: Collections user. Traceability: US-001.",
+        "Primary user: Collections user. Traceability: US-001, US-002.",
+    )
+    # SCR-001 is a shared list screen (serves both stories directly); SCR-002 is
+    # US-001's detail screen, tagged with the shared journey. US-002 shares only the
+    # journey, so it must NOT pick up SCR-002.
+    design = (
+        _DESIGN
+        .replace("  - Serves: US-001, US-002, UJ-001\n", "  - Serves: US-001, US-002\n")
+        .replace("  - Serves: US-001\n", "  - Serves: US-001, UJ-001\n")
+    )
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("04", design), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    us1 = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "**Screens:** SCR-001, SCR-002" in us1  # US-001 keeps both — direct
+    us2 = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    assert "**Screens:** SCR-001" in us2  # direct shared screen
+    assert "SCR-002" not in us2           # not pulled in via the shared journey
+
+
+def test_global_ia_prose_does_not_leak_into_story_screen_body(pmos, new_project):
+    """Regression for backlog #35: trailing Information-Architecture prose not under
+    its own heading was absorbed into the preceding screen's block and copied verbatim
+    into every story touching that screen. A story's screen body must contain only the
+    screen's own content, not the global narrative."""
+    proj = new_project("screen-prose-leak", "A problem")
+    # Stray global prose after SCR-002's sub-bullets, before the next heading — the
+    # shape that leaks (the fixture's own trailing prose sits under a ## heading and is
+    # bounded correctly).
+    design = _DESIGN.replace(
+        "  - Serves: US-001\n## Journey-to-Flow Traceability",
+        "  - Serves: US-001\nAll screens share the global header and left nav.\n"
+        "## Journey-to-Flow Traceability",
+    )
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", design), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    assert "SCR-002 · Add agency form" in story        # the screen is present...
+    assert "capture a new agency" in story             # ...with its own body kept...
+    assert "All screens share the global header" not in story  # ...but not the global prose
