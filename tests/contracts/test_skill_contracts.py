@@ -141,6 +141,30 @@ def test_context_import_skill_produces_modular_pack():
     assert "00-context/manifest.yaml" in writes and "00-context/evidence.yaml" in writes
 
 
+def test_context_import_skill_has_interview_step():
+    """pm-context-import must place the coverage-driven interview between preflight and 00u."""
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    assert "Step 4b" in body and "Interview" in body
+    assert "preflight yields ⚠️/⛔" in body
+    assert "coverage-driven" in body
+    assert "batched by topic" in body
+    assert "strictly decreasing order of impact" in body
+    assert "provided sources don't already answer" in body
+    assert "not a fixed count" in body or "not a fixed numeric total" in body
+    assert "fixed numeric total" in body
+    assert "record-interview" in body
+    assert "PM_OS_INTERVIEW" in body
+    assert "known unknown" in body
+    assert "Do not self-approve" in body or "do not self-approve" in body
+    assert "exactly 5" not in body
+    assert "five-question maximum" not in body
+
+    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text())
+    interface = data.get("interface", {}) if isinstance(data, dict) else {}
+    assert "interview" in interface.get("default_prompt", "").lower()
+    assert "known unknown" in interface.get("default_prompt", "").lower()
+
+
 def test_prototype_html_uses_interaction_model_not_genai_flag():
     body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text()
     assert "Interaction model" in body

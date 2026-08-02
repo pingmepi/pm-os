@@ -1,4 +1,4 @@
 interface:
   display_name: "New Project"
   short_description: "Create a new PM-OS project"
-  default_prompt: "Use $pm-new to create a new PM-OS project from my business statement."
+  default_prompt: "Use $pm-new to create a PM-OS project, choose the new/prototype/enhancement entry route, and print the tailored next step."

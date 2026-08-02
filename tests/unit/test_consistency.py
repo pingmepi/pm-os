@@ -16,12 +16,14 @@ import yaml
 
 import consistency
 import frontmatter
+import project
 from hashing import hash_artifact_body
 
 pytestmark = pytest.mark.unit
 
 
-def _write_meta(tmp_path: Path, stages: list, schema_version=4) -> Path:
+def _write_meta(tmp_path: Path, stages: list, schema_version=None) -> Path:
+    schema_version = project.SCHEMA_VERSION if schema_version is None else schema_version
     meta = {
         "schema_version": schema_version,
         "project_slug": "consistency-test",
@@ -57,31 +59,31 @@ def test_missing_schema_version_is_an_error():
 
 
 def test_stage_missing_required_field_is_an_error():
-    meta = {"schema_version": 4, "stages": [{"id": "01", "status": "draft"}]}  # no origin
+    meta = {"schema_version": project.SCHEMA_VERSION, "stages": [{"id": "01", "status": "draft"}]}  # no origin
     issues = consistency._check_schema_and_stage_shape(meta)
     assert any(i.code == consistency.CODE_STAGE_SHAPE_INVALID and i.stage == "01" for i in issues)
 
 
 def test_unknown_stage_id_is_an_error():
-    meta = {"schema_version": 4, "stages": [_stage("99")]}
+    meta = {"schema_version": project.SCHEMA_VERSION, "stages": [_stage("99")]}
     issues = consistency._check_schema_and_stage_shape(meta)
     assert any(i.code == consistency.CODE_STAGE_SHAPE_INVALID for i in issues)
 
 
 def test_invalid_status_value_is_an_error():
-    meta = {"schema_version": 4, "stages": [_stage("01", status="bogus")]}
+    meta = {"schema_version": project.SCHEMA_VERSION, "stages": [_stage("01", status="bogus")]}
     issues = consistency._check_schema_and_stage_shape(meta)
     assert any(i.code == consistency.CODE_STAGE_SHAPE_INVALID for i in issues)
 
 
 def test_invalid_origin_value_is_an_error():
-    meta = {"schema_version": 4, "stages": [_stage("01", origin="bogus")]}
+    meta = {"schema_version": project.SCHEMA_VERSION, "stages": [_stage("01", origin="bogus")]}
     issues = consistency._check_schema_and_stage_shape(meta)
     assert any(i.code == consistency.CODE_STAGE_SHAPE_INVALID for i in issues)
 
 
 def test_healthy_meta_has_no_shape_issues():
-    meta = {"schema_version": 4, "stages": [_stage("00", status="approved")]}
+    meta = {"schema_version": project.SCHEMA_VERSION, "stages": [_stage("00", status="approved")]}
     assert consistency._check_schema_and_stage_shape(meta) == []
 
 

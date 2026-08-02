@@ -14,7 +14,6 @@ from config import DEFAULT_MODEL_TIER, DEEP_REASONING_STAGES
 PM_OS_DIR = Path.home() / ".pm-os"
 CONFIG_PATH = PM_OS_DIR / "config.yaml"
 PROJECTS_DIR = Path.home() / "pm-projects"
-DEFAULT_FEEDBACK_REPO = ""
 
 
 def choose_value(label, current, provided, env_name, *, reconfigure=False, default=""):
@@ -23,8 +22,8 @@ def choose_value(label, current, provided, env_name, *, reconfigure=False, defau
         return provided.strip()
     if env_value:
         return env_value.strip()
-    if current and not reconfigure:
-        print(f"✓ {label} already set: {current} (use --reconfigure to change)")
+    if current:
+        print(f"✓ {label} already set: {current} (pass --{label.replace('_', '-')} to change)")
         return current
     if default and not sys.stdin.isatty():
         print(f"✓ {label} using default: {default}")
@@ -39,11 +38,24 @@ def choose_value(label, current, provided, env_name, *, reconfigure=False, defau
     return input(f"{label}: ").strip()
 
 
+def choose_optional_value(label, current, provided, env_name, *, reconfigure=False):
+    env_value = os.environ.get(env_name, "")
+    if provided is not None:
+        return provided.strip()
+    if env_value:
+        return env_value.strip()
+    if current and not reconfigure:
+        print(f"✓ {label} already set: {current} (use --reconfigure to change)")
+        return current
+    print(f"✓ {label} not configured (optional; sync will skip)")
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(description="Install or reconfigure PM-OS.")
     parser.add_argument("--reconfigure", action="store_true", help="Reconfigure existing install")
     parser.add_argument("--pm-user", help="PM username for non-interactive install")
-    parser.add_argument("--feedback-repo", help="Feedback repo URL for non-interactive install")
+    parser.add_argument("--feedback-repo", help="Optional feedback repo URL for telemetry sync")
     parser.add_argument("--projects-dir", help="Projects directory path")
     args = parser.parse_args()
 
@@ -86,20 +98,17 @@ def main():
     if not pm_user:
         steps_fail.append("pm_user")
 
-    # Step 3: feedback_repo
+    # Step 3: feedback_repo (optional)
     current_repo = existing.get("feedback_repo", "")
-    feedback_repo = choose_value(
+    feedback_repo = choose_optional_value(
         "feedback_repo",
         current_repo,
         args.feedback_repo,
         "PM_OS_FEEDBACK_REPO",
         reconfigure=args.reconfigure,
-        default=DEFAULT_FEEDBACK_REPO,
     )
-    if not feedback_repo:
-        steps_fail.append("feedback_repo")
 
-    if not pm_user or not feedback_repo:
+    if not pm_user:
         print()
         total = len(steps_ok) + len(steps_fail)
         print(f"Steps: {len(steps_ok)}/{total} passed")
@@ -140,8 +149,11 @@ def main():
             print(f"✗ FAILED to verify pm_user (expected '{pm_user}', got '{written.get('pm_user')}')")
             steps_fail.append("pm_user")
 
-        if written.get("feedback_repo") == feedback_repo:
-            print(f"✓ feedback_repo written: {feedback_repo}")
+        if written.get("feedback_repo", "") == feedback_repo:
+            if feedback_repo:
+                print(f"✓ feedback_repo written: {feedback_repo}")
+            else:
+                print("✓ feedback_repo omitted (optional)")
             steps_ok.append("feedback_repo")
         else:
             print(f"✗ FAILED to verify feedback_repo write")

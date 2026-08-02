@@ -117,18 +117,18 @@ PM-OS keeps the PM in control at every stage boundary, but the *reviewers* of ea
 
 ```bash
 # Claude
-./install.sh --runtime claude --pm-user <id> --feedback-repo <repo-url>
+./install.sh --runtime claude --pm-user <id>
 
 # Codex
-./install.sh --runtime codex --pm-user <id> --feedback-repo <repo-url>
+./install.sh --runtime codex --pm-user <id>
 
 # Optional: choose a non-default project directory
-./install.sh --runtime codex --pm-user <id> --feedback-repo <repo-url> --projects-dir ~/pm-projects
+./install.sh --runtime codex --pm-user <id> --projects-dir ~/pm-projects
 ```
 The `--runtime` argument is required so skills install into the correct agent directory. For team installs, prefer explicit config flags over accepting prompts:
 - `--pm-user` becomes the teammate identity stored in `~/.pm-os/config.yaml` and used in feedback paths such as `telemetry/<pm_user>/<project-slug>/`.
 - Each teammate should use a unique, stable PM identifier.
-- `--feedback-repo` should point to the team's approved feedback repository, not a personal placeholder.
+- `--feedback-repo` is optional. If configured, it should point to the team's approved feedback repository, not a personal placeholder; if omitted, `/pm-sync` skips remote telemetry sync.
 - `--projects-dir` is optional, but should be standardized if the team wants consistent local paths.
 
 Run the verifier after setup:
@@ -245,7 +245,7 @@ Re-running creates *new* tickets — it does not detect ones you already created
 
 - **Sanitize every input.** PM-OS is for sanitized product-planning inputs only. Do not put confidential customer data, PHI, PII, secrets, credentials, or proprietary material into business statements, notes, prompts, or artifacts unless your environment and policies explicitly allow it.
 - **Local by default.** Project artifacts, history, telemetry, and feedback are plain files on the user's machine. PM-OS does not send project data to external services unless you explicitly ask for sharing, remote install, or another networked action.
-- **Know where feedback goes.** By default PM-OS is configured to push local telemetry and feedback artifacts to a remote feedback repository. If your team needs a private or organization-specific destination, **override this during setup** — before anyone runs real projects. Treat the feedback repo as out-of-bounds for any sensitive content, same as §7's first bullet.
+- **Know where feedback goes.** PM-OS stores telemetry and feedback locally by default. If you configure `--feedback-repo`, `/pm-sync` pushes those local JSONL artifacts to that repository; otherwise sync is skipped. Treat any configured feedback repo as out-of-bounds for sensitive content, same as §7's first bullet.
 - **When in doubt, abstract.** Describe the customer/segment generically rather than naming an account; describe the data rather than pasting it.
 
 ---
@@ -254,7 +254,7 @@ Re-running creates *new* tickets — it does not detect ones you already created
 
 | Action | Claude | Codex |
 |---|---|---|
-| Install | `./install.sh --runtime claude --pm-user <id> --feedback-repo <url>` | `./install.sh --runtime codex --pm-user <id> --feedback-repo <url>` |
+| Install | `./install.sh --runtime claude --pm-user <id>` | `./install.sh --runtime codex --pm-user <id>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
 | New enhancement | `/pm-new <slug> --mode enhancement --codebase <url-or-path>` | `$pm-new <slug> --mode enhancement --codebase <url-or-path>` |
 | Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |

@@ -16,7 +16,7 @@ usage() {
   echo "Usage: ./install.sh --runtime claude|codex [options]"
   echo ""
   echo "Standard install (clone from GitHub or a git mirror):"
-  echo "  ./install.sh --runtime claude --pm-user <id> --feedback-repo https://github.com/org/pm-os-feedback.git"
+  echo "  ./install.sh --runtime claude --pm-user <id>"
   echo "  ./install.sh --runtime claude --repo https://gitlab.example.com/org/pm-os.git --pm-user <id>"
   echo ""
   echo "Offline install from a local directory or extracted zip:"
@@ -27,7 +27,7 @@ usage() {
   echo "  --repo <url>                Override git remote (env: PM_OS_REPO; default: GitHub)"
   echo "  --source <dir>              Install from local dir instead of git (env: PM_OS_SOURCE)"
   echo "  --pm-user <id>              PM/team member identifier used in telemetry paths"
-  echo "  --feedback-repo <url>       Feedback/telemetry repository URL"
+  echo "  --feedback-repo <url>       Optional feedback/telemetry sync repository URL"
   echo "  --projects-dir <path>       Local PM-OS projects directory"
   echo "  --reconfigure               Prompt for and rewrite existing local config"
 }

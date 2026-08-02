@@ -264,6 +264,47 @@ Information flows downstream and gets more concrete (WHY → WHAT → HOW), so a
 
 **If a provided artifact is so deep that the chain below it has an ⛔ gap** (e.g. the PM provided only a metrics plan or only a QA plan), do **not** adopt it as a stage — you cannot honestly reconstruct its upstreams. Demote it to **context** (it still lives in the wiki and grounds generation), and tell the PM. Re-run preflight on the reduced provided set until no ⛔ remains.
 
+# Step 4b — Interview
+
+For pathway 2 imports (approved prototype/design, no `codebase_path` and no `--codebase`), run this step after every source has been registered, scanned, and synthesized into the draft wiki evidence, and after Step 4's feasibility preflight. If `preflight yields ⚠️/⛔` for an upstream gap, or if the draft wiki/understanding inputs contain high-impact `[inferred]` rows or unresolved conflicts that affect backfill fidelity, conduct a PM interview before writing `00-context-understanding.md`.
+
+The interview is **coverage-driven, not a fixed count and not a fixed numeric total**. Ask only load-bearing residual gaps the provided sources don't already answer. More supporting context means fewer questions; a complete source set may mean no questions. Questions are **batched by topic** in **strictly decreasing order of impact**:
+
+1. problem/why
+2. target users & pains
+3. success criteria
+4. scope boundary
+5. non-goals/descope history
+6. constraints
+7. decision authority
+
+Keep each topic round digestible with a soft ~5 questions per round, but do not treat that as a total cap. Skip any topic the sources already answer. The PM may skip any question or stop early; skipped or unanswered questions become known unknowns, never silent assumptions and never fabricated requirements.
+
+Use this Markdown answer format so the mechanical helper can register provenance and count outcomes:
+
+```markdown
+## Interview answers
+- [x] ANSWERED: <question>
+  <PM answer>
+- [ ] SKIPPED: <question>
+```
+
+Then record the answers:
+
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py record-interview --interview-answers <answers-file>
+```
+
+If the session is non-interactive, or `PM_OS_INTERVIEW=skip`, do not prompt. Write the pending interview questions to a Markdown file and run:
+
+```bash
+PM_OS_INTERVIEW=skip python3 ~/.pm-os/scripts/pm_context_import.py record-interview <questions-file>
+```
+
+This records every pending question as a known unknown in `00-context/known-unknowns.md` and logs `interview_conducted`; continue without blocking. When answers exist, the helper registers them in `.sources.yaml` as PM-authored, high-confidence interview context so they flow into the wiki/evidence ledger.
+
+After recording answers, revise `00-context-wiki.md`, `00-context/evidence.yaml`, and the draft understanding inputs so answered gaps improve the affected backfill confidence/fidelity and every skip appears under `## Open questions & uncertainties` and in the understanding doc's assumption register as a known unknown. Do not self-approve any stage-00 document; the interview informs generation only. Pathway 3's narrow codebase interview, promote-to-enhancement setter, and scoped-delta pipeline remain E2 and are not part of this step.
+
 # Step 5 — Write the understanding doc (`00-context-understanding.md`)
 
 Human-facing synthesis the PM approves. Use exactly these six sections:

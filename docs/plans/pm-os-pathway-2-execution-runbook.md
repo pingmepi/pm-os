@@ -44,13 +44,13 @@ Execute the loops in order. **Each loop is a strict cycle — do not skip a phas
 
 ## 2. Task checklist (update as you go)
 
-- [ ] **Loop 0** — Baseline & orientation
-- [ ] **Loop 1** — `record-interview` mechanical helper (register answers as PM source)
-- [ ] **Loop 2** — Known-unknowns + telemetry
-- [ ] **Loop 3** — Non-interactive safety (`--interview-answers`, `PM_OS_INTERVIEW=skip`, non-tty)
-- [ ] **Loop 4** — SKILL.md interview step (+ `agents/openai.yaml`) [contract test]
-- [ ] **Loop 5** — Uniform front door + routing (E0): `/pm-new` scaffolds → routes (new/proto/enhancement) → tailored guidance; `[1]`/`[2]` wired, `[3]` presented (existing behavior); route in telemetry
-- [ ] **Loop 6** — End-to-end pathway-2 integration test + docs/catalog + finalize
+- [x] **Loop 0** — Baseline & orientation
+- [x] **Loop 1** — `record-interview` mechanical helper (register answers as PM source)
+- [x] **Loop 2** — Known-unknowns + telemetry
+- [x] **Loop 3** — Non-interactive safety (`--interview-answers`, `PM_OS_INTERVIEW=skip`, non-tty)
+- [x] **Loop 4** — SKILL.md interview step (+ `agents/openai.yaml`) [contract test]
+- [x] **Loop 5** — Uniform front door + routing (E0): `/pm-new` scaffolds → routes (new/proto/enhancement) → tailored guidance; `[1]`/`[2]` wired, `[3]` presented (existing behavior); route in telemetry
+- [x] **Loop 6** — End-to-end pathway-2 integration test + docs/catalog + finalize
 
 ---
 

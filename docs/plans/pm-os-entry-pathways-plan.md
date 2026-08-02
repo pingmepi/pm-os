@@ -1,6 +1,6 @@
 # PM-OS Entry Pathways & Interview Plan
 
-**Status:** 🟡 Draft plan (2026-08-01). Design only — no code. **Build order decided 2026-08-01: pathway 2 (prototype → dev handoff) first; pathway 3 (codebase) later.** Remaining open decisions in §8.
+**Status:** E1 shipped (pathway 2), pending PM review. **Build order decided 2026-08-01: pathway 2 (prototype → dev handoff) first; pathway 3 (codebase) later.** Remaining open decisions in §8.
 **Author:** Karan (with Claude Code)
 **Companion:** `pm-os-consistency-spine-plan.md` — the consistency-spine + v1.4.1 fixes half of the same next-development arc. This doc is the entry-pathways half.
 **Realizes / supersedes:** the reserved **Phase 5 "thin-context discovery interview"** in `adaptive-context-intelligence-pack.md` (originally a ≤5-question nudge for thin inputs, skippable, answers registered as a PM-authored source, skips → known unknowns). This plan realizes that Phase 5 and makes it **pathway-aware** and **feasibility-map-driven** — and, for pathway 2's *reconstruction* case, **replaces the fixed ≤5 cap with a coverage-driven, batched model** (§4): Phase 5's small cap suits a thin-input nudge, not the fuller WHY/scope reconstruction a prototype needs. Fold Phase 5 into this plan (Open decision #5).
@@ -49,7 +49,7 @@ What are you starting from?
 
 Uniform to *use* (always `/pm-new`) and uniform to *consume* (always: created → pick type → told exactly what's next). It also removes the trap where a prototype PM silently lands in greenfield and skips context-import.
 
-**Mechanics:** this gives `type` the same treatment `genai` already has — an interactive prompt plus a flag/env escape (`--entry {new,prototype,enhancement}`, with `--codebase` for enhancement; `--mode`/`PM_OS_PROJECT_TYPE` kept as back-compat aliases). Because the choice happens *after* scaffolding, `/pm-new` scaffolds a uniform `new_product` baseline and the routing step **promotes to enhancement** when [3] is chosen — a small post-scaffold setter that sets `project_type`, records `codebase_path`, and adds the `00c` stage. No schema change (`project_type` already exists). The chosen route is recorded in telemetry.
+**Mechanics:** this gives `type` the same treatment `genai` already has — an interactive prompt plus a flag/env escape (`--entry {new,prototype,enhancement}`, with `--codebase` for enhancement; `--mode`/`PM_OS_PROJECT_TYPE` kept as back-compat aliases). In the shipped pathway-2 slice, `[1]` and `[2]` are fully wired and `[3]` reuses today's enhancement scaffold behavior (`project_type: enhancement`, `codebase_path` when provided); the fuller promote-to-enhancement setter and `00c` addition are E2. No schema change (`project_type` already exists). The chosen route is recorded in telemetry.
 
 ## 3. What already exists (build on, don't rebuild)
 
@@ -109,12 +109,12 @@ Independently shippable; ordered by dependency. Each ships with tests (`docs/gui
 
 ### Acceptance criteria (targets)
 
-- [ ] `/pm-new` always scaffolds identically, then routes: it asks new/prototype/enhancement, sets the type, and prints the correct next step for each (greenfield / context-import / context-import --codebase); non-interactively the `--entry`/`--codebase`/env escape preserves today's behavior. The chosen route is recorded in telemetry, and `[3]` promotes the project to enhancement (`project_type` + `codebase_path` + `00c`).
-- [ ] On a pathway-2 import where `preflight` rates a gap ⚠️/⛔, the interview asks **coverage-driven** questions — batched by topic, in **strictly decreasing order of impact**, only for load-bearing gaps the provided sources don't already answer (soft ~5 per round, no hard total); answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and never fabricates.
-- [ ] Interview answers appear in `.sources.yaml` as a PM-authored source and feed the wiki/evidence ledger with high confidence.
-- [ ] Non-interactively (`--interview-answers <file>` or non-tty), the flow completes without hanging; skipped questions become known unknowns.
+- [x] `/pm-new` always scaffolds identically, then routes: it asks new/prototype/enhancement, sets the type for new/enhancement, records the prototype route hint, and prints the correct next step for each (greenfield / context-import / context-import --codebase); non-interactively the `--entry`/`--codebase`/env escape preserves today's behavior. The chosen route is recorded in telemetry; `[3]` reuses today's enhancement scaffold path, with the fuller promote-to-enhancement/`00c` setter deferred to E2.
+- [x] On a pathway-2 import where `preflight` rates a gap ⚠️/⛔, the interview asks **coverage-driven** questions — batched by topic, in **strictly decreasing order of impact**, only for load-bearing gaps the provided sources don't already answer (soft ~5 per round, no hard total); answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and never fabricates.
+- [x] Interview answers appear in `.sources.yaml` as a PM-authored source and feed the wiki/evidence ledger with high confidence.
+- [x] Non-interactively (`--interview-answers <file>` or non-tty), the flow completes without hanging; skipped questions become known unknowns.
 - [ ] Pathway 3 runs a scoped-delta pipeline grounded in `00c`, with enhancement delta-framing active in stages 01–08; the interview is narrow (intent), not a full re-derivation.
-- [ ] No change to the gate/hash/staleness/telemetry core; every stage-00 doc remains a human-approved gate; the interview never self-approves.
+- [x] No change to the gate/hash/staleness/telemetry core; every stage-00 doc remains a human-approved gate; the interview never self-approves.
 
 ## 8. Open decisions (need PM input)
 

@@ -18,6 +18,7 @@ The SKILL writes the markdown bodies; this script never generates content.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -93,6 +94,9 @@ LOSSY_BY_DEFAULT = {"image", "slides", "spreadsheet"}
 # Never descend into these — engine/state dirs and OS cruft, not PM context.
 IGNORE_DIRS = {".history", ".git", "__pycache__", ".meta", "node_modules"}
 IGNORE_NAMES = {".DS_Store", "Thumbs.db", ".meta.yaml", ".sources.yaml"}
+
+ANSWERED_RE = re.compile(r"^\s*-\s*\[[xX]\]\s*ANSWERED:\s*(.+?)\s*$")
+SKIPPED_RE = re.compile(r"^\s*-\s*\[\s*\]\s*SKIPPED:\s*(.+?)\s*$")
 
 
 def _register_one(root, src, src_type, ts, sources):
@@ -196,6 +200,140 @@ def cmd_register(args):
             print(f"  (skipped) {rel}")
 
 
+def _question_from_bullet(line: str):
+    stripped = line.strip()
+    if not stripped.startswith("- "):
+        return None
+    question = stripped[2:].strip()
+    checkbox = re.match(r"^\[[ xX]\]\s*(?:(?:ANSWERED|SKIPPED|QUESTION):\s*)?(.*)$", question)
+    if checkbox:
+        question = checkbox.group(1).strip()
+    return question or None
+
+
+def _parse_interview_markdown(text: str, *, skip_all: bool = False) -> dict:
+    answered = []
+    skipped = []
+    in_skipped_section = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("## "):
+            in_skipped_section = stripped.lower() in {"## skipped", "## skipped questions"}
+            continue
+        if skip_all:
+            question = _question_from_bullet(line)
+            if question:
+                skipped.append(question)
+            continue
+        answered_match = ANSWERED_RE.match(line)
+        if answered_match:
+            answered.append(answered_match.group(1).strip())
+            continue
+        skipped_match = SKIPPED_RE.match(line)
+        if skipped_match:
+            skipped.append(skipped_match.group(1).strip())
+            continue
+        if in_skipped_section and stripped.startswith("- "):
+            question = stripped[2:].strip()
+            if question:
+                skipped.append(question)
+    return {
+        "answered": answered,
+        "skipped": skipped,
+        "asked": len(answered) + len(skipped),
+    }
+
+
+def _is_pending_questions_file(text: str) -> bool:
+    return any(line.strip().lower() in {"## interview questions", "## pending interview questions"}
+               for line in text.splitlines())
+
+
+def _write_known_unknowns(root: Path, skipped_questions: list[str], source_id: str) -> None:
+    if not skipped_questions:
+        return
+    context_dir = root / PACK_DIR
+    context_dir.mkdir(exist_ok=True)
+    path = context_dir / "known-unknowns.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    lines = []
+    if not existing.strip():
+        lines.extend([
+            "# Known unknowns",
+            "",
+            "Skipped or unanswered PM interview questions. These remain unresolved gaps, not assumptions.",
+            "",
+        ])
+    for question in skipped_questions:
+        bullet = f"- {question} (source: {source_id})"
+        if bullet not in existing:
+            lines.append(bullet)
+    if lines:
+        path.write_text(existing.rstrip() + ("\n\n" if existing.strip() else "") + "\n".join(lines) + "\n",
+                        encoding="utf-8")
+
+
+def _interview_source_ids(root: Path) -> list:
+    sources_path = root / ".sources.yaml"
+    if not sources_path.exists():
+        return []
+    sources = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or []
+    return [
+        s["id"] for s in sources
+        if s.get("origin") == "interview" and s.get("confidence") == "high" and s.get("id")
+    ]
+
+
+def cmd_record_interview(args):
+    root = resolve_project()
+    answers_arg = args.interview_answers or args.answers_file
+    if not answers_arg:
+        print("No interview answers supplied; nothing to record.")
+        return
+    src = Path(answers_arg).expanduser()
+    if not src.exists():
+        print(f"Error: interview answers file not found: {src}")
+        sys.exit(1)
+    if not src.is_file():
+        print(f"Error: interview answers path must be a file: {src}")
+        sys.exit(1)
+
+    ts = _now()
+    sources_path = root / ".sources.yaml"
+    sources = []
+    if sources_path.exists():
+        sources = yaml.safe_load(sources_path.read_text()) or []
+
+    src_id, snapshot = _register_one(root, src, "context", ts, sources)
+    source = next(s for s in sources if s["id"] == src_id)
+    source.update({
+        "authorship": "pm",
+        "origin": "interview",
+        "confidence": "high",
+        "author": _pm(),
+    })
+    sources_path.write_text(
+        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    )
+    text = src.read_text(encoding="utf-8")
+    skip_all = (
+        os.environ.get("PM_OS_INTERVIEW", "").strip().lower() == "skip"
+        or (not sys.stdin.isatty() and not args.interview_answers and _is_pending_questions_file(text))
+    )
+    counts = _parse_interview_markdown(text, skip_all=skip_all)
+    _write_known_unknowns(root, counts["skipped"], src_id)
+    try:
+        log("interview_conducted", root, None, {
+            "source_id": src_id,
+            "asked": counts["asked"],
+            "answered": len(counts["answered"]),
+            "skipped": len(counts["skipped"]),
+        })
+    except Exception as e:
+        print(f"Warning: telemetry logging failed: {e}")
+    print(f"Recorded interview answers as {src_id} (context) — raw preserved at {snapshot.relative_to(root)}")
+
+
 def cmd_preflight(args):
     provided = [s.strip().zfill(2) for s in args.provided.split(",") if s.strip()]
     bad = [s for s in provided if s not in CORE_STAGE_ORDER]
@@ -278,6 +416,9 @@ def cmd_commit(args):
     fm.setdefault("stage", f"{stage_id}-{STAGE_NAMES[stage_id]}")
     fm.setdefault("project", meta.get("project_slug"))
     fm["origin"] = args.kind
+    interview_sources = _interview_source_ids(root) if args.kind == "backfilled" else []
+    if interview_sources:
+        fm["interview_sources"] = interview_sources
     if args.source_name:
         fm["source_filename"] = args.source_name
     if args.source_format:
@@ -300,6 +441,7 @@ def cmd_commit(args):
                     "prompt_version": args.prompt_version,
                     "notes": [],
                     "origin": args.kind,
+                    "interview_sources": interview_sources,
                 })
             except Exception as e:
                 print(f"Warning: telemetry logging failed: {e}")
@@ -343,6 +485,7 @@ def cmd_commit(args):
         "source_format": args.source_format,
         "source_filename": args.source_name,
         "derived_from": args.derived_from,
+        "interview_sources": interview_sources,
     }
     # Backfilled (reverse-generated) and generated artifacts are model-produced;
     # imported ones are the PM's own authored docs, so no model applies there.
@@ -647,6 +790,13 @@ def main():
     p_reg.add_argument("--type", default="context",
                        help="source type: context|brief|scope|prd|design|research|...")
     p_reg.set_defaults(func=cmd_register)
+
+    p_int = sub.add_parser("record-interview",
+                           help="Register PM interview answers as high-confidence context.")
+    p_int.add_argument("answers_file", nargs="?", help="Markdown file containing PM interview answers.")
+    p_int.add_argument("--interview-answers", dest="interview_answers", default=None,
+                       help="Markdown answers file for non-interactive runs.")
+    p_int.set_defaults(func=cmd_record_interview)
 
     p_pre = sub.add_parser("preflight", help="Backfill-feasibility verdicts for a combo.")
     p_pre.add_argument("--provided", required=True, help="comma-separated core stage ids, e.g. 02,03,04")

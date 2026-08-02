@@ -49,6 +49,23 @@ def test_model_policy_defaults_merge_stale_config(pmos):
     assert config.model_tier_for_stage("custom") == "deep-reasoning"
 
 
+def test_load_config_allows_missing_feedback_repo(pmos):
+    """feedback_repo is optional; older/local configs without it load with an empty value."""
+    config.CONFIG_PATH.write_text(
+        "schema_version: 1\n"
+        "pm_user: tester\n"
+        f"projects_dir: {pmos.projects}\n"
+        "pm_os_version: 0.0.0-test\n",
+        encoding="utf-8",
+    )
+    config._config_cache = None
+
+    cfg = config.load_config()
+
+    assert cfg["feedback_repo"] == ""
+    assert cfg["projects_dir"] == str(pmos.projects)
+
+
 def test_model_tier_falls_back_without_config(monkeypatch):
     """If config can't be loaded, the helper still returns a sane tier from module defaults
     rather than raising — telemetry logging must never fail on this lookup."""

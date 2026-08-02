@@ -40,7 +40,7 @@ def save_meta(meta_dict: dict, project_root=None) -> None:
 
 # Current .meta.yaml shape. Bump (and extend migrate_meta) when the shape
 # changes. Independent of config.yaml's own schema_version.
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 STAGE_NAMES = {
     "00": "business-statement",
@@ -200,6 +200,15 @@ def migrate_meta(meta: dict, project_root: Optional[Path] = None) -> bool:
         if "context_pack" not in meta:
             meta["context_pack"] = None
             changed = True
+
+    # v5: entry route selected at the pm-new front door. Existing projects predate
+    # the route prompt, so infer the only routes representable by project_type.
+    if meta.get("schema_version", 1) < 5:
+        meta.setdefault(
+            "entry_route",
+            "enhancement" if meta.get("project_type") == "enhancement" else "new",
+        )
+        changed = True
 
     if meta.get("schema_version", 1) < SCHEMA_VERSION:
         meta["schema_version"] = SCHEMA_VERSION
