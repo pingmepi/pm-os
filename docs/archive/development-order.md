@@ -1,12 +1,19 @@
 # PM-OS Development Order
 
-**Date:** 2026-07-28 · **Status:** Living sequencing plan.
+**Date:** 2026-07-28 · **Status:** 🗄️ **ARCHIVED (2026-08-02).** One-time sequencing snapshot, kept for provenance.
 
-This is the single home for **build sequencing** across all open work. It does not re-describe items — it orders them. Item detail lives in the trackers:
+> **Archived — do not treat as live.** This was a point-in-time consolidation of build order as of
+> 2026-07-28. It predates the 2026-08-01 entry-pathways / interview / consistency-spine work and no
+> longer reflects the active sequence. Forward sequencing now lives inside each plan's own phase table
+> (`../plans/pm-os-entry-pathways-plan.md` E0–E3, `../plans/pm-os-consistency-spine-plan.md` A.0–A.4,
+> `../plans/pm-os-modes-delivery-and-handoff-plan.md` A/B/C); caught defects/gaps live in
+> `../roadmap/backlog.md`; the implemented-state snapshot lives in `../roadmap/current-state-review.md`.
 
-- Verified defects/gaps → `backlog.md` (referenced as `#N`)
+This was the single home for **build sequencing** across all open work. It does not re-describe items — it orders them. Item detail lives in the trackers:
+
+- Verified defects/gaps → `../roadmap/backlog.md` (referenced as `#N`)
 - Delivery-model & handoff design → `../plans/pm-os-modes-delivery-and-handoff-plan.md` (phases `B0`–`C4`)
-- Lifecycle/roadmap gaps & phase plan → `current-state-review.md` (§3 "Roadmap-level lifecycle gaps", §7 phases)
+- Lifecycle/roadmap gaps & phase plan → `../roadmap/current-state-review.md` (§3 "Roadmap-level lifecycle gaps", §7 phases)
 
 ## The dividing line
 

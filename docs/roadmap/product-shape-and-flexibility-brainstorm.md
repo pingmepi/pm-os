@@ -44,6 +44,13 @@ Bonus insight: a handoff packet + traceability spine extended through tickets/te
 
 ## 2. Working-style flexibility — the three PM "paths"
 
+> **Naming caution (2026-08-02):** the "Path 1/2/3" below are *PM working styles* from one conversation
+> and are **NOT** the canonical entry taxonomy. The authoritative entry model is
+> `../plans/pm-os-entry-pathways-plan.md` — **Pathway 1 = Idea, 2 = Prototype, 3 = Live product/codebase** —
+> and its numbering differs from this table (here Path 2 = existing product, Path 3 = skip-to-prototype;
+> there Pathway 2 = prototype, Pathway 3 = codebase). When a "pathway N" is referenced anywhere
+> load-bearing, it means the entry-pathways plan's numbering, not this brainstorm's.
+
 > **Update (2026-07-27):** the MVP-vs-full-product / scope-tier thread in this section and §3 has since moved from open discussion to a **committed design** — scope tiers (`mvp | v1 | v2 | later`) with tiered fidelity + a `/pm-promote` step, and an ungated delivery-increment layer for multi-cycle handoff. See `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part B and backlog #28. This brainstorm is preserved as the origin of that thinking; the decisions live in the plan, not here.
 
 A PM described three working styles. Where PM-OS stands (verified in code):
@@ -142,6 +149,13 @@ PM-OS models requirements as **flat nodes** with exactly one edge type in the wh
 ---
 
 ## 5. The graduation / promotion problem
+
+> **Superseded (2026-08-02).** The committed design for prototype → full product is now the
+> **interview-forward** model in `../plans/pm-os-entry-pathways-plan.md` §§4–5 (Pathway 2): adopt the
+> prototype, then an interview recovers the WHY/scope and the pipeline is *formalized forward* — the same
+> "author forward, don't reverse-engineer pixels" insight this section reached. The specific machinery
+> sketched below (an `explore/` sidecar lane + `/pm-graduate` + a decision log) is **not** the chosen
+> path and is preserved here as origin/thinking only; the decision log idea may still be revisited.
 
 The hard case for "start light" flexibility: a PM explores a prototype, then wants to grow it into a full product.
 

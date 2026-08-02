@@ -186,9 +186,14 @@ pack is not a single PR.
   generation (market landscape, VoC clusters, competitor/UX, decision timeline,
   opportunity map, traceability). Views activate only when evidence supports
   them.
-- **Phase 5 — Thin-context discovery interview.** Self-contained and orthogonal;
-  may ship earlier if convenient. ≤5 ranked questions, skippable, answers
-  registered as a PM-authored source, skips recorded as known unknowns.
+- **Phase 5 — Thin-context discovery interview. ⛔ SUPERSEDED (2026-08-02) — do not build from this
+  description.** The canonical interview design is now `pm-os-entry-pathways-plan.md` §4 (the interview
+  primitive), which realizes and **replaces** this Phase 5: it is **coverage-driven — soft ~5 per topic
+  round, no hard total** — not the fixed **≤5** cap sketched here, and it is pathway-aware and
+  feasibility-map-driven. The pathway-2 build (E0–E1) shipped in v1.4.3. The invariants below still hold
+  (skippable, answers registered as a PM-authored source, skips → known unknowns); only the fixed ≤5 cap
+  is retired. Original sketch, for history: self-contained and orthogonal; may ship earlier if convenient.
+  ≤5 ranked questions, skippable, answers registered as a PM-authored source, skips recorded as known unknowns.
 
 The opt-in `--upgrade-pack` path becomes available once Phase 2 lands and gains
 richer output as Phases 3–4 land. Cross-runtime (Claude/Codex) contract tests

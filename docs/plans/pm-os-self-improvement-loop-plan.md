@@ -232,6 +232,12 @@ Example derived fields:
 
 ### Quality Metrics
 
+> **Taxonomy caveat (2026-08-02) — reconcile with backlog #26 (authoritative).** Backlog #26 establishes
+> that edit-distance + ratings measure **PM activity/effort and satisfaction, not artifact correctness**.
+> The "Quality" label on this section (and its metrics below) is therefore a misnomer under that finding.
+> If/when #26 is actioned, relabel this family accordingly (e.g. *activity/satisfaction signals*) and stop
+> presenting these numbers as artifact-correctness. Keep the metrics; correct the framing.
+
 Purpose: identify artifact quality issues and weak stages.
 
 Track:
