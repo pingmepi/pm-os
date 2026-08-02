@@ -1,4 +1,4 @@
 interface:
   display_name: "Context Import"
   short_description: "Ingest existing PM context"
-  default_prompt: "Use $pm-context-import to ingest the context I already have and seed the pipeline."
+  default_prompt: "Use $pm-context-import to ingest the context I already have, run the coverage-driven interview for upstream gaps, record known unknowns, and seed the pipeline."

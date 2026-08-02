@@ -10,6 +10,7 @@ sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os
 
 import yaml
 from config import load_config
+from project import SCHEMA_VERSION
 
 
 def parse_bool(value):
@@ -19,6 +20,35 @@ def parse_bool(value):
     if normalized in {"0", "false", "no", "n", "non-genai", "no-genai"}:
         return False
     return None
+
+
+ENTRY_TO_PROJECT_TYPE = {
+    "new": "new_product",
+    "prototype": "new_product",
+    "enhancement": "enhancement",
+}
+
+
+def normalize_entry(value):
+    if value in {"new", "prototype", "enhancement"}:
+        return value
+    return None
+
+
+def prompt_entry_route():
+    print("What are you starting from?")
+    print("  [1] New idea — nothing built or approved yet")
+    print("  [2] Approved prototype / design (no code yet)")
+    print("  [3] Existing live product (codebase)")
+    resp = input("Choose 1, 2, or 3 [1]: ").strip().lower()
+    if resp in {"", "1", "new", "new idea"}:
+        return "new"
+    if resp in {"2", "prototype", "design"}:
+        return "prototype"
+    if resp in {"3", "enhancement", "codebase", "live product"}:
+        return "enhancement"
+    print("Error: entry route must be 1/new, 2/prototype, or 3/enhancement.")
+    sys.exit(1)
 
 
 def main():
@@ -33,6 +63,9 @@ def main():
     parser.add_argument("--mode", dest="mode", default=None,
                         choices=["new_product", "enhancement"],
                         help="Project mode (default: new_product). Env: PM_OS_PROJECT_TYPE.")
+    parser.add_argument("--entry", dest="entry", default=None,
+                        choices=["new", "prototype", "enhancement"],
+                        help="Entry route: new idea, approved prototype/design, or enhancement.")
     parser.add_argument("--codebase", dest="codebase", default=None,
                         help="GitHub URL or local path to the existing codebase (enhancement mode).")
     args = parser.parse_args()
@@ -41,17 +74,30 @@ def main():
         print(f"Error: slug '{args.slug}' must be kebab-case (lowercase letters, numbers, hyphens; start with letter/digit)")
         sys.exit(1)
 
-    # Resolve project_type from flag → env var → default
+    # Resolve entry route first, keeping --mode/PM_OS_PROJECT_TYPE as back-compat aliases.
     env_mode = os.environ.get("PM_OS_PROJECT_TYPE")
-    if args.mode is not None:
-        project_type = args.mode
-    elif env_mode in ("new_product", "enhancement"):
-        project_type = env_mode
+    env_entry = normalize_entry(os.environ.get("PM_OS_ENTRY", ""))
+    if args.entry is not None:
+        entry_route = args.entry
+    elif env_entry is not None:
+        entry_route = env_entry
+    elif args.mode == "enhancement":
+        entry_route = "enhancement"
+    elif args.mode == "new_product":
+        entry_route = "new"
+    elif env_mode == "enhancement":
+        entry_route = "enhancement"
+    elif env_mode == "new_product":
+        entry_route = "new"
+    elif sys.stdin.isatty():
+        entry_route = prompt_entry_route()
     else:
-        project_type = "new_product"
+        entry_route = "new"
+
+    project_type = ENTRY_TO_PROJECT_TYPE[entry_route]
 
     if args.codebase and project_type == "new_product":
-        print("Error: --codebase requires --mode enhancement.")
+        print("Error: --codebase requires --entry enhancement or --mode enhancement.")
         sys.exit(1)
 
     try:
@@ -144,13 +190,14 @@ def main():
         })
 
     meta = {
-        "schema_version": 4,
+        "schema_version": SCHEMA_VERSION,
         "project_slug": args.slug,
         "project_name": project_name,
         "created_at": ts,
         "created_by": pm,
         "genai_flag": genai_flag,
         "project_type": project_type,
+        "entry_route": entry_route,
         "codebase_path": args.codebase,
         "codebase_ref": None,
         "context_pack": None,
@@ -165,7 +212,10 @@ def main():
 
     try:
         from telemetry import log
-        log("project_created", project_root, None, {"project_type": project_type})
+        log("project_created", project_root, None, {
+            "project_type": project_type,
+            "entry_route": entry_route,
+        })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
 
@@ -183,15 +233,24 @@ def main():
         print(f"Warning: could not initialize local version history: {e}")
 
     print(f"Project '{args.slug}' created at {project_root}/")
-    print(f"GenAI flag: {'yes' if genai_flag else 'no'}  Mode: {project_type}")
+    print(f"GenAI flag: {'yes' if genai_flag else 'no'}  Mode: {project_type}  Entry: {entry_route}")
     if project_type == "enhancement" and args.codebase:
         print(f"Codebase: {args.codebase}")
     print(f"Next step: cd {project_root}")
     print("  Review and approve the business statement first (it is a gated stage):")
     print("    Claude: /pm-approve 00       Codex: $pm-approve 00")
-    if project_type == "enhancement":
+    if entry_route == "prototype":
+        print("  Then import the approved prototype/design and any supporting context:")
+        print("    Claude: /pm-context-import <prototype-or-design-files>")
+        print("    Codex: $pm-context-import <prototype-or-design-files>")
+    elif project_type == "enhancement":
         print("  Then import context (docs + codebase scan):")
-        print("    Claude: /pm-context-import   Codex: $pm-context-import")
+        if args.codebase:
+            print(f"    Claude: /pm-context-import --codebase {args.codebase}")
+            print(f"    Codex: $pm-context-import --codebase {args.codebase}")
+        else:
+            print("    Claude: /pm-context-import --codebase <path-or-url>")
+            print("    Codex: $pm-context-import --codebase <path-or-url>")
     else:
         print("  Then start the pipeline:")
         print("    Claude: /pm-stage-01-brief   Codex: $pm-stage-01-brief")

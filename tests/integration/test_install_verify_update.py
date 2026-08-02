@@ -47,6 +47,20 @@ def test_install_missing_pm_user_fails_non_interactive(pmos):
     assert res.returncode != 0
 
 
+def test_install_without_feedback_repo_succeeds_non_interactive(pmos):
+    """feedback_repo is optional: non-interactive install succeeds without a flag/env value."""
+    (pmos.install / "config.yaml").unlink()
+    env = dict(pmos.env)
+    env.pop("PM_OS_FEEDBACK_REPO", None)
+    res = _run(pmos, "pm_os_install.py",
+               "--pm-user", "alice", "--projects-dir", str(pmos.projects),
+               env=env)
+    assert res.returncode == 0, res.stdout + res.stderr
+    cfg = yaml.safe_load((pmos.install / "config.yaml").read_text())
+    assert cfg["pm_user"] == "alice"
+    assert cfg.get("feedback_repo", "") == ""
+
+
 def test_install_seeds_context_overlay(pmos):
     """Install seeds the live context/ overlay from context.example/ (so the PM has an editable
     pack), without overwriting an existing one."""
@@ -90,6 +104,19 @@ def test_verify_fails_on_missing_config(pmos):
     (pmos.install / "config.yaml").unlink()
     res = _run(pmos, "pm_os_verify.py", "--runtime", "claude")
     assert res.returncode != 0
+
+
+def test_verify_passes_without_feedback_repo(pmos):
+    """The verifier treats an omitted feedback_repo as healthy; sync simply skips later."""
+    _sync_skills_to_claude(pmos)
+    cfg = yaml.safe_load((pmos.install / "config.yaml").read_text())
+    cfg.pop("feedback_repo", None)
+    (pmos.install / "config.yaml").write_text(yaml.dump(cfg, sort_keys=False), encoding="utf-8")
+
+    res = _run(pmos, "pm_os_verify.py", "--runtime", "claude")
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "PASS" in res.stdout
 
 
 # --- pm_os_update (arg validation + sync parity; the git fast-forward needs a remote, out of scope) ---

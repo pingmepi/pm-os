@@ -145,8 +145,8 @@ def test_migrate_v2_to_v3():
     assert project.migrate_meta(meta) is False
 
 
-def test_migrate_v3_to_v4_adds_context_pack(tmp_path):
-    """v3→v4 migration adds the optional context_pack field (null) and bumps schema_version;
+def test_migrate_v3_adds_context_pack(tmp_path):
+    """v3 migration adds optional context_pack and upgrades to the current schema;
     existing stages/hashes are untouched and the pass is idempotent. A null context_pack means
     an existing single-file wiki stays on the flat-file hash path (dual-mode)."""
     meta = {
@@ -162,10 +162,50 @@ def test_migrate_v3_to_v4_adds_context_pack(tmp_path):
     }
     changed = project.migrate_meta(meta, tmp_path)
     assert changed is True
-    assert meta["schema_version"] == 4 == project.SCHEMA_VERSION
+    assert meta["schema_version"] == project.SCHEMA_VERSION
     assert meta["context_pack"] is None  # flat wiki stays flat
     assert project.get_stage(meta, "00w")["content_hash"] == "wikihash"  # untouched
     assert project.migrate_meta(meta, tmp_path) is False  # idempotent
+
+
+def test_migrate_backfills_entry_route_for_new_product():
+    """v4→v5 migration backfills entry_route=new for existing new-product projects."""
+    meta = {
+        "schema_version": 4,
+        "project_slug": "demo",
+        "project_type": "new_product",
+        "codebase_path": None,
+        "codebase_ref": None,
+        "context_pack": None,
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "abc123", "origin": "generated"},
+        ],
+    }
+    changed = project.migrate_meta(meta)
+    assert changed is True
+    assert meta["schema_version"] == 5
+    assert meta["entry_route"] == "new"
+
+
+def test_migrate_backfills_entry_route_for_enhancement():
+    """v4→v5 migration backfills entry_route=enhancement for existing enhancement projects."""
+    meta = {
+        "schema_version": 4,
+        "project_slug": "demo",
+        "project_type": "enhancement",
+        "codebase_path": "/tmp/app",
+        "codebase_ref": None,
+        "context_pack": None,
+        "stages": [
+            {"id": "00", "name": "business-statement", "status": "approved",
+             "content_hash": "abc123", "origin": "generated"},
+        ],
+    }
+    changed = project.migrate_meta(meta)
+    assert changed is True
+    assert meta["schema_version"] == 5
+    assert meta["entry_route"] == "enhancement"
 
 
 def test_has_context_pack_and_is_composite_stage(tmp_path):

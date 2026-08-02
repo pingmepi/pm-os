@@ -50,8 +50,7 @@ PM-OS supports three install paths from the same `install.sh`:
 No changes needed. The existing install command works as-is:
 
 ```bash
-bash install.sh --runtime claude --pm-user <id> \
-  --feedback-repo https://github.com/org/pm-os-feedback.git
+bash install.sh --runtime claude --pm-user <id>
 ```
 
 ---
@@ -68,7 +67,7 @@ updates automatically pull from GitLab — no change to the update script is nee
 # Mirror to your internal GitLab
 git push --mirror https://gitlab.example.com/org/pm-os.git
 
-# Also create the feedback repo mirror (telemetry sink)
+# Optional: create a feedback repo mirror (telemetry sink)
 git push --mirror https://gitlab.example.com/org/pm-os-feedback.git
 ```
 
@@ -77,8 +76,7 @@ git push --mirror https://gitlab.example.com/org/pm-os-feedback.git
 ```bash
 bash install.sh --runtime claude \
   --repo https://gitlab.example.com/org/pm-os.git \
-  --pm-user <id> \
-  --feedback-repo https://gitlab.example.com/org/pm-os-feedback.git
+  --pm-user <id>
 ```
 
 Or set `PM_OS_REPO` in the environment instead of passing `--repo`:
@@ -124,8 +122,7 @@ Push `pm-os-offline.zip` to a shared drive, internal artifact store, or MDM payl
 
 ```bash
 unzip pm-os-offline.zip
-bash pm-os/install.sh --runtime claude --source pm-os --pm-user <id> \
-  --feedback-repo https://gitlab.example.com/org/pm-os-feedback.git
+bash pm-os/install.sh --runtime claude --source pm-os --pm-user <id>
 # PM-OS runs from ~/.pm-os — you can now delete the pm-os/ folder
 rm -rf pm-os/
 ```
@@ -165,11 +162,12 @@ The zip itself omits `CLAUDE.md`/`AGENTS.md`, so this is belt-and-suspenders.
 ## 5. Telemetry sink
 
 The feedback/telemetry repository is plain git. Any git host works — GitHub, GitHub Enterprise,
-GitLab, Gitea, Azure DevOps, etc. Set it via `--feedback-repo <url>` at install time or
-`PM_OS_FEEDBACK_REPO` in the environment; it is stored in `~/.pm-os/config.yaml` and used by
-`git_sync.py` (`/pm-sync`) to push telemetry and feedback.
+GitLab, Gitea, Azure DevOps, etc. It is optional. Set it via `--feedback-repo <url>` at install
+time or `PM_OS_FEEDBACK_REPO` in the environment; it is stored in `~/.pm-os/config.yaml` and used
+by `git_sync.py` (`/pm-sync`) to push telemetry and feedback. If it is omitted, `/pm-sync` skips
+remote telemetry sync.
 
-To change it after install: run `python3 ~/.pm-os/scripts/pm_os_install.py --reconfigure`.
+To change it after install: run `python3 ~/.pm-os/scripts/pm_os_install.py --feedback-repo <url>`.
 
 ---
 

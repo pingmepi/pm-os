@@ -1,11 +1,10 @@
 import os
-import sys
 from pathlib import Path
 
 import yaml
 
 CONFIG_PATH = Path.home() / ".pm-os" / "config.yaml"
-REQUIRED_KEYS = ["pm_user", "feedback_repo", "projects_dir"]
+REQUIRED_KEYS = ["pm_user", "projects_dir"]
 DEFAULT_FEEDBACK_REPO = ""
 DEFAULT_MODEL_TIER = "standard"
 # Stages whose generation warrants the strongest available reasoning model: PRD, design
@@ -34,6 +33,7 @@ def load_config() -> dict:
             f"Run: python3 ~/.pm-os/scripts/pm_os_install.py --reconfigure"
         )
 
+    config.setdefault("feedback_repo", "")
     _apply_model_policy_defaults(config)
     _config_cache = config
     return _config_cache
@@ -43,7 +43,7 @@ def _migrate_from_env() -> dict:
     pm_user = os.environ.get("PM_OS_USER", "")
     feedback_repo = os.environ.get("PM_OS_FEEDBACK_REPO", "")
 
-    if not pm_user and not feedback_repo:
+    if not pm_user:
         raise RuntimeError(
             "PM-OS config not found at ~/.pm-os/config.yaml\n"
             "Run: python3 ~/.pm-os/scripts/pm_os_install.py"
@@ -57,20 +57,6 @@ def _migrate_from_env() -> dict:
         "default_model_tier": DEFAULT_MODEL_TIER,
         "deep_reasoning_stages": DEEP_REASONING_STAGES,
     }
-
-    if not feedback_repo:
-        if not sys.stdin.isatty():
-            feedback_repo = DEFAULT_FEEDBACK_REPO
-            print(f"[pm-os] Migration: feedback_repo using default {DEFAULT_FEEDBACK_REPO}")
-        else:
-            print("[pm-os] Migration: feedback_repo not set. Enter it now.")
-            feedback_repo = input(f"Feedback repo URL (HTTPS) [{DEFAULT_FEEDBACK_REPO}]: ").strip()
-            feedback_repo = feedback_repo or DEFAULT_FEEDBACK_REPO
-    if not feedback_repo:
-        raise RuntimeError(
-            "PM-OS config migration cancelled: feedback_repo is required.\n"
-            "Run: python3 ~/.pm-os/scripts/pm_os_install.py --reconfigure"
-        )
 
     config["feedback_repo"] = feedback_repo
 

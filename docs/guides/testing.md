@@ -86,9 +86,9 @@ tests/
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
-│   ├── test_project_lifecycle.py      test_stage_gates.py     test_approval_and_staleness.py
+│   ├── test_project_lifecycle.py      test_entry_routing.py   test_stage_gates.py
 │   ├── test_traceability_spine.py     test_project_versioning.py
-│   ├── test_install_verify_update.py  test_context_import.py  test_feedback.py
+│   ├── test_install_verify_update.py  test_context_import.py  test_interview.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
 │   ├── test_artifact_contract_warnings.py
 │   ├── test_failure_recovery.py       test_idempotency.py
@@ -133,7 +133,9 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_migrate_meta_v1_to_v2` — adds `origin`, injects approved stage 00, sets `schema_version`; idempotent.
 - `test_00c_in_stage_tables` — `00c` is in STAGE_NAMES, STAGE_ARTIFACTS, PRE_STAGES, STAGE_ORDER; positioned between `00` and `00w`.
 - `test_migrate_v2_to_v3` — adds `project_type`, `codebase_path`, `codebase_ref` to existing meta; bumps to schema v3; idempotent.
-- `test_migrate_v3_to_v4_adds_context_pack` — adds optional `context_pack` (null) and bumps to schema v4; existing stages/hashes untouched; idempotent (flat wikis stay flat).
+- `test_migrate_v3_adds_context_pack` — adds optional `context_pack` (null) and upgrades to the current schema; existing stages/hashes untouched; idempotent (flat wikis stay flat).
+- `test_migrate_backfills_entry_route_for_new_product` — v4 projects with `project_type: new_product` gain `entry_route: new` and upgrade to schema v5.
+- `test_migrate_backfills_entry_route_for_enhancement` — v4 projects with `project_type: enhancement` gain `entry_route: enhancement` and upgrade to schema v5.
 - `test_has_context_pack_and_is_composite_stage` — `has_context_pack`/`is_composite_stage` flip on only when a `00-context/manifest.yaml` exists, and only for 00w (dual-mode switch).
 - `test_resolve_project_walks_up` / `test_resolve_project_not_found` — finds nearest `.meta.yaml`; raises when none.
 
@@ -162,6 +164,7 @@ one-line description. The matching docstring in code carries the same intent for
 **`test_config.py`** — config + model policy
 - `test_load_config_reads_temp_install` — reads the isolated config; applies model-policy defaults.
 - `test_model_tier_for_stage` — deep-reasoning stages (00w/00u/03/04/06/08/09) → `deep-reasoning`; others → `standard`.
+- `test_load_config_allows_missing_feedback_repo` — configs without `feedback_repo` load with an empty optional value instead of failing install/runtime commands.
 - `test_model_tier_falls_back_without_config` — returns a sane tier even if config load fails.
 
 **`test_telemetry.py`** — hash-chained log
@@ -250,6 +253,13 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_pm_status_reports_state` — `pm_status` surfaces stage statuses, feedback count, recent telemetry.
 - `test_pm_share_includes_approved_excludes_pending` — share exports approved bodies, omits pending stages.
 
+**`test_entry_routing.py`** — `/pm-new` front door routing
+- `test_pm_new_new_route_prints_greenfield_guidance` — `--entry new` keeps a new-product scaffold and points the PM to `/pm-stage-01-brief`.
+- `test_pm_new_prototype_route_prints_import_guidance` — `--entry prototype` keeps `project_type: new_product`, records the route, and points the PM to `/pm-context-import`.
+- `test_pm_new_enhancement_route_prints_guidance_only` — `--entry enhancement --codebase` reuses the existing enhancement scaffold path and prints `/pm-context-import --codebase` guidance, without adding Pathway 3 promotion mechanics.
+- `test_pm_new_route_recorded_in_telemetry` — `project_created` telemetry carries the selected `entry_route`.
+- `test_pm_new_noninteractive_defaults_to_new_without_entry` — non-tty runs with no `--entry`/`--mode` default to `new` and do not hang.
+
 **`test_stage_gates.py`** — the gate (`pre-stage.py`)
 - `test_gate_blocks_when_upstream_unapproved` — stage 02 blocked while 01 is pending; blocker named.
 - `test_gate_allows_first_stage_after_00_approved` — stage 01 gate passes once 00 is approved.
@@ -321,17 +331,19 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 - `test_skill_contracts`: every skill has frontmatter name/description **and a Codex `agents/openai.yaml` twin with well-formed interface metadata** (display name, short description, a `$skill` default prompt); no provider model ids in shared frontmatter; per-stage structure (dir/name/writes, gate command, `render_context` overlay load, model+`model_tier_for_stage` telemetry); deep-reasoning tier on the deep stages; both runtime entrypoints.
 - `test_product_artifact_skills_enforce_current_contracts`: Stages 03–05 contain their required/recommended section templates, current artifact-contract marker, and strict validator invocation; the HTML skill uses the explicit interaction model and separates `?review=1` reviewer chrome.
 - `test_context_import_skill_produces_modular_pack`: the context-import skill instructs writing the pack members (`evidence.yaml`, `sources.md`) and assembling the manifest (`pack-manifest`/`pack-validate`), does not re-impose the single-page wiki limitation, and advertises the pack files in its `writes:` frontmatter — guards the dormant-pack gap found in the dogfood.
+- `test_context_import_skill_has_interview_step`: the context-import skill has Step 4b between preflight and `00u`, guards the coverage-driven/decreasing-impact/no-fixed-total interview contract, and checks the OpenAI skill metadata mirrors the interview and known-unknown flow.
 - `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
 
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)
 **Purpose:** the install lifecycle + runtime parity. **Pass:** install writes config & seeds context; verify passes on a healthy install and fails on tampering; update validates args and syncs per runtime.
-- install: writes config + model policy; missing pm_user fails non-interactively; seeds the overlay.
-- verify: passes on a complete install; fails on a missing hook, missing config key, missing `projects_dir` on disk, `git` not on PATH, missing templates, or a lib module that won't import.
+- install: writes config + model policy; missing pm_user fails non-interactively; missing feedback_repo succeeds and leaves remote sync optional (`test_install_without_feedback_repo_succeeds_non_interactive`); seeds the overlay.
+- verify: passes on a complete install and on configs without feedback_repo (`test_verify_passes_without_feedback_repo`); fails on a missing hook, missing required config key, missing `projects_dir` on disk, `git` not on PATH, missing templates, or a lib module that won't import.
 - update: requires `--runtime`; rejects invalid runtime; **Claude gets skills+hooks, Codex skills only.**
 
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.
 - context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
+- interview: `record-interview` registers answers as high-confidence PM-authored context (`test_record_interview_registers_pm_authored_source`); skipped questions become `00-context/known-unknowns.md` entries, not assumptions (`test_record_interview_records_skips_as_known_unknowns`); `interview_conducted` telemetry carries asked/answered/skipped counts (`test_record_interview_emits_telemetry`); `--interview-answers` is consumed without prompting (`test_interview_answers_file_is_consumed_noninteractively`); `PM_OS_INTERVIEW=skip` records all pending questions as known unknowns and exits 0 (`test_interview_skip_env_records_all_as_known_unknowns`); a non-tty pending-questions file does the same without env (`test_interview_non_tty_questions_file_records_known_unknowns`); the pathway-2 e2e path ties PM interview source provenance to backfilled upstream commits (`test_pathway2_import_with_interview_raises_backfill_fidelity`).
 - adaptive context pack (v4): `register` ingests images/PPTX/XLSX with deterministic `modality` and lossy-by-default flags (`test_register_classifies_new_formats_with_modality`); `pack-manifest` builds a fixed-order manifest with per-member hashes and stamps `context_pack` into meta (`test_pack_manifest_builds_fixed_order_and_records_meta`); `pack-validate` detects a post-build member edit (`test_pack_validate_detects_post_build_edit`); committing/approving a 00w with a pack uses the composite hash, not the index body hash (`test_composite_00w_commit_and_approve_uses_composite_hash`); editing any pack member is drift through the real pre-stage gate (`test_editing_pack_member_is_drift_through_gate`); an unsafe manifest blocks approval (`test_invalid_pack_manifest_blocks_approval`); `upgrade-pack` snapshots the flat wiki, scaffolds `00-context/`, and drafts 00w without re-approving (`test_upgrade_pack_snapshots_flat_wiki_and_drafts`).
 - feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
 - `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path, `PM_OS_SYNC_BLOCKING=1` inline mode the fixture defaults to); the deferred default backgrounds the push so approval returns immediately yet the detached push still lands centrally (`test_deferred_approval_sync_does_not_block`, backlog #6); two syncs racing on the single shared cache serialize via the mkdir cache lock so both projects' telemetry lands instead of colliding on clone/index-lock/non-fast-forward (`test_concurrent_syncs_serialize_via_cache_lock`, Codex PR #34 follow-up); `pm_sync` backfills all projects; `--verify` reports chains intact.
@@ -369,7 +381,7 @@ preserves user data, and that `git archive` produces a clean distribution zip.
 
 | Test | Checks |
 |---|---|
-| `test_offline_source_install_populates_and_autoverifies` | `--source` install populates `~/.pm-os`, syncs skills to `~/.agents/skills`, auto-runs verifier, exits 0 with PASS. |
+| `test_offline_source_install_populates_and_autoverifies` | `--source` install without `--feedback-repo` populates `~/.pm-os`, syncs skills to `~/.agents/skills`, auto-runs verifier, exits 0 with PASS. |
 | `test_offline_reinstall_preserves_user_data` | `context/` marker file and `config.yaml` sentinel key survive a second `--source` install (rsync/cp excludes work). |
 | `test_package_excludes_dev_files` | `git archive HEAD` omits `CLAUDE.md`, `AGENTS.md`, `tests/`, `.github/` but includes `install.sh`, `lib/`, `skills/`. |
 

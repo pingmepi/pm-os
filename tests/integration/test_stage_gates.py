@@ -68,9 +68,10 @@ def test_non_tty_without_choice_routes_to_pm(pmos, new_project):
 
 
 def test_enhancement_project_scaffolds(pmos):
-    """pm_new.py --mode enhancement writes project_type=enhancement and schema_version=4 to meta,
+    """pm_new.py --mode enhancement writes project_type=enhancement and current schema to meta,
     with codebase_path set when --codebase is provided."""
     import yaml
+    import project
     res = run_script(pmos, "pm_new.py", "enhance-test", "Add feature X",
                      "--no-genai", "--mode", "enhancement",
                      "--codebase", "/tmp/some-repo")
@@ -78,7 +79,7 @@ def test_enhancement_project_scaffolds(pmos):
     proj = pmos.projects / "enhance-test"
     meta = yaml.safe_load((proj / ".meta.yaml").read_text(encoding="utf-8"))
     assert meta["project_type"] == "enhancement"
-    assert meta["schema_version"] == 4
+    assert meta["schema_version"] == project.SCHEMA_VERSION
     assert meta["context_pack"] is None
     assert meta["codebase_path"] == "/tmp/some-repo"
     assert meta["codebase_ref"] is None

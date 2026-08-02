@@ -108,7 +108,7 @@ def check_config(r: Result):
     try:
         from config import load_config  # imported from installed lib
         cfg = load_config()
-        keys = ["pm_user", "feedback_repo", "projects_dir"]
+        keys = ["pm_user", "projects_dir"]
         missing = [k for k in keys if not cfg.get(k)]
         r.add(not missing, "Config valid (~/.pm-os/config.yaml)",
               "" if not missing else "Missing keys: " + ", ".join(missing))
@@ -116,6 +116,10 @@ def check_config(r: Result):
             pdir = Path(cfg["projects_dir"]).expanduser()
             r.add(pdir.is_dir(), f"Projects dir exists ({pdir})",
                   "" if pdir.is_dir() else f"Not found — run: mkdir -p {pdir}")
+            if cfg.get("feedback_repo"):
+                r.add(True, "Feedback sync destination", cfg["feedback_repo"])
+            else:
+                r.add(True, "Feedback sync destination", "not configured (optional; /pm-sync will skip)")
     except Exception as e:  # noqa: BLE001
         r.add(False, "Config valid (~/.pm-os/config.yaml)", str(e).splitlines()[0])
 

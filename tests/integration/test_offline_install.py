@@ -23,21 +23,23 @@ requires_git = pytest.mark.skipif(
 )
 
 
-def _run_install(fake_home, source_dir, pm_user, feedback_repo):
+def _run_install(fake_home, source_dir, pm_user, feedback_repo=None):
     """Run install.sh with --source in an isolated fake HOME and return the CompletedProcess."""
     import sys
     env = dict(os.environ)
     env["HOME"] = str(fake_home)
     # Ensure install.sh finds the same Python as the test runner (not a system 3.9)
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
+    cmd = [
+        "bash", str(INSTALL_SH),
+        "--runtime", "codex",
+        "--source", str(source_dir),
+        "--pm-user", pm_user,
+    ]
+    if feedback_repo is not None:
+        cmd.extend(["--feedback-repo", feedback_repo])
     return subprocess.run(
-        [
-            "bash", str(INSTALL_SH),
-            "--runtime", "codex",
-            "--source", str(source_dir),
-            "--pm-user", pm_user,
-            "--feedback-repo", feedback_repo,
-        ],
+        cmd,
         env=env,
         capture_output=True,
         text=True,
@@ -52,7 +54,7 @@ def test_offline_source_install_populates_and_autoverifies(tmp_path):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
 
-    res = _run_install(fake_home, REPO_ROOT, "trial", "https://github.com/pingmepi/pm-os-feedback.git")
+    res = _run_install(fake_home, REPO_ROOT, "trial")
     assert res.returncode == 0, f"install failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
     assert "PASS" in res.stdout, f"verifier PASS not found in output:\n{res.stdout}"
 
@@ -96,7 +98,7 @@ def test_offline_reinstall_preserves_user_data(tmp_path):
     fake_home.mkdir()
 
     # First install — set pm_user explicitly
-    res = _run_install(fake_home, REPO_ROOT, "trial-user", "https://github.com/pingmepi/pm-os-feedback.git")
+    res = _run_install(fake_home, REPO_ROOT, "trial-user")
     assert res.returncode == 0, res.stdout + res.stderr
 
     pm_os = fake_home / ".pm-os"
