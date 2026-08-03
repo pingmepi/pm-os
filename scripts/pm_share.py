@@ -52,6 +52,7 @@ from artifact_contracts import (  # noqa: E402
     work_breakdown_section,
 )
 from delivery_map import build_prd_delivery_map, title_of  # noqa: E402
+from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
 import traceability  # noqa: E402
@@ -354,6 +355,10 @@ def build_package(
         raise SystemExit(f"Error: --audience must be one of {', '.join(AUDIENCES)}.")
 
     meta = load_meta(root)
+    try:
+        enhancement_delta = active_enhancement_delta(root)
+    except EnhancementDeltaError as exc:
+        raise SystemExit(f"Error: enhancement handoff refused: {exc}")
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -448,7 +453,21 @@ def build_package(
     # the map while its own story file lists that screen.
     covered_story_ids: set[str] = set()
 
+    changed_refs = (
+        {item["id"] for item in enhancement_delta["changes"]}
+        if enhancement_delta else set()
+    )
+    selected_story_ids = set(delivery.story_blocks)
+    if enhancement_delta:
+        selected_story_ids = {
+            story_id for story_id in delivery.story_blocks
+            if story_id in changed_refs
+            or set(delivery.story_requirements.get(story_id, [])) & changed_refs
+        }
+
     for story_id, block in delivery.story_blocks.items():
+        if story_id not in selected_story_ids:
+            continue
         title = _story_title(story_id, block)
         epic_ref = delivery.story_to_epic.get(story_id)
         reqs = delivery.story_requirements.get(story_id, [story_id])
@@ -572,7 +591,14 @@ def build_package(
     # --- epic indexes (one file per Product Epic declared in the PRD) ---
     epics: list[dict] = []  # {id, title, filename, content}
     epic_index: list[dict] = []
+    selected_epics = {story.get("epic") for story in story_index if story.get("epic")}
+    selected_epics.update(
+        epic_ref for req_id, epic_ref in delivery.requirement_to_epic.items()
+        if req_id in changed_refs and epic_ref
+    )
     for epic_ref, epic_rec in delivery.epics.items():
+        if enhancement_delta and epic_ref not in selected_epics:
+            continue
         header = [
             "## Outcome and scope",
             "",
@@ -721,6 +747,26 @@ def build_package(
             project_name, now, story_index, epic_index, generated_sources(root),
             has_proto and "wireframes" in cats, aud, cats,
         )
+        if enhancement_delta:
+            boundary = enhancement_delta["boundary"]
+            change_lines = [
+                f"- {item['id']}: {item['change_type']}"
+                for item in enhancement_delta["changes"]
+            ] or ["- No artifact delta detected"]
+            dossier = (
+                f"\n## Enhancement {enhancement_delta['cycle_id']} delta\n\n"
+                + "\n".join(change_lines)
+                + "\n\nAffected surfaces: "
+                + ", ".join(boundary.get("affected_surfaces") or [])
+                + "\n\nMust not break: "
+                + "; ".join(boundary.get("regression_invariants") or [])
+                + "\n\nCompatibility/migration: "
+                + "; ".join(boundary.get("compatibility_migration") or [])
+                + "\n\nRollout: " + "; ".join(boundary.get("rollout") or [])
+                + "\n\nRollback: " + "; ".join(boundary.get("rollback") or [])
+                + "\n"
+            )
+            readme += dossier
         (aud_dir / "README.md").write_text(readme, encoding="utf-8")
         written.append(aud_dir / "README.md")
 

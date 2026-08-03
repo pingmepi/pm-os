@@ -10,6 +10,9 @@ post-approve hook - runs after pm-approve completes.
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
@@ -22,6 +25,24 @@ from git_sync import push_feedback_repo
 
 def _truthy(value) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _active_enhancement_surfaces(project_root):
+    """Return active E2 surfaces, or None when this is not an E2 cycle."""
+    index_path = Path(project_root) / ".enhancements" / "index.yaml"
+    if not index_path.exists():
+        return None
+    try:
+        index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
+        cycle_id = index.get("active_cycle")
+        if not cycle_id:
+            return None
+        context_path = Path(project_root) / ".enhancements" / cycle_id / "context.yaml"
+        context = yaml.safe_load(context_path.read_text(encoding="utf-8")) or {}
+        surfaces = (context.get("boundary") or {}).get("affected_surfaces") or []
+        return {str(surface).strip().lower() for surface in surfaces if str(surface).strip()}
+    except (OSError, yaml.YAMLError, AttributeError):
+        return None
 
 
 def _spawn_background_sync(project_root) -> None:
@@ -66,8 +87,14 @@ def main():
     meta = load_meta(project_root)
 
     # --- Render companion HTML for stages with generated previews ---
+    # E2 non-UI work uses surface-appropriate validation artifacts; it must not
+    # acquire fabricated design/prototype HTML merely because stages 04/05 were approved.
+    enhancement_surfaces = _active_enhancement_surfaces(project_root)
     try:
-        if stage_id == "04":
+        if stage_id in {"04", "05"} and enhancement_surfaces is not None and "ui" not in enhancement_surfaces:
+            print(f"[post-approve] Skipped HTML render: non-UI enhancement surfaces "
+                  f"({', '.join(sorted(enhancement_surfaces)) or 'not declared'}).")
+        elif stage_id == "04":
             output_path = render_design_spec(project_root)
             print(f"[post-approve] Rendered companion HTML: {output_path.name}")
         elif stage_id == "05":

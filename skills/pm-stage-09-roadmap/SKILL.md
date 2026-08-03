@@ -1,9 +1,9 @@
 ---
 name: pm-stage-09-roadmap
 description: Generate the optional Product Roadmap for stage 09 from the approved MVP product pipeline.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md", "08-trd.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md", "08-trd.md", ".enhancements/**"]
 writes: "09-roadmap.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 model_tier: deep-reasoning
 ---
 
@@ -197,6 +197,12 @@ If `genai_flag=true`, keep the same top-level sections and include GenAI-specifi
 
 If `genai_flag=false`, do not introduce AI/model/prompt/agent/retrieval roadmap items unless they are explicitly required by the approved upstream artifacts.
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, scope **enhancement rollout and follow-on horizons only**. Reflect dependencies, rollout evidence, unresolved risks, and later consequences of this approved change; **do not roadmap the whole product** or reopen the canonical MVP boundary. Preserve Part-B tiers/horizons when present.
+
+Keep unaffected roadmap decisions stable and **carry unaffected content forward**. Add, modify, or remove roadmap entries only when the enhancement changes sequencing, readiness, dependencies, or an explicit later decision gate.
+
 # Writing guidance
 
 - Treat the approved MVP scope and PRD as binding. The roadmap plans beyond the MVP; it does not change what the MVP is.
@@ -266,7 +272,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('09'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

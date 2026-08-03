@@ -100,14 +100,19 @@ under the `projects_dir` from your config (default `~/pm-projects`).
 Building an enhancement to an existing product? Point PM-OS at the codebase:
 
 ```text
-Claude: /pm-new <project-slug> --mode enhancement --codebase <github-url-or-local-path>
-Codex:  $pm-new <project-slug> --mode enhancement --codebase <github-url-or-local-path>
+Claude: /pm-new <project-slug> --entry enhancement --codebase <github-url-or-local-path>
+Codex:  $pm-new <project-slug> --entry enhancement --codebase <github-url-or-local-path>
 ```
 
 Then run `/pm-context-import`: PM-OS does a read-only scan of the codebase and
 produces a gated codebase-understanding doc (`00c`) that grounds every
 downstream stage on the existing system, so the brief and beyond cover the
 enhancement delta rather than re-describing the whole product.
+
+For every later enhancement, stay inside that same product project and run
+`/pm-enhance` (`$pm-enhance` in Codex). It freezes the approved product
+baseline, drives the read-only affected-slice workflow, and makes handoff
+delta-only; it never creates a child project or changes the product's entry identity.
 
 Already have context? If you walk in with material you've authored — research, a
 brief, a scope doc, a PRD, design notes — seed the project from it instead of
@@ -122,7 +127,7 @@ PM-OS builds a context wiki and an understanding doc for you to review and
 approve, then adopts the artifacts you authored and faithfully backfills the
 upstream stages below them before handing back to the normal pipeline.
 
-Day to day you'll also use `/pm-status` (project state, including any open
+Day to day you'll also use `/pm-enhance` (same-project enhancement cycles), `/pm-status` (project state, including any open
 known-unknowns), `/pm-check` (read-only consistency check for a project),
 `/pm-interview` (re-run the discovery interview against still-open gaps),
 `/pm-feedback <NN>` (rate a

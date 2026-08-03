@@ -5,6 +5,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
 from project import resolve_project, load_meta, artifact_path
@@ -20,6 +22,29 @@ STAGE_LABELS = {
     "06": "QA Plan", "07": "Metrics Plan",
     "08": "TRD", "09": "Roadmap",
 }
+
+
+def _enhancement_summary(root):
+    index_path = root / ".enhancements" / "index.yaml"
+    if not index_path.exists():
+        return None
+    try:
+        index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
+        active = index.get("active_cycle")
+        if not active:
+            cycles = index.get("cycles") or []
+            return {"completed": cycles[-1]} if cycles else None
+        context_path = root / ".enhancements" / active / "context.yaml"
+        context = yaml.safe_load(context_path.read_text(encoding="utf-8")) or {}
+        boundary = context.get("boundary") or {}
+        return {
+            "active": active,
+            "boundary_recorded": bool(boundary.get("recorded_at")),
+            "baseline_count": len((context.get("baseline") or {}).get("artifacts") or {}),
+            "repository": context.get("repository") or {},
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def _open_known_unknowns(root):
@@ -73,6 +98,24 @@ def main():
             except Exception:
                 pass
         print(f"Mode: enhancement  Codebase: {codebase}{drift}")
+    enhancement = _enhancement_summary(root)
+    if enhancement:
+        if enhancement.get("error"):
+            print(f"Enhancement: invalid context ({enhancement['error']})")
+        elif enhancement.get("active"):
+            print(f"Enhancement: {enhancement['active']} active")
+            boundary_label = "recorded" if enhancement["boundary_recorded"] else "not recorded"
+            print(f"Boundary: {boundary_label}  Baseline: {enhancement['baseline_count']} approved artifact(s)")
+            repository = enhancement.get("repository") or {}
+            if repository.get("scan_start_sha"):
+                dirty = "dirty/non-reproducible" if repository.get("dirty") else "clean"
+                print(f"Repository: {str(repository['scan_start_sha'])[:12]} ({dirty})")
+            if not enhancement["boundary_recorded"]:
+                print("Next: approve 00c/00u and run /pm-enhance set-boundary")
+            else:
+                print("Next: regenerate the affected stages, then run /pm-check")
+        elif enhancement.get("completed"):
+            print(f"Enhancement: {enhancement['completed']} completed")
     print()
     print("Stages:")
 

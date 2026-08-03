@@ -261,6 +261,18 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_pm_new_route_recorded_in_telemetry` — `project_created` telemetry carries the selected `entry_route`.
 - `test_pm_new_noninteractive_defaults_to_new_without_entry` — non-tty runs with no `--entry`/`--mode` default to `new` and do not hang.
 
+**E2 affected-slice enhancement suite** — same-project lifecycle, read-only code evidence, scoped generation/check/handoff
+- `test_enhancement_lifecycle.py` — captures hash-current approved baselines, preserves `project_type`/`entry_route`, makes same-ask start idempotent, refuses a second active ask, and emits lifecycle telemetry without stage-like status/approval fields.
+- `test_enhancement_readonly.py` — records clean/dirty repository identity, proves SHA/status/fingerprint unchanged, and succeeds when the target checkout has no write permissions.
+- `test_codebase_inventory.py` — inventories a lightweight monorepo, selects the ask-relevant slice, follows bounded inbound/outbound dependencies, identifies non-touch paths and multi-surface impact, and lowers confidence for dynamic imports.
+- `test_enhancement_boundary.py` — records the approved current→target boundary, affected/non-touch surfaces, invariants, compatibility, rollout/rollback, authority, coverage/exclusions/confidence; blocks unaccepted unknowns and scan drift without partial writes.
+- `test_enhancement_delta.py` — derives only stable-ID `new | modified | removed` changes, excludes unchanged blocks, and reports declaration/boundary mismatches.
+- `test_enhancement_consistency.py` — reports malformed context, missing boundary, repository drift, corrupt frozen baselines, out-of-bound changes, missing change-type/surface/test/task/invariant/migration traces, and derives active-cycle next-action guidance in `/pm-status`.
+- `test_enhancement_handoff.py` — scopes readable packages and Jira plan/CSV to delta work plus minimum ancestor closure, creates explicit removal work, excludes unaffected siblings, and carries affected surfaces, invariants, compatibility, rollout, rollback, and baseline provenance.
+- `test_enhancement_refresh_complete.py` — explicit refresh repins only a clean requested ref, preserves frozen baselines, invalidates the boundary, cascades staleness, refuses dirty checkouts atomically, completes a checked pipeline, recovers an interrupted context→index completion write without touching completed provenance, and starts EH-002 from EH-001's approved product-of-record without mutating EH-001.
+- `test_approval_and_staleness.py::test_stage_05_non_ui_enhancement_skips_prototype_html` — non-UI E2 work does not fabricate design/prototype HTML; legacy/UI rendering remains unchanged.
+- `test_skill_contracts.py` E2 contracts — `/pm-enhance`, the `00c` inventory/slice/impact contract, decision interview, and stage 01–09 behavior-table overlays remain cross-runtime and discoverable.
+
 **`test_pm_interview.py`** — standalone `/pm-interview` re-run (E3)
 - `test_list_unknowns_returns_open_items` — `list-unknowns --json` returns only open bullets (resolved excluded), each with question + source.
 - `test_list_unknowns_empty_when_no_file` — no `known-unknowns.md` → exit 0 and `[]`, never an error.

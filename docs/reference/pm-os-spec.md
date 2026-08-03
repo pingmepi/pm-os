@@ -73,6 +73,7 @@ pm-os/
     pm-os-install/SKILL.md         # bootstrap installer
     pm-os-update/SKILL.md          # pull latest tagged release
     pm-new/SKILL.md                # scaffold new project
+    pm-enhance/SKILL.md            # same-project affected-slice enhancement lifecycle
     pm-status/SKILL.md             # show project state (incl. open known-unknowns)
     pm-approve/SKILL.md            # approve current stage
     pm-feedback/SKILL.md           # manual feedback capture

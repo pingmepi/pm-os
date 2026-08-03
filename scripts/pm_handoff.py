@@ -45,6 +45,7 @@ from artifact_contracts import (  # noqa: E402
     work_breakdown_section,
 )
 from delivery_map import build_prd_delivery_map, body_of, title_of  # noqa: E402
+from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from jira_markup import to_jira_markup  # noqa: E402
 from project import artifact_path, load_meta, resolve_project  # noqa: E402
@@ -319,7 +320,7 @@ def build_plan(root: Path) -> dict:
         "unassigned": len(unassigned_children),
     }
 
-    return {
+    plan = {
         "tracker": TRACKER,
         "project_name": project_name,
         "project_slug": project_slug,
@@ -329,6 +330,87 @@ def build_plan(root: Path) -> dict:
         "counts": counts,
         "unassigned_refs": unassigned_children,
     }
+    try:
+        delta = active_enhancement_delta(root)
+    except EnhancementDeltaError as exc:
+        raise SystemExit(f"Error: enhancement handoff refused: {exc}")
+    return _scope_plan_to_enhancement(plan, delta) if delta else plan
+
+
+def _scope_plan_to_enhancement(plan: dict, delta: dict) -> dict:
+    """Keep changed work plus the parents Jira needs to preserve hierarchy."""
+    boundary = delta["boundary"]
+    changes = {item["id"]: item for item in delta["changes"]}
+    changed_refs = set(changes)
+    all_items = {item["ref"]: item for item in plan["items"]}
+    selected: set[str] = set()
+    for ref, item in all_items.items():
+        implements = set(item.get("implements") or [])
+        if ref in changed_refs or implements & changed_refs:
+            selected.add(ref)
+    # Add the minimum parent closure, never unrelated siblings.
+    pending = list(selected)
+    while pending:
+        parent = all_items[pending.pop()].get("parent_ref")
+        if parent and parent in all_items and parent not in selected:
+            selected.add(parent)
+            pending.append(parent)
+
+    context_payload = {
+        "cycle_id": delta["cycle_id"],
+        "affected_surfaces": boundary.get("affected_surfaces") or [],
+        "regression_invariants": boundary.get("regression_invariants") or [],
+        "non_touch_surfaces": boundary.get("non_touch_surfaces") or [],
+        "compatibility_migration": boundary.get("compatibility_migration") or [],
+        "rollout": boundary.get("rollout") or [],
+        "rollback": boundary.get("rollback") or [],
+        "baseline_captured_at": delta.get("baseline_captured_at"),
+    }
+    scoped: list[dict] = []
+    for item in plan["items"]:
+        if item["ref"] not in selected:
+            continue
+        copied = dict(item)
+        change = changes.get(item["ref"])
+        copied["change_type"] = change["change_type"] if change else "ancestor"
+        copied["enhancement"] = context_payload
+        copied["children"] = [ref for ref in copied.get("children", []) if ref in selected]
+        scoped.append(copied)
+
+    # Removed work no longer exists in the current artifact, but still needs an
+    # explicit implementation ticket. It is deliberately unparented when its old
+    # owner cannot be proven from the current delivery map.
+    for ref, change in changes.items():
+        if change["change_type"] != "removed" or ref in all_items:
+            continue
+        if not ref.startswith(("US-", "FR-", "REQ-", "TSK-", "NFR-")):
+            continue
+        issue_type = "Story" if ref.startswith("US-") else "Task"
+        scoped.append({
+            "ref": ref, "type": issue_type, "summary": f"{ref} — Remove retired behavior",
+            "description": "Removal work for the retired baseline item.\n\n" + (change.get("before") or ""),
+            "source": f"{delta['cycle_id']} frozen baseline", "parent_ref": None,
+            "children": [], "change_type": "removed", "enhancement": context_payload,
+        })
+
+    refs = {item["ref"] for item in scoped}
+    counts = {
+        "epics": sum(item["type"] == "Epic" for item in scoped),
+        "stories": sum(item["type"] == "Story" for item in scoped),
+        "tasks": sum(item["type"] == "Task" for item in scoped),
+        "subtasks": sum(item["type"] == "Subtask" for item in scoped),
+        "unassigned": sum(
+            item["type"] != "Epic" and not item.get("parent_ref") for item in scoped
+        ),
+    }
+    plan["items"] = scoped
+    plan["counts"] = counts
+    plan["unassigned_refs"] = [
+        item["ref"] for item in scoped
+        if item["type"] != "Epic" and not item.get("parent_ref")
+    ]
+    plan["enhancement"] = {**context_payload, "changed_refs": sorted(changed_refs)}
+    return plan
 
 
 def _render_plan_md(plan: dict) -> str:
@@ -363,6 +445,8 @@ def _render_plan_md(plan: dict) -> str:
             rendered_refs.add(child["ref"])
             lines.append("")
             lines.append(f"- **[{child['type']}] {child['summary']}**")
+            if child.get("change_type"):
+                lines.append(f"  - change type: {child['change_type']}")
             if child.get("implements"):
                 lines.append(f"  - implements: {', '.join(child['implements'])}")
             if child.get("story_ref"):
@@ -378,6 +462,8 @@ def _render_plan_md(plan: dict) -> str:
                     continue
                 rendered_refs.add(grandchild["ref"])
                 lines.append(f"  - **[{grandchild['type']}] {grandchild['summary']}**")
+                if grandchild.get("change_type"):
+                    lines.append(f"    - change type: {grandchild['change_type']}")
                 if grandchild.get("implements"):
                     lines.append(f"    - implements: {', '.join(grandchild['implements'])}")
                 if grandchild["description"]:
@@ -397,6 +483,8 @@ def _render_plan_md(plan: dict) -> str:
         for item in unparented:
             lines.append("")
             lines.append(f"- **[{item['type']}] {item['summary']}**")
+            if item.get("change_type"):
+                lines.append(f"  - change type: {item['change_type']}")
             if item.get("implements"):
                 lines.append(f"  - implements: {', '.join(item['implements'])}")
             if item.get("story_ref"):
@@ -452,6 +540,21 @@ def _csv_description(item: dict) -> str:
     parts = [to_jira_markup(item.get("description") or "").strip()]
     if item.get("implements"):
         parts.append("*Implements:* " + ", ".join(item["implements"]))
+    enhancement = item.get("enhancement") or {}
+    if enhancement:
+        def joined(key):
+            return "; ".join(enhancement.get(key) or []) or "none declared"
+        parts.append(
+            f"*Enhancement cycle:* {enhancement.get('cycle_id')}\n"
+            f"*Change type:* {item.get('change_type')}\n"
+            f"*Affected surfaces:* {', '.join(enhancement.get('affected_surfaces') or [])}\n"
+            f"*Must not break:* {joined('regression_invariants')}\n"
+            f"*Non-touch boundary:* {joined('non_touch_surfaces')}\n"
+            f"*Compatibility/migration:* {joined('compatibility_migration')}\n"
+            f"*Rollout:* {joined('rollout')}\n"
+            f"*Rollback:* {joined('rollback')}\n"
+            f"*Frozen baseline captured:* {enhancement.get('baseline_captured_at')}"
+        )
     source = item.get("source") or "the approved PM-OS pipeline"
     parts.append(
         f"----\n_Generated by PM-OS from {source}. "

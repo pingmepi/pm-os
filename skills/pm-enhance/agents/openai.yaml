@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enhance Existing Product"
+  short_description: "Run a read-only enhancement in the same project"
+  default_prompt: "Use $pm-enhance to start and complete an affected-slice enhancement in the same project while preserving its baseline and normal gates."

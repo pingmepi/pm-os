@@ -165,6 +165,31 @@ def test_context_import_skill_has_interview_step():
     assert "known unknown" in interface.get("default_prompt", "").lower()
 
 
+def test_context_import_skill_has_e2_decision_interview():
+    """E2 codebase intake asks unresolved decisions and records the binding boundary."""
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    for marker in (
+        "Step 4c — Enhancement decision interview",
+        "production baseline",
+        "current→target behavior",
+        "affected and explicit non-touch surfaces",
+        "regression invariants",
+        "compatibility/migration",
+        "rollout/rollback",
+        "decision authority",
+        "Do not re-ask cited code facts",
+        "blocking unknown",
+        "pm_enhance.py set-boundary",
+        "Do not self-approve",
+    ):
+        assert marker in body, f"context-import missing E2 interview marker {marker!r}"
+    assert "repo-interview-prep" not in body
+
+    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text())
+    prompt = (data.get("interface") or {}).get("default_prompt", "")
+    assert "enhancement decision interview" in prompt.lower()
+
+
 def test_pm_interview_skill_contract():
     """E3: the standalone /pm-interview skill drives list-unknowns → record-interview → resolve,
     keeps the coverage-driven interview contract, and never self-approves."""
@@ -196,6 +221,102 @@ def test_pm_interview_skill_contract():
     interface = data.get("interface", {}) if isinstance(data, dict) else {}
     assert "$pm-interview" in interface.get("default_prompt", "")
     assert "known unknown" in interface.get("default_prompt", "").lower()
+
+
+def test_pm_enhance_skill_contract():
+    """E2: /pm-enhance owns same-project lifecycle while preserving normal gates."""
+    sd = REPO_ROOT / "skills" / "pm-enhance"
+    assert (sd / "SKILL.md").exists(), "pm-enhance SKILL.md missing"
+    body = (sd / "SKILL.md").read_text()
+    for marker in (
+        "same project",
+        "pm_enhance.py start",
+        "pm_enhance.py set-boundary",
+        "pm_enhance.py delta",
+        "pm_enhance.py complete",
+        "read-only",
+        "00-codebase-understanding.md",
+        "new | modified | removed",
+        "ui | api | data | service | event | integration | operations",
+        "project_type",
+        "Do not self-approve",
+    ):
+        assert marker in body, f"pm-enhance missing contract marker {marker!r}"
+    assert "child project" in body
+    assert "repo-interview-prep" not in body
+
+    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text())
+    interface = data.get("interface", {}) if isinstance(data, dict) else {}
+    assert "$pm-enhance" in interface.get("default_prompt", "")
+    assert "same project" in interface.get("default_prompt", "").lower()
+
+
+def test_codebase_scan_skill_has_e2_inventory_and_impact_contract():
+    """E2: the portable scanner owns inventory, bounded focus, and widening evidence."""
+    body = (REPO_ROOT / "skills" / "pm-context-scan-codebase" / "SKILL.md").read_text()
+    for marker in (
+        "Repository identity",
+        "Inventory & ownership boundaries",
+        "Enhancement ask",
+        "Affected slice",
+        "Impact cone",
+        "Explicit non-touch surfaces",
+        "Coverage, exclusions & confidence",
+        "scan start SHA",
+        "scan end SHA",
+        "read-only",
+        "widen",
+        "pm_codebase_inventory.py",
+    ):
+        assert marker in body, f"codebase scan missing E2 marker {marker!r}"
+    assert "repo-interview-prep" not in body
+
+
+def test_stage_skills_implement_e2_behavior_table():
+    """E2: every canonical stage carries its surface-aware affected-slice obligation."""
+    required = {
+        "01": (
+            "active enhancement context", "current-product gap", "delta success hypothesis",
+            "carry unaffected content forward",
+        ),
+        "02": (
+            "Change Boundary", "Affected-surface matrix", "Explicit non-touch boundary",
+            "smallest coherent enhancement slice", "carry unaffected content forward",
+        ),
+        "03": (
+            "new | modified | removed", "current→target behavior", "Affected surfaces:",
+            "backward compatibility", "mixed-version", "carry unaffected content forward",
+        ),
+        "04": (
+            "Surface-aware enhancement design", "API/data/service/event/integration/operations",
+            "Never invent UI", "carry unaffected content forward",
+        ),
+        "05": (
+            "Surface-aware enhancement validation", "API examples/mock contract",
+            "operational drill/runbook", "Generate HTML only when UI is affected",
+            "carry unaffected content forward",
+        ),
+        "06": (
+            "impact-based regression class", "approved regression invariants",
+            "migration/backfill", "mixed versions", "carry unaffected content forward",
+        ),
+        "07": (
+            "baseline-status → target", "guardrails for existing outcomes",
+            "rollout/rollback triggers", "carry unaffected content forward",
+        ),
+        "08": (
+            "change-set against existing architecture", "delta-only tasks",
+            "migration/backfill", "deployment/rollback", "carry unaffected content forward",
+        ),
+        "09": (
+            "enhancement rollout and follow-on horizons only", "do not roadmap the whole product",
+            "carry unaffected content forward",
+        ),
+    }
+    for stage_id, markers in required.items():
+        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text()
+        for marker in markers:
+            assert marker in body, f"stage {stage_id} missing E2 marker {marker!r}"
 
 
 def test_prototype_html_uses_interaction_model_not_genai_flag():
