@@ -37,11 +37,13 @@ If the session is non-interactive or `PM_OS_INTERVIEW=skip` is set, do **not** p
 
 ## Step 4 — Register the answers (reused E1 machinery)
 
-Register the answers as a PM-authored, high-confidence interview source so they flow into the evidence ledger with provenance — the same recorder the context import uses, unchanged:
+Register the answers as a PM-authored, high-confidence interview source in `.sources.yaml`, with provenance — the same recorder the context import uses. Pass `--mode rerun` so this pass is counted **once** (Step 5's `resolve` logs the single rerun event); without it the recorder would also log an *intake* event and the rerun would be double-counted:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py record-interview --interview-answers <answers-file>
+python3 ~/.pm-os/scripts/pm_context_import.py record-interview --interview-answers <answers-file> --mode rerun
 ```
+
+Registering records the answers as a **source**; it does **not** by itself fold them into the consumable context pack (the wiki/evidence/understanding docs the stages actually read). Step 6 reconciles that.
 
 ## Step 5 — Mark the resolved unknowns
 
@@ -53,6 +55,13 @@ python3 ~/.pm-os/scripts/pm_interview.py resolve <answers-file>
 
 Skipped/unanswered unknowns remain open. Report the script's summary as-is.
 
+## Step 6 — Reconcile against the context understanding
+
+Read `00-context-understanding.md` (and, where relevant, `00-context-wiki.md` / `00-context/evidence.yaml`). For **each answer**, check whether it **contradicts** a statement or assumption already recorded there.
+
+- **If an answer contradicts the context understanding:** do not silently absorb it. Surface a clear notice to the PM naming exactly what conflicts — the answered question, the PM's new answer, and the specific claim/assumption in the context understanding it contradicts — and recommend the PM resolve it (regenerate/revise the affected context-pack docs and re-approve, or reconcile the answer). Do **not** edit or re-approve the stage-00 documents here.
+- **If no answer contradicts the context understanding:** report that the answers are appended to `.sources.yaml` with **no contradiction found** — and still recommend **regenerating the context packs**, because the wiki/evidence/understanding docs are what downstream stages read (not `.sources.yaml`), so the new answers only reach generation once those are regenerated and re-approved.
+
 ## After the re-run
 
-Answering a gap may mean an upstream stage artifact should be regenerated to reflect the new information — mention which stage(s) look affected, but **do not** re-run or re-approve them here. This skill informs generation only: **do not self-approve** any stage or stage-00 document; approval stays with the PM via `/pm-approve`.
+Answering a gap may also mean an upstream **stage** artifact should be regenerated — mention which stage(s) look affected, but **do not** re-run or re-approve them here. This skill informs generation only: **do not self-approve** any stage or stage-00 document; regenerating and re-approving the context pack or any stage stays a deliberate PM action via `/pm-approve`.

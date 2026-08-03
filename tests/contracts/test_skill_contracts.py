@@ -176,6 +176,13 @@ def test_pm_interview_skill_contract():
     # reuses E1 answer-registration, then marks the addressed unknowns resolved
     assert "record-interview" in body
     assert "resolve" in body
+    # rerun answers are recorded once (no double-counted intake event) — Codex P2
+    assert "--mode rerun" in body
+    # reconciles answers against the context understanding rather than silently absorbing them,
+    # and recommends regenerating the context pack so answers reach downstream generation — Codex P1
+    assert "00-context-understanding.md" in body
+    assert "contradict" in body
+    assert "regenerat" in body
     # coverage-driven interview contract (mirrors the E1 Step 4b contract)
     assert "coverage-driven" in body
     assert "strictly decreasing order of impact" in body

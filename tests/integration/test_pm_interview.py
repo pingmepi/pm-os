@@ -133,6 +133,25 @@ def test_resolve_emits_rerun_telemetry(pmos, new_project):
     assert payload["answered"] == 1
 
 
+def test_rerun_flow_emits_single_event(pmos, new_project):
+    """record-interview --mode rerun stays silent so the rerun logs exactly one
+    interview_conducted event (mode=rerun), not a double-counted intake + rerun (Codex P2)."""
+    proj = new_project()
+    _two_open(proj)
+    answers = proj / "answers.md"
+    answers.write_text("- [x] ANSWERED: Who is the primary user?\n", encoding="utf-8")
+
+    reg = run_script(pmos, "pm_context_import.py", "record-interview",
+                     "--interview-answers", str(answers), "--mode", "rerun", cwd=proj)
+    assert reg.returncode == 0, f"{reg.stdout}\n{reg.stderr}"
+    resv = run_script(pmos, "pm_interview.py", "resolve", str(answers), cwd=proj)
+    assert resv.returncode == 0, f"{resv.stdout}\n{resv.stderr}"
+
+    events = [e for e in _telemetry_events(proj) if e["event_type"] == "interview_conducted"]
+    assert len(events) == 1, f"expected one interview_conducted event, got {len(events)}"
+    assert events[0]["payload"].get("mode") == "rerun"
+
+
 def test_resolve_leaves_unanswered_open(pmos, new_project):
     """A skipped question stays open — never rewritten as an assumption."""
     proj = new_project()
@@ -226,7 +245,7 @@ def test_pm_interview_end_to_end_resolves_and_records(pmos, new_project):
     )
 
     reg = run_script(pmos, "pm_context_import.py", "record-interview",
-                     "--interview-answers", str(answers), cwd=proj)
+                     "--interview-answers", str(answers), "--mode", "rerun", cwd=proj)
     assert reg.returncode == 0, f"{reg.stdout}\n{reg.stderr}"
     resv = run_script(pmos, "pm_interview.py", "resolve", str(answers), cwd=proj)
     assert resv.returncode == 0, f"{resv.stdout}\n{resv.stderr}"
@@ -245,11 +264,11 @@ def test_pm_interview_end_to_end_resolves_and_records(pmos, new_project):
     sources = yaml.safe_load((proj / ".sources.yaml").read_text()) or []
     assert any(s.get("origin") == "interview" and s.get("confidence") == "high" for s in sources)
 
-    # (d) a rerun telemetry event with the right counts
-    reruns = [e for e in _telemetry_events(proj)
-              if e["event_type"] == "interview_conducted" and e["payload"].get("mode") == "rerun"]
-    assert len(reruns) == 1
-    assert reruns[0]["payload"]["answered"] == 2
+    # (d) exactly one interview_conducted event, correctly classified rerun (no double-counted intake)
+    events = [e for e in _telemetry_events(proj) if e["event_type"] == "interview_conducted"]
+    assert len(events) == 1, f"expected one interview_conducted event, got {len(events)}"
+    assert events[0]["payload"].get("mode") == "rerun"
+    assert events[0]["payload"]["answered"] == 2
 
     # (e) /pm-status now reports one open known unknown
     status = run_script(pmos, "pm_status.py", cwd=proj)
