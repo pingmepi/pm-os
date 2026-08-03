@@ -86,10 +86,14 @@ def _modality_for(path: Path) -> str:
     return _MODALITY_BY_EXT.get(path.suffix.lower(), "unknown")
 
 
-# Modalities whose text extraction is lossy by default (no selectable text, or a
-# layout that scrambles on extraction). Registered, but the SKILL must not mark a
-# claim sourced from one High confidence without confirming a clean extraction.
-LOSSY_BY_DEFAULT = {"image", "slides", "spreadsheet"}
+# Modalities whose text extraction *might* be lossy — image-only content, or a
+# layout that can scramble on extraction. These are tagged `unverified` (NOT
+# `lossy`) at registration: it is a "confirm before trusting" flag, not a verdict.
+# A `.pptx`/`.xlsx` read through the pptx/xlsx skill extracts text, tables, and
+# notes cleanly, so the SKILL resolves the tag to `clean` or `lossy` after actually
+# reading the source. Until then the SKILL must not mark a claim sourced from one
+# High confidence without confirming a clean extraction.
+UNVERIFIED_BY_DEFAULT = {"image", "slides", "spreadsheet"}
 
 # Never descend into these — engine/state dirs and OS cruft, not PM context.
 IGNORE_DIRS = {".history", ".git", "__pycache__", ".meta", "node_modules"}
@@ -127,9 +131,10 @@ def _register_one(root, src, src_type, ts, sources):
         "author": None,               # person/org credited as the source's author
         "document_date": None,        # the date the source itself carries, if any
         "authority": None,            # authoritative | secondary | hearsay
-        "extraction_quality": ("lossy" if modality in LOSSY_BY_DEFAULT else None),
-        "uncertainty": ([f"{modality} content extracts lossily — confirm before High confidence"]
-                        if modality in LOSSY_BY_DEFAULT else []),
+        "extraction_quality": ("unverified" if modality in UNVERIFIED_BY_DEFAULT else None),
+        "uncertainty": ([f"{modality} extraction unverified — read with the matching skill "
+                         f"(pptx/xlsx), then resolve to clean or lossy before High confidence"]
+                        if modality in UNVERIFIED_BY_DEFAULT else []),
     })
     try:
         log("context_ingested", root, None, {
@@ -322,15 +327,19 @@ def cmd_record_interview(args):
     )
     counts = _parse_interview_markdown(text, skip_all=skip_all)
     _write_known_unknowns(root, counts["skipped"], src_id)
-    try:
-        log("interview_conducted", root, None, {
-            "source_id": src_id,
-            "asked": counts["asked"],
-            "answered": len(counts["answered"]),
-            "skipped": len(counts["skipped"]),
-        })
-    except Exception as e:
-        print(f"Warning: telemetry logging failed: {e}")
+    # On a standalone rerun (/pm-interview) the recorder stays silent: pm_interview.py
+    # resolve logs the single interview_conducted mode:rerun event. Emitting here too
+    # would double-count one rerun as both an intake and a rerun pass.
+    if getattr(args, "mode", "intake") != "rerun":
+        try:
+            log("interview_conducted", root, None, {
+                "source_id": src_id,
+                "asked": counts["asked"],
+                "answered": len(counts["answered"]),
+                "skipped": len(counts["skipped"]),
+            })
+        except Exception as e:
+            print(f"Warning: telemetry logging failed: {e}")
     print(f"Recorded interview answers as {src_id} (context) — raw preserved at {snapshot.relative_to(root)}")
 
 
@@ -796,6 +805,9 @@ def main():
     p_int.add_argument("answers_file", nargs="?", help="Markdown file containing PM interview answers.")
     p_int.add_argument("--interview-answers", dest="interview_answers", default=None,
                        help="Markdown answers file for non-interactive runs.")
+    p_int.add_argument("--mode", choices=["intake", "rerun"], default="intake",
+                       help="intake (default) logs an interview_conducted event; rerun stays silent "
+                            "because pm_interview.py resolve logs the single rerun event.")
     p_int.set_defaults(func=cmd_record_interview)
 
     p_pre = sub.add_parser("preflight", help="Backfill-feasibility verdicts for a combo.")

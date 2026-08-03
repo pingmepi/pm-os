@@ -117,7 +117,9 @@ def test_commit_backfilled_draft(pmos, new_project):
 
 def test_register_classifies_new_formats_with_modality(pmos, new_project):
     """register ingests images, PPTX, and XLSX (not just text/PDF/DOCX/CSV), tagging each
-    .sources.yaml entry with a deterministic modality and flagging lossy-by-default ones."""
+    .sources.yaml entry with a deterministic modality and flagging maybe-lossy ones
+    `unverified` (a confirm-before-trusting flag the SKILL resolves after reading, not a
+    verdict that a text-bearing deck/sheet read via the pptx/xlsx skill is lossy)."""
     proj = _ctx_proj(pmos, new_project, slug="fmt")
     folder = proj / "drop"
     folder.mkdir()
@@ -130,10 +132,11 @@ def test_register_classifies_new_formats_with_modality(pmos, new_project):
     sources = yaml.safe_load((proj / ".sources.yaml").read_text())
     by_mod = {s["modality"] for s in sources}
     assert {"text", "slides", "spreadsheet", "image"} <= by_mod
-    # lossy-by-default modalities are pre-flagged so they can't earn High confidence silently
+    # maybe-lossy modalities are pre-tagged `unverified` so they can't earn High confidence
+    # silently — the SKILL resolves this to clean/lossy after reading with the matching skill
     for s in sources:
         if s["modality"] in {"image", "slides", "spreadsheet"}:
-            assert s["extraction_quality"] == "lossy"
+            assert s["extraction_quality"] == "unverified"
             assert s["uncertainty"]
 
 
