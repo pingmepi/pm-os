@@ -1,6 +1,6 @@
 # PM-OS: Borrowable Skills & Connectors
 
-**Status:** Analysis (no code changes). **Date:** 2026-06-18
+**Status:** Analysis (no code changes); **E2 marketplace refresh added 2026-08-03.** **Original date:** 2026-06-18
 **Purpose:** Identify which existing Claude Code / Codex agent skills and MCP connectors PM-OS can **borrow** instead of building from scratch — across both the current product and the roadmap in `../roadmap/current-state-review.md` §7 — and check the current skill suite against that catalog for gaps.
 
 This is analysis only. Adopting any item still goes through the normal **commit → push → `pm_os_update.py`** path, and any MCP/external use must respect the **read-before-write, dry-run → confirm** sequencing principle already stated in §7.
@@ -17,7 +17,7 @@ PM-OS must behave identically on Claude Code and Codex (`CLAUDE.md`, Phase 1). M
 
 **Portability rule:** never put a Claude-only skill on a *gated* path. Gated stages stay self-contained Markdown + Python so Codex parity holds. External skills / MCP are enrichment, invoked behind opt-in / confirm.
 
-**Today PM-OS borrows nothing externally** — there are no live Linear/Jira/Figma/MCP references anywhere in the repo; every such mention in `docs/` is "planned."
+**Current runtime boundary:** PM-OS has shipped Jira handoff support, but no external marketplace skill is a gated generation dependency. E2 may borrow vetted codebase-analysis patterns or offer opt-in enrichment, while PM-OS-owned Markdown and Python remain the portable, deterministic path on both Claude Code and Codex.
 
 ---
 
@@ -27,7 +27,7 @@ Phase titles key to `../roadmap/current-state-review.md` §7.
 
 | Roadmap phase | Borrow | Capability / connector | Mode | Note |
 |---|---|---|---|---|
-| **3 — Brownfield / codebase understanding** | `codebase-docs-alignment` (drift audit), `repo-interview-prep` / `customize-faqs` (repo mining → understanding), built-in `init` (generates CLAUDE.md), the `Explore` agent | Pattern for the enhancement-mode `00-codebase-understanding` doc + a drift signal | **B** | Reuse the audit/mining *approach*; PM-OS keeps its own gated stage-00 artifact. |
+| **3 — Brownfield / codebase understanding** | GitHub Awesome Copilot [`acquire-codebase-knowledge`](https://github.com/github/awesome-copilot/tree/main/skills/acquire-codebase-knowledge); [`arch:doc-and-modernize`](https://awesome-copilot.github.com/plugin/arch/) documentation mode; regression-scope patterns; built-in Explore agent | Deterministic inventory + focused inquiry, cited architecture/contradiction review, change-impact/regression reasoning | **B** primarily; **C** only in a PM-OS-owned snapshot | Reuse reviewed/pinned patterns behind PM-OS's portable `pm-context-scan-codebase`. Never let an external skill write to the target repo or become a gated dependency. |
 | **3.5 — Traceability spine (`REQ-` / `TC-` IDs)** | *(little external)* | Internal data model | — | No good external borrow; build natively. |
 | **3.6 — Automated test suite** | `python-testing` (pytest/fixtures/mocking/coverage), `tdd-workflow`, `eval-harness` (formal EDD), `verification-loop`, `llm-output-hardening` (guard LLM-output parsing in context-import/backfill) | Test-harness patterns + LLM-output guards | **B** | Partly already shipped (`tests/`, `pyproject.toml`, `docs/guides/testing.md`). Borrow remaining patterns. |
 | **4a — Local handoff packet** | `doc-coauthoring` (structured spec authoring); `docx` / `pdf` / `pptx` (export to Word/PDF/deck) | Authoring workflow + format export | **B** (authoring) / **C** (format) | Packet stays local Markdown; format skills only when the PM wants Word/deck. |
@@ -54,6 +54,30 @@ Cross-referencing the 11 stage skills + 10 utility skills against the available 
 6. **Stage generation has no authoring-quality scaffold.** Each stage skill is structured doc generation; `doc-coauthoring`'s "transfer context → iterate → verify it works for the reader" loop is a reusable pattern to tighten stage prompts (Mode B).
 7. **Connector security is unowned.** Phases 4b/5b/6b introduce auth, secrets, and repo access. `security-review` (auth/input/secrets/endpoint checklist) and `security-scan` (audit `.claude` config) should gate those phases — `security-review` as a borrowed checklist (Mode B), `security-scan` on demand (Mode C). PM-OS's `guardrails.md` overlay is the natural home.
 8. **New-skill consistency.** As the suite grows (handoff, triage, release skills), `skill-creator` keeps `SKILL.md` + `agents/openai.yaml` uniform across runtimes (Mode B, authoring-time only).
+
+---
+
+## E2 marketplace refresh — selected codebase-understanding patterns (2026-08-03)
+
+### Primary candidate: `acquire-codebase-knowledge`
+
+GitHub's Awesome Copilot catalog publishes an MIT-licensed skill with a deterministic Python scanner, 25+ language/manifest detection, CI/container/security/performance inventory, focus-area mode, evidence-only claims, explicit `[TODO]`/`[ASK USER]` gaps, monorepo handling, and generated-output exclusions. These are strong foundations for E2's **cheap whole-repo inventory → affected-slice/impact-cone scan**.
+
+Adoption mode: review and pin a commit, preserve license/attribution, and adapt the scan/checkpoint patterns into PM-OS. The upstream workflow normally writes seven documents under the target's `docs/codebase/`; E2 must not do that. Its adapter runs against the read-only target and writes scan output only under the PM-OS project. The PM-OS-owned `00c` format remains the single gated output.
+
+### Secondary candidate: `arch:doc-and-modernize` documentation mode
+
+Useful patterns: repository-local-first evidence, file/line citations, explicit unverified facts, contradiction handling, and deeper analysis of complex subsystems. Its normal authoring workflow writes architecture documentation, so E2 may only reuse its pattern or run it against a disposable PM-OS-owned snapshot. Its modernization mode is out of scope.
+
+### Regression-scope candidates
+
+Community regression-scope skills can contribute checklists for changed files, dependency spread, risk ordering, and minimum retest suites. They are lower-trust than the GitHub-maintained candidates: E2.0 must verify license, source, prompts, scripts, write/network behavior, and cross-runtime portability before borrowing. Regardless of outcome, the approved PM regression boundary and PM-OS traceability checks remain authoritative.
+
+### Rejected as baseline dependencies
+
+- Marketplace agents that require a proprietary code-intelligence backend (for example CAST Imaging) may be useful optional enrichment if the organization already approves that service, but cannot be required for local-first E2.
+- Tools that create an index, documentation, cache, build output, or configuration inside the target repo are rejected unless redirected to a PM-OS-owned snapshot/output directory and proven read-only against the target.
+- No marketplace skill may weaken the stage-00 human approval gate, send code to an additional unapproved service, or create Claude/Codex behavior divergence.
 
 ---
 

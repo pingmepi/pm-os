@@ -1,10 +1,10 @@
 # PM-OS Entry Pathways & Interview Plan
 
-**Status:** E1 shipped (pathway 2), pending PM review. **Build order decided 2026-08-01: pathway 2 (prototype → dev handoff) first; pathway 3 (codebase) later.** Remaining open decisions in §8.
+**Status:** E1 (pathway 2) and **E3 (standalone `/pm-interview` + known-unknowns surfacing)** shipped, pending PM review. **E2 pathway-3 design revised 2026-08-03:** read-only code access, affected-slice generation, PM-OS-product lineage, decision-focused interview, multi-surface coverage, and dependency-ordered build/acceptance are now defined below. E2 remains the only unbuilt phase.
 **Author:** Karan (with Claude Code)
 **Companion:** `pm-os-consistency-spine-plan.md` — the consistency-spine + v1.4.1 fixes half of the same next-development arc. This doc is the entry-pathways half.
-**Realizes / supersedes:** the reserved **Phase 5 "thin-context discovery interview"** in `adaptive-context-intelligence-pack.md` (originally a ≤5-question nudge for thin inputs, skippable, answers registered as a PM-authored source, skips → known unknowns). This plan realizes that Phase 5 and makes it **pathway-aware** and **feasibility-map-driven** — and, for pathway 2's *reconstruction* case, **replaces the fixed ≤5 cap with a coverage-driven, batched model** (§4): Phase 5's small cap suits a thin-input nudge, not the fuller WHY/scope reconstruction a prototype needs. Fold Phase 5 into this plan (Open decision #5).
-**Does not depend on:** the abandoned `feat/whole-product-foundation` branch (scope tiers / increments / promote).
+**Realizes / supersedes:** the reserved **Phase 5 "thin-context discovery interview"** in `adaptive-context-intelligence-pack.md` (originally a ≤5-question nudge for thin inputs, skippable, answers registered as a PM-authored source, skips → known unknowns). This plan is the canonical replacement: it is pathway-aware and feasibility/coverage-driven, with a soft ~5 per topic round rather than a fixed total. E1/E3 implement the shared intake/re-run mechanics; E2 adds the decision-focused enhancement tuning.
+**Provenance boundary:** do not resume or merge the abandoned `feat/whole-product-foundation` branch. E2 may reuse its useful design provenance — product-of-record/cycle linkage, tagged provenance, change boundary/blast-radius overlays, regression-class QA, and enhancement handoff payload — but must rebuild those ideas against current `main`. Its `/pm-promote` meant **promoting a deferred requirement to a higher-fidelity release tier**; E2 does not use that command to convert a product or project into an enhancement.
 
 ---
 
@@ -24,12 +24,12 @@ This is the same propagating-flag shape PM-OS already uses (`genai_flag`, `proje
 |---|---|---|---|---|
 | **1 · Idea** | Business statement (+ context) | 00 | ✅ `/pm-new` (greenfield) | — |
 | **2 · Prototype** | A prototype shown & approved; **no code yet** | ~04/05 | partial — `/pm-context-import` adopts + lossy-backfills | **Interview (broad)** carries the WHY/scope the prototype lost; then formalize-forward to dev/design handoff |
-| **3 · Live product** | A shipped product + **codebase** | past 09 | Part A shipped — `--mode enhancement --codebase`, `00c` | **Interview (narrow)** for intent the code can't express; the ask is a **scoped delta**, not a full redefinition |
+| **3 · Live product** | A shipped product + **read-only codebase**; optionally its prior PM-OS project | past 09 | Part A shipped — `--mode enhancement --codebase`, `00c` | Generate only the **affected product slice + impact cone**; a narrow decision interview supplies what code cannot; flow the scoped delta through stages 01–09 and handoff |
 
 ### The two-axis model (why 2 and 3 differ in kind, not just cost)
 
-- **Extraction cost vs. elicitation cost move oppositely.** Prototype = cheap to read, expensive to interview (thin source, no WHY). Codebase = expensive to read, but the code answers most WHAT/HOW, so the interview is narrow (intent only).
-- **Complete-forward vs. scoped-delta.** Pathways 1 & 2 build one full definition forward. Pathway 3 **snapshots** the existing product as context (`00c` + context wiki) and runs a fresh, *scoped* mini-pipeline for just the change.
+- **Extraction cost vs. elicitation cost move oppositely.** Prototype = cheap to read, expensive to interview (thin source, no WHY). Codebase = expensive to inspect and gives evidence for implemented WHAT/HOW, but cannot establish deployed configuration, business intent, success, non-goals, or compatibility promises; the interview is therefore narrow and **decision-focused**, not absent.
+- **Complete-forward vs. scoped-delta.** Pathways 1 & 2 build one full definition forward. Pathway 3 builds a lightweight repository inventory, traces an **impact cone** around the ask, and runs a fresh pipeline for only that affected slice. It widens the cone when dependency evidence or uncertainty demands it; it does not reconstruct the whole product by default.
 
 ## 2b. The uniform front door (routing + guidance)
 
@@ -45,17 +45,25 @@ What are you starting from?
 
 - **[1] New** → proceed greenfield: `/pm-stage-01-brief`.
 - **[2] Prototype** (pathway 2) → `/pm-context-import <prototype + any supporting context you have>` (adopt everything provided + interview for the *residual* missing why/scope).
-- **[3] Enhancement** (pathway 3) → prompt for the codebase, **promote** the project to enhancement, then `/pm-context-import --codebase <…>`.
+- **[3] Enhancement** (pathway 3) → prompt for the read-only codebase, bind the new project as an enhancement cycle, then `/pm-context-import --codebase <…>`.
 
 Uniform to *use* (always `/pm-new`) and uniform to *consume* (always: created → pick type → told exactly what's next). It also removes the trap where a prototype PM silently lands in greenfield and skips context-import.
 
-**Mechanics:** this gives `type` the same treatment `genai` already has — an interactive prompt plus a flag/env escape (`--entry {new,prototype,enhancement}`, with `--codebase` for enhancement; `--mode`/`PM_OS_PROJECT_TYPE` kept as back-compat aliases). In the shipped pathway-2 slice, `[1]` and `[2]` are fully wired and `[3]` reuses today's enhancement scaffold behavior (`project_type: enhancement`, `codebase_path` when provided); the fuller promote-to-enhancement setter and `00c` addition are E2. No schema change (`project_type` already exists). The chosen route is recorded in telemetry.
+**Mechanics:** this gives `type` the same treatment `genai` already has — an interactive prompt plus a flag/env escape (`--entry {new,prototype,enhancement}`, with `--codebase` for enhancement; `--mode`/`PM_OS_PROJECT_TYPE` kept as back-compat aliases). In the shipped pathway-2 slice, `[1]` and `[2]` are fully wired and `[3]` reuses today's enhancement scaffold behavior (`project_type: enhancement`, `codebase_path` when provided). E2 completes **enhancement-cycle binding** and `00c` creation. Do not call this product promotion: `/pm-promote` is reserved for the separate release-tier fidelity concept in the delivery-model plan.
+
+### Enhancement-cycle identity — three entry cases
+
+1. **External product, never built with PM-OS:** create a new enhancement project, bind the codebase snapshot as observed current-state evidence, and elicit the missing product decisions.
+2. **Product originally built with PM-OS:** keep the original PM-OS project immutable as the approved product-definition record; create a new enhancement-cycle project linked to that source project **and** the read-only built codebase. The source project's approved artifacts provide intent/decision provenance; the affected code slice provides current implementation evidence. Never rewrite the original project's 01–09 artifacts to turn them into a delta.
+3. **Wrong route selected during fresh scaffold:** before any stage 01+ artifact exists, an explicit route-correction operation may change `new`/`prototype` to `enhancement`, bind the codebase, and add `00c`. Once downstream work exists, route correction must refuse rather than silently reframe it.
+
+A later read-only product/program index may roll up the original project and its enhancement cycles, following the useful `program.yaml` provenance on `feat/whole-product-foundation`; it must never become a second gate/status source of truth.
 
 ## 3. What already exists (build on, don't rebuild)
 
 - **`/pm-context-import`** — adopts PM-authored artifacts as their stage and **reverse-generates** the missing upstream stages ("backfill"), gated by the understanding doc. The **feasibility map** (`skills/pm-context-import/SKILL.md` §"Feasibility map") already rates each missing upstream ✅ faithful / ⚠️ lossy / ⛔ infeasible, and the `preflight` subcommand (`scripts/pm_context_import.py`) prints those verdicts.
 - **Stage-00 group** — `00` business statement, `00w` context-wiki pack, `00u` understanding doc, `00c` codebase-understanding (enhancement only). All gated.
-- **Enhancement mode (Part A, shipped)** — `project_type: new_product | enhancement`, `codebase_path`/`codebase_ref`, `00c` via Explore-based scan, codebase-drift signal in `/pm-status`. **Per-stage delta-framing blocks (modes plan §5) are only partly built** (that plan's A2 dogfood is still open).
+- **Enhancement infrastructure (Part A, shipped)** — `project_type: new_product | enhancement`, `codebase_path`/`codebase_ref`, `00c` via Explore-based scan, and a status-only drift signal in `/pm-status`. Stage 01 has delta framing; the full E2 pathway remains unbuilt.
 - **The understanding doc** already has the six sections the interview feeds: *What I understood, Source trust table, Assumption register, Conflict resolution block, Coverage map, What happens on approval.*
 
 The gap is not "start from a PRD/prototype" (that exists). The gap is: when the entry artifact is too far downstream, backfill is ⚠️/⛔ and the missing WHY/scope can only come from the PM's head — and **nothing interviews them for it**. Today the skill commits a lossy backfill as `draft` and waits for async `> **PM:**` edits.
@@ -74,11 +82,11 @@ An interactive elicitation step that **converts feasibility verdicts from ⚠️
 
 **Pathway-aware tuning (same primitive, opposite weight):**
 - **Pathway 2 (prototype, thin source):** the interview carries the bulk — a guided brief/scope reconstruction, typically several topic rounds. It shrinks by exactly however much supporting context the PM also brought (see §5) — anything the sources answer isn't asked.
-- **Pathway 3 (codebase, rich source):** narrow — the code answers WHAT/HOW, so the questions target *intent the code can't express*: why the product exists, what this change **is and isn't** (scope + regression boundary), the success bar, what must **not** change.
+- **Pathway 3 (codebase, observed implementation):** narrow and decision-focused — confirm which release/ref represents reality; why this change matters; the current→target behavior; affected users; scope and explicit non-touch boundary; compatibility/migration promises; success baseline/target; rollout/rollback constraints; and what must not regress. Do not ask for architecture or behavior already supported by cited code evidence.
 
-**Non-interactive safety (per repo convention):** an env/flag escape and a non-tty branch — e.g. `--interview-answers <file>` to supply answers unattended, and `PM_OS_INTERVIEW=skip` (or a non-tty session) records every question as a known unknown and proceeds without blocking. Mirrors `PM_OS_EDITED_UPSTREAM_CHOICE`.
+**Non-interactive safety (per repo convention):** an env/flag escape and a non-tty branch — e.g. `--interview-answers <file>` to supply answers unattended, and `PM_OS_INTERVIEW=skip` (or a non-tty session) records every question as a known unknown. Pathway 3 classifies unknowns as `blocking` or `non-blocking`: missing baseline identity, change boundary, regression invariants, or required compatibility/migration decisions block stage 01 unless the PM explicitly records an accepted risk; lower-impact unknowns may proceed visibly. Mirrors `PM_OS_EDITED_UPSTREAM_CHOICE` without turning skips into safe defaults.
 
-**Where it lives:** a new step in `/pm-context-import` (after `preflight`, before the understanding doc is finalized), so it plugs into the existing approval gate. A thin standalone `/pm-interview` for re-running against remaining known-unknowns is a later add (E3) — name checked against `docs/plans/`, only the *concept* is reserved (Phase 5), not that skill name.
+**Where it lives:** pathway intake interviewing is a step in `/pm-context-import` (after `preflight`, before the understanding doc is finalized), so it plugs into the existing approval gate. E3 adds the standalone `/pm-interview` re-run against remaining known unknowns without replacing the intake step.
 
 ## 5. Pathway 2 — Approved prototype, no code
 
@@ -90,9 +98,35 @@ Flow: `/pm-context-import <prototype + any supporting context you have>` → doc
 
 ## 6. Pathway 3 — Live product + codebase
 
-The product exists and runs; the client asks for a **change**. Snapshot the existing product as context, then run a **scoped delta** pipeline — do **not** faithfully reconstruct a full 01–07 for the whole existing product (expensive, lossy, mostly wasted).
+The product exists and runs; the client asks for a **change**. PM-OS receives read-only access: it may list/read/search files and run non-mutating inspection commands, but it must never edit the target repository, write generated files into it, change its index/worktree/ref, or run a formatter/build/test that writes there. Remote URLs may be cloned into the PM-OS project using read credentials; supplied local repositories remain untouched. All generated material lives in the PM-OS project.
 
-Flow: `/pm-context-import --codebase <url|path> [+ docs]` → `00c` codebase scan (Explore) + wiki → **interview (narrow)** for intent/scope/regression boundary → run the pipeline **scoped to the delta**, using enhancement-mode per-stage delta-framing blocks (finish modes plan §5 / A2) → `/pm-handoff`. Reuses the existing codebase-drift staleness signal.
+### Slice-first feasibility: generate the affected product surface, not the whole product
+
+This is feasible and is the E2 default. The scan has three bounded rings:
+
+1. **Inventory ring:** a cheap whole-repository map of manifests, workspaces, entry points, routes/interfaces, data stores, tests, CI/deployment, shared libraries, and ownership boundaries. This prevents a narrowly worded ask from hiding an obvious cross-cutting dependency; it is context, not a reconstructed whole-product artifact.
+2. **Change-surface ring:** locate the user/system surfaces named or implied by the approved ask and trace their current behavior with repository-relative file/line evidence.
+3. **Impact-cone ring:** follow inbound/outbound dependencies, shared components, APIs/events, data/schema paths, permissions, configuration/feature flags, tests, observability, deployment, and known consumers. Record explicit non-touch surfaces and coverage gaps.
+
+Generate `00c`, stages 01–09, and handoff for this affected slice only. Existing unaffected behavior is carried only where needed as an invariant, dependency, or regression boundary. If the cone reaches a shared primitive, an unknown dynamic boundary, multiple packages/services, or conflicting evidence, widen the scan and explain why; never silently claim the original slice is complete.
+
+Static reading cannot prove every runtime relationship, especially with reflection, dynamic imports, feature flags, environment-specific configuration, generated code, or services outside the granted repository. The approval gate must therefore show scan coverage, exclusions, evidence, and confidence rather than promise perfect blast-radius detection.
+
+### Full product-surface support
+
+E2 supports the whole **kind** of enhancement, not only frontend changes. Capture a multi-valued affected-surface set such as `ui`, `api`, `data`, `service`, `event`, `integration`, and `operations`. Stage 04/05 behavior branches by the surfaces actually affected: UI work uses screens/components and an interactive prototype; API/data/service/event/integration/operations work uses interface contracts, schemas/migrations, service flows, event contracts, sandbox/mock/sample payloads, or operational validation artifacts. Do not invent screens or force HTML for a non-UI enhancement. The exact non-UI traceability primitive is decided in E2.0; existing `SCR-###` remains valid for UI and must not be broken.
+
+### Stronger codebase understanding by borrowing, not depending blindly
+
+E2 starts with a short marketplace evaluation and then vendors/adapts the selected read-only patterns into PM-OS's portable scan skill:
+
+- GitHub Awesome Copilot's [`acquire-codebase-knowledge`](https://github.com/github/awesome-copilot/tree/main/skills/acquire-codebase-knowledge) is the primary candidate: deterministic stack/structure/integration/testing inventory, focus-area mode, evidence-only claims, explicit `[TODO]`/`[ASK USER]`, monorepo handling, and generated-output exclusions. Its helper must write output to the PM-OS project, never `docs/codebase/` inside the target repo.
+- Awesome Copilot's [`arch` documentation workflow](https://awesome-copilot.github.com/plugin/arch/) is a secondary pattern for cited architecture, contradiction handling, and deep-diving complex subsystems. Reuse the pattern or run it only in an isolated PM-OS-owned snapshot because its normal workflow authors documents in the repository.
+- A regression-scope skill may inform QA impact analysis after its license/security/portability review; it is enrichment, not the sole source of the regression boundary.
+
+Marketplace/runtime-specific skills never become a required gate dependency. The PM-OS-owned `pm-context-scan-codebase` contract remains authoritative and works in Claude and Codex. Every adopted skill/script is pinned to a reviewed commit, license-attributed, inspected for writes/network/subprocess behavior, and wrapped so read-only access is mechanically testable.
+
+Flow: create/bind enhancement cycle → `/pm-context-import --codebase <url|path> [+ docs]` → read-only inventory + affected-slice/impact-cone scan → `00c` + wiki → **narrow decision interview** → approve stage-00 boundary → stages 01–09 scoped to the delta across every affected surface → `/pm-check` → `/pm-handoff` with delta, invariants, regression, baseline backlink, and affected-surface evidence.
 
 ## 7. Phases
 
@@ -100,35 +134,68 @@ Independently shippable; ordered by dependency. Each ships with tests (`docs/gui
 
 | Phase | Work | Files | Depends on |
 |---|---|---|---|
-| **E0** | **Uniform front door + routing (§2b).** `/pm-new` always scaffolds identically, then an interactive routing prompt (new/prototype/enhancement, mirroring the GenAI prompt) sets the type and prints tailored next-step guidance; `--entry`/`--codebase`/env are the non-tty escape. Chosen route recorded in telemetry. **Pathway-2 milestone scope:** `[1]`/`[2]` fully wired; `[3]` presented but falls through to today's `--mode enhancement --codebase` behavior — the **promote-to-enhancement setter** (`project_type` + `codebase_path` + `00c`) lands with **E2 / pathway 3**. | `scripts/pm_new.py`, `skills/pm-new/SKILL.md` (+ `agents/openai.yaml`), telemetry | — |
+| **E0** | **Uniform front door + routing (§2b).** `/pm-new` always scaffolds identically, then an interactive routing prompt (new/prototype/enhancement, mirroring the GenAI prompt) sets the type and prints tailored next-step guidance; `--entry`/`--codebase`/env are the non-tty escape. Chosen route recorded in telemetry. **Pathway-2 milestone scope:** `[1]`/`[2]` fully wired; `[3]` presented and reuses today's enhancement scaffold behavior; full enhancement-cycle binding/linkage lands with E2. | `scripts/pm_new.py`, `skills/pm-new/SKILL.md` (+ `agents/openai.yaml`), telemetry | — |
 | **E1** | **Interview primitive (realizes Phase 5), pathway-2 tuning.** New context-import Step (coverage-driven questions, batched by topic in decreasing-impact order, over residual gaps only), register answers as a PM source, re-run preflight, record skips as known unknowns; non-tty/flag escape | `skills/pm-context-import/SKILL.md`, `scripts/pm_context_import.py` (register-answers helper + preflight re-run) | E0 |
-| **E2** | **Pathway-3 tuning (narrow) + scoped delta.** Finish enhancement-mode per-stage delta-framing blocks (modes plan §5 / A2 dogfood); scoped-delta handling; interview targets intent only | stage `SKILL.md` 01–08 enhancement blocks, `skills/pm-context-import/SKILL.md` | E1, modes Part A |
-| **E3** | Standalone `/pm-interview` re-run against remaining known-unknowns; provenance + telemetry polish; surface known-unknowns in `/pm-status` | new `skills/pm-interview/` (+ `agents/openai.yaml`), `scripts/pm_status.py` | E1 |
+| **E2** | **Pathway 3: read-only affected-slice enhancement cycle.** Link external or PM-OS-built products to a pinned baseline; inventory the repository then map only the affected slice/impact cone; run a decision-focused interview; propagate the delta across UI/API/data/service/event/integration/operations through stages 01–09, consistency checks, regression traceability, and handoff. See the dependency order below. | intake/scanner, stages 01–09, contracts/traceability/check/status/handoff | E1, E3, modes Part A |
+| **E3** | **✅ Shipped (pending PM review).** Standalone `/pm-interview` re-run against remaining known-unknowns; provenance + telemetry polish; surface known-unknowns in `/pm-status` | new `skills/pm-interview/` (+ `agents/openai.yaml`), new `scripts/pm_interview.py` (`list-unknowns`/`resolve`), `scripts/pm_status.py` | E1 |
 
-> **Executable build plan for E0–E1 (pathway 2):** `pm-os-pathway-2-execution-runbook.md` — a loop-engineered, step-by-step runbook (aim → tests-first → code → verify → pass-if-green → update-tasks) an agent can run end-to-end.
+> **Executable build plans:** E0–E1 (pathway 2) → `pm-os-pathway-2-execution-runbook.md`; **E3 → `pm-os-e3-execution-runbook.md`** — both loop-engineered, step-by-step runbooks (aim → tests-first → code → verify → pass-if-green → update-tasks) an agent can run end-to-end.
+
+### E2 development order — dependency locked
+
+| Order | Increment | Deliverable | Depends on |
+|---:|---|---|---|
+| 1 | **E2.0 — Contract + marketplace spike** | Freeze read-only boundary; prove slice-first scan on representative UI and non-UI fixtures; evaluate/pin/license-review `acquire-codebase-knowledge`, `arch`, and regression-scope candidates; decide the smallest multi-surface traceability extension. No production implementation until the spike shows coverage/exclusion output and no target-repo writes. | E1/E3 |
+| 2 | **E2.1 — Enhancement-cycle identity + lineage** | Implement external-product cycle, PM-OS-built-product child cycle with source-project backlink, and pre-stage route correction. Reserve `/pm-promote` for tier fidelity; optionally add a read-only product/program roll-up without changing child gates. | E2.0 |
+| 3 | **E2.2 — Read-only baseline integrity** | Separate repository identity, supplied checkout path, requested ref, resolved SHA, scan SHA, optional monorepo subpath, and dirty/non-reproducible status; bind them to `00c`; prevent silent baseline replacement; compare metadata↔`00c`↔current checkout in `/pm-check`. | E2.1 |
+| 4 | **E2.3 — Slice/impact-cone scanner** | Adapt the reviewed marketplace patterns into `pm-context-scan-codebase`; inventory whole repo cheaply, then scan the affected slice and dependency cone; emit coverage/exclusions/confidence and affected surfaces; widen on evidence. All outputs stay in the PM-OS project. | E2.2 |
+| 5 | **E2.4 — Decision interview + approved enhancement boundary** | Pathway-3 question selection, blocking/non-blocking unknowns, current→target behavior, affected/non-touch surfaces, invariants, compatibility/migration, success, rollout/rollback; write the binding enhancement boundary into stage-00 understanding. | E2.3 |
+| 6 | **E2.5 — Multi-surface stages 01–09** | Add generation overlays and contracts for the scoped delta across UI/API/data/service/event/integration/operations; make stage 04/05 surface-aware and avoid forced screens/HTML for non-UI work. | E2.4 |
+| 7 | **E2.6 — Regression, consistency, and handoff** | Baseline-behavior regression class, affected-surface↔requirement↔test↔task traces, delta-only package/Jira export, baseline backlink, compatibility/migration/rollback checks, and status guidance. | E2.5 |
+| 8 | **E2.7 — Refresh, migration, and dogfood** | Explicit rebase/refresh with staleness cascade; schema migration/back-compat; full external-product and PM-OS-built-product runs; UI, API/data/service, cross-cutting, monorepo, drift, and read-only-permission fixtures; broad regression and isolated smoke. | E2.6 |
 
 ### Acceptance criteria (targets)
 
-- [x] `/pm-new` always scaffolds identically, then routes: it asks new/prototype/enhancement, sets the type for new/enhancement, records the prototype route hint, and prints the correct next step for each (greenfield / context-import / context-import --codebase); non-interactively the `--entry`/`--codebase`/env escape preserves today's behavior. The chosen route is recorded in telemetry; `[3]` reuses today's enhancement scaffold path, with the fuller promote-to-enhancement/`00c` setter deferred to E2.
+- [x] `/pm-new` always scaffolds identically, then routes: it asks new/prototype/enhancement, sets the type for new/enhancement, records the prototype route hint, and prints the correct next step for each (greenfield / context-import / context-import --codebase); non-interactively the `--entry`/`--codebase`/env escape preserves today's behavior. The chosen route is recorded in telemetry; `[3]` reuses today's enhancement scaffold path, with full enhancement-cycle binding/linkage deferred to E2.
 - [x] On a pathway-2 import where `preflight` rates a gap ⚠️/⛔, the interview asks **coverage-driven** questions — batched by topic, in **strictly decreasing order of impact**, only for load-bearing gaps the provided sources don't already answer (soft ~5 per round, no hard total); answering raises the affected backfill's fidelity/confidence; skipping records a known unknown and never fabricates.
 - [x] Interview answers appear in `.sources.yaml` as a PM-authored source and feed the wiki/evidence ledger with high confidence.
 - [x] Non-interactively (`--interview-answers <file>` or non-tty), the flow completes without hanging; skipped questions become known unknowns.
-- [ ] Pathway 3 runs a scoped-delta pipeline grounded in `00c`, with enhancement delta-framing active in stages 01–08; the interview is narrow (intent), not a full re-derivation.
-- [x] No change to the gate/hash/staleness/telemetry core; every stage-00 doc remains a human-approved gate; the interview never self-approves.
+- [ ] **Read-only guarantee:** a local target repo passes E2 with write permissions removed. PM-OS performs no target-repo file writes, checkout/ref/index/worktree changes, formatting, dependency installation, build output, or generated documentation; every scan/interview/artifact output lands in the PM-OS project. A URL uses read credentials to clone only into the PM-OS project.
+- [ ] **Marketplace safety/portability:** every borrowed skill/script is commit-pinned, license-attributed, security/write/network reviewed, and invoked through a PM-OS adapter. `acquire-codebase-knowledge`-style inventory and focus mode work in both Claude and Codex; absence of any marketplace skill never blocks the gated path.
+- [ ] **Slice-first output:** the scanner produces a lightweight whole-repo inventory plus an evidence-cited affected slice and impact cone; stages 01–09 and handoff contain only new/modified/removed behavior plus required invariants/dependencies. Unaffected baseline capabilities never become scope or tickets.
+- [ ] **Impact-cone safety:** shared dependencies, consumers, interfaces/events, data/schema, permissions, flags/config, tests, observability, deployment, and cross-package/service boundaries are considered. Dynamic/unavailable boundaries appear as coverage gaps; evidence of wider impact expands the slice visibly.
+- [ ] **External-product lineage:** a product never built with PM-OS can start a new enhancement-cycle project from its codebase and optional docs without fabricating missing intent.
+- [ ] **PM-OS-built-product lineage:** an approved source PM-OS project can spawn a separate enhancement-cycle project that reads its approved artifacts and the built codebase; the source project's artifacts, statuses, hashes, and history remain unchanged, and the child records a baseline backlink.
+- [ ] **Route correction, not product promotion:** a fresh project may switch to enhancement only before stage 01+ work exists; the same binding is idempotent; a different repo/ref requires an explicit replace/rebase action. `/pm-promote` is not used by E2 and remains reserved for release-tier fidelity.
+- [ ] **Baseline integrity:** repository identity, requested ref, resolved SHA, scan start/end SHA, dirty/non-reproducible state, and optional monorepo subpath are recorded and bound to `00c`. Preparation cannot overwrite an approved baseline and make an old `00c` appear current; `/pm-check` detects every metadata↔artifact↔checkout mismatch.
+- [ ] **Decision-focused interview:** pathway 3 asks only unresolved decisions — production baseline, why/change outcome, current→target behavior, affected/non-touch surfaces, regression invariants, success, compatibility/migration, rollout/rollback, and authority. Cited code facts are not re-asked.
+- [ ] **Unknown severity:** unresolved baseline identity, delta boundary, regression invariants, or required compatibility/migration are blocking unless the PM records an accepted risk; lower-impact skips remain visible known unknowns. No skip becomes a silent default.
+- [ ] **Multi-surface pipeline:** an enhancement may affect any combination of UI, API, data, service, event, integration, and operations. Stage 04/05 generate appropriate design/validation artifacts for those surfaces; non-UI work is never forced into fake screens or HTML, while existing `SCR-###` behavior remains backward-compatible for UI.
+- [ ] **End-to-end delta propagation:** stages 01–09 implement the enhancement behavior table in the modes plan. Every requirement is classed `new | modified | removed`, grounded in current→target behavior, and tied to affected surfaces or explicitly marked cross-cutting.
+- [ ] **Regression and migration traceability:** every declared non-touch/regression invariant maps to at least one QA case; every compatibility or migration requirement maps to implementation tasks, tests, rollout observability, and rollback criteria; `/pm-check` reports gaps.
+- [ ] **Delta-only handoff:** package/Jira outputs carry change type, affected-surface/blast-radius evidence, “must not break” regression coverage, compatibility/migration notes, and a baseline backlink. They export no unaffected baseline work.
+- [ ] **Refresh semantics:** checkout drift never silently changes the approved baseline. The PM may continue against the pinned baseline or explicitly refresh/rebase; refresh regenerates `00c` and causes the normal downstream staleness cascade.
+- [ ] **Compatibility:** greenfield and prototype behavior stays unchanged; migrated enhancement projects remain readable; full tests, focused E2 tests, and a direct isolated scaffold→scan→stage→handoff smoke pass.
+- [x] No new stage status or parallel approval state machine: existing gate/hash/staleness/telemetry primitives remain authoritative; E2 may add validated inputs, mismatch checks, and ordinary downstream staleness cascades. Every stage-00 doc remains a human-approved gate; the interview never self-approves.
+- [x] **(E3)** `/pm-interview` re-runs against the still-open known-unknowns only: `pm_interview.py list-unknowns` reads them, the answers register via the unchanged `record-interview`, and `pm_interview.py resolve` marks each answered gap `[resolved: <source> <date>]` **in place** (never deleted) with a `mode: rerun` `interview_conducted` event. Non-tty/`PM_OS_INTERVIEW=skip` leaves unknowns open; the skill never self-approves.
+- [x] **(E3)** `/pm-status` surfaces `Known unknowns: N open` (resolved excluded, deduped by question) so the PM can see remaining gaps at a glance.
 
 ## 8. Open decisions (need PM input)
 
 1. ~~**Build order — pathway 2 or 3 first?**~~ **DECIDED 2026-08-01: pathway 2 (prototype) first** — it's the case Karan is handing off to dev now; pathway 3 (codebase) comes later. E1 targets the pathway-2 (broad) interview; E2's pathway-3 tuning is deferred with it.
-2. **Interview home** — a step inside `/pm-context-import` (recommended) with a standalone `/pm-interview` added later (E3), or a standalone skill from the start?
-3. **Pathway 3 shape** — snapshot-as-context + scoped delta (recommended), or faithfully reconstruct full upstream 01–07 for the existing product?
+2. ~~**Interview home**~~ — **resolved:** pathway intake interview lives in `/pm-context-import`; E3 adds standalone `/pm-interview` for remaining known unknowns.
+3. ~~**Pathway 3 shape**~~ — **resolved 2026-08-03:** lightweight repository inventory + affected-slice/impact-cone context + scoped delta through stages 01–09; do not reconstruct the full existing product. Widen only when dependency evidence/uncertainty requires it.
 4. ~~**Entry-profile in meta**~~ **Resolved by the front-door model (§2b):** the routing prompt sets the type at `/pm-new`. `new`/`enhancement` map to `project_type`; the `prototype` choice is `new_product` under the hood, recorded as a lightweight route hint (telemetry + optional meta field) so status/segmentation can tell it apart.
-5. **Fold Phase 5** — confirm this plan supersedes `adaptive-context-intelligence-pack.md` Phase 5 (thin-context discovery interview), so there's one interview design, not two.
+5. ~~**Fold Phase 5**~~ — **resolved:** this plan supersedes `adaptive-context-intelligence-pack.md` Phase 5; there is one interview primitive with pathway-specific tuning.
+6. ~~**Promotion meaning**~~ — **resolved 2026-08-03:** E2 creates/binds an enhancement cycle or corrects a fresh route; it does not promote a completed product. `/pm-promote` remains a separate, deferred tier-fidelity command.
+7. ~~**Product surfaces**~~ — **resolved 2026-08-03:** build E2 for UI, API, data, service, event, integration, and operations, including surface-aware 04/05 outputs. E2.0 decides the smallest backward-compatible non-UI traceability primitive.
 
 ## 9. Non-goals
 
-- Rebuilding the abandoned tiers/increments/promote work (that's a separate, deferred delivery-model effort).
-- Any backend/service — everything stays local files + agent judgment.
-- Weakening a gate: the interview informs generation; it never approves, and the three stage-00 docs remain human-approved.
+- Rebuilding the abandoned tiers/increments `/pm-promote` implementation (that remains a separate delivery-model effort); design provenance may be reused selectively as stated above.
+- Writing to or executing mutating workflows in the target product codebase. E2 reads it and writes only PM-OS project artifacts.
+- Reconstructing the entire existing product when a bounded slice/impact cone is sufficient.
+- Weakening a gate: the interview informs generation; it never approves, and every present stage-00 document remains human-approved.
 - Interrogation: ask only load-bearing gaps the provided sources don't already answer, batched and skippable — never a fixed quota, and never converting a skipped question into a silent assumption.
 
 ---

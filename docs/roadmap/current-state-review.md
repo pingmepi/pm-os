@@ -103,7 +103,7 @@ It is not yet the full PDLC operating system described above: brownfield codebas
 | Area | Status | Source |
 |---|---:|---|
 | Gemini runtime support | Planned | `../plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Entry pathways + interview primitive | Pathway 2 (prototype entry) + interview shipped v1.4.3; Pathway 3 (codebase, E2) + standalone `/pm-interview` (E3) planned | `../plans/pm-os-entry-pathways-plan.md` |
+| Entry pathways + interview primitive | Pathway 2 (prototype entry) + interview shipped v1.4.3; **standalone `/pm-interview` re-run + known-unknowns surfacing (E3) built, pending PM review** (unreleased); Pathway 3 **E2 planned as a read-only, affected-slice/impact-cone enhancement cycle with PM-OS-product lineage, marketplace-strengthened scanning, decision interview, multi-surface stages 01–09, regression/check/handoff and explicit refresh** | `../plans/pm-os-entry-pathways-plan.md` E2.0–E2.7 |
 | Consistency spine (declarative invariant registry / coverage matrix / contract-lint / generation self-check) | A.0 defect cluster shipped (v1.4.1–v1.4.3); A.1–A.4 designed, not built | `../plans/pm-os-consistency-spine-plan.md` |
 | Delivery model (scope tiers + delivery increments) | Planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part B; backlog #28 |
 | Jira/Linear handoff | Jira export shipped (v1.2.0); Linear planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part C |

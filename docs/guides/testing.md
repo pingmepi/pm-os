@@ -91,6 +91,7 @@ tests/
 │   ├── test_install_verify_update.py  test_context_import.py  test_interview.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
 │   ├── test_artifact_contract_warnings.py
+│   ├── test_pm_interview.py           test_status_known_unknowns.py
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
@@ -259,6 +260,22 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_pm_new_enhancement_route_prints_guidance_only` — `--entry enhancement --codebase` reuses the existing enhancement scaffold path and prints `/pm-context-import --codebase` guidance, without adding Pathway 3 promotion mechanics.
 - `test_pm_new_route_recorded_in_telemetry` — `project_created` telemetry carries the selected `entry_route`.
 - `test_pm_new_noninteractive_defaults_to_new_without_entry` — non-tty runs with no `--entry`/`--mode` default to `new` and do not hang.
+
+**`test_pm_interview.py`** — standalone `/pm-interview` re-run (E3)
+- `test_list_unknowns_returns_open_items` — `list-unknowns --json` returns only open bullets (resolved excluded), each with question + source.
+- `test_list_unknowns_empty_when_no_file` — no `known-unknowns.md` → exit 0 and `[]`, never an error.
+- `test_resolve_marks_matched_unknowns_in_place` — an answered unknown is annotated `[resolved: …]` in place, keeps its text, and the other stays open.
+- `test_resolve_never_deletes` — resolve marks, never removes; the bullet count is unchanged.
+- `test_resolve_emits_rerun_telemetry` — resolve logs `interview_conducted` with `mode: rerun` and integer asked/answered/skipped counts.
+- `test_resolve_leaves_unanswered_open` — a skipped question stays open, never rewritten as an assumption.
+- `test_resolved_bullet_carries_provenance` — the resolved marker credits the newest PM interview source id and an ISO date.
+- `test_resolve_answers_file_consumed_noninteractively` — `--interview-answers` runs with no tty/prompt and resolves the matched unknown.
+- `test_resolve_skip_env_leaves_all_open` — `PM_OS_INTERVIEW=skip` resolves nothing, exits 0, and reports the unknowns remain open.
+- `test_pm_interview_end_to_end_resolves_and_records` — the full re-run (record-interview → resolve) closes answered unknowns with provenance, leaves skips open, registers the interview source, logs `mode: rerun`, and updates `/pm-status`.
+
+**`test_status_known_unknowns.py`** — `/pm-status` surfaces open known-unknowns (E3)
+- `test_status_shows_open_known_unknowns_count` — two open + one resolved bullet → `Known unknowns: 2 open`.
+- `test_status_no_known_unknowns_line_when_none` — with no file the line still prints, as `Known unknowns: 0 open`.
 
 **`test_stage_gates.py`** — the gate (`pre-stage.py`)
 - `test_gate_blocks_when_upstream_unapproved` — stage 02 blocked while 01 is pending; blocker named.
