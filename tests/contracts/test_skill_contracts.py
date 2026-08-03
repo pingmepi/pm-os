@@ -165,6 +165,39 @@ def test_context_import_skill_has_interview_step():
     assert "known unknown" in interface.get("default_prompt", "").lower()
 
 
+def test_pm_interview_skill_contract():
+    """E3: the standalone /pm-interview skill drives list-unknowns → record-interview → resolve,
+    keeps the coverage-driven interview contract, and never self-approves."""
+    sd = REPO_ROOT / "skills" / "pm-interview"
+    assert (sd / "SKILL.md").exists(), "pm-interview SKILL.md missing"
+    body = (sd / "SKILL.md").read_text()
+    # reads the open unknowns from the mechanical helper
+    assert "list-unknowns" in body
+    # reuses E1 answer-registration, then marks the addressed unknowns resolved
+    assert "record-interview" in body
+    assert "resolve" in body
+    # rerun answers are recorded once (no double-counted intake event) — Codex P2
+    assert "--mode rerun" in body
+    # reconciles answers against the context understanding rather than silently absorbing them,
+    # and recommends regenerating the context pack so answers reach downstream generation — Codex P1
+    assert "00-context-understanding.md" in body
+    assert "contradict" in body
+    assert "regenerat" in body
+    # coverage-driven interview contract (mirrors the E1 Step 4b contract)
+    assert "coverage-driven" in body
+    assert "strictly decreasing order of impact" in body
+    assert "not a fixed count" in body or "not a fixed numeric total" in body
+    assert "known unknown" in body
+    # non-interactive escape + gate discipline
+    assert "PM_OS_INTERVIEW" in body
+    assert "Do not self-approve" in body or "do not self-approve" in body
+
+    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text())
+    interface = data.get("interface", {}) if isinstance(data, dict) else {}
+    assert "$pm-interview" in interface.get("default_prompt", "")
+    assert "known unknown" in interface.get("default_prompt", "").lower()
+
+
 def test_prototype_html_uses_interaction_model_not_genai_flag():
     body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text()
     assert "Interaction model" in body

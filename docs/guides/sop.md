@@ -172,7 +172,10 @@ Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you a
 Claude: /pm-status               Codex: $pm-status
 Claude: /pm-feedback 03          Codex: $pm-feedback 03
 Claude: /pm-sync                 Codex: $pm-sync
+Claude: /pm-interview            Codex: $pm-interview
 ```
+
+**Known unknowns.** When you seed a project via `/pm-context-import`, any interview question you skip is recorded in `00-context/known-unknowns.md` as an open gap — never a silent assumption. `/pm-status` shows the count (`Known unknowns: N open`). Run `/pm-interview` any time to re-run the interview against just those still-open gaps: answers are registered as PM-authored context and the resolved gaps are marked in place (never deleted), so the audit trail stays intact.
 - `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
 - Run `pm-status` before resuming work to see which stages are drafted vs. approved.
 - Capture feedback while it's fresh — it's recorded locally in `feedback.jsonl` and feeds future improvement.
@@ -262,6 +265,7 @@ Re-running creates *new* tickets — it does not detect ones you already created
 | Validate artifact (03–05) | `/pm-validate-artifact 0N` | `$pm-validate-artifact 0N` |
 | Approve stage *N* | `/pm-approve 0N` | `$pm-approve 0N` |
 | Project status | `/pm-status` | `$pm-status` |
+| Re-run interview (open gaps) | `/pm-interview` | `$pm-interview` |
 | Capture feedback | `/pm-feedback 0N` | `$pm-feedback 0N` |
 | Sync telemetry/feedback | `/pm-sync` | `$pm-sync` |
 | Regenerate HTML prototype | `/pm-prototype-html` | `$pm-prototype-html` |

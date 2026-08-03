@@ -73,10 +73,11 @@ pm-os/
     pm-os-install/SKILL.md         # bootstrap installer
     pm-os-update/SKILL.md          # pull latest tagged release
     pm-new/SKILL.md                # scaffold new project
-    pm-status/SKILL.md             # show project state
+    pm-status/SKILL.md             # show project state (incl. open known-unknowns)
     pm-approve/SKILL.md            # approve current stage
     pm-feedback/SKILL.md           # manual feedback capture
-    pm-share/SKILL.md              # push artifacts to leadership share
+    pm-interview/SKILL.md          # standalone interview re-run vs. open known-unknowns
+    pm-handoff/SKILL.md            # single export skill (raw / package / Jira); pm-share folded in
     pm-context-import/SKILL.md     # context-intake: wiki + understanding doc + backfill
     pm-context-scan-docs/SKILL.md  # subagent: extract structured knowledge from source docs
     pm-context-scan-codebase/SKILL.md  # subagent: read-only codebase scan (enhancement mode)
@@ -227,7 +228,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -241,6 +242,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_generated`: `{ generated_hash, model, model_tier, prompt_version, notes }` — `model` is the actual model id the agent ran as (it fills in its own id); `model_tier` is derived from `config.deep_reasoning_stages` (not baked per-skill) so policy and telemetry can't drift
 - `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
 - `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (original design in `../archive/pm-os-ingest-plan.md`, §0 for the shipped shape). Raw original preserved under `.history/`; registry in `.sources.yaml`.
+- `interview_conducted`: `{ source_id?, mode?, asked, answered, skipped }` — a discovery-interview pass. Emitted at intake by `pm_context_import.py record-interview` (no `mode`; `source_id` of the registered answers), and on a standalone re-run by `pm_interview.py resolve` with `mode: "rerun"`. Skipped questions land in `00-context/known-unknowns.md` (open gaps, never assumptions); a re-run marks resolved gaps in place with provenance rather than deleting them.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
 - `stage_edited_post_approval`: `{ old_hash, new_hash, detected_via: "pre_stage_hook" }` — emitted by `hooks/pre-stage.py` when it re-hashes an approved upstream and finds drift
@@ -462,12 +464,14 @@ Feedback captured: <count> entries
 Telemetry events:  <count>
 ```
 
-### 7.8 `pm-share <NN>` (or `all`)
+### 7.8 `pm-handoff --raw <NN>` (or `all`) — formerly `pm-share`
+
+> The standalone `pm-share` skill was folded into the single `/pm-handoff` export skill (2026-07-28). `--raw` is the text-export mode; `--package` and the Jira modes are the others (see `ARCHITECTURE.md` and `generated-doc-formats.md`). The mechanics still live in `scripts/pm_share.py`.
 
 1. Resolve project from CWD.
 2. If `NN`: target one artifact. If `all`: target all `approved` artifacts.
 3. Verify status is `approved`.
-4. Push to configured share destination (MCP connector for Confluence/Drive/SharePoint). MVP can simply copy artifact paths to clipboard or print a summary block PM pastes manually — full MCP integration is post-demo.
+4. Emit the artifact bodies verbatim to stdout or a file — read-only, never touching gate/hash/status.
 
 ---
 

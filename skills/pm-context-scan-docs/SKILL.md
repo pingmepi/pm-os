@@ -15,7 +15,7 @@ Read every source thoroughly. Your output will be the sole evidence base for the
 # Inputs
 
 1. Read `.sources.yaml` to get the registered source list. Each entry has: `id` (src_NNN), `type`, `uri`, `snapshot` (path under `.history/`).
-2. For each source, read the file at `uri` (or the `snapshot` if the original is unavailable).
+2. For each source, read the file at `uri` (or the `snapshot` if the original is unavailable), using the tool that matches its format. `.md` / `.txt` read verbatim; `.pdf` / `.docx` via native reading or the `pdf` / `docx` skill; **`.pptx` / `.ppt` via the `pptx` skill** (extracts slide text, tables, and speaker notes — text-bearing decks read cleanly, not lossily); `.xlsx` / `.csv` via the `xlsx` skill or direct tabular read. Each source entry carries a `modality` field (`slides`, `spreadsheet`, `image`, …) and may arrive pre-tagged `extraction_quality: unverified` — that is a "confirm before trusting" flag, not a verdict that the source is unreadable. Read it properly first; only treat it as lossy if the content genuinely couldn't be carried as text (see below).
 3. Read `.meta.yaml` for `project_slug` and `genai_flag` context.
 
 # Extraction rules per section
@@ -59,9 +59,9 @@ For each section, state the confidence tier based on the sources:
 
 # Lossy source handling
 
-A source is lossy if it is a scanned/image-only PDF, a table-heavy multi-column layout, or a format that couldn't be cleanly read. For claims extracted from a lossy source:
+A source is lossy when its meaning cannot be carried by text extraction — a scanned/image-only PDF, a table-heavy multi-column layout that scrambles on extraction, or a deck/image whose content is diagram-, screenshot-, or layout-borne. A `.pptx` or `.xlsx` read through its skill is **not** lossy just because it is a binary/slide/sheet format: text, tables, and speaker notes extract cleanly. Do not treat a `slides`/`spreadsheet`/`image` modality (or an `unverified` pre-tag) as automatically lossy — judge it by whether you could actually recover the content. For claims extracted from a genuinely lossy source:
 - Cap confidence at Medium (never High)
-- Note the extraction quality inline: `_(extracted from scanned PDF — verify)_`
+- Note the extraction quality inline: `_(extracted from scanned PDF — verify)_` or `_(deck slide is diagram-only — verify)_`
 
 # Output format
 

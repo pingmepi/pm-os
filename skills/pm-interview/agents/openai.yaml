@@ -1,0 +1,4 @@
+interface:
+  display_name: "Re-run Interview"
+  short_description: "Re-run interview on open known unknowns"
+  default_prompt: "Use $pm-interview to re-run the interview against this project's open known unknowns and resolve them."

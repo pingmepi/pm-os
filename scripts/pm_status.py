@@ -22,6 +22,27 @@ STAGE_LABELS = {
 }
 
 
+def _open_known_unknowns(root):
+    """Open known-unknown questions (bullets with no [resolved: ...] marker), for display.
+
+    A trivial reader kept local to avoid a cross-script import; pm_interview.py owns the
+    authoritative parse. Format: '- <question> (source: <id>)' with an optional trailing
+    '[resolved: <src> <date>]' once closed by /pm-interview.
+    """
+    path = root / "00-context" / "known-unknowns.md"
+    if not path.exists():
+        return []
+    out, seen = [], set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- ") and "[resolved:" not in stripped:
+            q = stripped[2:].split(" (source:")[0].strip()
+            if q not in seen:  # one gap counts once, even if flagged by several sources
+                seen.add(q)
+                out.append(q)
+    return out
+
+
 def main():
     try:
         root = resolve_project()
@@ -125,6 +146,12 @@ def main():
     print()
     print(f"Feedback captured: {fc} entries")
     print(f"Telemetry events:  {tc}")
+
+    open_unknowns = _open_known_unknowns(root)
+    print()
+    print(f"Known unknowns: {len(open_unknowns)} open")
+    for q in open_unknowns[:3]:
+        print(f"  - {q}")
 
     print()
     try:

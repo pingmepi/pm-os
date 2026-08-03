@@ -1,6 +1,6 @@
 # PM-OS Modes, Delivery Model & Engineering Handoff Plan
 
-**Status:** 🟡 **Part A implemented (v0.5.9 / v0.6.0); Part B partially built; Part C partly shipped.** Enhancement mode shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c` codebase-understanding stage, `prepare-codebase` subcommand in `pm_context_import.py`, codebase drift signal in `pm_status.py`. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
+**Status:** 🟡 **Part A infrastructure implemented; its full enhancement pathway is E2 planned. Part B partially built; Part C partly shipped.** Enhancement plumbing shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c`, `prepare-codebase`, and a status-only drift signal. Stage 01 has delta framing; the affected-slice scanner, cycle lineage, baseline integrity, decision interview, multi-surface overlays for stages 02–09, regression/consistency, and delta-only handoff remain unbuilt and are now sequenced in `pm-os-entry-pathways-plan.md` E2. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming history — `/pm-share` ↔ `/pm-handoff` (canonical record; this file owns it).**
 > Two moves, net result one skill: **(1) 2026-07-15** — a local handoff-package generator briefly
@@ -47,13 +47,13 @@ The deterministic core (hashing, staleness cascade, telemetry, approval gates) i
 
 ## 2. Why enhancement mode reads the codebase
 
-For an already-built product, the most reliable source of current-state truth is the **code itself**, not a document the PM writes from memory. So enhancement mode does not ask the PM to author a context file. Instead:
+For an already-built product, a pinned codebase is the strongest source for **implemented structure and behavior**, but it is not the whole production truth: deployed release/configuration, feature flags, external services, data state, business intent, and compatibility promises may live elsewhere. Enhancement mode combines read-only code evidence, optional docs or a prior PM-OS project, and a narrow decision interview. It never treats scanned code as the enhancement scope by itself.
 
-1. PM-OS **reads the existing codebase** (read-only) and synthesizes a **Codebase Understanding** document.
+1. PM-OS **reads the existing codebase** (read-only), builds a cheap whole-repo inventory, then synthesizes an affected-slice + impact-cone **Codebase Understanding** document.
 2. That document is surfaced to the PM as the **first approval gate** — they review, correct any misreading, and approve.
-3. Only once the understanding is approved do downstream stages run, each **aligning the PM's request as a delta against that approved reality.**
+3. Only once the understanding and decision boundary are approved do downstream stages run, each **aligning the PM's request as a delta against that approved reality.**
 
-This gives the PM a natural, early correction point: if PM-OS misunderstands the product, it is caught and fixed at gate 0 rather than surfacing three stages later. PM-OS only ever **reads** the codebase — it never modifies it, staying true to "not a replacement for the dev team."
+This gives the PM a natural, early correction point: if PM-OS misunderstands the affected slice, it is caught at gate 0 rather than three stages later. PM-OS only ever **reads** the target codebase — it never writes files there, changes its checkout/index/worktree/ref, or runs a mutating build/install/format step. Generated outputs live in the PM-OS project.
 
 ---
 
@@ -71,8 +71,9 @@ This gives the PM a natural, early correction point: if PM-OS misunderstands the
 | 06 QA Plan | `06-qa-plan.md` | ✓ | ✓ |
 | 07 Metrics Plan | `07-metrics-plan.md` | ✓ | ✓ |
 | 08 TRD | `08-trd.md` | ✓ (optional) | ✓ (optional) |
+| 09 Roadmap | `09-roadmap.md` | ✓ (optional) | ✓ (optional; follow-on enhancement horizons only) |
 
-Numbering of stages 01–08 is unchanged, so existing projects and skills are unaffected. The business statement (the *ask*) and the codebase understanding (the *reality*) are both stage-00 grounding; the brief stays stage 01 and simply gains a second upstream input in enhancement mode. All stages remain present in both modes — **mode changes framing and depth, not stage presence** — which preserves the single-architecture guarantee.
+Numbering of stages 01–09 is unchanged, so existing projects and skills are unaffected. The business statement (the *ask*) and the codebase understanding (observed implementation evidence) are stage-00 grounding; the approved enhancement boundary supplies the binding delta. All stages remain present in both modes — **mode and affected surfaces change framing/content, not the linear approval architecture**.
 
 ---
 
@@ -82,19 +83,20 @@ A new skill that runs only when `project_type=enhancement`.
 
 **Pre-flight:** require `project_type=enhancement` and a resolvable `codebase_path` in `.meta.yaml`; otherwise stop with a clear message.
 
-**How it reads the codebase:** fan-out exploration via a read-only sub-agent (the **Explore** agent is purpose-built for this — broad codebase sweep, returns a digest, keeps the main session context clean). Large repositories stay tractable because the sub-agent reads excerpts and reports conclusions rather than loading whole trees. Cross-runtime note: Codex and Gemini CLI both have file/shell access and sub-agents, so this step is portable.
+**How it reads the codebase:** read-only, slice-first exploration. First create a cheap repository inventory; then trace the approved ask through its change surface and impact cone (dependencies/dependents, shared components, interfaces/events, data/schema, permissions, configuration/flags, tests, observability, deployment, consumers). Marketplace skills may strengthen this scan only through reviewed, commit-pinned PM-OS adapters; the portable PM-OS skill remains authoritative. Large repositories stay tractable because the agent reads evidence-bearing excerpts and widens only when dependencies or uncertainty require it.
 
-**Output — `00-codebase-understanding.md`** — proposed default sections (to be confirmed, see §9):
+**Output — `00-codebase-understanding.md`** — E2 target sections:
 
-- Current functionality & user-facing flows
-- Architecture & key modules
-- Data model
-- Tech stack & notable dependencies
-- Existing design language (tokens / components extracted from code)
-- Integration points & external surfaces
-- Known constraints & tech debt
+- Baseline identity and scan coverage/exclusions/confidence
+- Affected product slice: current behavior and evidence
+- Affected surfaces (`ui | api | data | service | event | integration | operations`)
+- Impact cone: dependencies, dependents, shared primitives, integrations, data and deployment
+- Existing invariants and explicit non-touch candidates
+- Relevant design/interface language and reusable primitives
+- Relevant tests, observability, rollout mechanisms, constraints and tech debt
+- Unknown/dynamic/unavailable boundaries that require interview or a widened scan
 
-Frontmatter records the **git SHA** the document was generated against (`codebase_ref`).
+Frontmatter records repository identity, requested ref, resolved/scan SHA, optional monorepo subpath, and dirty/non-reproducible status. The scan verifies start SHA = end SHA and never silently replaces an approved baseline.
 
 **Approval gate:** normal `draft → approve` flow. The PM reviews, edits to correct any misread, and approves. The stage-01 gate in enhancement mode requires stage 00 to be `approved`.
 
@@ -104,22 +106,26 @@ Frontmatter records the **git SHA** the document was generated against (`codebas
 
 Added to each existing `SKILL.md` as a "When `project_type=enhancement`:" block, mirroring the existing `genai_flag` precedent. Grounded in the approved understanding doc.
 
-| Stage | When `project_type=enhancement` |
+| Stage | Required enhancement behavior |
 |---|---|
-| 01 Brief | "Why now" → "Why this enhancement"; problem framed against the current-product gap; reads `00-codebase-understanding.md` |
-| 02 Scope | Add **Impact on existing features** + **Regression boundary** (what must not change); scope bounded by the current system |
-| 03 PRD | User stories as **deltas** (changed vs net-new); backward-compatibility & migration requirements |
-| 04 Design Spec | **Extend** the existing design system (from the understanding doc); reuse the existing component inventory rather than inventing tokens |
-| 05 Prototype Brief | Prototype the delta against existing screens, not a greenfield flow |
-| 06 QA Plan | Heavy **regression suite** for existing behavior + migration testing, alongside new-feature tests |
-| 07 Metrics Plan | **Baseline → target** framing (current numbers exist) + guardrails that existing metrics do not regress |
-| 08 TRD | Brownfield: integration with the existing architecture, migration path, tech-debt constraints |
+| **00c Codebase understanding** | Record the pinned read-only baseline, scan coverage/exclusions/confidence, current affected behavior, multi-surface impact cone, relevant existing primitives/tests/constraints, and unknown boundaries. Do not reconstruct the whole product. |
+| **00u Understanding** | Add a binding **Enhancement Boundary**: source-product/codebase baseline, current→target behavior, affected and explicit non-touch surfaces, regression invariants, compatibility/migration, success baseline/target, rollout/rollback constraints, blocking unknowns and accepted risks. |
+| **01 Brief** | Frame the current-product gap, affected users, why this enhancement now, and the delta success hypothesis. Existing-product description is context, not scope. |
+| **02 Scope** | Define change boundary, affected-surface matrix, impact/blast radius, explicit non-touch boundary, dependencies, and smallest coherent enhancement slice. |
+| **03 PRD** | Class every story/requirement `new | modified | removed`; state current→target behavior; trace to affected surfaces; include backward compatibility, migration, mixed-version and rollout requirements. |
+| **04 Design Spec** | Design only changed/new surfaces while preserving relevant existing context. UI: existing/modified/new screens and component reuse. API/data/service/event/integration/operations: interface contracts, schemas/migrations, service/event flows, integration/operational design. Never invent UI tokens or screens for a non-UI delta. |
+| **05 Prototype/validation brief** | Validate the delta using artifacts appropriate to each affected surface: UI prototype; API examples/mock contract; data migration/sample validation; service/event harness or sequence; integration sandbox/webhook cases; operational drill/runbook. Generate HTML only when UI is affected. |
+| **06 QA Plan** | Add delta acceptance tests plus an impact-based regression class tied to approved invariants; cover compatibility, migration/backfill, permissions, mixed versions, feature flags, rollback, and all affected surfaces. |
+| **07 Metrics Plan** | Use **baseline-status → target** framing: cite the available baseline or say it is unavailable and define how to establish it. Add guardrails for existing outcomes and surface-specific operational/data/API/UI risks; define rollout/rollback triggers. |
+| **08 TRD** | Produce a change-set against existing architecture: affected modules/interfaces/data/events/infra, integration and compatibility plan, migration/backfill, flags, observability, deployment/rollback, and delta-only tasks traced to requirements/tests. |
+| **09 Roadmap** | Scope rollout and follow-on enhancement horizons only; do not reopen or roadmap the whole existing product. |
+| **Handoff/check** | Export only delta work with change type, affected-surface/impact evidence, regression “must not break,” compatibility/migration/rollback notes, and baseline backlink; `/pm-check` warns on missing links or baseline mismatch. |
 
 ---
 
-## 6. Codebase drift (new staleness signal)
+## 6. Codebase baseline and drift
 
-The understanding doc is generated against a git SHA. If the code moves, the doc — and everything downstream — can be stale. `/pm-status` shows "understanding generated against `abc123`; current HEAD is `def456`," and re-running stage 00 regenerates and cascades staleness through the existing hash machinery. This is a softer signal than artifact-hash drift (the "upstream" here is external code rather than another PM-OS artifact), but it reuses the same plumbing.
+The approved enhancement is pinned to the exact baseline captured in `00c`; later movement of a supplied checkout must not silently rewrite that baseline. `/pm-status` reports pinned vs current, while `/pm-check` compares repository identity/ref fields across metadata, `00c`, and the checkout. The PM chooses either (a) continue deliberately against the pinned baseline or (b) explicitly refresh/rebase. Refresh regenerates `00c`; its normal approval causes the existing downstream staleness cascade. Preparation alone must never overwrite `codebase_ref` and make an old `00c` appear current.
 
 ---
 
@@ -135,7 +141,7 @@ Small and localized:
 - Telemetry — add `project_type` to `project_created` and stage payloads so the feedback repo can segment new-product vs enhancement.
 - Spec §2 / §8 / §13 updated to document the new dimension and stage.
 
-**Risk:** low. Additive flag + one new gate; the deterministic core is untouched.
+**Risk:** the shipped flag/gate plumbing is low-risk, but the full pathway is not: slice completeness, source-project lineage, baseline identity, multi-surface contracts, regression scope, and handoff correctness are cross-cutting. E2 therefore ships in the dependency order and acceptance matrix in `pm-os-entry-pathways-plan.md`, while keeping the existing status/hash/gate state machine authoritative.
 
 ---
 
@@ -243,7 +249,7 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 |---|---|---|---|
 | **A0** | `00c` codebase-understanding + Explore-based reading + drift signal | mode flag | ✅ shipped |
 | **A1** | Schema + `pm_new` (`--mode`, `--codebase`) + `pm_status` plumbing | — | ✅ shipped |
-| **A2** | Enhancement conditional blocks across stages 01–08; dogfood one real enhancement | A0, A1 | 🟡 dogfood open |
+| **A2 / E2** | Read-only affected-slice enhancement pathway: cycle lineage, baseline integrity, marketplace-strengthened impact scan, decision boundary, multi-surface conditional blocks across 01–09, regression/check/handoff, refresh and dogfood | A0, A1, entry-pathways E1/E3 | 🔴 unbuilt; development order in entry-pathways E2.0–E2.7 |
 | **B0** | Resolve the synthetic-epic vs. per-story export mismatch to one declared-Product-Epic Jira mapping (backlog #28) | — | ✅ shipped |
 | **B1** | Scope-tier attribute (`Tier:` on `US`/`FR`) + stage-02 tier declaration + stages 04–07 default-to-`mvp` filter | #19 shipped, B0 | 🔴 open |
 | **B2** | Tiered-fidelity contract (v2 mini-spec checks apply to `tier: mvp` only) + `/pm-promote` | B1 | 🔴 open |
@@ -257,12 +263,23 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 
 ## 12. Acceptance criteria
 
-**Part A (met):**
+**Part A infrastructure (met):**
 - [x] `/pm-new --mode enhancement --codebase <path>` scaffolds a project with `project_type=enhancement` and `codebase_path` set.
 - [x] `/pm-new` with no mode defaults to `new_product` and behaves exactly as today (no regression for greenfield).
 - [x] The `00c` understanding doc passes the normal draft → approve gate; stage 01 is blocked until it is approved.
-- [x] Enhancement conditional blocks activate in stages 01–08; `/pm-status` shows mode and codebase drift; telemetry records `project_type`.
+- [x] Stage 01 has enhancement framing; `/pm-status` shows mode and a status-only codebase drift warning; telemetry records `project_type`.
 - [x] No change to new-product behavior, hashing, staleness, or telemetry semantics.
+
+**Full enhancement pathway / E2 (target):**
+- [ ] Target repositories are read-only in practice and in tests; every output is written outside the target repo.
+- [ ] A lightweight repository inventory leads to an affected-slice/impact-cone `00c`, not a whole-product reconstruction; coverage/exclusions/confidence and widening decisions are explicit.
+- [ ] External products and products originally built with PM-OS both create separate enhancement cycles with correct baseline/source lineage; original PM-OS product artifacts remain unchanged.
+- [ ] `/pm-promote` is not part of pathway activation; fresh route correction and enhancement-cycle binding use unambiguous terminology and refuse unsafe late conversion.
+- [ ] Repository identity/ref is bound to `00c`; preparation cannot mask drift; refresh/rebase is explicit and cascades ordinary staleness.
+- [ ] The decision-focused interview produces an approved enhancement boundary and blocks on unresolved baseline/scope/regression/compatibility decisions unless risk is explicitly accepted.
+- [ ] The behavior table above is implemented across 00c/00u and stages 01–09 for UI, API, data, service, event, integration, and operations without forcing frontend artifacts onto non-UI work.
+- [ ] Regression invariants, affected surfaces, requirements, tests, tasks, rollout/rollback and the delta-only handoff are traceable and checked.
+- [ ] The full E2 acceptance matrix in `pm-os-entry-pathways-plan.md` passes, including marketplace-adapter safety, greenfield/prototype regression, migration, drift, monorepo, external-product and PM-OS-built-product dogfood.
 
 **Part B (target):**
 - [x] The synthetic-epic/per-story export mismatch is resolved to one declared-Product-Epic Jira mapping before any tier/increment work (B0).

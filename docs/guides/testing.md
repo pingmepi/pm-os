@@ -91,6 +91,7 @@ tests/
 │   ├── test_install_verify_update.py  test_context_import.py  test_interview.py  test_feedback.py
 │   ├── test_git_sync_local.py         test_telemetry_metrics.py
 │   ├── test_artifact_contract_warnings.py
+│   ├── test_pm_interview.py           test_status_known_unknowns.py
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
@@ -260,6 +261,23 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_pm_new_route_recorded_in_telemetry` — `project_created` telemetry carries the selected `entry_route`.
 - `test_pm_new_noninteractive_defaults_to_new_without_entry` — non-tty runs with no `--entry`/`--mode` default to `new` and do not hang.
 
+**`test_pm_interview.py`** — standalone `/pm-interview` re-run (E3)
+- `test_list_unknowns_returns_open_items` — `list-unknowns --json` returns only open bullets (resolved excluded), each with question + source.
+- `test_list_unknowns_empty_when_no_file` — no `known-unknowns.md` → exit 0 and `[]`, never an error.
+- `test_resolve_marks_matched_unknowns_in_place` — an answered unknown is annotated `[resolved: …]` in place, keeps its text, and the other stays open.
+- `test_resolve_never_deletes` — resolve marks, never removes; the bullet count is unchanged.
+- `test_resolve_emits_rerun_telemetry` — resolve logs `interview_conducted` with `mode: rerun` and integer asked/answered/skipped counts.
+- `test_resolve_leaves_unanswered_open` — a skipped question stays open, never rewritten as an assumption.
+- `test_resolved_bullet_carries_provenance` — the resolved marker credits the newest PM interview source id and an ISO date.
+- `test_resolve_answers_file_consumed_noninteractively` — `--interview-answers` runs with no tty/prompt and resolves the matched unknown.
+- `test_resolve_skip_env_leaves_all_open` — `PM_OS_INTERVIEW=skip` resolves nothing, exits 0, and reports the unknowns remain open.
+- `test_rerun_flow_emits_single_event` — `record-interview --mode rerun` stays silent so the rerun logs exactly one `interview_conducted` (`mode: rerun`), not a double-counted intake + rerun (Codex P2).
+- `test_pm_interview_end_to_end_resolves_and_records` — the full re-run (`record-interview --mode rerun` → resolve) closes answered unknowns with provenance, leaves skips open, registers the interview source, logs exactly one `mode: rerun` event, and updates `/pm-status`.
+
+**`test_status_known_unknowns.py`** — `/pm-status` surfaces open known-unknowns (E3)
+- `test_status_shows_open_known_unknowns_count` — two open + one resolved bullet → `Known unknowns: 2 open`.
+- `test_status_no_known_unknowns_line_when_none` — with no file the line still prints, as `Known unknowns: 0 open`.
+
 **`test_stage_gates.py`** — the gate (`pre-stage.py`)
 - `test_gate_blocks_when_upstream_unapproved` — stage 02 blocked while 01 is pending; blocker named.
 - `test_gate_allows_first_stage_after_00_approved` — stage 01 gate passes once 00 is approved.
@@ -344,7 +362,7 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.
 - context-import: register (preserve + `.sources.yaml` + `context_ingested`); preflight feasible/infeasible exit codes; commit (unknown stage / missing slot fail; generated wiki draft logs model+prompt_version; backfilled-approved records origin); imported Stage 03–05 artifacts preserve source content, approve with visible contract findings, and log `artifact_validation_warning`.
 - interview: `record-interview` registers answers as high-confidence PM-authored context (`test_record_interview_registers_pm_authored_source`); skipped questions become `00-context/known-unknowns.md` entries, not assumptions (`test_record_interview_records_skips_as_known_unknowns`); `interview_conducted` telemetry carries asked/answered/skipped counts (`test_record_interview_emits_telemetry`); `--interview-answers` is consumed without prompting (`test_interview_answers_file_is_consumed_noninteractively`); `PM_OS_INTERVIEW=skip` records all pending questions as known unknowns and exits 0 (`test_interview_skip_env_records_all_as_known_unknowns`); a non-tty pending-questions file does the same without env (`test_interview_non_tty_questions_file_records_known_unknowns`); the pathway-2 e2e path ties PM interview source provenance to backfilled upstream commits (`test_pathway2_import_with_interview_raises_backfill_fidelity`).
-- adaptive context pack (v4): `register` ingests images/PPTX/XLSX with deterministic `modality` and lossy-by-default flags (`test_register_classifies_new_formats_with_modality`); `pack-manifest` builds a fixed-order manifest with per-member hashes and stamps `context_pack` into meta (`test_pack_manifest_builds_fixed_order_and_records_meta`); `pack-validate` detects a post-build member edit (`test_pack_validate_detects_post_build_edit`); committing/approving a 00w with a pack uses the composite hash, not the index body hash (`test_composite_00w_commit_and_approve_uses_composite_hash`); editing any pack member is drift through the real pre-stage gate (`test_editing_pack_member_is_drift_through_gate`); an unsafe manifest blocks approval (`test_invalid_pack_manifest_blocks_approval`); `upgrade-pack` snapshots the flat wiki, scaffolds `00-context/`, and drafts 00w without re-approving (`test_upgrade_pack_snapshots_flat_wiki_and_drafts`).
+- adaptive context pack (v4): `register` ingests images/PPTX/XLSX with deterministic `modality` and pre-tags maybe-lossy modalities `extraction_quality: unverified` — a confirm-before-trusting flag the SKILL resolves to clean/lossy after reading with the matching skill, not a verdict (`test_register_classifies_new_formats_with_modality`); `pack-manifest` builds a fixed-order manifest with per-member hashes and stamps `context_pack` into meta (`test_pack_manifest_builds_fixed_order_and_records_meta`); `pack-validate` detects a post-build member edit (`test_pack_validate_detects_post_build_edit`); committing/approving a 00w with a pack uses the composite hash, not the index body hash (`test_composite_00w_commit_and_approve_uses_composite_hash`); editing any pack member is drift through the real pre-stage gate (`test_editing_pack_member_is_drift_through_gate`); an unsafe manifest blocks approval (`test_invalid_pack_manifest_blocks_approval`); `upgrade-pack` snapshots the flat wiki, scaffolds `00-context/`, and drafts 00w without re-approving (`test_upgrade_pack_snapshots_flat_wiki_and_drafts`).
 - feedback: rating/note → `feedback.jsonl` + `feedback_submitted`; skip flags; non-tty requires rating; unknown stage fails.
 - `git_sync_local` *(connection)*: approval pushes to a **local bare** feedback repo (real git path, `PM_OS_SYNC_BLOCKING=1` inline mode the fixture defaults to); the deferred default backgrounds the push so approval returns immediately yet the detached push still lands centrally (`test_deferred_approval_sync_does_not_block`, backlog #6); two syncs racing on the single shared cache serialize via the mkdir cache lock so both projects' telemetry lands instead of colliding on clone/index-lock/non-fast-forward (`test_concurrent_syncs_serialize_via_cache_lock`, Codex PR #34 follow-up); `pm_sync` backfills all projects; `--verify` reports chains intact.
 
