@@ -208,6 +208,69 @@ def test_package_overview_and_reference_docs(pmos, new_project):
     assert "under 2s" in (pkg / "qa" / "reference" / "nfrs.md").read_text()
 
 
+_PROJ_DESIGN = """## Information Architecture
+### SCR-001 — Agency list
+Purpose: list agencies for the collections user.
+## Design Principles
+Clarity first.
+## Color Tokens
+- Primary: #2D6CDF
+"""
+
+_PROJ_TRD = """## Architecture Overview
+A single SPA talks to exactly one gateway backend.
+## Work Breakdown
+### TSK-001 — Build agency store (implements FR-001)
+Create the persistence layer for agencies.
+"""
+
+
+def test_package_projects_prd_trd_into_dev_and_design_spec_into_design(pmos, new_project):
+    """Dev gets the full PRD + TRD as read-only reference projections; design gets the full
+    design spec — the source-of-truth docs behind the decomposed stories/epics (PMOS-002).
+    Each is scoped to its audience and wired into the README with a valid link."""
+    proj = new_project("handoff-projections", "A problem")
+    # Approve 04 before 06 so approving the design spec doesn't stale-cascade the QA plan;
+    # 08 last (nothing downstream to cascade).
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD),
+                        ("04", _PROJ_DESIGN), ("06", _QA), ("08", _PROJ_TRD)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0, stage
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    pkg = proj / "handoff"
+
+    dev_prd = (pkg / "dev" / "reference" / "prd.md").read_text()
+    assert "Product Requirements (PRD)" in dev_prd and "US-001" in dev_prd
+    dev_trd = (pkg / "dev" / "reference" / "trd.md").read_text()
+    assert "Architecture Overview" in dev_trd and "TSK-001" in dev_trd
+    design_spec = (pkg / "design" / "reference" / "design-spec.md").read_text()
+    assert "Information Architecture" in design_spec and "SCR-001" in design_spec
+
+    dev_readme = (pkg / "dev" / "README.md").read_text()
+    assert "[Product requirements (PRD)](reference/prd.md)" in dev_readme
+    assert "[Technical requirements (TRD)](reference/trd.md)" in dev_readme
+    assert "[Design spec](reference/design-spec.md)" in (pkg / "design" / "README.md").read_text()
+
+    # Scoping: PRD/TRD are dev-only; the design spec is design-only.
+    assert not (pkg / "design" / "reference" / "prd.md").exists()
+    assert not (pkg / "design" / "reference" / "trd.md").exists()
+    assert not (pkg / "dev" / "reference" / "design-spec.md").exists()
+
+
+def test_package_projects_absent_optional_sources_as_notes(pmos, new_project):
+    """When the TRD/design spec are not approved, their dev/design projections are still
+    emitted (so the README links never dangle) but carry an explicit 'not approved' note
+    instead of a body."""
+    proj = new_project("handoff-absent-opt", "A problem")
+    _approve_pipeline(pmos, proj)  # no 04/08 approved
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    pkg = proj / "handoff"
+    assert "Stage 08 (TRD) is not approved" in (pkg / "dev" / "reference" / "trd.md").read_text()
+    assert "Stage 04 (design spec) is not approved" in (pkg / "design" / "reference" / "design-spec.md").read_text()
+    # PRD is always approved (gated), so its projection carries the real body.
+    assert "US-001" in (pkg / "dev" / "reference" / "prd.md").read_text()
+
+
 def test_package_is_read_only_and_does_not_touch_state_machine(pmos, new_project):
     """Generating the package must not change .meta.yaml, artifact hashes, or statuses."""
     proj = new_project("handoff-readonly", "A problem")

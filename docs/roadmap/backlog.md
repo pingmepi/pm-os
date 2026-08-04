@@ -697,11 +697,52 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 **Severity:** mixed — see the issue for per-item severity.
 **Status:** 🟠 Open (triage done; not started). GitHub #63.
 
-Much of the #63 register was run against an older project snapshot and is already fixed here (PMOS-007→#36, PMOS-009→#34, PMOS-019(partial)→#32, plus #30/#33/#35). A second set is **project-content** defects in that project's own artifacts (MVP-vs-V1 architecture, TLS verification, priority-vs-gate), not engine bugs — they map to the still-unbuilt cross-stage semantic-check capability (#4, #27). The genuinely-open **engine** items to schedule: import-time secret scanning + path sanitization (PMOS-001/025), dev-package completeness + source-path resolution (PMOS-002/003), epic-title markdown normalization (PMOS-011), Jira export hierarchy/self-containment/planning fields (PMOS-012/013/014), handoff clean-state manifest + prototype dedupe (PMOS-024/026), and the approval-vs-validation-execution split (PMOS-006/020/021, overlaps #26). Not scoped into the #59–#62 fix branch.
+Much of the #63 register was run against an older project snapshot and is already fixed here (PMOS-007→#36, PMOS-009→#34, PMOS-019(partial)→#32, plus #30/#33/#35). A second set is **project-content** defects in that project's own artifacts (MVP-vs-V1 architecture, TLS verification, priority-vs-gate), not engine bugs — they map to the still-unbuilt cross-stage semantic-check capability (#4, #27). The genuinely-open **engine** items to schedule: import-time secret scanning + path sanitization (PMOS-001/025, incl. PMOS-003 imported-source `context/…` path resolution), Jira export hierarchy/self-containment/planning fields (PMOS-012/013/014), handoff clean-state manifest + prototype dedupe (PMOS-024/026), and the approval-vs-validation-execution split (PMOS-006/020/021, overlaps #26). Not scoped into the #59–#62 fix branch.
+
+**Progress:** PMOS-011 fixed (→ #41); the dev-package half of PMOS-002 — full PRD/TRD/design-spec projections — fixed (→ #42). PMOS-003's `context/…` path resolution stays open and folds into the PMOS-001/025 source-path sanitization work above.
 
 ---
 
 _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63); entries 37-39 fixed the same day on `fix/gh-issues-59-62` with tests; entry 40 is triage-only. Lands via the normal commit → push → `pm_os_update.py` path._
+
+---
+
+## 41. 🟢 Epic titles carried a dangling `**` into filenames, headings, and the Jira plan (PMOS-011)
+
+**Severity:** P2 — malformed Markdown in an entity identifier propagates everywhere the title is reused.
+**Status:** 🟢 **Fixed** (branch `fix/handoff-update-polish`), pending release. GH #63 / PMOS-011.
+
+**Root cause:** `lib/delivery_map.strip_decl` removes a *leading* `**` together with the id, and its final `.strip("*")` only trims edge asterisks — so a bold-wrapped declaration like `**EPIC-008: …Resilience** (cross-cutting)` leaves a **mid-string** dangling `**` that flowed into `title_of` → `Epic.title` → handoff filenames/headings and the Jira export (`pm_handoff.py` uses the same delivery map).
+
+**Fixed:** added `normalize_title` in `lib/delivery_map.py` (drops emphasis markers, collapses the whitespace they leave; doubled-underscore only, so snake_case survives) and applied it in `title_of`. Hardened the parallel `_title_of`/`_story_title` helpers in `pm_handoff.py` and `pm_share.py` for parity. Tests: `tests/unit/test_delivery_map.py`.
+
+---
+
+## 42. 🟢 Dev handoff omitted the PRD/TRD; design handoff omitted the design spec (PMOS-002)
+
+**Severity:** P1 — the audience packages carried decomposed stories/epics but not the source-of-truth documents behind them, so a dev couldn't read the full PRD/TRD (or a designer the full design spec) from within the package.
+**Status:** 🟢 **Fixed** (branch `fix/handoff-update-polish`), pending release. GH #63 / PMOS-002.
+
+**Note:** the *TSK task* half of PMOS-002 was already resolved — the Phase-3.5b spine embeds each story's implementing `TSK-###` tasks. What was missing was whole-artifact projections.
+
+**Fixed:** `scripts/pm_share.py` now emits full read-only projections — `dev/reference/prd.md`, `dev/reference/trd.md`, and `design/reference/design-spec.md` — stamped with the source content hash like every other projection. They are always emitted (so README/HTML links never dangle); a not-yet-approved optional source (TRD/design spec) projects an explicit note instead of a body. New `AUDIENCE_CATEGORIES` entries (`prd_full`/`trd_full` → dev, `design_spec_full` → design) plus README + HTML index wiring. `skills/pm-handoff/SKILL.md` updated. Tests: `test_package_projects_prd_trd_into_dev_and_design_spec_into_design`, `test_package_projects_absent_optional_sources_as_notes`.
+
+**Not included:** a separately-navigable architecture/API breakout beyond the full TRD body, and PMOS-003's `context/…` path resolution (that is imported-artifact source-path sanitization — the PMOS-025 area, tracked in #40 — not a handoff-generator defect).
+
+---
+
+## 43. 🟢 Offline-zip install had a dead-end `pm_os_update` message
+
+**Severity:** P3 — an offline (`install.sh --source`) install has no `.git`, so `pm_os_update.py` can't fast-forward; the old message ("manually replace ~/.pm-os") gave no actionable path.
+**Status:** 🟢 **Fixed** (branch `fix/handoff-update-polish`), pending release.
+
+**Root cause (confirmed):** `pm_os_package.sh` builds the zip via `git archive` (no `.git`), and `install.sh --source` rsyncs with `--exclude='/.git/'`, so `~/.pm-os` is not a git repo. `pm_os_update.py` correctly detects this but its guidance was a dead end.
+
+**Fixed:** the non-git branch of `pm_os_update.py` now explains this is an offline install and gives the real update path (get a fresh `pm-os-offline.zip`, re-run `install.sh --source`, which preserves config + `context/`), and points machines with git+network at a git-tracked reinstall. Docs (`offline-install.md` §3) already state the same; no update-capability change (per the chosen minimal scope).
+
+---
+
+_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests (PR #65). #37-40 merged via PR #64. Lands via commit → push → `pm_os_update.py`._
 
 ---
 
