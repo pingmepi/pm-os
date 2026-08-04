@@ -1,23 +1,65 @@
 # Changelog
 
-## Unreleased
+## 1.4.7 — 2026-08-04
+
+### Added
+- **Full PRD/TRD/design-spec projections in the audience handoff packages (GH #63 / PMOS-002).** Each audience folder now carries the source-of-truth document behind its decomposed stories/epics — `dev/reference/prd.md` + `dev/reference/trd.md`, `design/reference/design-spec.md` — as read-only, source-hash-stamped projections (`scripts/pm_share.py`). They are always emitted so README/HTML links never dangle; a not-yet-approved optional source (TRD/design spec) projects an explicit "not approved" note instead of a body. New `AUDIENCE_CATEGORIES` entries (`prd_full`/`trd_full` → dev, `design_spec_full` → design) plus README + HTML index wiring; `skills/pm-handoff/SKILL.md` updated.
+
+### Fixed
+- **Entity titles no longer leak a dangling `**` (GH #63 / PMOS-011).** A bold-wrapped `EPIC-###`/`US-###`/`TSK-###` declaration whose opening `**` was consumed with the id left a mid-string dangling `**` that flowed into handoff filenames/headings and the Jira plan. New `normalize_title` in `lib/delivery_map.py` clears it (snake_case survives); applied in `title_of` and the parallel helpers in `pm_handoff.py`/`pm_share.py`.
+- **Offline-zip install gets an actionable `pm_os_update` message.** An offline (`install.sh --source`) install has no `.git`, so the git fast-forward can't run; the non-git branch of `pm_os_update.py` now explains this and gives the real update path (re-apply a fresh `pm-os-offline.zip`, which preserves config + `context/`) instead of a dead-end "manually replace" note.
+
+## 1.4.6 — 2026-08-04
+
+### Fixed
+- **Import can no longer stamp a raw prototype into an approved stage with no upstream stages (GH #59/#60).** `/pm-context-import commit … --status approved` now blocks when any upstream stage is `pending`/absent — stopping the E3 prototype-as-input pathway from adopting an imported prototype straight into an approved stage 05 with no brief/scope/PRD/design behind it. A deliberate partial import can opt out with `--allow-missing-upstream`; imported artifacts are stamped `fidelity: unverified` (adoption ≠ runtime-verified).
+- **`/pm-approve` reconciles a drifted `pending` frontmatter status (GH #61).** A real, generated artifact whose frontmatter `status` regressed to `pending` (failed hook / interrupted write / hand-edit) is no longer refused as "not generated yet": approve reconciles against ground truth (non-empty body + a `stage_generated`/`stage_imported`/`stage_backfilled` event) and proceeds; a genuinely empty/eventless slot still stops.
+- **Color tokens render as swatches in the HTML companions (GH #62).** `lib/html_render.py` now prefixes each `#RGB`/`#RRGGBB`/`rgb()`/`rgba()` literal with an inline-styled swatch in the design-spec and prototype companions instead of showing a bare hashcode; `#`-prefixed non-colors (e.g. `#SCR-001`) are left untouched.
+
+## 1.4.5 — 2026-08-03
+
+### Added
+- **Standalone `/pm-interview` (E3).** A project seeded via `/pm-context-import` can now re-run the discovery interview on demand against the still-open `00-context/known-unknowns.md` gaps — instead of only during the initial intake. It registers answers as high-confidence PM-authored context (reusing `pm_context_import.py record-interview`), marks resolved gaps in place, and logs an `interview_conducted` `mode:rerun` event; `/pm-status` surfaces the open known-unknown count. Mechanics in `scripts/pm_interview.py`.
 
 ### Changed
 - **Decks/sheets are read with the `pptx`/`xlsx` skills, not pre-condemned as lossy.** Context import used to stamp every `.pptx`/`.xlsx`/image `extraction_quality: lossy` at registration, purely from the file extension and before any content was read — so a normal text-bearing deck showed up "consumed but lossy" in `00-context/sources.md` and had its claims capped at Medium confidence, even though its text/tables/notes extract cleanly. Two fixes: (1) the intake and doc-scan skills (`pm-context-import`, `pm-context-scan-docs`) now route `.pptx`/`.ppt` through the `pptx` skill and `.xlsx`/`.csv` through the `xlsx` skill before any generic read, and only flag a source lossy when its meaning is genuinely image-/diagram-/layout-borne; (2) `scripts/pm_context_import.py` now pre-tags those modalities `extraction_quality: unverified` — a confirm-before-trusting flag the SKILL resolves to `clean`/`lossy` after actually reading — instead of the standing `lossy` verdict (`LOSSY_BY_DEFAULT` → `UNVERIFIED_BY_DEFAULT`). `test_register_classifies_new_formats_with_modality` and `docs/guides/testing.md` updated to match.
+
+### Fixed
+- **Interview-primitive Codex-review fixes.** A `stage_generated`-style telemetry event for the interview was double-counted (P2), and recorded interview answers were reconciled against the existing known-unknowns so a re-run updates rather than duplicates them (P1).
+
+## 1.4.4 — 2026-08-02
+
+### Docs
+- **Plans and roadmaps reconciled.** Cross-doc contradictions, drift, and repetition were resolved across `docs/plans/` and `docs/roadmap/`, and the documented `.meta.yaml` schema version was corrected to v5 (Codex review). Documentation only.
+
+## 1.4.3 — 2026-08-02
+
+### Added
+- **Prototype entry pathway + interview (E0–E1).** A new entry route lets a PM start from an existing prototype rather than a blank business statement, with a scoped entry interview that seeds the context intake. First of the multi-pathway entry model (idea / prototype / live-product) that `/pm-interview` (E3, v1.4.5) later built on.
+
+## 1.4.2 — 2026-08-01
+
+### Fixed
+- **Seven v1.4.1 consistency defects (backlog #30–#36).** A cluster surfaced by a v1.4.1 dogfooding pass: `/pm-check` reporting every generated snapshot "unreadable" (a missing import); an approval that could leave a partially-transitioned pipeline (the new `DOWNSTREAM_UPSTREAM_STALE` detector); the traceability resolver silently dropping `NFR-###` identifiers; generated story files that could carry invalid YAML frontmatter; business-audience epic files with dangling story links; global Information-Architecture prose leaking into per-story files; and per-story handoff packages overstating screen scope (journey-inflated). Each verified against the code before fixing.
+
+## 1.4.1 — 2026-07-30
+
+### Added
+- **Backend work per story in the handoff package (dev-lead feedback).** When the TRD (stage 08) is approved, each `dev`/`qa` story file gains a **"Backend work (TRD tasks)"** section listing the `TSK-###` tasks that implement the story's requirements — the local-package counterpart of the Jira export's Subtasks, and the backend half of the same dev-lead ask that drove the screen links. Resolved through the fresh traceability spine over the story's FRs (so a non-approved TRD contributes nothing), with a `**Backend tasks:**` traceability line and the TRD added to the story's provenance. A project with no approved TRD degrades to `— not captured in source —`, same as screens without a design spec.
+
+## 1.4.0 — 2026-07-28
+
+### Changed
 - **`/pm-share` folded into `/pm-handoff` — one export skill.** The separate `pm-share` skill is retired; `/pm-handoff` now covers all three export shapes behind one argument grammar: `--raw [stage_id]` (the old raw text dump), `--package [--audience dev|design|qa|business]` (the readable handoff package), and the existing Jira export (bare / `jira` / `jira --offline`). `scripts/pm_share.py` is unchanged and still runs the raw/package mechanics — only the skill entrypoint moved. The Jira flow now also refreshes the local package first (skippable with `--no-package-refresh`). This reverses the earlier 2026-07-15 merge that folded a local generator *into* `/pm-share`; see the follow-up note in `docs/plans/pm-os-modes-delivery-and-handoff-plan.md`.
 - **Handoff package is split by audience.** `/pm-handoff --package` now writes `handoff/{dev,design,qa,business}/`, each folder carrying only what that audience needs (stories in dev/qa, epics in dev/business, the overview in business, the screen map + prototype in design/qa, etc.; cross-audience docs are duplicated whole). `--audience <name>` rebuilds a single folder and leaves the others untouched; omitting it rebuilds all four. The destructive wipe-with-marker guard moved down from the `handoff/` root to each `handoff/<audience>/`, so `pm_handoff.py`'s root-level `jira-plan.*`/`jira-import.*` files can no longer collide with a package build in either run order (previously an unmarked `handoff/` from a Jira run would make a later `--package` refuse).
 
 ### Added
 - **Screen deep-links in the handoff package (backlog #29, dev-lead feedback).** Every screen a story touches — and every row of `reference/screen-map.md` — now links directly into the copied interactive prototype at `wireframes/prototype.html#SCR-###`. `pm-prototype-html` (`prompt_version` 0.3.0) requires each screen container to carry an `id="SCR-###"` anchor plus a hash-router, `validate_prototype_html` enforces it (new `SCREEN_ANCHOR_MISSING` error), and the lo-fi fallback renderer (`render_prototype_mockup`) emits the same anchors. A prototype generated before this change still copies in and links — as a plain link, never a dead hash — so existing projects degrade safely; regenerate with `/pm-prototype-html` to get the anchors.
-- **Backend work per story in the handoff package (dev-lead feedback).** When the TRD (stage 08) is approved, each `dev`/`qa` story file gains a **"Backend work (TRD tasks)"** section listing the `TSK-###` tasks that implement the story's requirements — the local-package counterpart of the Jira export's Subtasks, and the backend half of the same dev-lead ask that drove the screen links. Resolved through the fresh traceability spine over the story's FRs (so a non-approved TRD contributes nothing), with a `**Backend tasks:**` traceability line and the TRD added to the story's provenance. A project with no approved TRD degrades to `— not captured in source —`, same as screens without a design spec.
-- **Full PRD/TRD/design-spec projections in the audience handoff packages (v1.4.7, GH #63 / PMOS-002).** Each audience folder now carries the source-of-truth document behind its decomposed stories/epics — `dev/reference/prd.md` + `dev/reference/trd.md`, `design/reference/design-spec.md` — as read-only, source-hash-stamped projections (`scripts/pm_share.py`). They are always emitted so README/HTML links never dangle; a not-yet-approved optional source (TRD/design spec) projects an explicit "not approved" note instead of a body. New `AUDIENCE_CATEGORIES` entries (`prd_full`/`trd_full` → dev, `design_spec_full` → design) plus README + HTML index wiring; `skills/pm-handoff/SKILL.md` updated.
 
-### Fixed
-- **Import can no longer stamp a raw prototype into an approved stage with no upstream stages (v1.4.6, GH #59/#60).** `/pm-context-import commit … --status approved` now blocks when any upstream stage is `pending`/absent — stopping the E3 prototype-as-input pathway from adopting an imported prototype straight into an approved stage 05 with no brief/scope/PRD/design behind it. A deliberate partial import can opt out with `--allow-missing-upstream`; imported artifacts are stamped `fidelity: unverified` (adoption ≠ runtime-verified).
-- **`/pm-approve` reconciles a drifted `pending` frontmatter status (v1.4.6, GH #61).** A real, generated artifact whose frontmatter `status` regressed to `pending` (failed hook / interrupted write / hand-edit) is no longer refused as "not generated yet": approve reconciles against ground truth (non-empty body + a `stage_generated`/`stage_imported`/`stage_backfilled` event) and proceeds; a genuinely empty/eventless slot still stops.
-- **Color tokens render as swatches in the HTML companions (v1.4.6, GH #62).** `lib/html_render.py` now prefixes each `#RGB`/`#RRGGBB`/`rgb()`/`rgba()` literal with an inline-styled swatch in the design-spec and prototype companions instead of showing a bare hashcode; `#`-prefixed non-colors (e.g. `#SCR-001`) are left untouched.
-- **Entity titles no longer leak a dangling `**` (v1.4.7, GH #63 / PMOS-011).** A bold-wrapped `EPIC-###`/`US-###`/`TSK-###` declaration whose opening `**` was consumed with the id left a mid-string dangling `**` that flowed into handoff filenames/headings and the Jira plan. New `normalize_title` in `lib/delivery_map.py` clears it (snake_case survives); applied in `title_of` and the parallel helpers in `pm_handoff.py`/`pm_share.py`.
-- **Offline-zip install gets an actionable `pm_os_update` message (v1.4.7).** An offline (`install.sh --source`) install has no `.git`, so the git fast-forward can't run; the non-git branch of `pm_os_update.py` now explains this and gives the real update path (re-apply a fresh `pm-os-offline.zip`, which preserves config + `context/`) instead of a dead-end "manually replace" note.
+## 1.3.12 — 2026-07-28
+
+### Docs
+- **Part 1 roadmap fixes synced.** Roadmap/tracking docs reconciled with the shipped Part 1 integrity stack (v1.3.6–v1.3.11). Documentation only.
 
 ## 1.3.6-1.3.11 — 2026-07-28
 
