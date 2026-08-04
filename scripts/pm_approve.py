@@ -37,6 +37,27 @@ def _latest_generated_snapshot(project_root: Path, apath: Path):
     return matches[-1] if matches else None
 
 
+def _has_generation_evidence(project_root: Path, stage_id: str, apath: Path) -> bool:
+    """True when the stage was really produced despite a 'pending' frontmatter.
+
+    Ground truth is a non-empty artifact body plus a telemetry event that marks
+    the stage as having been produced through any path (generated, imported, or
+    backfilled). Used to reconcile a drifted `status` field so a real artifact is
+    not misreported as ungenerated (GH #61).
+    """
+    try:
+        _fm, body = fm_read(str(apath))
+    except Exception:
+        return False
+    if not body.strip():
+        return False
+    for event_type in ("stage_generated", "stage_imported",
+                       "stage_backfilled", "stage_backfilled_draft"):
+        if last_event(project_root, event_type, stage_id) is not None:
+            return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Approve a PM-OS stage artifact.")
     parser.add_argument("stage_id", help="Two-digit stage number (e.g. '01')")
@@ -99,11 +120,24 @@ def main():
         reapproved_from_approved = True
 
     if current_status == "pending":
-        cmd = stage_command(stage_id)
-        print(f"Stage {stage_id} has not been generated yet. Generate it first:")
-        print(f"  Claude: /{cmd}")
-        print(f"  Codex:  ${cmd}")
-        sys.exit(1)
+        # The frontmatter `status` field can drift out of sync with reality: a
+        # stage may have been generated (body written, `stage_generated` /
+        # `stage_imported` / `stage_backfilled` telemetry recorded) yet still read
+        # `pending` — e.g. a failed post-hook, an interrupted write, or a
+        # hand-edit that reset the field. Refusing purely on that field wrongly
+        # reports a real, generated artifact as "not generated yet" (GH #61).
+        # Reconcile from ground truth (a non-empty body + a generation event)
+        # before bailing out; only a genuinely ungenerated slot still stops here.
+        if _has_generation_evidence(project_root, stage_id, apath):
+            print(f"Note: stage {stage_id} frontmatter read 'pending' but a generation "
+                  "event and body are present — reconciling to 'draft' and approving.")
+            current_status = "draft"
+        else:
+            cmd = stage_command(stage_id)
+            print(f"Stage {stage_id} has not been generated yet. Generate it first:")
+            print(f"  Claude: /{cmd}")
+            print(f"  Codex:  ${cmd}")
+            sys.exit(1)
 
     validation_findings = []
     if stage_id in {"03", "04", "05", "06", "08"}:

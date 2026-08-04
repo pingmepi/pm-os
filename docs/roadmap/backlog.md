@@ -655,6 +655,58 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 
 ---
 
+## 37. 🟢 Import can stamp a raw prototype into an approved stage with no upstream stages (E3 guardrail gap)
+
+**Severity:** P1 — the E3 prototype-as-input pathway could adopt an imported HTML prototype straight into an approved stage 05 with no brief/scope/PRD/design behind it; the agent then treats the pipeline as complete and jumps ahead to prototyping.
+**Status:** 🟢 **Fixed** (branch `fix/gh-issues-59-62`), pending release. GitHub #59, #60.
+
+**Symptom:** `/pm-context-import commit <NN> --kind imported --status approved` had no upstream-presence check. A prototype provided as project input was recorded as an approved, functional-looking stage 05, so downstream gates saw a "done" pipeline.
+
+**Root cause:** `scripts/pm_context_import.py cmd_commit` (approved branch) computed upstream stage ids only to snapshot their hashes — it never gated on their status — and stamped no fidelity marker on imported artifacts.
+
+**Fixed:** `cmd_commit` now blocks a `--status approved` commit when any upstream stage is `pending`/absent, with an `--allow-missing-upstream` escape for a deliberate, PM-confirmed partial import (non-interactive-safe). Imported artifacts are stamped `fidelity: unverified` in frontmatter — adoption means "brought into the pipeline", never "runtime-verified". `skills/pm-context-import/SKILL.md` Step 7 documents the enforcement. Tests: `test_commit_approved_blocks_on_pending_upstream`, `test_commit_imported_allow_missing_upstream_and_marks_fidelity`.
+
+---
+
+## 38. 🟢 `/pm-approve` refuses a real generated artifact whose frontmatter `status` drifted to `pending`
+
+**Severity:** P2 — recurring "the PRD exists and passed validation but approve says it isn't generated" report; blocks a PM mid-pipeline with no obvious recovery.
+**Status:** 🟢 **Fixed** (branch `fix/gh-issues-59-62`), pending release. GitHub #61.
+
+**Symptom:** After an edit / interrupted write / failed post-hook, an artifact's frontmatter `status` can read `pending` while the body and `stage_generated` telemetry are intact. `pm_approve` keyed the "not generated yet" bail-out purely on that one field and refused to approve.
+
+**Root cause:** `scripts/pm_approve.py` bailed on `current_status == "pending"` without reconciling against ground truth.
+
+**Fixed:** approve now reconciles — if the body is non-empty and a `stage_generated`/`stage_imported`/`stage_backfilled` event exists, it treats the stage as `draft` and proceeds (printing a one-line notice); a genuinely empty/eventless slot still stops with "generate it first". Tests: `test_approve_reconciles_pending_frontmatter_with_generation_evidence`, `test_approve_still_refuses_truly_ungenerated_stage`.
+
+---
+
+## 39. 🟢 Color tokens render as bare hashcodes in the HTML companions
+
+**Severity:** P3 — design-spec/prototype companions showed `#FF5733` as text with no visible color, hurting the design review the companion exists to support.
+**Status:** 🟢 **Fixed** (branch `fix/gh-issues-59-62`), pending release. GitHub #62.
+
+**Root cause:** both `templates/design-spec.html.j2` and `templates/prototype-mockup.html.j2` piped the Color Tokens markdown straight through `markdownish`; nothing turned a hex/rgb literal into a swatch.
+
+**Fixed:** added a `_color_swatches` filter in `lib/html_render.py` that prefixes each `#RGB`/`#RRGGBB`/`rgb()`/`rgba()` literal with an inline-styled swatch span (inline style survives the standalone-file CSP); applied to the design-spec section render and the prototype Color section. `#`-prefixed non-colors (e.g. `#SCR-001`) are left untouched. Tests: `test_color_swatches_wraps_hex_and_rgb_literals`, `test_color_swatches_ignores_non_color_hash_tokens`.
+
+---
+
+## 40. 🟠 AdCept AI audit register (GH #63) — open engine items not yet addressed
+
+**Severity:** mixed — see the issue for per-item severity.
+**Status:** 🟠 Open (triage done; not started). GitHub #63.
+
+Much of the #63 register was run against an older project snapshot and is already fixed here (PMOS-007→#36, PMOS-009→#34, PMOS-019(partial)→#32, plus #30/#33/#35). A second set is **project-content** defects in that project's own artifacts (MVP-vs-V1 architecture, TLS verification, priority-vs-gate), not engine bugs — they map to the still-unbuilt cross-stage semantic-check capability (#4, #27). The genuinely-open **engine** items to schedule: import-time secret scanning + path sanitization (PMOS-001/025, incl. PMOS-003 imported-source `context/…` path resolution), Jira export hierarchy/self-containment/planning fields (PMOS-012/013/014), handoff clean-state manifest + prototype dedupe (PMOS-024/026), and the approval-vs-validation-execution split (PMOS-006/020/021, overlaps #26). Not scoped into the #59–#62 fix branch.
+
+**Progress:** PMOS-011 fixed (→ #41); the dev-package half of PMOS-002 — full PRD/TRD/design-spec projections — fixed (→ #42). PMOS-003's `context/…` path resolution stays open and folds into the PMOS-001/025 source-path sanitization work above.
+
+---
+
+_Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63); entries 37-39 fixed the same day on `fix/gh-issues-59-62` with tests; entry 40 is triage-only. Lands via the normal commit → push → `pm_os_update.py` path._
+
+---
+
 ## 41. 🟢 Epic titles carried a dangling `**` into filenames, headings, and the Jira plan (PMOS-011)
 
 **Severity:** P2 — malformed Markdown in an entity identifier propagates everywhere the title is reused.
@@ -690,7 +742,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 
 ---
 
-_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests. #37-40 land separately on `fix/gh-issues-59-62` (PR #64); numbering is global across the two open branches. Lands via commit → push → `pm_os_update.py`._
+_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests (PR #65). #37-40 merged via PR #64. Lands via commit → push → `pm_os_update.py`._
 
 ---
 

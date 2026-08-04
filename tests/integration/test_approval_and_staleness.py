@@ -2,7 +2,7 @@
 frontmatter↔meta sync, and HTML companion rendering for stages 04/05. See docs/guides/testing.md §5 (T2)."""
 import pytest
 
-from helpers import run_script, make_draft, stage_status, read_events
+from helpers import run_script, make_draft, generate_stage, stage_status, read_events
 
 pytestmark = pytest.mark.integration
 
@@ -46,6 +46,45 @@ def test_reapproving_upstream_cascades_downstream_stale(pmos, new_project):
     assert stage_status(proj, "02") == "stale"
     assert any(e["event_type"] == "stage_marked_stale" and e["stage"] == "02"
                for e in read_events(proj))
+
+
+def test_approve_reconciles_pending_frontmatter_with_generation_evidence(pmos, new_project):
+    """A generated stage whose frontmatter `status` drifted back to 'pending' (failed hook,
+    interrupted write, hand-edit) still approves: pm_approve reconciles from ground truth — a
+    non-empty body plus a stage_generated event — instead of reporting a real artifact as
+    'not generated yet' (GH #61)."""
+    import frontmatter as fm
+    proj = new_project("reconcile-pending", "A problem")
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+    apath = generate_stage(proj, "01", body="Real generated brief body.\n")  # draft + telemetry
+    # Simulate the drift: frontmatter status regresses to 'pending' while the body and the
+    # stage_generated event remain.
+    fmd, body = fm.read(str(apath))
+    fmd["status"] = "pending"
+    fm.write(str(apath), fmd, body)
+
+    res = run_script(pmos, "pm_approve.py", "01", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert "reconcil" in res.stdout.lower()
+    assert stage_status(proj, "01") == "approved"
+
+
+def test_approve_still_refuses_truly_ungenerated_stage(pmos, new_project):
+    """The reconciliation must not paper over a genuinely ungenerated slot: an empty-bodied
+    artifact with no generation event still fails with the 'generate it first' message (GH #61
+    guard against over-reconciling)."""
+    import frontmatter as fm
+    proj = new_project("no-evidence", "A problem")
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+    apath = proj / "01-brief.md"
+    fm.write(str(apath), {
+        "stage": "01-brief", "project": proj.name, "status": "pending",
+        "approved_at": None, "approved_by": None, "content_hash": None,
+    }, "")  # empty body, no telemetry
+    res = run_script(pmos, "pm_approve.py", "01", cwd=proj)
+    assert res.returncode != 0
+    assert "not been generated" in res.stdout
+    assert stage_status(proj, "01") != "approved"
 
 
 def test_reapprove_rejects_without_flag(pmos, new_project):
