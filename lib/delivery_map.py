@@ -71,10 +71,31 @@ def strip_decl(line: str, block_id: str) -> str:
     return t.strip().strip("*").strip()
 
 
+def normalize_title(text: str) -> str:
+    """Normalize an entity title to plain text.
+
+    Titles become filenames, Markdown headings, and Jira summaries, so stray
+    inline markup must not ride along. In particular, a bold-wrapped declaration
+    like ``**EPIC-008: Explainability & Resilience** (cross-cutting)`` has its
+    opening ``**`` consumed together with the id during `strip_decl`, leaving a
+    *mid-string* dangling ``**`` that the edge-only `.strip("*")` can't reach —
+    which then propagates unbalanced Markdown into every downstream output
+    (PMOS-011). Drop emphasis markers and collapse the whitespace they leave.
+    Underscores are only treated as emphasis when doubled, so snake_case tokens
+    survive.
+    """
+    if not text:
+        return ""
+    cleaned = re.sub(r"\*+", "", text)
+    cleaned = re.sub(r"__+", "", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip()
+
+
 def title_of(block_id: str, block: str) -> str:
     """Best-effort human title from a stable-id block declaration."""
     first = block.strip().splitlines()[0] if block.strip() else ""
-    return strip_decl(first, block_id) or block_id
+    return normalize_title(strip_decl(first, block_id)) or block_id
 
 
 def body_of(block: str, block_id: str) -> str:
