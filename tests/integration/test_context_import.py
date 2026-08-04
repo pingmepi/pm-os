@@ -67,6 +67,37 @@ def test_commit_unknown_stage_and_missing_slot_fail(pmos, new_project):
                       "--kind", "generated", "--status", "draft", cwd=proj).returncode != 0
 
 
+def test_commit_approved_blocks_on_pending_upstream(pmos, new_project):
+    """A stage cannot be adopted as approved while an upstream stage is still pending — the
+    guardrail that stops the E3 prototype-as-input pathway from stamping an imported prototype
+    into an approved stage 05 with no brief/scope/PRD/design behind it (GH #59, #60)."""
+    proj = _ctx_proj(pmos, new_project)  # only 00 approved; 01-04 pending
+    write_artifact(proj / "05-prototype-brief.md", stage="05-prototype-brief", project=proj.name,
+                   status="draft", body="## Prototype\nImported prototype brief.\n")
+    res = run_script(pmos, "pm_context_import.py", "commit", "05",
+                     "--kind", "imported", "--status", "approved",
+                     "--source-name", "proto.html", "--source-format", "html", cwd=proj)
+    assert res.returncode != 0
+    assert "upstream" in (res.stdout + res.stderr).lower()
+    assert stage_status(proj, "05") != "approved"
+
+
+def test_commit_imported_allow_missing_upstream_and_marks_fidelity(pmos, new_project):
+    """--allow-missing-upstream is the explicit, PM-confirmed escape for a deliberate partial
+    import; the adopted artifact is stamped fidelity: unverified so an import is never presented
+    as runtime-verified (GH #60)."""
+    proj = _ctx_proj(pmos, new_project)
+    apath = proj / "05-prototype-brief.md"
+    write_artifact(apath, stage="05-prototype-brief", project=proj.name,
+                   status="draft", body="## Prototype\nImported prototype brief.\n")
+    res = run_script(pmos, "pm_context_import.py", "commit", "05",
+                     "--kind", "imported", "--status", "approved", "--allow-missing-upstream",
+                     "--source-name", "proto.html", "--source-format", "html", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert stage_status(proj, "05") == "approved"
+    assert "fidelity: unverified" in apath.read_text(encoding="utf-8")
+
+
 def test_commit_generated_wiki_draft(pmos, new_project):
     """Committing the context-wiki slot as a generated draft creates the 00w stage entry and
     logs a stage_generated event carrying the model + prompt_version."""

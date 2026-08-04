@@ -84,6 +84,7 @@ def _render_template(template_name: str, context: dict[str, Any]) -> str:
         autoescape=select_autoescape(["html", "xml", "j2"]),
     )
     env.filters["markdownish"] = _markdownish
+    env.filters["color_swatches"] = _color_swatches
     template = env.get_template(template_name)
     return template.render(**context)
 
@@ -115,7 +116,10 @@ def _section(title: str, lines: list[str]) -> dict[str, str]:
     return {
         "title": title,
         "raw": raw,
-        "html": _markdownish(raw),
+        # Swatch any color literal so the design-spec companion shows colors, not
+        # bare hashcodes (GH #62). Safe on every section: non-color text has no
+        # matches, and `raw` is retained untouched for callers that reparse it.
+        "html": _color_swatches(_markdownish(raw)),
     }
 
 
@@ -211,3 +215,34 @@ def _inline(text: str) -> str:
     escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
     escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
     return escaped
+
+
+# Hex (#RGB / #RRGGBB) or rgb()/rgba() color literals — used to turn color-token
+# text into visible swatches so a design spec renders colors, not raw hashcodes
+# (GH #62). The alternation puts the 6-digit hex before the 3-digit form so the
+# longer literal wins; \b stops #abcdef from also matching a leading #abc.
+_COLOR_LITERAL_RE = re.compile(
+    r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b"
+    r"|rgba?\(\s*[0-9.,\s%/]+\)",
+    re.IGNORECASE,
+)
+
+
+def _color_swatches(rendered_html: str) -> str:
+    """Prefix each color literal in already-rendered token HTML with a swatch.
+
+    Operates on the output of ``_markdownish`` (which contains no ``style``
+    attributes), so injecting an inline-styled ``<span>`` before each match is
+    safe. Inline styles are used deliberately: the HTML companions are shared as
+    standalone files, so the swatch must not depend on an external stylesheet.
+    """
+    def _swatch(match: re.Match) -> str:
+        color = match.group(0)
+        return (
+            '<span class="color-swatch" aria-hidden="true" style="display:inline-block;'
+            "width:0.85em;height:0.85em;margin-right:0.35em;vertical-align:middle;"
+            "border:1px solid rgba(128,128,128,0.45);border-radius:3px;"
+            f'background:{color}"></span>{color}'
+        )
+
+    return _COLOR_LITERAL_RE.sub(_swatch, rendered_html)

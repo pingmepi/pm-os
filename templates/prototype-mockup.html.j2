@@ -217,7 +217,7 @@
       <h2>Design Tokens Referenced</h2>
       {% if tokens.typography or tokens.colors or tokens.spacing %}
       {% if tokens.typography %}<h3>Typography</h3>{{ tokens.typography | markdownish | safe }}{% endif %}
-      {% if tokens.colors %}<h3>Color</h3>{{ tokens.colors | markdownish | safe }}{% endif %}
+      {% if tokens.colors %}<h3>Color</h3>{{ tokens.colors | markdownish | color_swatches | safe }}{% endif %}
       {% if tokens.spacing %}<h3>Spacing</h3>{{ tokens.spacing | markdownish | safe }}{% endif %}
       {% else %}
       <p class="muted">No token guidance was found in the design spec.</p>
