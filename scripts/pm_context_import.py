@@ -459,6 +459,32 @@ def cmd_commit(args):
         return
 
     # status == approved
+    #
+    # Guardrail: a stage must not be stamped approved while an upstream stage is
+    # still pending or absent. Without this, the E3 prototype-as-input pathway
+    # could adopt a raw prototype straight into an approved stage 05 with no
+    # brief/scope/PRD/design behind it — the agent then treats the pipeline as
+    # complete and jumps ahead (GH #59, #60). A deliberate partial import can
+    # still opt out with --allow-missing-upstream (kept as a non-interactive
+    # escape so agents surface the choice rather than silently overriding).
+    missing_upstream = []
+    for uid in upstream_stage_ids(stage_id, meta):
+        try:
+            up = get_stage(meta, uid)
+        except KeyError:
+            missing_upstream.append(uid)
+            continue
+        if up.get("status") != "approved":
+            missing_upstream.append(uid)
+    if missing_upstream and not args.allow_missing_upstream:
+        pretty = ", ".join(missing_upstream)
+        print(f"Error: cannot approve stage {stage_id} — upstream stage(s) not approved: {pretty}.")
+        print("A stage cannot be adopted as approved while earlier stages are missing or "
+              "still pending. Import/backfill and approve the upstream stages first, or — only "
+              "if this partial import is intentional and the PM has confirmed it — re-run with "
+              "--allow-missing-upstream.")
+        sys.exit(1)
+
     validation_findings = []
     if stage_id in {"03", "04", "05", "06", "08"}:
         validation_findings = validate_artifact(root, stage_id, apath)
@@ -476,6 +502,12 @@ def cmd_commit(args):
     fm["approved_at"] = ts
     fm["approved_by"] = _pm()
     fm["content_hash"] = content_hash
+    # An imported artifact is the PM's own pre-existing document (e.g. a hand-built
+    # HTML prototype adopted into stage 05). Approval here means "adopted into the
+    # pipeline", NOT "runtime-verified / functionally complete". Record that so an
+    # import is never silently presented as an acceptance-tested artifact (GH #60).
+    if args.kind == "imported":
+        fm.setdefault("fidelity", "unverified")
     fm_write(str(apath), fm, body)
 
     upstream = {uid: get_stage(meta, uid).get("content_hash")
@@ -827,6 +859,12 @@ def main():
     p_com.add_argument("--prompt-version", dest="prompt_version", default=None,
                        help="prompt_version of the generating skill, recorded on generated "
                             "stage_generated events to match the documented schema.")
+    p_com.add_argument("--allow-missing-upstream", dest="allow_missing_upstream",
+                       action="store_true",
+                       help="Override the upstream-presence guardrail when committing a stage "
+                            "as approved while one or more upstream stages are still pending or "
+                            "absent. Intended for deliberate, PM-confirmed partial imports only "
+                            "(e.g. importing a prototype without its earlier stages).")
     p_com.set_defaults(func=cmd_commit)
 
     p_prep = sub.add_parser("prepare-codebase",
