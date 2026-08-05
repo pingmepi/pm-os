@@ -11,6 +11,7 @@ artifact frontmatter, telemetry.jsonl, and optional context/sources YAML.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,8 @@ from project import STAGE_NAMES, artifact_path, load_meta, upstream_stage_ids
 from hashing import CompositeHashError, hash_artifact_body, stage_content_hash
 from frontmatter import read as fm_read
 from telemetry import verify_chain
+import traceability
+from enhancement import EnhancementDeltaError, active_enhancement_delta
 from artifact_contracts import (
     JOURNEY_ID_RE,
     information_architecture_section,
@@ -67,6 +70,17 @@ CODE_SCREEN_IDS_MISSING = "SCREEN_IDS_MISSING"
 CODE_STORY_HAS_NO_SCREEN = "STORY_HAS_NO_SCREEN"
 CODE_HISTORY_SNAPSHOT_MISSING = "HISTORY_SNAPSHOT_MISSING"
 CODE_HISTORY_SNAPSHOT_HASH_MISMATCH = "HISTORY_SNAPSHOT_HASH_MISMATCH"
+CODE_ENHANCEMENT_CONTEXT_INVALID = "ENHANCEMENT_CONTEXT_INVALID"
+CODE_ENHANCEMENT_BOUNDARY_MISSING = "ENHANCEMENT_BOUNDARY_MISSING"
+CODE_ENHANCEMENT_REPOSITORY_DRIFT = "ENHANCEMENT_REPOSITORY_DRIFT"
+CODE_ENHANCEMENT_BASELINE_INVALID = "ENHANCEMENT_BASELINE_INVALID"
+CODE_ENHANCEMENT_CHANGE_OUTSIDE_BOUNDARY = "ENHANCEMENT_CHANGE_OUTSIDE_BOUNDARY"
+CODE_ENHANCEMENT_CHANGE_TYPE_MISMATCH = "ENHANCEMENT_CHANGE_TYPE_MISMATCH"
+CODE_ENHANCEMENT_SURFACE_TRACE_MISSING = "ENHANCEMENT_SURFACE_TRACE_MISSING"
+CODE_ENHANCEMENT_REGRESSION_TRACE_MISSING = "ENHANCEMENT_REGRESSION_TRACE_MISSING"
+CODE_ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING = "ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING"
+CODE_ENHANCEMENT_INVARIANT_TRACE_MISSING = "ENHANCEMENT_INVARIANT_TRACE_MISSING"
+CODE_ENHANCEMENT_MIGRATION_TRACE_MISSING = "ENHANCEMENT_MIGRATION_TRACE_MISSING"
 
 
 @dataclass(frozen=True)
@@ -123,6 +137,7 @@ def check_project(project_root) -> list[Issue]:
         lambda: _check_downstream_upstream_hashes(meta, stages),
         lambda: _check_telemetry_chain(project_root),
         lambda: _check_context_yaml_parses(project_root),
+        lambda: _check_enhancement_state(project_root),
         lambda: _check_trd_task_ids(project_root, stages, paths, exists),
         lambda: _check_screen_ids(project_root, stages, paths, exists),
         lambda: _check_history_lineage(project_root, stages, paths, exists),
@@ -137,6 +152,274 @@ def check_project(project_root) -> list[Issue]:
                 "This is likely a bug in lib/consistency.py — report it.",
             ))
     return issues
+
+
+# Recompute drift evidence with the SAME implementation pm_enhance.py captured
+# with, so a non-Git codebase gets the identical os.walk fallback fingerprint
+# instead of None (which would read as false drift). See lib/repo_fingerprint.py.
+from repo_fingerprint import git_value as _git_read, repository_fingerprint as _enhancement_fingerprint
+
+
+def _check_enhancement_state(project_root: Path) -> list[Issue]:
+    """Validate E2's derived lifecycle without introducing another status model."""
+    index_path = project_root / ".enhancements" / "index.yaml"
+    if not index_path.exists():
+        return []
+    try:
+        index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return [Issue(
+            CODE_ENHANCEMENT_CONTEXT_INVALID, "error", None,
+            f".enhancements/index.yaml does not parse as YAML: {exc}",
+            "Fix the enhancement index syntax; do not remove completed cycle lineage.",
+        )]
+    if not isinstance(index, dict):
+        return [Issue(
+            CODE_ENHANCEMENT_CONTEXT_INVALID, "error", None,
+            ".enhancements/index.yaml must contain a mapping",
+            "Repair the enhancement index so it contains schema_version, active_cycle, and cycles.",
+        )]
+
+    active = index.get("active_cycle")
+    cycles = index.get("cycles") or []
+    if not isinstance(cycles, list) or (active and active not in cycles):
+        return [Issue(
+            CODE_ENHANCEMENT_CONTEXT_INVALID, "error", None,
+            "The enhancement index has an invalid cycles list or active_cycle pointer",
+            "Repair the index pointer so active_cycle names one cycle in cycles.",
+        )]
+    if not active:
+        return []
+
+    context_path = project_root / ".enhancements" / str(active) / "context.yaml"
+    try:
+        context = yaml.safe_load(context_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return [Issue(
+            CODE_ENHANCEMENT_CONTEXT_INVALID, "error", None,
+            f"{context_path.relative_to(project_root)} is missing or invalid YAML: {exc}",
+            "Restore the active cycle context from version control or repair its YAML syntax.",
+        )]
+    if (
+        not isinstance(context, dict)
+        or context.get("id") != active
+        or "status" in context
+        or "approved" in context
+        or context.get("completed_at")
+    ):
+        return [Issue(
+            CODE_ENHANCEMENT_CONTEXT_INVALID, "error", None,
+            f"Active enhancement {active} has an invalid context shape",
+            "Keep lifecycle identity in index.yaml and timestamps in context.yaml; do not add stage-like status fields.",
+        )]
+
+    issues: list[Issue] = []
+    baseline_artifacts = (context.get("baseline") or {}).get("artifacts") or {}
+    if not isinstance(baseline_artifacts, dict) or not baseline_artifacts:
+        issues.append(Issue(
+            CODE_ENHANCEMENT_BASELINE_INVALID, "error", None,
+            f"Active enhancement {active} has no frozen approved artifact baseline",
+            "Restore the cycle baseline; never recapture it from the current artifacts.",
+        ))
+    else:
+        for stage_id, record in baseline_artifacts.items():
+            snapshot = project_root / str((record or {}).get("snapshot_path") or "")
+            if not snapshot.is_file():
+                valid = False
+            elif str(stage_id) == "00w" and (record or {}).get("context_pack_snapshot"):
+                # Composite pack integrity is guarded by the captured member tree;
+                # exact composite verification is performed by lifecycle/handoff.
+                valid = (project_root / record["context_pack_snapshot"]).is_dir()
+            else:
+                try:
+                    valid = hash_artifact_body(str(snapshot)) == (record or {}).get("content_hash")
+                except Exception:
+                    valid = False
+            if not valid:
+                issues.append(Issue(
+                    CODE_ENHANCEMENT_BASELINE_INVALID, "error", str(stage_id),
+                    f"Frozen enhancement baseline for stage {stage_id} is missing or does not match its captured hash",
+                    "Restore this immutable snapshot from version control or a trusted project backup.",
+                ))
+    boundary = context.get("boundary") or {}
+    required = ("recorded_at", "current_behavior", "target_behavior", "affected_surfaces")
+    if not isinstance(boundary, dict) or any(not boundary.get(field) for field in required):
+        issues.append(Issue(
+            CODE_ENHANCEMENT_BOUNDARY_MISSING, "error", None,
+            f"Active enhancement {active} does not have a complete approved boundary",
+            "Approve 00c/00u and run /pm-enhance set-boundary before generating enhancement stages.",
+        ))
+
+    repository = context.get("repository") or {}
+    raw_path = repository.get("path") if isinstance(repository, dict) else None
+    if raw_path:
+        repo = Path(raw_path).expanduser()
+        expected_sha = repository.get("scan_end_sha") or repository.get("scan_start_sha")
+        expected_porcelain = (
+            repository.get("porcelain_after")
+            if repository.get("porcelain_after") is not None
+            else repository.get("porcelain_before")
+        )
+        expected_fingerprint = (
+            repository.get("fingerprint_after") or repository.get("fingerprint_before")
+        )
+        if not repo.is_dir():
+            # The pinned checkout is gone entirely — that is real drift.
+            issues.append(Issue(
+                CODE_ENHANCEMENT_REPOSITORY_DRIFT, "error", None,
+                f"Active enhancement {active} pins a codebase that is no longer a readable directory",
+                "Restore the pinned checkout or run the explicit /pm-enhance refresh workflow.",
+            ))
+        else:
+            # For a non-Git codebase every expected git value is None and the
+            # fingerprint uses the os.walk fallback, so None == None is NOT drift.
+            # Comparing actual against expected (never a bare `actual_sha is None`)
+            # is what keeps an unchanged non-Git codebase from tripping the gate.
+            actual_sha = _git_read(repo, "rev-parse", "HEAD")
+            actual_porcelain = _git_read(repo, "status", "--porcelain", "--untracked-files=all")
+            actual_fingerprint = _enhancement_fingerprint(repo)
+            if (
+                actual_sha != expected_sha
+                or actual_porcelain != expected_porcelain
+                or actual_fingerprint != expected_fingerprint
+            ):
+                issues.append(Issue(
+                    CODE_ENHANCEMENT_REPOSITORY_DRIFT, "error", None,
+                    f"Active enhancement {active} no longer matches its read-only repository snapshot",
+                    "Restore the pinned checkout or run the explicit /pm-enhance refresh workflow.",
+                ))
+
+    try:
+        delta = active_enhancement_delta(project_root, require_approved=False)
+    except EnhancementDeltaError as exc:
+        issues.append(Issue(
+            CODE_ENHANCEMENT_BASELINE_INVALID, "error", None,
+            f"Enhancement delta cannot be derived: {exc}",
+            "Repair the frozen baseline/context before regenerating or handing off work.",
+        ))
+        return issues
+    if not delta:
+        return issues
+
+    changes = delta.get("changes") or []
+    changed_requirements = [
+        item for item in changes
+        if item.get("id", "").startswith(("US-", "FR-", "REQ-", "NFR-"))
+    ]
+    affected_ids = set(boundary.get("affected_ids") or [])
+    outside = sorted(item["id"] for item in changed_requirements if item["id"] not in affected_ids)
+    if outside:
+        issues.append(Issue(
+            CODE_ENHANCEMENT_CHANGE_OUTSIDE_BOUNDARY, "error", "03",
+            "Changed requirement IDs are outside the approved enhancement boundary: " + ", ".join(outside),
+            "Add them to the approved boundary or restore those requirement blocks to the frozen baseline.",
+        ))
+    mismatches = sorted(
+        item["id"] for item in changes
+        if item.get("after") is not None
+        and item.get("declared_change_type") != item.get("change_type")
+        and not item.get("id", "").startswith("STAGE-")
+    )
+    if mismatches:
+        issues.append(Issue(
+            CODE_ENHANCEMENT_CHANGE_TYPE_MISMATCH, "error", "03",
+            "Computed and declared change type disagree or are missing for: " + ", ".join(mismatches),
+            "Set `Change type: new|modified|removed` on every changed stable-ID block.",
+        ))
+    missing_surfaces = sorted(
+        item["id"] for item in changed_requirements
+        if item.get("change_type") != "removed"
+        and not re.search(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*)?Affected surfaces(?:\*\*)?:", item.get("after") or "")
+    )
+    if missing_surfaces:
+        issues.append(Issue(
+            CODE_ENHANCEMENT_SURFACE_TRACE_MISSING, "error", "03",
+            "Changed requirements lack an Affected surfaces trace: " + ", ".join(missing_surfaces),
+            "Add an `Affected surfaces:` line using the approved E2 surface vocabulary.",
+        ))
+
+    try:
+        spine = traceability.build_index(project_root)
+    except Exception:
+        spine = {}
+    requirement_index = spine.get("requirements") or {}
+    changed_ids = {item["id"] for item in changed_requirements}
+    missing_tests = sorted(
+        ref for ref in changed_ids
+        if not (requirement_index.get(ref) or {}).get("test_cases")
+    )
+    if missing_tests and _stage_is_approved(project_root, "06"):
+        issues.append(Issue(
+            CODE_ENHANCEMENT_REGRESSION_TRACE_MISSING, "error", "06",
+            "Changed requirements lack TC coverage: " + ", ".join(missing_tests),
+            "Add delta/regression TC-### cases that cite each changed requirement.",
+        ))
+    if _stage_is_approved(project_root, "06"):
+        qa_body = _artifact_body(project_root, "06").lower()
+        invariant_gaps = [
+            value for value in (
+                list(boundary.get("regression_invariants") or [])
+                + list(boundary.get("non_touch_surfaces") or [])
+            )
+            if value.strip().lower() not in qa_body
+        ]
+        if invariant_gaps:
+            issues.append(Issue(
+                CODE_ENHANCEMENT_INVARIANT_TRACE_MISSING, "error", "06",
+                "Approved invariants/non-touch promises lack explicit QA traces: "
+                + "; ".join(invariant_gaps),
+                "Add one TC-### regression case per promise with an `Invariant:` line preserving the approved wording.",
+            ))
+    missing_tasks = sorted(
+        ref for ref in changed_ids
+        if not (requirement_index.get(ref) or {}).get("tasks")
+    )
+    if missing_tasks and _stage_is_approved(project_root, "08"):
+        issues.append(Issue(
+            CODE_ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING, "error", "08",
+            "Changed requirements lack TSK implementation coverage: " + ", ".join(missing_tasks),
+            "Add delta-only TSK-### blocks whose Implements line cites each changed requirement.",
+        ))
+
+    if boundary.get("compatibility_migration"):
+        missing_obligations = []
+        for stage_id in ("06", "08"):
+            if not _stage_is_approved(project_root, stage_id):
+                continue
+            body = _artifact_body(project_root, stage_id).lower()
+            required_terms = ("migrat", "rollback", "observ")
+            if any(term not in body for term in required_terms):
+                missing_obligations.append(stage_id)
+        if missing_obligations:
+            issues.append(Issue(
+                CODE_ENHANCEMENT_MIGRATION_TRACE_MISSING, "error", ",".join(missing_obligations),
+                "Declared compatibility/migration work lacks migration, rollback, or observability coverage in stage(s): "
+                + ", ".join(missing_obligations),
+                "Add explicit migration/backfill, rollback, and observability cases/tasks before completion.",
+            ))
+    return issues
+
+
+def _stage_is_approved(project_root: Path, stage_id: str) -> bool:
+    try:
+        return next(
+            stage.get("status") == "approved"
+            for stage in load_meta(project_root).get("stages", [])
+            if stage.get("id") == stage_id
+        )
+    except (StopIteration, Exception):
+        return False
+
+
+def _artifact_body(project_root: Path, stage_id: str) -> str:
+    path = artifact_path(project_root, stage_id)
+    if not path.exists():
+        return ""
+    try:
+        _frontmatter, body = fm_read(str(path))
+        return body or ""
+    except Exception:
+        return ""
 
 
 def _history_snapshots(project_root: Path, apath: Path) -> list[Path]:

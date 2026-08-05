@@ -47,13 +47,13 @@ If `00` (business statement) is not `approved`, tell the PM to review and approv
 
 ## Codebase pre-flight (enhancement mode only)
 
-If `$ARGUMENTS` includes a `--codebase <url-or-path>` argument, or if `.meta.yaml` has `codebase_path` already set, prepare the codebase before scanning:
+If `$ARGUMENTS` includes a `--codebase <source>` argument, or if `.meta.yaml` has `codebase_path` already set, prepare the codebase before scanning. `<source>` may be a **git URL** (`https://…`, `http://…`, `git@…`), a **local directory**, or a **`.zip` archive**:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py prepare-codebase <url-or-path>
+python3 ~/.pm-os/scripts/pm_context_import.py prepare-codebase <source>
 ```
 
-This clones (for URLs) or validates (for local paths) the codebase and records the git SHA as `codebase_ref` in `.meta.yaml`. Fail fast if the clone fails — do not continue with a missing codebase. After preparation, the local path is available via `.meta.yaml` `codebase_path`.
+This clones (URLs), validates (local directories), or extracts (`.zip`) the codebase into `.codebase/` and records the git SHA as `codebase_ref` in `.meta.yaml`. A zip is extracted read-only and turned into a self-contained one-commit git checkout (unless it already carries its own `.git/`), so a zip source behaves like a clone for SHA pinning, dirty-state, and E2 `refresh`. Fail fast if preparation fails — do not continue with a missing codebase. After preparation, the local path is available via `.meta.yaml` `codebase_path`.
 
 # Inputs
 
@@ -307,7 +307,51 @@ PM_OS_INTERVIEW=skip python3 ~/.pm-os/scripts/pm_context_import.py record-interv
 
 This records every pending question as a known unknown in `00-context/known-unknowns.md` and logs `interview_conducted`; continue without blocking. When answers exist, the helper registers them in `.sources.yaml` as PM-authored, high-confidence interview context so they flow into the wiki/evidence ledger.
 
-After recording answers, revise `00-context-wiki.md`, `00-context/evidence.yaml`, and the draft understanding inputs so answered gaps improve the affected backfill confidence/fidelity and every skip appears under `## Open questions & uncertainties` and in the understanding doc's assumption register as a known unknown. Do not self-approve any stage-00 document; the interview informs generation only. Pathway 3's narrow codebase interview, promote-to-enhancement setter, and scoped-delta pipeline remain E2 and are not part of this step.
+After recording answers, revise `00-context-wiki.md`, `00-context/evidence.yaml`, and the draft understanding inputs so answered gaps improve the affected backfill confidence/fidelity and every skip appears under `## Open questions & uncertainties` and in the understanding doc's assumption register as a known unknown. Do not self-approve any stage-00 document; the interview informs generation only. This Step 4b is the prototype/pathway-2 interview; codebase enhancements use Step 4c below.
+
+# Step 4c — Enhancement decision interview
+
+When `codebase_path` is present and an active `.enhancements/EH-NNN/context.yaml` exists, conduct a narrow enhancement decision interview after the read-only `00c` inventory/slice/impact-cone scan and before writing the final `00-context-understanding.md`.
+
+Code establishes implemented WHAT/HOW, not production intent. Ask only unresolved decisions, in decreasing order of consequence:
+
+1. **production baseline** — deployed release/configuration, flags, external services, data state, and whether the pinned checkout represents it;
+2. desired outcome and why now;
+3. **current→target behavior** for each changed capability;
+4. **affected and explicit non-touch surfaces** across UI, API, data, service, event, integration, operations, and cross-cutting dependencies;
+5. **regression invariants** (“must not break” behavior);
+6. success baseline/target and guardrails;
+7. **compatibility/migration**, including mixed versions, backfill, permissions, and data retention where applicable;
+8. **rollout/rollback**, observability, flags, and abort thresholds;
+9. **decision authority** and accepted risks.
+
+**Do not re-ask cited code facts.** Cite the `00c` evidence and ask for a decision only where code cannot establish intent, deployed truth, compatibility promise, or acceptable risk.
+
+Classify unresolved production-baseline identity, delta boundary, regression invariants, and required compatibility/migration as a **blocking unknown**. Lower-impact skips remain visible known unknowns. A blocking unknown stops boundary recording unless the PM-authored answer explicitly records the same item as an accepted risk; no skip becomes a default or fabricated requirement.
+
+Register answers with the existing provenance mechanism:
+
+```bash
+python3 ~/.pm-os/scripts/pm_context_import.py record-interview --interview-answers <answers-file>
+```
+
+Then write an `## Enhancement Boundary` section in `00-context-understanding.md` containing the decisions above, approve `00c` and `00u` through the ordinary gate, and record the deterministic boundary fields:
+
+```bash
+python3 ~/.pm-os/scripts/pm_enhance.py set-boundary \
+  --current-behavior "<current>" \
+  --target-behavior "<target>" \
+  --surface <surface> \
+  --non-touch "<surface/behavior>" \
+  --invariant "<must not break>" \
+  --success "<baseline/target>" \
+  --compatibility "<compatibility or migration decision>" \
+  --rollout "<rollout decision>" \
+  --rollback "<rollback decision>" \
+  --authority "<decision authority>"
+```
+
+Add repeatable `--affected-id`, `--blocking-unknown`, `--known-unknown`, `--accepted-risk`, `--coverage`, and `--exclusion` values as applicable. The helper rechecks repository SHA/porcelain/fingerprint and refuses scan drift. **Do not self-approve** `00c`, `00u`, or any other stage; the interview and helper preserve the existing approval system.
 
 # Step 5 — Write the understanding doc (`00-context-understanding.md`)
 

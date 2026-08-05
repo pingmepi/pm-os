@@ -139,13 +139,13 @@ python3 ~/.pm-os/scripts/pm_os_verify.py --runtime codex
 
 ### 4.2 Start a project
 ```text
-Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--mode enhancement --codebase <url-or-path>]
-Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--mode enhancement --codebase <url-or-path>]
+Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <url-or-path>]
+Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <url-or-path>]
 ```
 - Keep the slug short and stable; it's used in paths and history.
 - Write the business statement in plain language. **Sanitize it first** (§7). The statement is optional — omit it to add it later (a placeholder is written into `00`).
 - Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
-- For an **enhancement to an existing product**, pass `--mode enhancement` (or set `PM_OS_PROJECT_TYPE=enhancement`) and `--codebase <github-url-or-local-path>`. `/pm-context-import` will then scan the codebase and produce a gated codebase-understanding doc (`00c`).
+- For a live product that is **not yet represented in PM-OS**, pass `--entry enhancement --codebase <github-url-or-local-path>`. `/pm-context-import` then builds its gated `00c` evidence. For every later enhancement, work inside this same project with `/pm-enhance`; do not create another project.
 - The project is created under the `projects_dir` from your config (default `~/pm-projects`).
 - This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections, and (for enhancements) `project_type`/`codebase_path`. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
 
@@ -259,7 +259,8 @@ Re-running creates *new* tickets — it does not detect ones you already created
 |---|---|---|
 | Install | `./install.sh --runtime claude --pm-user <id>` | `./install.sh --runtime codex --pm-user <id>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
-| New enhancement | `/pm-new <slug> --mode enhancement --codebase <url-or-path>` | `$pm-new <slug> --mode enhancement --codebase <url-or-path>` |
+| First intake of external product | `/pm-new <slug> --entry enhancement --codebase <url-or-path>` | `$pm-new <slug> --entry enhancement --codebase <url-or-path>` |
+| Later enhancement in same project | `/pm-enhance` | `$pm-enhance` |
 | Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
 | Validate artifact (03–05) | `/pm-validate-artifact 0N` | `$pm-validate-artifact 0N` |

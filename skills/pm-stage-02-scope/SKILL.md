@@ -1,9 +1,9 @@
 ---
 name: pm-stage-02-scope
 description: Generate the Product Scope for stage 02 from the business statement and approved brief.
-reads: ["00-business-statement.md", "01-brief.md"]
+reads: ["00-business-statement.md", "01-brief.md", ".enhancements/**"]
 writes: "02-scope.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -155,6 +155,12 @@ GenAI handling:
 <List unresolved issues that could materially change scope, sequencing, or feasibility. For each, state why it matters and what product decision could change based on the answer.>
 ```
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, add explicit enhancement content inside the canonical scope: a **Change Boundary**, an **Affected-surface matrix** covering UI/API/data/service/event/integration/operations/cross-cutting as applicable, impact/blast radius, an **Explicit non-touch boundary**, dependencies, and the **smallest coherent enhancement slice**. Ground every inclusion or widening decision in approved `00c`/`00u` evidence.
+
+On regeneration, **carry unaffected content forward** and keep existing stable scope references. Modify only content justified by the approved boundary; do not reconstruct or rescope the whole product.
+
 # Writing guidance
 
 - Anchor scope to the success hypothesis from stage 01.
@@ -222,7 +228,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('02'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

@@ -1,6 +1,7 @@
 """T2 — approval side effects (hooks/post-approve.py): downstream staleness cascade,
 frontmatter↔meta sync, and HTML companion rendering for stages 04/05. See docs/guides/testing.md §5 (T2)."""
 import pytest
+import yaml
 
 from helpers import run_script, make_draft, generate_stage, stage_status, read_events
 
@@ -161,6 +162,32 @@ def test_stage_05_approval_renders_prototype_html(pmos, new_project):
     res = run_script(pmos, "pm_approve.py", "05", cwd=proj)
     assert res.returncode == 0, res.stderr
     assert (proj / "05-prototype-mockup.html").exists()
+
+
+def test_stage_05_non_ui_enhancement_skips_prototype_html(pmos, new_project):
+    """A non-UI E2 cycle never gets a fabricated HTML prototype from post-approve."""
+    proj = new_project("html05-non-ui", "A problem")
+    enhancements = proj / ".enhancements"
+    cycle = enhancements / "EH-001"
+    cycle.mkdir(parents=True)
+    (enhancements / "index.yaml").write_text(yaml.safe_dump({
+        "schema_version": 1, "active_cycle": "EH-001", "next_sequence": 2,
+        "cycles": ["EH-001"],
+    }), encoding="utf-8")
+    (cycle / "context.yaml").write_text(yaml.safe_dump({
+        "id": "EH-001", "completed_at": None,
+        "boundary": {"affected_surfaces": ["api", "data"]},
+    }), encoding="utf-8")
+    make_draft(proj, "04", body="## API / Interface Contracts\nAccount export.\n")
+    run_script(pmos, "pm_approve.py", "04", cwd=proj)
+    make_draft(proj, "05", body="## What to Validate\nAPI contract and data sample.\n")
+
+    result = run_script(pmos, "pm_approve.py", "05", cwd=proj)
+
+    assert result.returncode == 0, result.stderr
+    assert "non-UI enhancement" in result.stdout
+    assert not (proj / "04-design-spec.html").exists()
+    assert not (proj / "05-prototype-mockup.html").exists()
 
 
 def test_pm_check_flags_downstream_approved_against_changed_upstream(pmos, new_project):

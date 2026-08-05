@@ -1,9 +1,9 @@
 ---
 name: pm-stage-06-qa-plan
 description: Generate the QA Plan for stage 06 from the approved PRD, design spec, and prototype brief.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", ".enhancements/**"]
 writes: "06-qa-plan.md"
-prompt_version: 0.2.0
+prompt_version: 0.3.0
 model_tier: deep-reasoning
 ---
 
@@ -215,6 +215,14 @@ If `genai_flag=true`, append these additional sections after `## Acceptance Crit
 
 If `genai_flag=false`, do not include the GenAI sections. The QA plan must still be complete using only the base sections, covering conventional functional, non-functional, edge case, and acceptance coverage.
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, add delta acceptance cases plus an **impact-based regression class** mapped one-to-one to the **approved regression invariants** and explicit non-touch surfaces. Every affected `new | modified | removed` requirement needs test coverage; preserve existing stable `TC-###` IDs and **carry unaffected content forward**.
+
+Each regression case must include `Invariant: <verbatim approved invariant or non-touch promise>` so `/pm-check` can prove the one-to-one mapping without fuzzy semantic matching.
+
+Cover affected UI/API/data/service/event/integration/operations surfaces plus compatibility, **migration/backfill**, permissions, **mixed versions**, feature flags/config, observability, rollout, rollback, and data integrity where declared. A blocking invariant without a `TC-###` is a release-blocking coverage gap.
+
 # Writing guidance
 
 - Test the approved MVP, not an expanded roadmap.
@@ -288,7 +296,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('06'),
-       'prompt_version': '0.2.0',
+       'prompt_version': '0.3.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

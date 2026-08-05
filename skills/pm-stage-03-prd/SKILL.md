@@ -1,9 +1,9 @@
 ---
 name: pm-stage-03-prd
 description: Generate the Product Requirements Document for stage 03 from the approved brief and scope.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", ".enhancements/**"]
 writes: "03-prd.md"
-prompt_version: 0.4.0
+prompt_version: 0.5.0
 model_tier: deep-reasoning
 ---
 
@@ -253,6 +253,19 @@ If `genai_flag=false`, do not include the GenAI sections.
 
 For the non-GenAI path, the PRD must still be complete using only the base sections. Cover conventional product behavior, workflow rules, permissions, data handling, integrations, operational needs, analytics hooks, accessibility, reliability, rollout risks, and QA-testable acceptance criteria. Do not include model, prompt, agent, retrieval, context-window, token, hallucination, eval-dataset, or AI validation requirements unless the approved scope explicitly mentions them as an external dependency.
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, update only affected stable-ID blocks in the canonical PRD and **carry unaffected content forward**. Never renumber an existing ID. Append IDs only for genuinely net-new requirements; retain removed requirements as auditable `removed` blocks rather than silently deleting their lineage.
+
+Every affected `US-###` and `FR-###`/`REQ-###` block must carry:
+
+- `Change type: new | modified | removed`
+- `Current behavior:` and `Target behavior:` giving explicit **current→target behavior**
+- `Affected surfaces:` using the approved surface vocabulary
+- the owning Epic/Priority and existing traceability fields
+
+Include **backward compatibility**, migration/backfill, permissions, **mixed-version** behavior, rollout/feature-flag, observability, and rollback requirements whenever the boundary declares them. Preserve Part-B tier fields if present; E2 does not run `/pm-promote` or invent tiers.
+
 # Writing guidance
 
 - Treat scope as binding. The PRD should elaborate the scoped MVP, not quietly expand it.
@@ -328,7 +341,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('03'),
-       'prompt_version': '0.4.0',
+       'prompt_version': '0.5.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

@@ -46,12 +46,14 @@ from artifact_contracts import (  # noqa: E402
     _sections,
     information_architecture_section,
     split_screen_blocks,
+    split_stable_id_blocks,
     split_task_blocks,
     split_test_case_blocks,
     split_user_story_blocks,
     work_breakdown_section,
 )
 from delivery_map import build_prd_delivery_map, normalize_title, title_of  # noqa: E402
+from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
 import traceability  # noqa: E402
@@ -355,6 +357,59 @@ def _screen_link(scr_id: str, has_proto: bool, anchored_ids: set[str]) -> str | 
     return "../wireframes/prototype.html"
 
 
+_DELTA_BASELINE_NOTE = (
+    "> _Baseline reference — unchanged by this enhancement. The delta is in the "
+    "changed stories and the enhancement dossier (README); the full artifact "
+    "remains the canonical product-of-record and is not reproduced here._"
+)
+
+# Which stage each whole-artifact / project-level projection is scoped against.
+_REF_STAGE = {
+    "prioritization": "03", "user_journeys": "03", "impact_analysis": "03",
+    "nfrs": "03", "qa_scenarios": "06", "prd_full": "03", "trd_full": "08",
+    "design_spec_full": "04", "screen_map": "04",
+}
+
+
+def _enhancement_scope(enhancement_delta: dict | None) -> dict | None:
+    """Delta-scoping sets for the package, or None outside an active enhancement."""
+    if not enhancement_delta:
+        return None
+    changes = enhancement_delta["changes"]
+    return {
+        "changed_refs": {c["id"] for c in changes},
+        "changed_stages": {str(c["stage"]) for c in changes},
+        "baseline_stage_ids": {str(s) for s in (enhancement_delta.get("baseline_artifacts") or {})},
+    }
+
+
+def _delta_body(body: str | None, stage_id: str | None, scope: dict | None) -> str | None:
+    """Scope a whole-artifact projection to the active enhancement delta.
+
+    - Not an enhancement (scope None): full body unchanged.
+    - Stage authored fresh (not in the frozen baseline): full body — the whole
+      artifact *is* the enhancement (external-product / first-intake case).
+    - In-place edit of a baselined stage: only its changed stable-id blocks.
+    - Nothing in this stage changed: a short baseline-reference note (keeps the
+      file present so package links never dangle) instead of the full baseline.
+    """
+    if scope is None or not body or stage_id is None:
+        return body
+    if stage_id not in scope["baseline_stage_ids"]:
+        return body
+    blocks = split_stable_id_blocks(body)
+    if blocks:
+        kept = [block.strip() for sid, block in blocks.items() if sid in scope["changed_refs"]]
+        return ("\n\n".join(kept) + "\n") if kept else (_DELTA_BASELINE_NOTE + "\n")
+    # No stable-id blocks (non-UI design/reference: API contracts, schemas, run-
+    # books, validation notes). Then only a coarse STAGE-<id> change marks it
+    # changed — ship the whole artifact in that case rather than hiding it behind
+    # the baseline note; otherwise it is genuinely unchanged baseline.
+    if f"STAGE-{stage_id}" in scope["changed_refs"]:
+        return body
+    return _DELTA_BASELINE_NOTE + "\n"
+
+
 def build_package(
     root: Path, out_dir: Path, with_html: bool = False, audience: str | None = None
 ) -> list[Path]:
@@ -362,6 +417,17 @@ def build_package(
         raise SystemExit(f"Error: --audience must be one of {', '.join(AUDIENCES)}.")
 
     meta = load_meta(root)
+    try:
+        enhancement_delta = active_enhancement_delta(root)
+    except EnhancementDeltaError as exc:
+        raise SystemExit(f"Error: enhancement handoff refused: {exc}")
+    if enhancement_delta is not None and not enhancement_delta["changes"]:
+        print(
+            f"Note: active enhancement {enhancement_delta['cycle_id']} has no artifact "
+            "delta yet — the package will contain only the enhancement dossier. Regenerate "
+            "the affected stages before handing off.",
+            file=sys.stderr,
+        )
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -456,7 +522,32 @@ def build_package(
     # the map while its own story file lists that screen.
     covered_story_ids: set[str] = set()
 
+    scope = _enhancement_scope(enhancement_delta)
+    changed_refs = (
+        {item["id"] for item in enhancement_delta["changes"]}
+        if enhancement_delta else set()
+    )
+    # The prototype (a stage-04/05 artifact) ships only when the design/prototype
+    # surface is part of the delta; an unchanged baseline prototype is not handoff.
+    emit_proto = has_proto and (
+        scope is None or bool({"04", "05"} & scope["changed_stages"])
+    )
+    # When the prototype is intentionally excluded, no story or screen-map row may
+    # link to it — those files are not in the audience folder. `emit_proto` is the
+    # single source of truth for every prototype link below (backlog: dangling link).
+    if not emit_proto:
+        anchored_ids = set()
+    selected_story_ids = set(delivery.story_blocks)
+    if enhancement_delta:
+        selected_story_ids = {
+            story_id for story_id in delivery.story_blocks
+            if story_id in changed_refs
+            or set(delivery.story_requirements.get(story_id, [])) & changed_refs
+        }
+
     for story_id, block in delivery.story_blocks.items():
+        if story_id not in selected_story_ids:
+            continue
         title = _story_title(story_id, block)
         epic_ref = delivery.story_to_epic.get(story_id)
         reqs = delivery.story_requirements.get(story_id, [story_id])
@@ -497,7 +588,7 @@ def build_package(
                 "id": scr,
                 "name": _story_title(scr, screen_blocks.get(scr, "")),
                 "body": _screen_body(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
-                "link": _screen_link(scr, has_proto, anchored_ids),
+                "link": _screen_link(scr, emit_proto, anchored_ids),
             }
             for scr in screen_ids
         ]
@@ -568,19 +659,33 @@ def build_package(
         or _section_of(scope_body, "in scope")
         or scope_body
     )
+    overview_body = (
+        f"## Who\n\n{who or NOT_CAPTURED}\n\n"
+        f"## What & Why\n\n{what_why or NOT_CAPTURED}\n\n"
+        f"## How\n\n{how or NOT_CAPTURED}\n"
+    )
+    # The overview is drawn from the brief (01) + scope (02); under an enhancement
+    # it ships only if either of those stages is part of the delta.
+    if scope is not None and not ({"01", "02"} & scope["changed_stages"]):
+        overview_body = _DELTA_BASELINE_NOTE + "\n"
     overview_content = _stamped_doc(
         f"{project_name} — Handoff Overview",
         [s for s in (_stamp(root, "01"), _stamp(root, "02")) if s],
         now,
-        f"## Who\n\n{who or NOT_CAPTURED}\n\n"
-        f"## What & Why\n\n{what_why or NOT_CAPTURED}\n\n"
-        f"## How\n\n{how or NOT_CAPTURED}\n",
+        overview_body,
     )
 
     # --- epic indexes (one file per Product Epic declared in the PRD) ---
     epics: list[dict] = []  # {id, title, filename, content}
     epic_index: list[dict] = []
+    selected_epics = {story.get("epic") for story in story_index if story.get("epic")}
+    selected_epics.update(
+        epic_ref for req_id, epic_ref in delivery.requirement_to_epic.items()
+        if req_id in changed_refs and epic_ref
+    )
     for epic_ref, epic_rec in delivery.epics.items():
+        if enhancement_delta and epic_ref not in selected_epics:
+            continue
         header = [
             "## Outcome and scope",
             "",
@@ -651,8 +756,9 @@ def build_package(
         ),
     }
     for category, (filename, heading, content, stamp) in plain_references.items():
+        content = _delta_body(content, _REF_STAGE.get(category), scope)
         doc = _stamped_doc(
-            heading, [stamp] if stamp else [], now, (content.strip() or NOT_CAPTURED) + "\n"
+            heading, [stamp] if stamp else [], now, ((content or "").strip() or NOT_CAPTURED) + "\n"
         )
         reference_docs[category] = (filename, doc)
 
@@ -660,17 +766,18 @@ def build_package(
     # README/HTML links never dangle; a not-yet-approved optional source projects an
     # explicit note instead of a body. Stamped with the source hash like every other
     # projection, so a dev/design reviewer can trace it back to the approved artifact.
+    prd_projection = _delta_body(prd_body, "03", scope)
     reference_docs["prd_full"] = ("prd.md", _stamped_doc(
         "Product Requirements (PRD)", [prd_stamp] if prd_stamp else [], now,
-        (prd_body.strip() or NOT_CAPTURED) + "\n"))
-    trd_projection = trd_body.strip() if trd_body else (
+        ((prd_projection or "").strip() or NOT_CAPTURED) + "\n"))
+    trd_projection = (_delta_body(trd_body, "08", scope) or "").strip() if trd_body else (
         NOT_CAPTURED + "\n\n_Stage 08 (TRD) is not approved for this project, so no "
         "technical requirements are projected here. Approve the TRD (/pm-approve 08) and "
         "regenerate to include it._")
     reference_docs["trd_full"] = ("trd.md", _stamped_doc(
         "Technical Requirements (TRD)", [trd_stamp] if trd_stamp else [], now,
         trd_projection + "\n"))
-    design_projection = design_body.strip() if design_body else (
+    design_projection = (_delta_body(design_body, "04", scope) or "").strip() if design_body else (
         NOT_CAPTURED + "\n\n_Stage 04 (design spec) is not approved, so no design spec is "
         "projected here. Approve the design spec (/pm-approve 04) and regenerate to include it._")
     reference_docs["design_spec_full"] = ("design-spec.md", _stamped_doc(
@@ -678,12 +785,15 @@ def build_package(
         design_projection + "\n"))
 
     # --- screen map (the reverse view: screen → the stories it serves) ---
+    # An unchanged, baselined design spec contributes no delta, so its screen map
+    # is baseline reference rather than handoff.
+    if scope is not None and "04" in scope["baseline_stage_ids"] and "04" not in scope["changed_stages"]:
+        screen_map_table = _DELTA_BASELINE_NOTE + "\n"
+    else:
+        screen_map_table = _screen_map_table(
+            root, spine, screen_blocks, story_index, covered_story_ids, emit_proto, anchored_ids)
     screen_map_content = _stamped_doc(
-        "Screen Map",
-        [design_stamp] if design_stamp else [],
-        now,
-        _screen_map_table(root, spine, screen_blocks, story_index, covered_story_ids, has_proto, anchored_ids),
-    )
+        "Screen Map", [design_stamp] if design_stamp else [], now, screen_map_table)
     reference_docs["screen_map"] = ("screen-map.md", screen_map_content)
 
     # --- resolve which audiences to (re)build ---
@@ -740,7 +850,7 @@ def build_package(
                 path.write_text(content, encoding="utf-8")
                 written.append(path)
 
-        if "wireframes" in cats and has_proto:
+        if "wireframes" in cats and emit_proto:
             (aud_dir / "wireframes").mkdir(parents=True, exist_ok=True)
             path = aud_dir / "wireframes" / "prototype.html"
             path.write_bytes(proto_bytes)
@@ -748,8 +858,28 @@ def build_package(
 
         readme = _audience_readme(
             project_name, now, story_index, epic_index, generated_sources(root),
-            has_proto and "wireframes" in cats, aud, cats,
+            emit_proto and "wireframes" in cats, aud, cats,
         )
+        if enhancement_delta:
+            boundary = enhancement_delta["boundary"]
+            change_lines = [
+                f"- {item['id']}: {item['change_type']}"
+                for item in enhancement_delta["changes"]
+            ] or ["- No artifact delta detected"]
+            dossier = (
+                f"\n## Enhancement {enhancement_delta['cycle_id']} delta\n\n"
+                + "\n".join(change_lines)
+                + "\n\nAffected surfaces: "
+                + ", ".join(boundary.get("affected_surfaces") or [])
+                + "\n\nMust not break: "
+                + "; ".join(boundary.get("regression_invariants") or [])
+                + "\n\nCompatibility/migration: "
+                + "; ".join(boundary.get("compatibility_migration") or [])
+                + "\n\nRollout: " + "; ".join(boundary.get("rollout") or [])
+                + "\n\nRollback: " + "; ".join(boundary.get("rollback") or [])
+                + "\n"
+            )
+            readme += dossier
         (aud_dir / "README.md").write_text(readme, encoding="utf-8")
         written.append(aud_dir / "README.md")
 

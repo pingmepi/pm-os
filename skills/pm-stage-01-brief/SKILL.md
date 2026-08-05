@@ -1,9 +1,9 @@
 ---
 name: pm-stage-01-brief
 description: Generate the Product Brief for stage 01 from the business statement.
-reads: ["00-business-statement.md"]
+reads: ["00-business-statement.md", ".enhancements/**"]
 writes: "01-brief.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -116,6 +116,12 @@ Write a Product Brief with exactly these sections. Be concrete, avoid filler, ke
 <If genai_flag=false: "Not applicable — this is not a GenAI product.">
 ```
 
+# E2 affected-slice regeneration contract
+
+When `.enhancements/index.yaml` names an **active enhancement context**, read that cycle's `context.yaml`, frozen `baseline/01-brief.md` when present, approved `00c`, and approved `00u` Enhancement Boundary before writing. Frame only the **current-product gap**, affected users, why now, and the **delta success hypothesis**; the existing-product description is context, not scope.
+
+On regeneration, **carry unaffected content forward** from the current canonical brief (and verify it against the frozen baseline). Change only sections required by the approved boundary. Do not turn the brief into a detached delta document: it remains the current product brief after approval.
+
 # Writing guidance
 
 - Make explicit choices about the primary user, core pain, initial product wedge, and success signal.
@@ -179,7 +185,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('01'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

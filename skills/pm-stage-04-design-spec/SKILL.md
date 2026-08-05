@@ -1,9 +1,9 @@
 ---
 name: pm-stage-04-design-spec
 description: Generate the Design Spec for stage 04 from the approved PRD and upstream product artifacts.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", ".enhancements/**"]
 writes: "04-design-spec.md"
-prompt_version: 0.3.0
+prompt_version: 0.4.0
 model_tier: deep-reasoning
 ---
 
@@ -219,6 +219,14 @@ Rules:
 <List accessibility requirements and checks relevant to the MVP flows and components, including keyboard navigation, focus order, labels, contrast, error messaging, touch target size, and screen-reader expectations where relevant.>
 ```
 
+# E2 affected-slice regeneration contract
+
+## Surface-aware enhancement design
+
+When an active enhancement context exists, design only changed/new surfaces and **carry unaffected content forward**. Preserve stable `SCR-###` IDs and component reuse for UI work. For **API/data/service/event/integration/operations**, describe interface contracts, schemas/migrations, service/event flows, integration contracts, operational topology/runbooks, states, errors, accessibility/security, and requirement traceability appropriate to the affected surfaces.
+
+**Never invent UI** tokens, components, flows, or screens for a non-UI delta. Screenless requirements must be explicitly mapped to their non-UI design artifact and stable requirement IDs. The canonical design spec remains a current-product document, not a detached delta.
+
 # Writing guidance
 
 - Treat the PRD as binding. Design should clarify requirements, not create new product scope.
@@ -293,7 +301,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('04'),
-       'prompt_version': '0.3.0',
+       'prompt_version': '0.4.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

@@ -2,7 +2,7 @@
 name: pm-handoff
 description: Export the approved PM-OS pipeline — a raw text dump of one or all stages, a readable per-audience handoff package (dev/design/qa/business), or Jira tickets (connector or offline CSV). The single callable skill for all PM-OS export.
 model_tier: utility
-reads: ["01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-mockup.html", "06-qa-plan.md", "08-trd.md", ".traceability.yaml"]
+reads: ["01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-mockup.html", "06-qa-plan.md", "08-trd.md", ".traceability.yaml", ".enhancements/**"]
 writes: ["handoff/**"]
 ---
 
@@ -16,6 +16,10 @@ still does the raw/package mechanics; `scripts/pm_handoff.py` still does the
 Jira mechanics — only the skill-level entrypoint changed.
 
 # Modes
+
+## Active E2 enhancement behavior
+
+When `.enhancements/index.yaml` names an active cycle, every package/Jira projection is automatically enhancement-scoped. Export only computed `new | modified | removed` work plus the minimum epic/story parent closure. Never export an unaffected baseline sibling. Removed baseline work becomes an explicit removal item. Include the cycle/baseline reference, affected surfaces, non-touch/regression promises, compatibility/migration, rollout, and rollback in the human package and Jira payload. Refuse export if the boundary is absent, a changed stage is not approved, or the frozen baseline cannot be derived. Part-B `--increment` remains separate.
 
 `$ARGUMENTS` is parsed as prose, same as before — look for `--package` or
 `--raw` first (mutually exclusive with each other and with the Jira flow); if

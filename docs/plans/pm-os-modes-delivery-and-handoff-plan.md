@@ -1,6 +1,6 @@
 # PM-OS Modes, Delivery Model & Engineering Handoff Plan
 
-**Status:** 🟡 **Part A infrastructure implemented; its full enhancement pathway is E2 planned. Part B partially built; Part C partly shipped.** Enhancement plumbing shipped: `--mode enhancement`, `--codebase <url-or-path>`, `project_type`/`codebase_path`/`codebase_ref` in `.meta.yaml` (schema v3), conditional `00c`, `prepare-codebase`, and a status-only drift signal. Stage 01 has delta framing; the affected-slice scanner, cycle lineage, baseline integrity, decision interview, multi-surface overlays for stages 02–09, regression/consistency, and delta-only handoff remain unbuilt and are now sequenced in `pm-os-entry-pathways-plan.md` E2. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
+**Status:** 🟡 **Part A's full E2 enhancement pathway is implemented on `feat/e2-affected-slice-enhancement`, pending review/merge; Part B partially built; Part C partly shipped.** E2 adds same-project baseline cycles, a deterministic read-only inventory/affected-slice/impact-cone scan, decision boundary, multi-surface stage overlays 01–09, non-UI validation behavior, delta/consistency/status gates, delta-only package/Jira export, explicit refresh, completion, and two-cycle provenance. The pre-existing enhancement scaffold remains the first-intake route. **Part B — the delivery model (scope tiers + delivery increments) — is designed here (2026-07-27); B0 plus prerequisite priority/TRD contract work are shipped, while tiers and increments remain unbuilt.** Part C (external engineering handoff) is partly shipped: `/pm-handoff jira` — both the Atlassian-MCP create route and the `--offline` CSV export — landed v1.2.0 (screen mapping v1.3.0); `/pm-handoff linear`, Figma pull/push, and design-token→React codegen remain unbuilt. Delivery-model and unbuilt-handoff work is tracked as Phase 4 in `docs/roadmap/current-state-review.md` §7 and as backlog #28.
 >
 > **Naming history — `/pm-share` ↔ `/pm-handoff` (canonical record; this file owns it).**
 > Two moves, net result one skill: **(1) 2026-07-15** — a local handoff-package generator briefly
@@ -141,7 +141,7 @@ Small and localized:
 - Telemetry — add `project_type` to `project_created` and stage payloads so the feedback repo can segment new-product vs enhancement.
 - Spec §2 / §8 / §13 updated to document the new dimension and stage.
 
-**Risk:** the shipped flag/gate plumbing is low-risk, but the full pathway is not: slice completeness, source-project lineage, baseline identity, multi-surface contracts, regression scope, and handoff correctness are cross-cutting. E2 therefore ships in the dependency order and acceptance matrix in `pm-os-entry-pathways-plan.md`, while keeping the existing status/hash/gate state machine authoritative.
+**Risk:** the shipped flag/gate plumbing is low-risk, but the full pathway is not: slice completeness, same-project before/after provenance, baseline identity, stable-ID carry-forward, multi-surface contracts, regression scope, and handoff correctness are cross-cutting. E2 therefore ships in the dependency order and acceptance matrix in `pm-os-entry-pathways-plan.md`, while keeping the existing status/hash/gate state machine authoritative.
 
 ---
 
@@ -249,7 +249,7 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 |---|---|---|---|
 | **A0** | `00c` codebase-understanding + Explore-based reading + drift signal | mode flag | ✅ shipped |
 | **A1** | Schema + `pm_new` (`--mode`, `--codebase`) + `pm_status` plumbing | — | ✅ shipped |
-| **A2 / E2** | Read-only affected-slice enhancement pathway: cycle lineage, baseline integrity, marketplace-strengthened impact scan, decision boundary, multi-surface conditional blocks across 01–09, regression/check/handoff, refresh and dogfood | A0, A1, entry-pathways E1/E3 | 🔴 unbuilt; development order in entry-pathways E2.0–E2.7 |
+| **A2 / E2** | Read-only affected-slice enhancement pathway: one product/one project continuation, captured before/after baseline, `00c` inventory, marketplace-strengthened impact scan, decision boundary, scoped multi-surface updates across 01–09, regression/check/handoff, refresh and dogfood | A0, A1, entry-pathways E1/E3; Part-B interface contract | 🟡 implemented on E2 branch; final review/merge pending |
 | **B0** | Resolve the synthetic-epic vs. per-story export mismatch to one declared-Product-Epic Jira mapping (backlog #28) | — | ✅ shipped |
 | **B1** | Scope-tier attribute (`Tier:` on `US`/`FR`) + stage-02 tier declaration + stages 04–07 default-to-`mvp` filter | #19 shipped, B0 | 🔴 open |
 | **B2** | Tiered-fidelity contract (v2 mini-spec checks apply to `tier: mvp` only) + `/pm-promote` | B1 | 🔴 open |
@@ -271,15 +271,16 @@ Independently shippable; ordered by dependency. Part A shipped (v0.5.9 / v0.6.0)
 - [x] No change to new-product behavior, hashing, staleness, or telemetry semantics.
 
 **Full enhancement pathway / E2 (target):**
-- [ ] Target repositories are read-only in practice and in tests; every output is written outside the target repo.
-- [ ] A lightweight repository inventory leads to an affected-slice/impact-cone `00c`, not a whole-product reconstruction; coverage/exclusions/confidence and widening decisions are explicit.
-- [ ] External products and products originally built with PM-OS both create separate enhancement cycles with correct baseline/source lineage; original PM-OS product artifacts remain unchanged.
-- [ ] `/pm-promote` is not part of pathway activation; fresh route correction and enhancement-cycle binding use unambiguous terminology and refuse unsafe late conversion.
-- [ ] Repository identity/ref is bound to `00c`; preparation cannot mask drift; refresh/rebase is explicit and cascades ordinary staleness.
-- [ ] The decision-focused interview produces an approved enhancement boundary and blocks on unresolved baseline/scope/regression/compatibility decisions unless risk is explicitly accepted.
-- [ ] The behavior table above is implemented across 00c/00u and stages 01–09 for UI, API, data, service, event, integration, and operations without forcing frontend artifacts onto non-UI work.
-- [ ] Regression invariants, affected surfaces, requirements, tests, tasks, rollout/rollback and the delta-only handoff are traceable and checked.
-- [ ] The full E2 acceptance matrix in `pm-os-entry-pathways-plan.md` passes, including marketplace-adapter safety, greenfield/prototype regression, migration, drift, monorepo, external-product and PM-OS-built-product dogfood.
+- [x] Target repositories are read-only in practice and in tests; every output is written outside the target repo.
+- [x] A lightweight repository inventory leads to an affected-slice/impact-cone `00c`, not a whole-product reconstruction; coverage/exclusions/confidence and widening decisions are explicit.
+- [x] A product is represented by one PM-OS project: an external product initializes that project once, while a PM-OS-native or previously imported product handles every subsequent enhancement in place using captured approved hashes/code ref, normal history/reapproval/staleness, and stable unaffected IDs/content.
+- [x] `project_type` remains the product's first-intake identity. A separate persisted in-project enhancement context supplies the active ask/baseline/affected-surface signal to conditional blocks without creating approval/status state; approved canonical artifacts become the updated product-of-record.
+- [x] `/pm-promote` is not part of pathway activation; it remains the Part-B requirement-tier operation inside the same PRD. Fresh first-intake routing and established-project continuation use unambiguous terminology.
+- [x] Repository identity/ref is bound to the cycle/`00c` evidence; preparation cannot mask drift; refresh/rebase is explicit and cascades ordinary staleness.
+- [x] The decision-focused interview produces an approved enhancement boundary and blocks on unresolved baseline/scope/regression/compatibility decisions unless risk is explicitly accepted.
+- [x] The behavior table above is implemented across 00c/00u and stages 01–09 for UI, API, data, service, event, integration, and operations without forcing frontend artifacts onto non-UI work.
+- [x] Regression invariants, affected surfaces, requirements, tests, tasks, rollout/rollback and the delta-only handoff are traceable and checked.
+- [x] The E2 acceptance matrix in `pm-os-entry-pathways-plan.md` passes for marketplace portability, greenfield/prototype regression, backward compatibility, drift, monorepo, external first intake, and PM-OS-built-product repeat cycles. The separately labeled E0 safe-route-correction follow-up is not part of E2.
 
 **Part B (target):**
 - [x] The synthetic-epic/per-story export mismatch is resolved to one declared-Product-Epic Jira mapping before any tier/increment work (B0).

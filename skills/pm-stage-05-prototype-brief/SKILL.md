@@ -1,9 +1,9 @@
 ---
 name: pm-stage-05-prototype-brief
 description: Generate the Prototype Brief for stage 05 from the approved design spec and upstream product artifacts.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", ".enhancements/**"]
 writes: ["05-prototype-brief.md", "05-prototype-mockup.html"]
-prompt_version: 0.3.0
+prompt_version: 0.4.0
 ---
 
 # Role and goal
@@ -120,7 +120,7 @@ log('stage_started', Path('.'), '05', {})
 
 # Output specification
 
-Write a Prototype Brief with exactly these sections. After writing the brief, stage 05 automatically invokes the `pm-prototype-html` skill to generate a working interactive HTML prototype alongside it (see step 9 in Write outputs).
+Write a Prototype Brief with exactly these sections. For greenfield work and UI-affected enhancements, stage 05 automatically invokes the `pm-prototype-html` skill to generate a working interactive HTML prototype alongside it (see step 9 in Write outputs). For an active enhancement whose affected surfaces exclude `ui`, stage 05 writes the surface-appropriate validation brief only and skips HTML.
 
 GenAI handling:
 - If `genai_flag=false`, write a conventional prototype brief focused on product flows, screens, states, interactions, and validation questions.
@@ -177,6 +177,14 @@ For each screen, include enough layout and state detail for the renderer to crea
 
 <List what the prototype should intentionally not cover, including deferred flows, implementation details, and non-MVP capabilities.>
 ```
+
+# E2 affected-slice regeneration contract
+
+## Surface-aware enhancement validation
+
+When an active enhancement context exists, validate only the affected delta and **carry unaffected content forward**. Choose validation artifacts by surface: UI prototype; **API examples/mock contract**; data migration/sample/backfill validation; service/event harness or sequence; integration sandbox/webhook cases; or an **operational drill/runbook**. Mixed-surface work may combine them, all traced to the same affected requirement IDs.
+
+**Generate HTML only when UI is affected.** For a non-UI enhancement, explicitly mark `05-prototype-mockup.html` not applicable and do not fabricate screens. Questions, evidence measures, and decision thresholds must exercise current→target behavior, regressions, compatibility, migration, rollout, and rollback.
 
 # Writing guidance
 
@@ -255,19 +263,27 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('05'),
-       'prompt_version': '0.3.0',
+       'prompt_version': '0.4.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "
    ```
 
-8. **Print to PM:**
+8. **Print the next action:**
+
+   For greenfield work or an active enhancement whose `affected_surfaces` contains `ui`:
    ```text
    Stage 05 draft written to 05-prototype-brief.md
    Generating working HTML prototype next...
    ```
 
-9. **Auto-generate the working HTML prototype.** Immediately after printing the above, invoke the `pm-prototype-html` skill to generate `05-prototype-mockup.html`:
+   For an active enhancement whose affected surfaces exclude `ui`:
+   ```text
+   Stage 05 validation brief written to 05-prototype-brief.md
+   Non-UI enhancement: HTML prototype is not applicable; no HTML will be generated.
+   ```
+
+9. **Conditionally generate the working HTML prototype.** Read the active enhancement context when present. If its `affected_surfaces` excludes `ui`, skip this entire step and do not create `05-prototype-mockup.html`. Otherwise, immediately invoke `pm-prototype-html` to generate it:
 
    - **Claude runtime:** use the Skill tool with `skill: "pm-prototype-html"`. Do not ask the PM for confirmation — this is an automatic step.
    - **Codex runtime:** use `$pm-prototype-html`.

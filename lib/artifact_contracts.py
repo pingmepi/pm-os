@@ -435,6 +435,26 @@ def split_epic_blocks(text: str) -> dict[str, str]:
     return _split_id_blocks(text, _EPIC_BLOCK_START_RE)
 
 
+# Every PM-OS stable-id family in one splitter, for the cross-stage E2 delta which
+# must diff blocks in any stage without knowing which id type a stage declares.
+# Accepts the exact declaration shapes the per-type splitters do — heading, `-/*/+`
+# bullet, `1.` ordered-list item, or bare line, id optionally bold-wrapped — with
+# the same heading-level-aware block boundaries (via `_split_id_blocks`). This is
+# the single source of truth so the delta never diverges from the contract/
+# traceability parsers the rest of the repo uses.
+STABLE_ID_TYPES = ("EPIC", "US", "FR", "REQ", "NFR", "UJ", "SCR", "TC", "TSK", "TR", "ADR")
+_STABLE_ID_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}"
+    r"(?P<id>(?:" + "|".join(STABLE_ID_TYPES) + r")-\d+)\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def split_stable_id_blocks(text: str) -> dict[str, str]:
+    """Map every stable id (any PM-OS family) to its introducing block. See ``_split_id_blocks``."""
+    return _split_id_blocks(text, _STABLE_ID_BLOCK_START_RE)
+
+
 def epic_id_declarations(text: str) -> list[str]:
     """Return every EPIC-### id declared at a block start, including duplicates."""
     return [match.group("id").upper() for match in _EPIC_BLOCK_START_RE.finditer(text or "")]

@@ -1,9 +1,9 @@
 ---
 name: pm-stage-08-trd
 description: Generate the Technical Requirements Document for stage 08 from the full approved product pipeline.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", "07-metrics-plan.md", ".enhancements/**"]
 writes: "08-trd.md"
-prompt_version: 0.3.0
+prompt_version: 0.4.0
 model_tier: deep-reasoning
 ---
 
@@ -263,6 +263,12 @@ If `genai_flag=false`, do not include the GenAI sections.
 
 The TRD is the technical home: go deeper here than the PRD did. For GenAI products the PRD states the product-level AI rationale; this TRD specifies the buildable architecture and validation.
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, write a **change-set against existing architecture**: affected modules/interfaces/data/events/infra, integration and compatibility plan, **migration/backfill**, flags/config, observability, and **deployment/rollback**. Preserve unaffected architecture/decisions and **carry unaffected content forward**.
+
+The Work Breakdown contains **delta-only tasks** for `new | modified | removed` requirements plus required regression/migration/operations work. Reuse stable `TSK-###` IDs for still-valid tasks; append IDs for new tasks; retain removed-task lineage explicitly. Every task must trace to an affected requirement and relevant QA coverage so unaffected baseline work does not enter handoff.
+
 # Writing guidance
 
 - Treat scope and PRD as binding. The TRD designs how to build the approved product, not a different one.
@@ -341,7 +347,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('08'),
-       'prompt_version': '0.3.0',
+       'prompt_version': '0.4.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

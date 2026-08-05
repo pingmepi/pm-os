@@ -1,9 +1,9 @@
 ---
 name: pm-stage-07-metrics-plan
 description: Generate the Metrics Plan for stage 07 from the approved product, design, prototype, and QA artifacts.
-reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md"]
+reads: ["00-business-statement.md", "01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-brief.md", "06-qa-plan.md", ".enhancements/**"]
 writes: "07-metrics-plan.md"
-prompt_version: 0.1.0
+prompt_version: 0.2.0
 ---
 
 # Role and goal
@@ -178,6 +178,12 @@ If `genai_flag=true`, append these additional sections after `## Review Cadence`
 
 If `genai_flag=false`, do not include the GenAI sections. The metrics plan must still be complete using only the base sections.
 
+# E2 affected-slice regeneration contract
+
+When an active enhancement context exists, use **baseline-status → target** framing for every change metric. Cite the observed baseline or explicitly state that it is unavailable and define how it will be established. Add **guardrails for existing outcomes** and surface-specific UI/API/data/service/event/integration/operations risks, with owners, instrumentation, thresholds, and **rollout/rollback triggers**.
+
+Keep stable metrics that remain valid and **carry unaffected content forward**. Add or modify only instrumentation justified by the approved boundary; do not rebuild the whole product measurement plan.
+
 # Writing guidance
 
 - Anchor the North Star Metric to the stage-01 Success Hypothesis.
@@ -243,7 +249,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'generated_hash': '<hash>',
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('07'),
-       'prompt_version': '0.1.0',
+       'prompt_version': '0.2.0',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

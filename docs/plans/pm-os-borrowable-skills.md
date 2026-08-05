@@ -34,7 +34,7 @@ Phase titles key to `../roadmap/current-state-review.md` §7.
 | **4b — One tracker, export-only** | **Linear MCP** (full issue/project/milestone CRUD) **or** **Atlassian MCP** (Jira) | The connector itself — *do not build* | **A** | Biggest build-vs-borrow win. Cross-runtime via MCP. Keep PM-OS's dry-run → confirm → store-IDs-only policy. |
 | **4 — Design-system / Figma (planned later)** | **Figma MCP** (design-context read, code-connect, diagrams) or **penpot MCP** (OSS) | Design source links + design context into stage 04/05 | **A** | Auth-gated, optional. penpot is the open-source fallback. |
 | **5a — Bug intake + classification** | **Linear / Atlassian MCP** (pull bugs); reuse stage-06 `TC-…` IDs | Bug ingestion (classification stays PM-OS prompt logic) | **A** (ingest) / **B** (classify) | Classification is judgment — keep it in PM-OS, not borrowed. |
-| **5b — Code-area suggestion (quarantined)** | built-in `code-review` / `security-review`, `git-workflow` (recent-changes heuristic), `Explore` agent, `repo-interview-prep` mining | Repo-snapshot → candidate-files → fix-plan pattern | **B** + **C** | Matches the "cite evidence, label suggestion, opt-in" quarantine. No hard dependency on this path. |
+| **5b — Code-area suggestion (quarantined)** | built-in `code-review` / `security-review`, `git-workflow` (recent-changes heuristic), `Explore` agent, ECC `iterative-retrieval`/`code-tour` evidence-anchor patterns | Repo-snapshot → candidate-files → fix-plan pattern | **B** + **C** | Matches the "cite evidence, label suggestion, opt-in" quarantine. `repo-interview-prep` is explicitly excluded. No hard dependency on this path. |
 | **6a — Release-readiness report** | `deployment-patterns` (production-readiness checklist), `changelog-generator` (release notes from commits), `git-workflow` | Readiness checklist + release-notes generation | **B** | `deployment-patterns`' checklist maps ~1:1 onto the readiness rollup; `changelog-generator` produces the notes. |
 | **6b — Feedback intake + iteration** | **Intercom / HubSpot MCP** (support feedback); `deep-research` + built-in `WebSearch` (market/competitor/user signal) | Feedback ingestion (classification stays PM-OS) | **A** (ingest) / **B** (classify) | The "optional analytics/support connectors later" the phase already anticipates. |
 | **Self-improvement loop** (`pm-os-self-improvement-loop-plan.md`) | `continuous-learning` (extract patterns from sessions → skills), `eval-harness` (formal session eval) | Telemetry → recommendation + artifact-quality eval | **B** | Directly overlaps the existing self-improvement plan. |
@@ -58,6 +58,18 @@ Cross-referencing the 11 stage skills + 10 utility skills against the available 
 ---
 
 ## E2 marketplace refresh — selected codebase-understanding patterns (2026-08-03)
+
+### PM-provided repository review — pinned evidence
+
+| Repository | Reviewed commit | License result | E2 decision |
+|---|---|---|---|
+| `affaan-m/ecc` | `0c1d7be9a750627fb2a6534c78a998cc46d03f9c` | Root MIT license | **Adapt patterns only.** Use `iterative-retrieval`'s bounded broad→evaluate→refine loop, `code-tour`'s verified file/line anchors, `architecture-decision-records`' evidence-backed decisions, and `loop-design-check`'s machine-decidable boundaries. Reject `.tour` or other writes inside the target and do not ship an ECC runtime dependency. |
+| `obra/superpowers` | `44c9b2d6e889982ac18c27d05a19fefe335194e1` | Root MIT license | **Adapt process only.** E2's execution runbook incorporates tests-first red/green, root-cause-before-fix, minimal implementation, and fresh verification-before-completion. Do not import its runtime orchestration or human-review checkpoints as gated dependencies. |
+| `ComposioHQ/awesome-claude-skills` | `be2a406907dbc61b73e6827ded415c96139d13a2` | No repository-wide license found; licenses are skill-specific | **Reject as an E2 code dependency.** `webapp-testing`'s reconnaissance-before-action idea is useful for later optional UI validation, but it starts servers/Playwright and therefore cannot participate in E2's read-only codebase scan. No content is copied without a separately verified skill license. |
+
+**Security/write/network review:** the repositories were shallow-cloned only into a disposable `/tmp` directory for inspection. E2 adopts no executable, network call, install step, subprocess wrapper, or target-repository output from them. The production path remains the PM-OS-owned `pm-context-scan-codebase` skill plus deterministic local helpers. This also preserves Claude/Codex parity.
+
+**PM-OS skills inspired by the review:** strengthen `pm-context-scan-codebase` with inventory → bounded focus → evidence-driven widening; add `/pm-enhance` for same-project lifecycle/baseline mechanics; and keep the tests-first building loop in `pm-os-e2-execution-runbook.md`. These are original PM-OS-owned contracts, not vendored marketplace skills.
 
 ### Primary candidate: `acquire-codebase-knowledge`
 
@@ -92,6 +104,6 @@ Community regression-scope skills can contribute checklists for changed files, d
 
 ## Catalog reference
 
-**Borrowable agent skills seen in this environment (selected):** `api-design`, `autonomous-loops`, `backend-patterns`, `brand-voice`, `changelog-generator`, `claude-api`, `codebase-docs-alignment`, `coding-standards`, `continuous-learning`, `cost-aware-llm-pipeline`, `customize-faqs`, `database-migrations`, `deep-research`, `deployment-patterns`, `doc-coauthoring`, `docker-patterns`, `docx`, `e2e-testing`, `eval-harness`, `frontend-design`, `frontend-patterns`, `git-workflow`, `llm-output-hardening`, `mcp-builder`, `pdf`, `postgres-patterns`, `pptx`, `python-patterns`, `python-testing`, `repo-interview-prep`, `search-first`, `security-review`, `security-scan`, `skill-creator`, `tdd-workflow`, `verification-loop`, `webapp-testing`, `xlsx`; built-in commands `init`, `verify`, `code-review`, `simplify`, `review`, `run`, `docs-audit`.
+**Borrowable agent skills seen in this environment (selected):** `api-design`, `autonomous-loops`, `backend-patterns`, `brand-voice`, `changelog-generator`, `claude-api`, `codebase-docs-alignment`, `coding-standards`, `continuous-learning`, `cost-aware-llm-pipeline`, `customize-faqs`, `database-migrations`, `deep-research`, `deployment-patterns`, `doc-coauthoring`, `docker-patterns`, `docx`, `e2e-testing`, `eval-harness`, `frontend-design`, `frontend-patterns`, `git-workflow`, `llm-output-hardening`, `mcp-builder`, `pdf`, `postgres-patterns`, `pptx`, `python-patterns`, `python-testing`, `search-first`, `security-review`, `security-scan`, `skill-creator`, `tdd-workflow`, `verification-loop`, `webapp-testing`, `xlsx`; built-in commands `init`, `verify`, `code-review`, `simplify`, `review`, `run`, `docs-audit`. `repo-interview-prep` is deliberately excluded from E2.
 
 **MCP connectors available:** Linear (full CRUD), Atlassian/Jira & Confluence, Figma, penpot, Notion, Google Drive / Gmail / Calendar, Asana, monday.com, HubSpot, Intercom, Box, Canva, Supabase, Vercel — plus built-in `WebSearch` / `WebFetch`.
