@@ -47,13 +47,13 @@ If `00` (business statement) is not `approved`, tell the PM to review and approv
 
 ## Codebase pre-flight (enhancement mode only)
 
-If `$ARGUMENTS` includes a `--codebase <url-or-path>` argument, or if `.meta.yaml` has `codebase_path` already set, prepare the codebase before scanning:
+If `$ARGUMENTS` includes a `--codebase <source>` argument, or if `.meta.yaml` has `codebase_path` already set, prepare the codebase before scanning. `<source>` may be a **git URL** (`https://…`, `http://…`, `git@…`), a **local directory**, or a **`.zip` archive**:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_context_import.py prepare-codebase <url-or-path>
+python3 ~/.pm-os/scripts/pm_context_import.py prepare-codebase <source>
 ```
 
-This clones (for URLs) or validates (for local paths) the codebase and records the git SHA as `codebase_ref` in `.meta.yaml`. Fail fast if the clone fails — do not continue with a missing codebase. After preparation, the local path is available via `.meta.yaml` `codebase_path`.
+This clones (URLs), validates (local directories), or extracts (`.zip`) the codebase into `.codebase/` and records the git SHA as `codebase_ref` in `.meta.yaml`. A zip is extracted read-only and turned into a self-contained one-commit git checkout (unless it already carries its own `.git/`), so a zip source behaves like a clone for SHA pinning, dirty-state, and E2 `refresh`. Fail fast if preparation fails — do not continue with a missing codebase. After preparation, the local path is available via `.meta.yaml` `codebase_path`.
 
 # Inputs
 

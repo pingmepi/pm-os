@@ -17,10 +17,13 @@ SKILL.md. This script only moves bytes and updates state:
 The SKILL writes the markdown bodies; this script never generates content.
 """
 import argparse
+import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -722,6 +725,94 @@ def cmd_upgrade_pack(args):
     print("registered sources, run `pack-manifest`, then the PM re-approves 00w + 00u.")
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
+    """Extract a zip, refusing any member that would escape ``dest_dir``.
+
+    The archive is untrusted PM input, so guard against zip-slip (absolute paths
+    or ``..`` traversal) before writing anything to disk.
+    """
+    dest_dir = dest_dir.resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.namelist():
+            resolved = (dest_dir / member).resolve()
+            if resolved != dest_dir and dest_dir not in resolved.parents:
+                raise SystemExit(
+                    f"Error: refusing to extract zip — entry escapes the extraction "
+                    f"directory: {member!r}"
+                )
+        archive.extractall(dest_dir)
+
+
+def _prepare_from_zip(root: Path, source: Path) -> Path:
+    """Extract a codebase zip into .codebase/ as a self-contained git checkout.
+
+    A synthetic single commit is created (unless the archive already carries its
+    own .git) so the read-only inventory and the E2 lifecycle — both of which
+    shell out to git for SHA pinning, dirty-state, and refresh — treat a zip
+    source identically to a clone. The original zip on disk is never modified.
+    """
+    target = root / ".codebase"
+    marker = root / ".codebase-source"
+    zip_sha = _sha256_file(source)
+    stamp = f"zip:{zip_sha}"
+
+    if target.exists():
+        prior = marker.read_text(encoding="utf-8").strip().splitlines()[0] if marker.exists() else ""
+        if prior == stamp:
+            print(f"Reusing existing .codebase/ (same zip: {source.name}).")
+            return target
+        print(
+            f"Error: .codebase/ already exists but was not prepared from this zip.\n"
+            "Remove .codebase/ (and .codebase-source) manually to re-extract, or pass "
+            "the same archive to reuse the existing extraction."
+        )
+        sys.exit(1)
+
+    temp = root / f".codebase.tmp-{os.getpid()}"
+    if temp.exists():
+        shutil.rmtree(str(temp), ignore_errors=True)
+    temp.mkdir()
+    try:
+        print(f"Extracting {source.name} → {target}…")
+        _safe_extract_zip(source, temp)
+        # A cleanly zipped project is usually wrapped in one top-level folder;
+        # unwrap it so .codebase/ is the code root, not code root's parent.
+        entries = [item for item in temp.iterdir() if item.name != "__MACOSX"]
+        content_root = entries[0] if len(entries) == 1 and entries[0].is_dir() else temp
+        os.replace(str(content_root), str(target))
+    finally:
+        if temp.exists():
+            shutil.rmtree(str(temp), ignore_errors=True)
+
+    if not (target / ".git").is_dir():
+        init = subprocess.run(
+            ["git", "init", "-b", "main", str(target)], capture_output=True, text=True,
+        )
+        if init.returncode != 0:  # older git without -b: fall back to default branch
+            subprocess.run(["git", "init", str(target)], capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(target), "add", "-A"], capture_output=True, text=True)
+        subprocess.run(
+            [
+                "git", "-C", str(target),
+                "-c", "user.email=pm-os@localhost", "-c", "user.name=PM-OS",
+                "commit", "--quiet", "--allow-empty",
+                "-m", f"PM-OS snapshot of {source.name} (sha256 {zip_sha[:12]})",
+            ],
+            capture_output=True, text=True,
+        )
+
+    marker.write_text(f"{stamp}\n{source}\n", encoding="utf-8")
+    return target
+
+
 def cmd_prepare_codebase(args):
     root = resolve_project()
     raw = args.path
@@ -758,9 +849,16 @@ def cmd_prepare_codebase(args):
                 sys.exit(1)
         local_path = target
     else:
-        local_path = Path(raw).resolve()
-        if not local_path.is_dir():
-            print(f"Error: codebase path '{raw}' is not a directory.")
+        source = Path(raw).expanduser().resolve()
+        if source.is_dir():
+            local_path = source
+        elif source.is_file() and zipfile.is_zipfile(source):
+            local_path = _prepare_from_zip(root, source)
+        elif source.is_file():
+            print(f"Error: codebase path '{raw}' is a file but not a valid .zip archive.")
+            sys.exit(1)
+        else:
+            print(f"Error: codebase path '{raw}' is not a git URL, a directory, or a .zip archive.")
             sys.exit(1)
 
     sha = None
@@ -778,12 +876,14 @@ def cmd_prepare_codebase(args):
     save_meta(meta, root)
 
     gitignore = root / ".gitignore"
+    ignore_entries = [".codebase/", ".codebase-source"]
     if gitignore.exists():
         content = gitignore.read_text(encoding="utf-8")
-        if ".codebase/" not in content:
-            gitignore.write_text(content.rstrip() + "\n.codebase/\n", encoding="utf-8")
+        missing = [entry for entry in ignore_entries if entry not in content]
+        if missing:
+            gitignore.write_text(content.rstrip() + "\n" + "\n".join(missing) + "\n", encoding="utf-8")
     else:
-        gitignore.write_text(".codebase/\n", encoding="utf-8")
+        gitignore.write_text("\n".join(ignore_entries) + "\n", encoding="utf-8")
 
     print(f"Codebase prepared: {local_path}")
     if sha:
@@ -830,8 +930,11 @@ def main():
     p_com.set_defaults(func=cmd_commit)
 
     p_prep = sub.add_parser("prepare-codebase",
-                             help="Clone or validate a codebase and record its git SHA in meta.")
-    p_prep.add_argument("path", help="GitHub URL (https://... or git@...) or local directory path.")
+                             help="Clone/extract or validate a codebase and record its git SHA in meta.")
+    p_prep.add_argument(
+        "path",
+        help="git URL (https://…, http://…, or git@…), a local directory, or a .zip archive.",
+    )
     p_prep.set_defaults(func=cmd_prepare_codebase)
 
     p_man = sub.add_parser("pack-manifest",
