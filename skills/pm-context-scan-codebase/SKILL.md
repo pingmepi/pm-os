@@ -28,6 +28,8 @@ python3 ~/.pm-os/scripts/pm_codebase_inventory.py \
   --json
 ```
 
+`--path` is normally the prepared `.codebase/` directory, but for a standalone scan it also accepts a `.zip` archive directly (extracted read-only to a temp tree, scanned, then discarded; the report names the archive). It traces both Python (`from .x`) and JS/TS (`./x`) relative imports into the impact cone.
+
 Treat its inventory, matches, dependency edges, exclusions, and dynamic-boundary gaps as evidence—not final product judgment. Verify its top candidates by reading the cited files, correct false-positive scope, and widen only from concrete dependency or uncertainty evidence.
 
 # Exploration approach

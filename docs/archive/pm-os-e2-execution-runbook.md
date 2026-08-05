@@ -1,6 +1,6 @@
 # PM-OS E2 (Read-only, Affected-slice Enhancement) — Execution Runbook
 
-**Status:** Implementation and autonomous verification complete on `feat/e2-affected-slice-enhancement` (2026-08-03); review/merge pending. Design source: `pm-os-entry-pathways-plan.md` phase **E2** and `pm-os-modes-delivery-and-handoff-plan.md` Part A behavior table. E2 now provides one-product-project continuation, a read-only repository inventory in `00c`, affected-slice/impact-cone discovery, a decision interview, scoped in-place stage evolution, regression traceability, delta-only handoff, explicit refresh/completion, and immutable two-cycle provenance.
+**Status:** ✅ Shipped — merged to `main` in **v1.5.0** (PR #68, 2026-08-05), including two Codex-review rounds and the zip-codebase-source + mandatory-boundary-gate follow-ups. Design source: `pm-os-entry-pathways-plan.md` phase **E2** and `pm-os-modes-delivery-and-handoff-plan.md` Part A behavior table. E2 now provides one-product-project continuation, a read-only repository inventory in `00c`, affected-slice/impact-cone discovery, a decision interview, scoped in-place stage evolution, regression traceability, delta-only handoff, explicit refresh/completion, and immutable two-cycle provenance.
 
 **Execution branch:** `feat/e2-affected-slice-enhancement`, created from refreshed `main` at `0296e0f` after E3 landed. Execute all loops without a PM-review pause. Do not commit, push, publish, or update the installed runtime unless separately requested.
 

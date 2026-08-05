@@ -169,7 +169,7 @@ created_at: <ISO 8601>
 created_by: <pm identifier from $PM_OS_USER>
 genai_flag: true | false              # set at /pm-new, propagates downstream
 project_type: new_product | enhancement     # v3; set at /pm-new --mode (default new_product)
-codebase_path: <url-or-local-path or null>  # v3; enhancement codebase, set via /pm-new --codebase or prepare-codebase
+codebase_path: <local .codebase/ path or null>  # v3; enhancement codebase (git URL, dir, or .zip) prepared read-only via /pm-new --codebase or prepare-codebase
 codebase_ref: <git sha or null>             # v3; codebase HEAD recorded at scan time (for drift detection)
 pm_os_version: <semver from VERSION file at scaffold time>
 stages:
@@ -377,7 +377,9 @@ Bootstrap installer. Performs:
 4. Print changelog diff.
 5. Prompt user to restart session.
 
-### 7.3 `pm-new <slug> ["<business statement>"] [--genai|--no-genai] [--mode new_product|enhancement] [--codebase <url-or-path>]`
+### 7.3 `pm-new <slug> ["<business statement>"] [--genai|--no-genai] [--entry new|prototype|enhancement] [--codebase <url | dir | .zip>]`
+
+`--codebase` accepts a git URL, a local directory, or a `.zip` archive (prepared read-only into `.codebase/` by `pm_context_import.py prepare-codebase`; a zip is extracted and git-init'd so ref-pinning/drift work like a clone). `--mode` remains a back-compat alias for `--entry`.
 
 1. Validate slug is kebab-case and unique under `~/pm-projects/`.
 2. Create `~/pm-projects/<slug>/`.
