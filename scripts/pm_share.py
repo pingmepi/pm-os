@@ -398,9 +398,15 @@ def _delta_body(body: str | None, stage_id: str | None, scope: dict | None) -> s
     if stage_id not in scope["baseline_stage_ids"]:
         return body
     blocks = split_stable_id_blocks(body)
-    kept = [block.strip() for sid, block in blocks.items() if sid in scope["changed_refs"]]
-    if kept:
-        return "\n\n".join(kept) + "\n"
+    if blocks:
+        kept = [block.strip() for sid, block in blocks.items() if sid in scope["changed_refs"]]
+        return ("\n\n".join(kept) + "\n") if kept else (_DELTA_BASELINE_NOTE + "\n")
+    # No stable-id blocks (non-UI design/reference: API contracts, schemas, run-
+    # books, validation notes). Then only a coarse STAGE-<id> change marks it
+    # changed — ship the whole artifact in that case rather than hiding it behind
+    # the baseline note; otherwise it is genuinely unchanged baseline.
+    if f"STAGE-{stage_id}" in scope["changed_refs"]:
+        return body
     return _DELTA_BASELINE_NOTE + "\n"
 
 
@@ -526,6 +532,11 @@ def build_package(
     emit_proto = has_proto and (
         scope is None or bool({"04", "05"} & scope["changed_stages"])
     )
+    # When the prototype is intentionally excluded, no story or screen-map row may
+    # link to it — those files are not in the audience folder. `emit_proto` is the
+    # single source of truth for every prototype link below (backlog: dangling link).
+    if not emit_proto:
+        anchored_ids = set()
     selected_story_ids = set(delivery.story_blocks)
     if enhancement_delta:
         selected_story_ids = {
@@ -577,7 +588,7 @@ def build_package(
                 "id": scr,
                 "name": _story_title(scr, screen_blocks.get(scr, "")),
                 "body": _screen_body(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
-                "link": _screen_link(scr, has_proto, anchored_ids),
+                "link": _screen_link(scr, emit_proto, anchored_ids),
             }
             for scr in screen_ids
         ]
@@ -780,7 +791,7 @@ def build_package(
         screen_map_table = _DELTA_BASELINE_NOTE + "\n"
     else:
         screen_map_table = _screen_map_table(
-            root, spine, screen_blocks, story_index, covered_story_ids, has_proto, anchored_ids)
+            root, spine, screen_blocks, story_index, covered_story_ids, emit_proto, anchored_ids)
     screen_map_content = _stamped_doc(
         "Screen Map", [design_stamp] if design_stamp else [], now, screen_map_table)
     reference_docs["screen_map"] = ("screen-map.md", screen_map_content)

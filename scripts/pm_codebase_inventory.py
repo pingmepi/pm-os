@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -141,13 +142,31 @@ def _imports(content: str) -> Set[str]:
 
 def _resolve_import(source: str, module: str, all_paths: Set[str]) -> Optional[str]:
     candidates = []
-    if module.startswith("."):
-        base = (Path(source).parent / module).as_posix()
-        normalized = str(Path(base))
+    if "/" in module and module.startswith("."):
+        # JS/TS filesystem-relative specifier (`./x`, `../pkg/x`): the dots and
+        # slashes are a real path, so normalize the `..` away against source's dir.
+        normalized = posixpath.normpath(posixpath.join(posixpath.dirname(source), module))
+        candidates.extend(normalized + suffix for suffix in (".ts", ".tsx", ".js", ".jsx", ".py"))
+        candidates.extend(
+            f"{normalized}/index{suffix}" for suffix in (".ts", ".tsx", ".js", ".jsx")
+        )
+        candidates.append(f"{normalized}/__init__.py")
+    elif module.startswith("."):
+        # Python dotted relative import (`.foo`, `..pkg.mod`): the leading dots are
+        # parent-package traversal, NOT a literal segment. One dot = the current
+        # package (source's dir); each extra dot climbs one level.
+        dots = len(module) - len(module.lstrip("."))
+        rest = module[dots:].replace(".", "/")
+        base_dir = Path(source).parent
+        for _ in range(dots - 1):
+            base_dir = base_dir.parent
+        target = (base_dir / rest) if rest else base_dir
+        normalized = target.as_posix()
         candidates.extend(normalized + suffix for suffix in (".py", ".ts", ".tsx", ".js", ".jsx"))
         candidates.extend(
             f"{normalized}/index{suffix}" for suffix in (".ts", ".tsx", ".js", ".jsx")
         )
+        candidates.append(f"{normalized}/__init__.py")
     else:
         candidates.extend(_module_candidates(module))
     for candidate in candidates:

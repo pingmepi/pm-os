@@ -184,6 +184,89 @@ def test_removed_ref_is_recorded_and_not_re_synthesized(pmos, new_project):
     assert not any(item["ref"] == "FR-003" for item in plan2["items"]), "removal ticket re-synthesized"
 
 
+# --- Re-review: coarse STAGE delta must not be hidden by the baseline note ----
+
+_PKG_PRD = """## User Stories with Acceptance Criteria
+### US-001 — Export data
+Implements FR-001.
+## Functional Requirements
+- **FR-001 (must):** Export the dataset.
+"""
+_DESIGN_BASE = "## Information Architecture\n\nREST contract. No screens declared.\n"
+_DESIGN_CHANGED = "## Information Architecture\n\nREST contract with a new BATCH-EXPORT endpoint. No screens.\n"
+
+
+def test_coarse_stage_delta_ships_changed_nonui_design(pmos, new_project):
+    """A non-UI design/reference stage that changes without SCR ids emits a coarse
+    STAGE-04 delta; the package must ship the changed material, not the baseline note."""
+    proj = new_project("coarse-enh", "Add batch export")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    make_draft(proj, "03", body=_PKG_PRD)
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+    make_draft(proj, "04", body=_DESIGN_BASE)
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+    ask = proj / "ask.md"
+    ask.write_text("Add a batch export endpoint.\n", encoding="utf-8")
+    assert run_script(pmos, "pm_enhance.py", "start", "--ask-file", str(ask), cwd=proj).returncode == 0
+    _record_boundary(proj, affected_surfaces=["api"])
+    make_draft(proj, "04", body=_DESIGN_CHANGED)  # prose-only change → coarse STAGE-04
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+
+    result = run_script(pmos, "pm_share.py", "--package", "--audience", "design", cwd=proj)
+
+    assert result.returncode == 0, result.stderr
+    design_doc = (proj / "handoff" / "design" / "reference" / "design-spec.md").read_text()
+    assert "BATCH-EXPORT" in design_doc, "changed non-UI design was hidden behind the baseline note"
+    assert "Baseline reference — unchanged" not in design_doc
+
+
+_PRD_WITH_SCREEN_STORY = """## User Stories with Acceptance Criteria
+### US-001 — Export data
+Implements FR-001.
+## Functional Requirements
+- **FR-001 (must):** Export the dataset.
+"""
+_DESIGN_WITH_SCREEN = """## Information Architecture
+### SCR-001 — Export screen
+- **Serves:** FR-001
+"""
+
+
+def test_prototype_links_are_absent_when_prototype_is_omitted(pmos, new_project):
+    """When stages 04/05 are unchanged the baseline prototype is not shipped, so no
+    story or screen-map file may link to a prototype.html that isn't in the folder —
+    even when a changed story still resolves an (unchanged) baseline screen."""
+    proj = new_project("proto-enh", "Change export requirement")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    make_draft(proj, "03", body=_PRD_WITH_SCREEN_STORY)
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+    make_draft(proj, "04", body=_DESIGN_WITH_SCREEN)
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+    (proj / "05-prototype-mockup.html").write_text(
+        "<html><body id='SCR-001'>proto</body></html>", encoding="utf-8")
+    ask = proj / "ask.md"
+    ask.write_text("Change the export requirement wording.\n", encoding="utf-8")
+    assert run_script(pmos, "pm_enhance.py", "start", "--ask-file", str(ask), cwd=proj).returncode == 0
+    _record_boundary(proj, affected_ids=["FR-001"], affected_surfaces=["api"])
+    # Change stage 03 (which stales 04), then re-approve 04 UNCHANGED so it is
+    # approved-but-not-in-the-delta: the story resolves its screen, but 04/05 are
+    # not delta stages, so emit_proto is False and no prototype ships or is linked.
+    make_draft(proj, "03", body=_PRD_WITH_SCREEN_STORY.replace("Export the dataset", "Export the dataset as CSV"))
+    assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+    make_draft(proj, "04", body=_DESIGN_WITH_SCREEN)
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+
+    result = run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj)
+
+    assert result.returncode == 0, result.stderr
+    dev = proj / "handoff" / "dev"
+    story_files = list((dev / "stories").glob("US-001*.md"))
+    assert story_files and "SCR-001" in story_files[0].read_text()  # screen genuinely resolved
+    assert not (dev / "wireframes" / "prototype.html").exists()  # prototype omitted
+    dangling = [p for p in dev.rglob("*.md") if "wireframes/prototype.html" in p.read_text()]
+    assert not dangling, f"dangling prototype links in: {[p.name for p in dangling]}"
+
+
 # --- Fix #6: mandatory boundary gate for enhancement product stages ----------
 
 def test_enhancement_product_stage_blocks_until_boundary_recorded(pmos):

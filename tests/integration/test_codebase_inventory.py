@@ -152,6 +152,35 @@ def test_scan_accepts_a_zip_archive_matching_the_directory_scan(pmos, tmp_path):
     assert _digest(repo) == before  # the source tree is never touched
 
 
+def test_relative_imports_pull_dependencies_into_the_impact_cone(pmos, tmp_path):
+    """Python dotted (`from .helpers`) and JS/TS path (`./client`) relative imports
+    resolve, so a non-ask-matched dependency is traced into the cone, not non-touch."""
+    repo = tmp_path / "relrepo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (repo / "pkg" / "orders.py").write_text(
+        "from .helpers import fmt\ndef order_listing_page(): return fmt()\n", encoding="utf-8")
+    (repo / "pkg" / "helpers.py").write_text("def fmt(): return 1\n", encoding="utf-8")
+    (repo / "web").mkdir()
+    (repo / "web" / "OrdersPage.tsx").write_text(
+        "import { send } from './client'\nexport const view = () => send()\n", encoding="utf-8")
+    (repo / "web" / "client.ts").write_text(
+        "export const send = () => fetch('/x')\n", encoding="utf-8")
+
+    result = run_script(pmos, "pm_codebase_inventory.py", "--path", str(repo),
+                        "--ask", "order listing page", "--json")
+
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    direct = {i["path"] for i in data["affected_slice"] if i["score"] >= 2}
+    cone = {i["path"] for i in data["impact_cone"]}
+    non_touch = {i["path"] for i in data["explicit_non_touch"]}
+    assert {"pkg/orders.py", "web/OrdersPage.tsx"} <= direct
+    assert "pkg/helpers.py" in cone, "python relative dependency not traced"
+    assert "web/client.ts" in cone, "ts relative dependency not traced"
+    assert not ({"pkg/helpers.py", "web/client.ts"} & non_touch)
+
+
 def test_scan_rejects_a_non_archive_file(pmos, tmp_path):
     """A plain file that is not a valid zip is a clear error, not a traceback."""
     bogus = tmp_path / "notes.txt"
