@@ -1,6 +1,9 @@
 """E2 deterministic whole-repo inventory and affected-slice/impact-cone evidence."""
+from __future__ import annotations
+
 import hashlib
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -114,3 +117,47 @@ def test_inventory_reports_dynamic_boundaries_as_gaps(pmos, tmp_path):
     data = json.loads(result.stdout)
     assert any(gap["kind"] == "dynamic-boundary" for gap in data["coverage"]["gaps"])
     assert data["coverage"]["confidence"] == "medium"
+
+
+def _zip_dir(repo: Path, zip_path: Path, wrap: str | None = None) -> Path:
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        for path in sorted(repo.rglob("*")):
+            if path.is_file():
+                rel = path.relative_to(repo).as_posix()
+                archive.write(path, f"{wrap}/{rel}" if wrap else rel)
+    return zip_path
+
+
+def test_scan_accepts_a_zip_archive_matching_the_directory_scan(pmos, tmp_path):
+    """A zipped codebase scans read-only to the same slice as the extracted dir."""
+    repo = _fixture_repo(tmp_path)
+    zip_path = _zip_dir(repo, tmp_path / "monorepo.zip", wrap="monorepo")
+    before = _digest(repo)
+    ask = "add account export API with a web action"
+
+    from_dir = run_script(pmos, "pm_codebase_inventory.py", "--path", str(repo), "--ask", ask, "--json")
+    from_zip = run_script(pmos, "pm_codebase_inventory.py", "--path", str(zip_path), "--ask", ask, "--json")
+
+    assert from_dir.returncode == 0, from_dir.stderr
+    assert from_zip.returncode == 0, from_zip.stderr
+    dir_data = json.loads(from_dir.stdout)
+    zip_data = json.loads(from_zip.stdout)
+    # Same evidence regardless of source shape.
+    assert zip_data["inventory"]["files"] == dir_data["inventory"]["files"]
+    assert {i["path"] for i in zip_data["affected_slice"]} == {i["path"] for i in dir_data["affected_slice"]}
+    assert zip_data["affected_surfaces"] == dir_data["affected_surfaces"]
+    # The report names the archive, not the throwaway temp dir.
+    assert zip_data["repository"]["path"] == str(zip_path.resolve())
+    assert zip_data["repository"]["source_archive"] == "monorepo.zip"
+    assert _digest(repo) == before  # the source tree is never touched
+
+
+def test_scan_rejects_a_non_archive_file(pmos, tmp_path):
+    """A plain file that is not a valid zip is a clear error, not a traceback."""
+    bogus = tmp_path / "notes.txt"
+    bogus.write_text("not a codebase\n", encoding="utf-8")
+
+    result = run_script(pmos, "pm_codebase_inventory.py", "--path", str(bogus), "--ask", "x", "--json")
+
+    assert result.returncode != 0
+    assert "not a valid .zip archive" in result.stderr

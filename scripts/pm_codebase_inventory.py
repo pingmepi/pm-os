@@ -8,6 +8,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -34,6 +36,26 @@ DYNAMIC_PATTERNS = (
     "__import__(", "importlib.", "eval(", "exec(", "dynamic import", "reflect.",
     "class.forname", "require(variable", "import(variable",
 )
+
+
+def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
+    """Extract a zip, refusing any member that would escape ``dest_dir`` (zip-slip)."""
+    dest_dir = dest_dir.resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.namelist():
+            resolved = (dest_dir / member).resolve()
+            if resolved != dest_dir and dest_dir not in resolved.parents:
+                raise ValueError(f"zip entry escapes the extraction directory: {member!r}")
+        archive.extractall(dest_dir)
+
+
+def _extract_zip_for_scan(zip_path: Path, dest_dir: Path) -> Path:
+    """Extract a zip into ``dest_dir`` and return the code root (single wrapper unwrapped)."""
+    _safe_extract_zip(zip_path, dest_dir)
+    entries = [item for item in dest_dir.iterdir() if item.name != "__MACOSX"]
+    if len(entries) == 1 and entries[0].is_dir():
+        return entries[0]
+    return dest_dir
 
 
 def _git(path: Path, *args: str) -> Optional[str]:
@@ -337,14 +359,26 @@ def _markdown(data: dict) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Read-only E2 repository inventory and impact scan.")
-    parser.add_argument("--path", required=True)
+    parser.add_argument("--path", required=True, help="A directory or a .zip archive to scan.")
     parser.add_argument("--ask", required=True)
     parser.add_argument("--subpath", default=None)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    source = Path(args.path).expanduser()
     try:
-        data = scan(Path(args.path), args.ask, args.subpath)
-    except (OSError, ValueError) as exc:
+        if source.is_file() and zipfile.is_zipfile(source):
+            # A zip is extracted read-only into a throwaway temp tree, scanned,
+            # then discarded; the report still names the original archive.
+            with tempfile.TemporaryDirectory(prefix="pm-os-scan-") as tmp:
+                extracted = _extract_zip_for_scan(source, Path(tmp))
+                data = scan(extracted, args.ask, args.subpath)
+            data["repository"]["path"] = str(source.resolve())
+            data["repository"]["source_archive"] = source.name
+        elif source.is_file():
+            raise ValueError(f"path is a file but not a valid .zip archive: {args.path}")
+        else:
+            data = scan(source, args.ask, args.subpath)
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     print(json.dumps(data, ensure_ascii=False, sort_keys=True) if args.json else _markdown(data), end="")
