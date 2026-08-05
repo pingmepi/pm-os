@@ -23,12 +23,12 @@ Do not self-approve any stage. Existing stage approval, hashing, history, stalen
 Run from inside the existing PM-OS project:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_enhance.py start --ask-file <pm-authored-ask.md> [--codebase <url | dir | code.zip>] [--ref <git-ref>] [--subpath <monorepo-subpath>]
+python3 ~/.pm-os/scripts/pm_enhance.py start --ask-file <pm-authored-ask.md> [--codebase <prepared-codebase-dir>] [--ref <git-ref>] [--subpath <monorepo-subpath>]
 ```
 
 This captures approved canonical artifacts into an immutable cycle baseline and creates `.enhancements/EH-NNN/context.yaml`. It refuses a second active cycle and never changes `project_type`.
 
-The `--codebase` source may be a git URL, a local directory, or a `.zip` archive (extracted read-only into the project's `.codebase/` and turned into a one-commit checkout so ref-pinning and drift detection work the same as a clone). For remote codebases, preparation may clone only into PM-OS-owned project storage. For local repositories, the start/scan path records before-state evidence and must leave the repository unchanged.
+`start` consumes an **already-prepared local codebase** — it never clones or extracts. Preparation is `/pm-context-import`'s job: a git URL (GitHub/GitLab) is cloned, and a `.zip` is extracted, read-only, into the project's PM-OS-owned `.codebase/`, with `codebase_path` recorded in `.meta.yaml`. So for a git URL or a zip, run `/pm-context-import --codebase <url | code.zip>` **first**; then run `start` with no `--codebase` (it picks up the prepared `.codebase/` from `.meta.yaml`), or point `--codebase` at that local directory. For a repository already checked out on disk, pass its directory directly. The start/scan path records before-state evidence and must leave the codebase unchanged.
 
 **The boundary is a hard gate.** Product stages 01–09 will not generate in an enhancement project until this cycle is started **and** `set-boundary` (step 4) has recorded the affected slice — `pre-stage.py` blocks them otherwise. So run `start` and `set-boundary` before any stage skill; approve `00c`/`00u` first, since `set-boundary` requires them.
 
