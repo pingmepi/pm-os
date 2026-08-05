@@ -97,17 +97,20 @@ an agent) pass `--genai` or `--no-genai` (or set `PM_OS_GENAI_FLAG`). The
 business statement is optional — omit it to add it later. Projects are created
 under the `projects_dir` from your config (default `~/pm-projects`).
 
-Building an enhancement to an existing product? Point PM-OS at the codebase:
+Building an enhancement to an existing product? Point PM-OS at the codebase —
+a git URL (GitHub/GitLab), a local directory, or a `.zip` archive of the code:
 
 ```text
-Claude: /pm-new <project-slug> --entry enhancement --codebase <github-url-or-local-path>
-Codex:  $pm-new <project-slug> --entry enhancement --codebase <github-url-or-local-path>
+Claude: /pm-new <project-slug> --entry enhancement --codebase <url | dir | code.zip>
+Codex:  $pm-new <project-slug> --entry enhancement --codebase <url | dir | code.zip>
 ```
 
 Then run `/pm-context-import`: PM-OS does a read-only scan of the codebase and
 produces a gated codebase-understanding doc (`00c`) that grounds every
 downstream stage on the existing system, so the brief and beyond cover the
-enhancement delta rather than re-describing the whole product.
+enhancement delta rather than re-describing the whole product. (A remote is
+cloned and a zip is extracted into the project's read-only `.codebase/`; your
+code is never modified.)
 
 For every later enhancement, stay inside that same product project and run
 `/pm-enhance` (`$pm-enhance` in Codex). It freezes the approved product
