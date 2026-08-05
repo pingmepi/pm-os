@@ -67,7 +67,7 @@ Use PM-OS when **most** of the following are true:
 | The work spans more than a throwaway experiment | The stage overhead pays off when the artifact will be read by others. |
 | Inputs can be sanitized | The business statement and notes contain no confidential or regulated data. |
 
-**In v1**, there are three entry points, all following the same PM-approval model: (1) a new business statement (`/pm-new`); (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them; or (3) an **enhancement to an existing product** (`/pm-new --mode enhancement --codebase <url-or-path>`), where `/pm-context-import` additionally runs a read-only codebase scan and produces a gated codebase-understanding doc (`00c`) that grounds the downstream stages on the existing system. Later phases will add entry points for Jira/Linear tickets and QA bugs.
+**In v1**, there are three entry points, all following the same PM-approval model: (1) a new business statement (`/pm-new`); (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them; or (3) an **enhancement to an existing product** (`/pm-new --entry enhancement --codebase <source>`, where `<source>` is a git URL — GitHub/GitLab/any remote — a local directory, or a `.zip` archive of the code), where `/pm-context-import` additionally runs a read-only codebase scan and produces a gated codebase-understanding doc (`00c`) that grounds the downstream stages on the existing system. Later phases will add entry points for Jira/Linear tickets and QA bugs.
 
 ### When **not** to use it (or use a lighter touch)
 - **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need the full stage pipeline. The ceremony will cost more than it returns.
@@ -139,13 +139,14 @@ python3 ~/.pm-os/scripts/pm_os_verify.py --runtime codex
 
 ### 4.2 Start a project
 ```text
-Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <url-or-path>]
-Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <url-or-path>]
+Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <source>]
+Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <source>]
 ```
 - Keep the slug short and stable; it's used in paths and history.
 - Write the business statement in plain language. **Sanitize it first** (§7). The statement is optional — omit it to add it later (a placeholder is written into `00`).
 - Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
-- For a live product that is **not yet represented in PM-OS**, pass `--entry enhancement --codebase <github-url-or-local-path>`. `/pm-context-import` then builds its gated `00c` evidence. For every later enhancement, work inside this same project with `/pm-enhance`; do not create another project.
+- For a live product that is **not yet represented in PM-OS**, pass `--entry enhancement --codebase <source>` — a git URL (GitHub/GitLab), a local directory, or a `.zip` archive of the code. A remote is cloned and a zip is extracted into the project's read-only `.codebase/`; the target code is never modified. `/pm-context-import` then builds its gated `00c` evidence. For every later enhancement, work inside this same project with `/pm-enhance`; do not create another project.
+- **Enhancement projects gate every product stage on a recorded affected slice.** In an enhancement, stages 01–09 will not generate until you have run `/pm-enhance start` (freeze the approved baseline) and `/pm-enhance set-boundary` (record the affected slice), after approving `00c`/`00u`. The decision interview behind `set-boundary` is skippable — answer what you can — but the boundary must exist so the delta, checks, and handoff are anchored. This gate does not apply to greenfield or prototype projects.
 - The project is created under the `projects_dir` from your config (default `~/pm-projects`).
 - This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections, and (for enhancements) `project_type`/`codebase_path`. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
 
@@ -221,7 +222,7 @@ Re-running creates *new* tickets — it does not detect ones you already created
 - **Onboarding a new PM to a domain.** The staged pipeline is a teaching scaffold: it makes the *shape* of a complete product definition visible.
 - **Pre-build technical alignment.** The optional TRD (08) translates the approved product definition into technical requirements without re-litigating product decisions.
 - **Post-MVP product planning.** The optional Roadmap (09) scopes the path from MVP to a deliverable product and later horizons, using the TRD as technical context when it exists.
-- **Enhancement/brownfield work.** When you're extending an existing product, `--mode enhancement --codebase <url-or-path>` grounds the entire pipeline in what already exists — the codebase-understanding doc (`00c`) is produced before stage 01 and cited by every downstream stage, so requirements don't re-invent what the system already does.
+- **Enhancement/brownfield work.** When you're extending an existing product, `--entry enhancement --codebase <source>` (git URL, local directory, or `.zip` archive) grounds the entire pipeline in what already exists — the codebase-understanding doc (`00c`) is produced before stage 01 and cited by every downstream stage, so requirements don't re-invent what the system already does. The affected-slice boundary you record with `/pm-enhance set-boundary` then keeps the delta, `/pm-check`, and `/pm-handoff` scoped to what actually changes — handoff exports the changed slice plus the minimum parent closure and explicit removal work, not the whole product.
 - **Research-driven prototype validation.** Stage 05 produces an interactive HTML prototype (`pm-prototype-html`) tuned to the approved information architecture and interaction model. Participant mode is clean by default; reviewer controls and research questions appear via `?review=1`, so the same file serves both user research and PM review without contaminating participant sessions.
 
 ---
@@ -259,7 +260,7 @@ Re-running creates *new* tickets — it does not detect ones you already created
 |---|---|---|
 | Install | `./install.sh --runtime claude --pm-user <id>` | `./install.sh --runtime codex --pm-user <id>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
-| First intake of external product | `/pm-new <slug> --entry enhancement --codebase <url-or-path>` | `$pm-new <slug> --entry enhancement --codebase <url-or-path>` |
+| First intake of external product | `/pm-new <slug> --entry enhancement --codebase <source>` | `$pm-new <slug> --entry enhancement --codebase <source>` |
 | Later enhancement in same project | `/pm-enhance` | `$pm-enhance` |
 | Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
