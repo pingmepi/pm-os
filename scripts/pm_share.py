@@ -359,6 +359,13 @@ def build_package(
         enhancement_delta = active_enhancement_delta(root)
     except EnhancementDeltaError as exc:
         raise SystemExit(f"Error: enhancement handoff refused: {exc}")
+    if enhancement_delta is not None and not enhancement_delta["changes"]:
+        print(
+            f"Note: active enhancement {enhancement_delta['cycle_id']} has no artifact "
+            "delta yet — the package will contain only the enhancement dossier. Regenerate "
+            "the affected stages before handing off.",
+            file=sys.stderr,
+        )
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

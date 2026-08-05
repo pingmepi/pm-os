@@ -298,7 +298,33 @@ def _markdown(data: dict) -> str:
     lines.extend(["", "## Impact cone"])
     lines.extend(f"- `{item['path']}` — {'; '.join(item['reasons'])}" for item in data["impact_cone"])
     lines.extend(["", "## Explicit non-touch surfaces"])
-    lines.extend(f"- `{item['path']}` — {item['reason']}" for item in data["explicit_non_touch"])
+    non_touch = data["explicit_non_touch"]
+    NON_TOUCH_SAMPLE = 25
+    if non_touch:
+        lines.append(
+            f"- {len(non_touch)} file(s) inventoried with no ask match or dependency "
+            "edge to the affected slice"
+        )
+        touched_boundaries = {
+            item["path"].split("/", 1)[0] for item in data["affected_slice"]
+        } | {item["path"].split("/", 1)[0] for item in data["impact_cone"]}
+        untouched_boundaries = sorted(
+            {item["path"].split("/", 1)[0] for item in non_touch} - touched_boundaries
+        )
+        if untouched_boundaries:
+            lines.append(
+                f"- Top-level boundaries with no affected files: "
+                f"{', '.join(untouched_boundaries)}"
+            )
+        lines.append(f"- Sample (first {min(NON_TOUCH_SAMPLE, len(non_touch))}):")
+        lines.extend(f"  - `{item['path']}`" for item in non_touch[:NON_TOUCH_SAMPLE])
+        if len(non_touch) > NON_TOUCH_SAMPLE:
+            lines.append(
+                f"  - … and {len(non_touch) - NON_TOUCH_SAMPLE} more "
+                "(see machine-readable `--json` output for the full list)"
+            )
+    else:
+        lines.append("- None; every inventoried file traces to the affected slice.")
     lines.extend([
         "", "## Coverage, exclusions & confidence",
         f"- Confidence: {data['coverage']['confidence']}",

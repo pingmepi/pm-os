@@ -98,6 +98,28 @@ def _load_index(root: Path):
     return index
 
 
+def _lock_is_stale(lock: Path) -> bool:
+    """True when the lock's recorded owner process is no longer running.
+
+    A crash between acquiring the lock and writing (or after) its owner file
+    leaves the directory behind; without this a single failure would wedge every
+    future lifecycle op until a human removed .enhancements/.lock by hand.
+    """
+    try:
+        pid = int((lock / "owner").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return True  # missing or unreadable owner => reclaimable
+    if pid == os.getpid():
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True  # owner is gone
+    except OSError:
+        return False  # exists (or not ours to signal) => treat as live
+    return False
+
+
 @contextmanager
 def _enhancement_lock(root: Path):
     directory = _enhancements_dir(root)
@@ -106,14 +128,18 @@ def _enhancement_lock(root: Path):
     try:
         lock.mkdir()
     except FileExistsError:
-        raise EnhancementError("another enhancement lifecycle operation is already running")
+        if not _lock_is_stale(lock):
+            raise EnhancementError("another enhancement lifecycle operation is already running")
+        shutil.rmtree(str(lock), ignore_errors=True)
+        try:
+            lock.mkdir()
+        except FileExistsError:
+            raise EnhancementError("another enhancement lifecycle operation is already running")
+    (lock / "owner").write_text(str(os.getpid()), encoding="utf-8")
     try:
         yield
     finally:
-        try:
-            lock.rmdir()
-        except OSError:
-            pass
+        shutil.rmtree(str(lock), ignore_errors=True)
 
 
 def _relative(root: Path, path: Path) -> str:

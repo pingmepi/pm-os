@@ -334,6 +334,12 @@ def build_plan(root: Path) -> dict:
         delta = active_enhancement_delta(root)
     except EnhancementDeltaError as exc:
         raise SystemExit(f"Error: enhancement handoff refused: {exc}")
+    if delta is not None and not delta["changes"]:
+        print(
+            f"Note: active enhancement {delta['cycle_id']} has no artifact delta yet — "
+            "no tickets will be scoped. Regenerate the affected stages before handing off.",
+            file=sys.stderr,
+        )
     return _scope_plan_to_enhancement(plan, delta) if delta else plan
 
 

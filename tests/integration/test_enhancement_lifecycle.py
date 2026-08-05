@@ -1,5 +1,6 @@
 """E2 same-project enhancement lifecycle and immutable baseline capture."""
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -91,3 +92,35 @@ def test_start_records_enhancement_telemetry_without_stage_state(pmos, new_proje
     assert event["stage"] is None
     assert event["payload"]["cycle_id"] == "EH-001"
     assert event["payload"]["baseline_artifact_ids"] == ["00"]
+
+
+def test_stale_lock_without_live_owner_is_reclaimed(pmos, new_project):
+    """A leftover lock from a crashed op does not wedge future lifecycle work."""
+    proj = new_project("stale-lock-product")
+    _approve_statement(pmos, proj)
+    ask = _write_ask(proj)
+    lock = proj / ".enhancements" / ".lock"
+    lock.mkdir(parents=True)
+    # No owner file: the shape a crash between mkdir and the owner-write leaves.
+
+    result = run_script(pmos, "pm_enhance.py", "start", "--ask-file", str(ask), cwd=proj)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "EH-001" in result.stdout
+    assert not lock.exists()
+
+
+def test_live_lock_owner_blocks_concurrent_lifecycle_op(pmos, new_project):
+    """A lock whose recorded owner is still running is respected, not stolen."""
+    proj = new_project("live-lock-product")
+    _approve_statement(pmos, proj)
+    ask = _write_ask(proj)
+    lock = proj / ".enhancements" / ".lock"
+    lock.mkdir(parents=True)
+    (lock / "owner").write_text(str(os.getpid()), encoding="utf-8")  # this test process is alive
+
+    result = run_script(pmos, "pm_enhance.py", "start", "--ask-file", str(ask), cwd=proj)
+
+    assert result.returncode != 0
+    assert "already running" in (result.stdout + result.stderr).lower()
+    assert not (proj / ".enhancements" / "index.yaml").exists()
