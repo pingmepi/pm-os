@@ -117,6 +117,9 @@ For every later enhancement, stay inside that same product project and run
 baseline, drives the read-only affected-slice workflow, and makes handoff
 delta-only; it never creates a child project or changes the product's entry identity.
 
+**New to the enhancement pathway?** See the step-by-step
+[`docs/guides/enhancement-quickstart.md`](docs/guides/enhancement-quickstart.md).
+
 Already have context? If you walk in with material you've authored — research, a
 brief, a scope doc, a PRD, design notes — seed the project from it instead of
 generating from scratch:
