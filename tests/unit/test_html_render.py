@@ -46,6 +46,27 @@ def test_parse_sections_no_headings_defaults_overview():
     assert sections[0]["title"] == "Overview"
 
 
+def test_color_swatches_wraps_hex_and_rgb_literals():
+    """Color literals (#RGB / #RRGGBB / rgb() / rgba()) each gain a preview swatch span
+    styled with that color as its background, so a design spec renders colors rather than
+    bare hashcodes (GH #62). The literal text itself is preserved next to the swatch."""
+    src = html_render._markdownish(
+        "- Primary #FF5733\n- Short #0af\n- Surface rgb(255,255,255)\n- Muted rgba(0,0,0,0.5)"
+    )
+    out = html_render._color_swatches(src)
+    assert out.count('class="color-swatch"') == 4
+    assert "background:#FF5733" in out
+    assert "background:rgb(255,255,255)" in out
+    assert "#FF5733" in out  # original literal is kept, not replaced
+
+
+def test_color_swatches_ignores_non_color_hash_tokens():
+    """A `#SCR-001` anchor-style token is not a valid color literal and must not get a
+    swatch — guards against swatching screen ids or other `#`-prefixed text."""
+    out = html_render._color_swatches(html_render._markdownish("See #SCR-001 and #NOTHEX"))
+    assert "color-swatch" not in out
+
+
 def test_prototype_screens_carry_scr_anchor_when_declared():
     """The lo-fi fallback renderer extracts the SCR-### id from each 'Screens to Include'
     item so the mockup is deep-linkable at `#SCR-###`, matching the anchor requirement the

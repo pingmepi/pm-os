@@ -1,7 +1,7 @@
 # PM-OS Backlog
 
 Tracked issues and fixes, surfaced during testing/rollout prep. Newest concerns first.
-Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · 🟡 partially fixed · 🟢 fixed (pending release).
+Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · 🟡 partially fixed · 🟢 fixed & released (release version noted).
 
 For **build order**, sequencing now lives inside each plan's own phase table (`../plans/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`) and the phase plan in `current-state-review.md` §7. The earlier one-time consolidation is archived at `../archive/development-order.md`.
 
@@ -10,7 +10,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 1. 🟢 Edited-upstream re-approval gate is auto-answered by the agent (human-in-the-loop bypass)
 
 **Severity:** P0 — undermines the core "PM approves every step" guarantee.
-**Status:** **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v0.5.8.
 
 **Symptom:** A PM edits an already-approved upstream artifact (e.g. `00w` context wiki), then runs the next stage (`01`). The gate detects the edit and reports "edited after approval," but the stage **just runs** — the PM is never actually asked to re-approve.
 
@@ -50,7 +50,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 3. 🟢 Recursive folder import for context folders
 
 **Severity:** P2 — silent incompleteness; PM could believe a folder was fully ingested when subfolders were missed.
-**Status:** **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v0.5.8.
 
 **Symptom:** `/pm-context-import <folder>` did not reliably ingest files in **subfolders**. The skill never specified recursion, and the script registered one file at a time, so coverage of nested folders was left to the agent's discretion — inconsistent and silent.
 
@@ -100,7 +100,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 6. 🟢 `pm_approve` is slow and CPU-heavy (IMP-003)
 
 **Severity:** P1 — UX; re-approvals took ~3 minutes at 99% CPU during a demo run.
-**Status:** 🟢 **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v1.1.0.
 
 **Symptom:** Re-approvals were dominated by the git + central-sync push step. When backgrounded, the process looked hung, and a partial-output read made it look like something had failed — even though the underlying approval state was actually correct by the time the sync finished.
 
@@ -118,7 +118,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 7. 🟢 Editing an already-approved artifact requires a clunky "drift dance" (IMP-004)
 
 **Severity:** P1 — UX friction on a core, frequently-used workflow (revising an approved stage).
-**Status:** **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v1.0.14.
 
 **Symptom:** `pm_approve` refuses to act on a stage that's already `approved`, so re-approving an intentional PM edit requires first running a *downstream* stage's `pre-stage.py` gate to flip the edited stage's status to `edited` before `/pm-approve` will accept it. Compounding this, the gate's non-interactive message (see entry #1's fix) tells the agent to "STOP — do not re-approve on the PM's behalf" — appropriate when the agent detects the edit unprompted, but the same wording fires even when the PM has explicitly and directly authorized the edit in the current conversation.
 
@@ -136,7 +136,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 8. 🟢 Telemetry stamps the project-pinned `pm_os_version`, not the runtime version (IMP-005)
 
 **Severity:** P3 — provenance/observability nuance, not correctness-blocking.
-**Status:** **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v1.0.14.
 
 **Symptom:** Telemetry events for a demo-project run recorded `pm_os_version: 0.5.12` (the project's "created-with" version) while the installed runtime was actually `1.0.8`.
 
@@ -191,7 +191,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 ## 11. 🟢 Validator and traceability builder disagree on what counts as a `TC-###` declaration (IMP-007)
 
 **Severity:** P1 — a QA plan that passes every contract check can still silently contribute nothing to `.traceability.yaml`. The failure is invisible: no error, no warning, just an empty spine.
-**Status:** **Fixed** (this change), pending release.
+**Status:** 🟢 Fixed — released in v1.0.14.
 
 **Symptom:** `lib/artifact_contracts.py` has two different extractors for `TC-###` ids that disagree on what "declares" a test case:
 - `test_case_ids()` — the **loose** extractor (`TEST_CASE_ID_RE = r"\bTC-\d{3,}\b"`), used by stage-06's `TEST_CASE_IDS_MISSING` check. It matches a `TC-###` anywhere in the text, including inside Markdown bold (`**TC-001**`), since `\b` word boundaries sit on either side regardless of the `*` characters.
@@ -304,7 +304,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 17. 🟢 `test_telemetry.py` reads the real installed `config.yaml` (from codex-pr-audit)
 
 **Severity:** P3 — test-isolation gap; fails or leaks real data on machines with a real PM-OS install, not a product bug.
-**Status:** **Fixed** (this change), pending release. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — was still present until now.
+**Status:** 🟢 Fixed — released in v1.0.14. Re-verified against current code 2026-07-15 (originally flagged in `docs/archive/codex-pr-audit.md` #11, PR #20, dated 2026-06-22) — was still present until then.
 
 **Symptom:** `tests/unit/test_telemetry.py`'s four tests (`test_log_appends_chained_events`, `test_last_event_filters`, `test_verify_chain_ok_and_tamper`, `test_verify_chain_no_file`) take only `tmp_path`, never the `pmos` fixture. `telemetry.log()` calls `load_config()`, which reads the real `~/.pm-os/config.yaml` when the isolating fixture isn't requested — `pmos` (`tests/conftest.py`) monkeypatches `HOME`/`PM_OS_DIR` but is opt-in per test, not `autouse`.
 
@@ -319,7 +319,7 @@ pm_handoff._strip_decl_line(blocks['TC-001'])  # -> ''  (empty -> renders NOT_CA
 ## 18. 🟡 Project artifacts have no off-machine copy and no version history
 
 **Severity:** P1 — total-loss risk. Losing one laptop loses every approved product decision, and there is no org-side copy of what was decided or approved.
-**Status:** 🟡 Partially fixed — **local version history shipped** (this change); the off-machine copy remains open (needs Indegene git hosting).
+**Status:** 🟡 Partially fixed — **local version history released**; the off-machine copy remains open (needs Indegene git hosting).
 
 **Fixed (local half, this change):** `lib/project_git.py` makes every project its own local git repo — `git init` + initial commit at scaffold (`scripts/pm_new.py`), and a commit on each approval (`hooks/post-approve.py`), with a project `.gitignore` excluding `.codebase/`. No remote, no network, no IT request: history/diff/restore all work offline. Warn-not-fail throughout (a git problem never blocks scaffold or approval) and per-commit identity injection so it works with no global git config. Tests: `tests/unit/test_project_git.py`, `tests/integration/test_project_versioning.py`. This is the project's own repo, separate from the central feedback-repo sync (`lib/git_sync.py`).
 
@@ -516,7 +516,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 29. 🟢 Handoff package has no visual reference for screens — dev lead asked for FE screen artifacts
 
 **Severity:** P2 — not blocking, but the dev lead has explicitly asked for a screenshot/reference per screen alongside stories/FRs for FE handoff (a backend equivalent was flagged as wanted later).
-**Status:** **Fixed** (this change, 2026-07-28), pending release. Shipped together with the `/pm-share`→`/pm-handoff` consolidation and the audience-scoped (`dev`/`design`/`qa`/`business`) package split, since both touched the same `build_package` function and test file.
+**Status:** 🟢 Fixed — released in v1.4.0 (2026-07-28). Shipped together with the `/pm-share`→`/pm-handoff` consolidation and the audience-scoped (`dev`/`design`/`qa`/`business`) package split, since both touched the same `build_package` function and test file.
 
 **Symptom:** The handoff package (`/pm-share --package`) already threads `SCR-###` screen ids from the design spec's Information Architecture through to each story file (`## Screens this story touches`) and the reverse `reference/screen-map.md`, and copies the full interactive prototype into `wireframes/prototype.html` — but only as prose description and one bulk file. A developer reading a story has no direct visual jump to *that* screen; they'd have to open the whole prototype and navigate manually.
 
@@ -537,7 +537,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 30. 🟢 `/pm-check` reports every generated snapshot "unreadable" (missing import)
 
 **Severity:** P1 — the health check meant to catch the other defects is itself silently broken; it emits false lineage warnings on every project that has generated snapshots.
-**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01.
+**Status:** 🟢 Fixed — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Verified against v1.4.1 code 2026-08-01.
 
 **Fixed:** `hash_artifact_body` is now imported in `lib/consistency.py`; the swallowed `NameError` is gone. Regression: `test_pm_check_accepts_matching_generated_snapshot` (`tests/integration/test_history_snapshots.py`) — a matching snapshot now yields no lineage warning (the pre-existing test only covered missing/mismatch).
 
@@ -554,7 +554,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 31. 🟡 Approval can leave a partially-transitioned pipeline (approve→cascade not atomic; invariant never read)
 
 **Severity:** P1 — silent invalid state: downstream stages left `approved` against an obsolete upstream approval, with no detector anywhere.
-**Status:** 🟡 **Detector fixed** (this change, branch `fix/v1.4.1-consistency-defects`); the atomicity refactor (Part 1) remains open. Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
+**Status:** 🟡 Detector released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`); the atomicity refactor (Part 1) remains open. Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
 
 **Fixed (detector — Part 2):** `lib/consistency.py` gains `_check_downstream_upstream_hashes` (`DOWNSTREAM_UPSTREAM_STALE`), which flags any `approved` stage whose recorded `upstream_hashes_at_approval[uid]` ≠ the (still-approved) upstream's current `content_hash` — finally consuming the written-but-unread field, and repairing already-corrupted projects (the PM re-approves the flagged stage). Regression: `test_pm_check_flags_downstream_approved_against_changed_upstream` (`tests/integration/test_approval_and_staleness.py`). **Still open (atomicity — Part 1):** making the approve→cascade a single atomic unit (so the window can't open) touches the core state machine (`pm_approve.py` + `post-approve.py` + the pre-stage gate) and is deliberately left for its own focused pass; the detector makes the state visible and repairable in the meantime.
 
@@ -578,7 +578,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 32. 🟢 Traceability resolver silently drops NFR identifiers
 
 **Severity:** P1 — silent data-integrity loss: NFR coverage a QA plan explicitly declares vanishes from `.traceability.yaml`, and NFR-only test cases are flagged untraced.
-**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: a TC citing `NFR-5, NFR-7, US-001` resolves to `['US-001']`).
+**Status:** 🟢 Fixed — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Verified against v1.4.1 code 2026-08-01 (empirically: a TC citing `NFR-5, NFR-7, US-001` resolves to `['US-001']`).
 
 **Fixed:** `REQUIREMENT_ID_RE` now adds an `NFR` arm with its own `\b` anchor and 1+ digits — `r"\b(?:REQ|US|FR)-\d{3,}\b|\bNFR-\d+\b"` — so the existing REQ/US/FR matching is byte-identical and NFR short/long forms resolve. Every consumer routes through `requirement_ids`, so the single edit fixes them all; `_id_kind`'s default already buckets NFR as `requirement`. Regressions: `test_requirement_ids_includes_nfr_long_and_short_forms` (`tests/unit/test_artifact_contracts.py`), `test_build_index_links_nfr_requirements` (`tests/unit/test_traceability.py`). Existing projects must re-approve 03/04/06/08 to regenerate `.traceability.yaml`.
 
@@ -596,7 +596,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 33. 🟢 Generated story files can have invalid YAML frontmatter
 
 **Severity:** P2 (medium-high) — any story whose title or priority contains a colon-space produces a non-parseable artifact.
-**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: `yaml.safe_load` raises `ScannerError` on a rendered story).
+**Status:** 🟢 Fixed — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Verified against v1.4.1 code 2026-08-01 (empirically: `yaml.safe_load` raises `ScannerError` on a rendered story).
 
 **Fixed:** `_render_story` now serializes the frontmatter fields with `yaml.safe_dump` and injects a single `{{ frontmatter }}` block; `templates/handoff-story.md.j2` no longer interpolates raw scalars. Regression: `test_story_frontmatter_is_valid_yaml_when_title_has_colon` (`tests/integration/test_share_package.py`).
 
@@ -611,7 +611,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 34. 🟢 Business audience epic files contain dangling story links
 
 **Severity:** P2 — dead relative links in a shipped audience package.
-**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01.
+**Status:** 🟢 Fixed — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Verified against v1.4.1 code 2026-08-01.
 
 **Fixed:** each epic is rendered in two variants — a linked one (`content`) for audiences that carry the story files and a plain-text one (`content_plain`) for those that don't (business); the write loop picks per audience based on whether `stories` ∈ its categories. Regression: `test_business_epic_has_no_dangling_story_links` (`tests/integration/test_share_package.py`).
 
@@ -626,7 +626,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 35. 🟢 Global Information-Architecture prose leaks into generated story files
 
 **Severity:** P2 — global design narrative bleeds into individual story screen slices.
-**Status:** 🟢 **Fixed** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Verified against v1.4.1 code 2026-08-01 (empirically: a trailing IA note was absorbed into the preceding screen block).
+**Status:** 🟢 Fixed — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Verified against v1.4.1 code 2026-08-01 (empirically: a trailing IA note was absorbed into the preceding screen block).
 
 **Fixed:** a new render-time helper `_screen_body` bounds a bullet-declared screen to the lines more indented than its declaration (its own sub-list), dropping any trailing non-indented prose; heading-style screens keep their full body. The shared `_split_id_blocks` is untouched (it still splits US/FR/TC/TSK). Regression: `test_global_ia_prose_does_not_leak_into_story_screen_body` (`tests/integration/test_share_package.py`).
 
@@ -641,7 +641,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 36. 🟢 Per-story handoff packages overstate screen scope (journey-inflated)
 
 **Severity:** P2 — a story's package attributes every screen in its journey, not just screens that directly trace to it. (Screen half only — the reported QA overstatement was **not** reproduced; see note.)
-**Status:** 🟢 **Fixed (screen half)** (this change, branch `fix/v1.4.1-consistency-defects`), pending release. Screen half verified against v1.4.1 code 2026-08-01; QA half unconfirmed (not a code bug — QA is scoped to the story's own requirements).
+**Status:** 🟢 Fixed (screen half) — released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). Screen half verified against v1.4.1 code 2026-08-01; QA half unconfirmed (not a code bug — QA is scoped to the story's own requirements).
 
 **Fixed:** per-story screens now resolve **direct-first** — screens serving the story's requirements, then a journey fallback that attributes a journey's screens to a story only when the screen names *no* story/requirement of its own (a journey-only screen). A screen that names specific stories is no longer pulled into every other story sharing the journey; the journey-only coverage case still resolves; `covered_story_ids` moves in lockstep automatically. Regression: `test_journey_shared_screen_not_attributed_to_every_story` (`tests/integration/test_share_package.py`); the existing journey-only coverage test still passes.
 
@@ -652,6 +652,97 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 **Note (QA half not confirmed):** Test cases are resolved over `reqs` only (`pm_share.py:409-413`) — journeys are deliberately excluded — and `reqs` come from `delivery.story_requirements` (`lib/delivery_map.py:140-151`, direct links). So QA scope is not journey-inflated in code. If QA overstatement was observed, it more likely stems from a **broad requirement shared across stories**; confirm against a real example before changing the QA path.
 
 **Proposed fix:** Resolve per-story screens over `reqs` only (drop `+ journeys` at `pm_share.py:420`), or keep journey screens but tag them "via journey `UJ-###`" so they're distinguishable from direct story→screen traces. `covered_story_ids` must move in lockstep (journey-only-covered stories would otherwise be reported screenless unless the "via journey" tagging is used).
+
+---
+
+## 37. 🟢 Import can stamp a raw prototype into an approved stage with no upstream stages (E3 guardrail gap)
+
+**Severity:** P1 — the E3 prototype-as-input pathway could adopt an imported HTML prototype straight into an approved stage 05 with no brief/scope/PRD/design behind it; the agent then treats the pipeline as complete and jumps ahead to prototyping.
+**Status:** 🟢 Fixed — released in v1.4.6 (branch `fix/gh-issues-59-62`). GitHub #59, #60.
+
+**Symptom:** `/pm-context-import commit <NN> --kind imported --status approved` had no upstream-presence check. A prototype provided as project input was recorded as an approved, functional-looking stage 05, so downstream gates saw a "done" pipeline.
+
+**Root cause:** `scripts/pm_context_import.py cmd_commit` (approved branch) computed upstream stage ids only to snapshot their hashes — it never gated on their status — and stamped no fidelity marker on imported artifacts.
+
+**Fixed:** `cmd_commit` now blocks a `--status approved` commit when any upstream stage is `pending`/absent, with an `--allow-missing-upstream` escape for a deliberate, PM-confirmed partial import (non-interactive-safe). Imported artifacts are stamped `fidelity: unverified` in frontmatter — adoption means "brought into the pipeline", never "runtime-verified". `skills/pm-context-import/SKILL.md` Step 7 documents the enforcement. Tests: `test_commit_approved_blocks_on_pending_upstream`, `test_commit_imported_allow_missing_upstream_and_marks_fidelity`.
+
+---
+
+## 38. 🟢 `/pm-approve` refuses a real generated artifact whose frontmatter `status` drifted to `pending`
+
+**Severity:** P2 — recurring "the PRD exists and passed validation but approve says it isn't generated" report; blocks a PM mid-pipeline with no obvious recovery.
+**Status:** 🟢 Fixed — released in v1.4.6 (branch `fix/gh-issues-59-62`). GitHub #61.
+
+**Symptom:** After an edit / interrupted write / failed post-hook, an artifact's frontmatter `status` can read `pending` while the body and `stage_generated` telemetry are intact. `pm_approve` keyed the "not generated yet" bail-out purely on that one field and refused to approve.
+
+**Root cause:** `scripts/pm_approve.py` bailed on `current_status == "pending"` without reconciling against ground truth.
+
+**Fixed:** approve now reconciles — if the body is non-empty and a `stage_generated`/`stage_imported`/`stage_backfilled` event exists, it treats the stage as `draft` and proceeds (printing a one-line notice); a genuinely empty/eventless slot still stops with "generate it first". Tests: `test_approve_reconciles_pending_frontmatter_with_generation_evidence`, `test_approve_still_refuses_truly_ungenerated_stage`.
+
+---
+
+## 39. 🟢 Color tokens render as bare hashcodes in the HTML companions
+
+**Severity:** P3 — design-spec/prototype companions showed `#FF5733` as text with no visible color, hurting the design review the companion exists to support.
+**Status:** 🟢 Fixed — released in v1.4.6 (branch `fix/gh-issues-59-62`). GitHub #62.
+
+**Root cause:** both `templates/design-spec.html.j2` and `templates/prototype-mockup.html.j2` piped the Color Tokens markdown straight through `markdownish`; nothing turned a hex/rgb literal into a swatch.
+
+**Fixed:** added a `_color_swatches` filter in `lib/html_render.py` that prefixes each `#RGB`/`#RRGGBB`/`rgb()`/`rgba()` literal with an inline-styled swatch span (inline style survives the standalone-file CSP); applied to the design-spec section render and the prototype Color section. `#`-prefixed non-colors (e.g. `#SCR-001`) are left untouched. Tests: `test_color_swatches_wraps_hex_and_rgb_literals`, `test_color_swatches_ignores_non_color_hash_tokens`.
+
+---
+
+## 40. 🟠 AdCept AI audit register (GH #63) — open engine items not yet addressed
+
+**Severity:** mixed — see the issue for per-item severity.
+**Status:** 🟠 Open (triage done; not started). GitHub #63.
+
+Much of the #63 register was run against an older project snapshot and is already fixed here (PMOS-007→#36, PMOS-009→#34, PMOS-019(partial)→#32, plus #30/#33/#35). A second set is **project-content** defects in that project's own artifacts (MVP-vs-V1 architecture, TLS verification, priority-vs-gate), not engine bugs — they map to the still-unbuilt cross-stage semantic-check capability (#4, #27). The genuinely-open **engine** items to schedule: import-time secret scanning + path sanitization (PMOS-001/025, incl. PMOS-003 imported-source `context/…` path resolution), Jira export hierarchy/self-containment/planning fields (PMOS-012/013/014), handoff clean-state manifest + prototype dedupe (PMOS-024/026), and the approval-vs-validation-execution split (PMOS-006/020/021, overlaps #26). Not scoped into the #59–#62 fix branch.
+
+**Progress:** PMOS-011 fixed (→ #41); the dev-package half of PMOS-002 — full PRD/TRD/design-spec projections — fixed (→ #42). PMOS-003's `context/…` path resolution stays open and folds into the PMOS-001/025 source-path sanitization work above.
+
+---
+
+_Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63); entries 37-39 fixed the same day on `fix/gh-issues-59-62` with tests; entry 40 is triage-only. Lands via the normal commit → push → `pm_os_update.py` path._
+
+---
+
+## 41. 🟢 Epic titles carried a dangling `**` into filenames, headings, and the Jira plan (PMOS-011)
+
+**Severity:** P2 — malformed Markdown in an entity identifier propagates everywhere the title is reused.
+**Status:** 🟢 Fixed — released in v1.4.7 (branch `fix/handoff-update-polish`). GH #63 / PMOS-011.
+
+**Root cause:** `lib/delivery_map.strip_decl` removes a *leading* `**` together with the id, and its final `.strip("*")` only trims edge asterisks — so a bold-wrapped declaration like `**EPIC-008: …Resilience** (cross-cutting)` leaves a **mid-string** dangling `**` that flowed into `title_of` → `Epic.title` → handoff filenames/headings and the Jira export (`pm_handoff.py` uses the same delivery map).
+
+**Fixed:** added `normalize_title` in `lib/delivery_map.py` (drops emphasis markers, collapses the whitespace they leave; doubled-underscore only, so snake_case survives) and applied it in `title_of`. Hardened the parallel `_title_of`/`_story_title` helpers in `pm_handoff.py` and `pm_share.py` for parity. Tests: `tests/unit/test_delivery_map.py`.
+
+---
+
+## 42. 🟢 Dev handoff omitted the PRD/TRD; design handoff omitted the design spec (PMOS-002)
+
+**Severity:** P1 — the audience packages carried decomposed stories/epics but not the source-of-truth documents behind them, so a dev couldn't read the full PRD/TRD (or a designer the full design spec) from within the package.
+**Status:** 🟢 Fixed — released in v1.4.7 (branch `fix/handoff-update-polish`). GH #63 / PMOS-002.
+
+**Note:** the *TSK task* half of PMOS-002 was already resolved — the Phase-3.5b spine embeds each story's implementing `TSK-###` tasks. What was missing was whole-artifact projections.
+
+**Fixed:** `scripts/pm_share.py` now emits full read-only projections — `dev/reference/prd.md`, `dev/reference/trd.md`, and `design/reference/design-spec.md` — stamped with the source content hash like every other projection. They are always emitted (so README/HTML links never dangle); a not-yet-approved optional source (TRD/design spec) projects an explicit note instead of a body. New `AUDIENCE_CATEGORIES` entries (`prd_full`/`trd_full` → dev, `design_spec_full` → design) plus README + HTML index wiring. `skills/pm-handoff/SKILL.md` updated. Tests: `test_package_projects_prd_trd_into_dev_and_design_spec_into_design`, `test_package_projects_absent_optional_sources_as_notes`.
+
+**Not included:** a separately-navigable architecture/API breakout beyond the full TRD body, and PMOS-003's `context/…` path resolution (that is imported-artifact source-path sanitization — the PMOS-025 area, tracked in #40 — not a handoff-generator defect).
+
+---
+
+## 43. 🟢 Offline-zip install had a dead-end `pm_os_update` message
+
+**Severity:** P3 — an offline (`install.sh --source`) install has no `.git`, so `pm_os_update.py` can't fast-forward; the old message ("manually replace ~/.pm-os") gave no actionable path.
+**Status:** 🟢 Fixed — released in v1.4.7 (branch `fix/handoff-update-polish`).
+
+**Root cause (confirmed):** `pm_os_package.sh` builds the zip via `git archive` (no `.git`), and `install.sh --source` rsyncs with `--exclude='/.git/'`, so `~/.pm-os` is not a git repo. `pm_os_update.py` correctly detects this but its guidance was a dead end.
+
+**Fixed:** the non-git branch of `pm_os_update.py` now explains this is an offline install and gives the real update path (get a fresh `pm-os-offline.zip`, re-run `install.sh --source`, which preserves config + `context/`), and points machines with git+network at a git-tracked reinstall. Docs (`offline-install.md` §3) already state the same; no update-capability change (per the chosen minimal scope).
+
+---
+
+_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests (PR #65). #37-40 merged via PR #64. Lands via commit → push → `pm_os_update.py`._
 
 ---
 

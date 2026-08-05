@@ -79,10 +79,16 @@ for each requested audience:
   interactive prototype for each, when available), the QA scenarios covering
   it, and — when the TRD (stage 08) is approved — the `TSK-###` backend/
   technical tasks that implement it.
-- `reference/` — `user-journeys.md` (all four), `prioritization.md` (dev,
+- `reference/` — `prd.md` (dev — the full approved PRD) and `trd.md` (dev —
+  the full approved TRD, or a note when stage 08 is not approved); `design-spec.md`
+  (design — the full approved design spec, or a note when stage 04 is not
+  approved); `user-journeys.md` (all four), `prioritization.md` (dev,
   business), `impact-analysis.md` (dev, qa, business), `nfrs.md` (dev, qa),
   `qa-scenarios.md` (qa), `screen-map.md` (design, qa — the reverse view:
-  each screen, the stories it serves, and a prototype link).
+  each screen, the stories it serves, and a prototype link). The `prd`/`trd`/
+  `design-spec` entries are full read-only projections of the source artifact
+  (stamped with its content hash), so each audience has the whole document
+  behind the decomposed stories/epics, not only the derived fragments.
 - `wireframes/prototype.html` (dev, design, qa) — the approved stage-05
   prototype, copied in, if present.
 - `--html` also emits an `index.html` inside each built audience folder.

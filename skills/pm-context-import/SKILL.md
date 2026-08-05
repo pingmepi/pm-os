@@ -419,6 +419,8 @@ Do not continue until all present stage-00 docs are approved — the stage-01 ga
 
 After the PM approves the wiki and understanding, adopt and backfill **bottom-up** (lowest stage id first) so each commit's upstream hashes capture already-written upstreams:
 
+> **The engine now enforces this.** `commit … --status approved` **blocks** if any upstream stage is still `pending` or absent — so a prototype/design cannot be adopted straight into an approved stage (e.g. an imported HTML prototype into an approved `05`) while `01–04` are unwritten, and the pipeline can't be made to look complete by jumping ahead. Commit bottom-up and the guardrail never fires. It is *not* a licence to skip: only pass `--allow-missing-upstream` when the PM has explicitly confirmed a deliberate partial import, and say so in an `FYI:`. Imported artifacts are additionally stamped `fidelity: unverified` in frontmatter — adoption means "brought into the pipeline", never "runtime-verified".
+
 For each backfilled gap (ascending), reverse-generate the artifact from the **provided** artifacts + wiki, write the slot (frontmatter `status: draft` + body), then commit using the status that matches the extraction quality. For stages 03–05, load the target stage skill's current required/recommended section contract, write `artifact_contract_version: 1`, and run `pm_validate_artifact.py <NN> --mode strict` before commit; repair required-section errors before continuing.
 
 **Faithful backfill with no unresolved stage-relevant conflicts:**

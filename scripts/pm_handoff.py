@@ -44,7 +44,7 @@ from artifact_contracts import (  # noqa: E402
     split_task_blocks,
     work_breakdown_section,
 )
-from delivery_map import build_prd_delivery_map, body_of, title_of  # noqa: E402
+from delivery_map import build_prd_delivery_map, body_of, normalize_title, title_of  # noqa: E402
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from jira_markup import to_jira_markup  # noqa: E402
@@ -130,7 +130,7 @@ def _strip_decl(line: str, block_id: str) -> str:
 def _title_of(block_id: str, block: str) -> str:
     """Best-effort human title from a block's declaration line."""
     first = block.strip().splitlines()[0] if block.strip() else ""
-    return _strip_decl(first, block_id) or block_id
+    return normalize_title(_strip_decl(first, block_id)) or block_id
 
 
 def _body_of(block: str, block_id: str) -> str:

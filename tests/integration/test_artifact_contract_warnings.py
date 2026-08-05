@@ -21,6 +21,12 @@ def test_approval_warns_records_and_continues(pmos, new_project):
 
 def test_import_approval_warns_and_continues(pmos, new_project):
     proj = new_project("contract-import", "A problem")
+    # Upstreams must be approved before a mid-pipeline stage can be adopted as approved
+    # (the E3 bottom-up guardrail, backlog #37) — establish them the way the real flow does.
+    run_script(pmos, "pm_approve.py", "00", cwd=proj)
+    for up in ("01", "02"):
+        make_draft(proj, up, body=f"## Overview\nUpstream {up}.\n")
+        run_script(pmos, "pm_approve.py", up, cwd=proj)
     make_draft(proj, "03", body="## Overview\nImported PRD without journeys.\n")
     res = run_script(
         pmos, "pm_context_import.py", "commit", "03", "--kind", "imported",

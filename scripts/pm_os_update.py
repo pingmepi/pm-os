@@ -202,8 +202,20 @@ def main():
 
     git_dir = PM_OS_DIR / ".git"
     if not git_dir.exists():
-        print("Warning: ~/.pm-os is not a git repository. Cannot auto-update.")
-        print("To update, manually replace ~/.pm-os with the latest version.")
+        # An offline-zip install (install.sh --source, from a `git archive` zip) has no
+        # `.git`, so the git-based fast-forward can't run. This is expected, not a crash:
+        # offline installs update by re-applying a fresh zip, not over the network.
+        print("~/.pm-os is not a git repository, so the git-based auto-update does not apply.")
+        print("This is an offline (zip) install. To update it:")
+        print("  1. Get a fresh pm-os-offline.zip from whoever maintains your install")
+        print("     (they rebuild it with scripts/pm_os_package.sh).")
+        print(f"  2. Unzip it and re-run the installer against the extracted folder:")
+        print(f"       bash pm-os/install.sh --runtime {args.runtime if args.runtime != 'all' else 'claude'} "
+              "--source pm-os --pm-user <id>")
+        print("     Re-running preserves your config and context/ overlay.")
+        print("If this machine has git and network access, you can instead switch to a")
+        print("git-tracked install (which then auto-updates) by reinstalling without --source.")
+        print("See docs/guides/offline-install.md §3 for the full offline flow.")
         sys.exit(1)
 
     try:

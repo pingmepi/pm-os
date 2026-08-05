@@ -51,7 +51,7 @@ from artifact_contracts import (  # noqa: E402
     split_user_story_blocks,
     work_breakdown_section,
 )
-from delivery_map import build_prd_delivery_map, title_of  # noqa: E402
+from delivery_map import build_prd_delivery_map, normalize_title, title_of  # noqa: E402
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
@@ -85,6 +85,12 @@ AUDIENCES = ("dev", "design", "qa", "business")
 # links directly into the prototype (backlog #29) — without the copy present
 # in dev/, that link would dangle.
 AUDIENCE_CATEGORIES: dict[str, set[str]] = {
+    # Full read-only artifact projections (PMOS-002): the source-of-truth document
+    # behind the decomposed stories/epics, not only the derived fragments. Dev gets
+    # the PRD + TRD; design gets the design spec.
+    "prd_full": {"dev"},
+    "trd_full": {"dev"},
+    "design_spec_full": {"design"},
     "stories": {"dev", "qa"},
     "epics": {"dev", "business"},
     "overview": {"business"},
@@ -240,7 +246,9 @@ def _story_title(story_id: str, block: str) -> str:
     first = block.strip().splitlines()[0] if block.strip() else ""
     cleaned = re.sub(r"^(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)?", "", first)
     cleaned = re.sub(rf"^\**{re.escape(story_id)}\**\b[\s:—–-]*", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip().strip("*").strip() or story_id
+    # normalize_title also clears a *mid-string* dangling ** that edge-only strip("*")
+    # misses, matching the epic-title fix (PMOS-011).
+    return normalize_title(cleaned) or story_id
 
 
 def _strip_decl_line(block: str, decl_id: str | None = None) -> str:
@@ -681,6 +689,27 @@ def build_package(
         )
         reference_docs[category] = (filename, doc)
 
+    # Full read-only artifact projections (PMOS-002). Always emitted so their
+    # README/HTML links never dangle; a not-yet-approved optional source projects an
+    # explicit note instead of a body. Stamped with the source hash like every other
+    # projection, so a dev/design reviewer can trace it back to the approved artifact.
+    reference_docs["prd_full"] = ("prd.md", _stamped_doc(
+        "Product Requirements (PRD)", [prd_stamp] if prd_stamp else [], now,
+        (prd_body.strip() or NOT_CAPTURED) + "\n"))
+    trd_projection = trd_body.strip() if trd_body else (
+        NOT_CAPTURED + "\n\n_Stage 08 (TRD) is not approved for this project, so no "
+        "technical requirements are projected here. Approve the TRD (/pm-approve 08) and "
+        "regenerate to include it._")
+    reference_docs["trd_full"] = ("trd.md", _stamped_doc(
+        "Technical Requirements (TRD)", [trd_stamp] if trd_stamp else [], now,
+        trd_projection + "\n"))
+    design_projection = design_body.strip() if design_body else (
+        NOT_CAPTURED + "\n\n_Stage 04 (design spec) is not approved, so no design spec is "
+        "projected here. Approve the design spec (/pm-approve 04) and regenerate to include it._")
+    reference_docs["design_spec_full"] = ("design-spec.md", _stamped_doc(
+        "Design Spec", [design_stamp] if design_stamp else [], now,
+        design_projection + "\n"))
+
     # --- screen map (the reverse view: screen → the stories it serves) ---
     screen_map_content = _stamped_doc(
         "Screen Map",
@@ -893,6 +922,9 @@ def _audience_readme(
         for story in story_index:
             lines.append(f"- [{story['id']} · {story['title']}](stories/{story['filename']})")
     reference_lines = {
+        "prd_full": "- [Product requirements (PRD)](reference/prd.md) — the full approved PRD",
+        "trd_full": "- [Technical requirements (TRD)](reference/trd.md) — architecture & backend work breakdown",
+        "design_spec_full": "- [Design spec](reference/design-spec.md) — the full approved design spec",
         "prioritization": "- [Prioritization method](reference/prioritization.md)",
         "user_journeys": "- [User journeys](reference/user-journeys.md)",
         "screen_map": "- [Screen map](reference/screen-map.md) — which screens serve which stories, with prototype links",
@@ -980,6 +1012,9 @@ def _write_html_index(
     if "stories" in cats:
         body_parts.append(f"<h2>User stories</h2><ul>{items}</ul>")
     reference_links = {
+        "prd_full": '<li><a href="reference/prd.md">Product requirements (PRD)</a></li>',
+        "trd_full": '<li><a href="reference/trd.md">Technical requirements (TRD)</a></li>',
+        "design_spec_full": '<li><a href="reference/design-spec.md">Design spec</a></li>',
         "prioritization": '<li><a href="reference/prioritization.md">Prioritization method</a></li>',
         "user_journeys": '<li><a href="reference/user-journeys.md">User journeys</a></li>',
         "screen_map": '<li><a href="reference/screen-map.md">Screen map</a></li>',
