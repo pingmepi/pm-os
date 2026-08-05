@@ -340,10 +340,17 @@ def build_plan(root: Path) -> dict:
             "no tickets will be scoped. Regenerate the affected stages before handing off.",
             file=sys.stderr,
         )
-    return _scope_plan_to_enhancement(plan, delta) if delta else plan
+    if not delta:
+        return plan
+    # Removed-ref tickets already created in a prior export live in the index; skip
+    # re-synthesizing them so re-exporting never creates duplicate removal tickets.
+    already_recorded = frozenset((traceability.load_index(root) or {}).get("enhancement_removed_tickets") or {})
+    return _scope_plan_to_enhancement(plan, delta, already_recorded)
 
 
-def _scope_plan_to_enhancement(plan: dict, delta: dict) -> dict:
+def _scope_plan_to_enhancement(
+    plan: dict, delta: dict, already_recorded: "frozenset[str]" = frozenset(),
+) -> dict:
     """Keep changed work plus the parents Jira needs to preserve hierarchy."""
     boundary = delta["boundary"]
     changes = {item["id"]: item for item in delta["changes"]}
@@ -387,7 +394,7 @@ def _scope_plan_to_enhancement(plan: dict, delta: dict) -> dict:
     # explicit implementation ticket. It is deliberately unparented when its old
     # owner cannot be proven from the current delivery map.
     for ref, change in changes.items():
-        if change["change_type"] != "removed" or ref in all_items:
+        if change["change_type"] != "removed" or ref in all_items or ref in already_recorded:
             continue
         if not ref.startswith(("US-", "FR-", "REQ-", "TSK-", "NFR-")):
             continue
@@ -697,7 +704,9 @@ def cmd_export(root: Path, output: str | None, fmt: str) -> None:
 
 # The id shapes the record step accepts, routed to the right index slot.
 _EPIC_REF_RE = re.compile(r"^EPIC-\d{2,}$", re.IGNORECASE)
-_REQ_REF_RE = re.compile(r"^(?:REQ|US|FR)-\d{3,}$", re.IGNORECASE)
+# NFR-### is a requirement id too (NFR allows short numbers), so it must record
+# like any other requirement rather than falling through as "unknown".
+_REQ_REF_RE = re.compile(r"^(?:REQ|US|FR|NFR)-\d+$", re.IGNORECASE)
 _TASK_REF_RE = re.compile(r"^TSK-\d{3,}$", re.IGNORECASE)
 
 
@@ -726,6 +735,20 @@ def cmd_record(root: Path, input_path: str | None) -> None:
     requirements = index.setdefault("requirements", {})
     tasks = index.setdefault("tasks", {})
 
+    # Removed baseline refs no longer exist in the current spine, so they have no
+    # requirements/tasks entry to record into. Persist their keys in a dedicated
+    # bucket (validated against the active enhancement's removed set, so a typo
+    # still surfaces as skipped) so a later export can see they were handed off and
+    # never re-create duplicate removal tickets.
+    removed_bucket = index.setdefault("enhancement_removed_tickets", {})
+    removed_refs: set[str] = set()
+    try:
+        delta = active_enhancement_delta(root, require_approved=False)
+    except EnhancementDeltaError:
+        delta = None
+    if delta:
+        removed_refs = {c["id"] for c in delta["changes"] if c["change_type"] == "removed"}
+
     recorded: dict[str, str] = {}
     skipped: list[str] = []
     for ref, key in created.items():
@@ -742,6 +765,8 @@ def cmd_record(root: Path, input_path: str | None) -> None:
             slot = entry.setdefault("tickets", []) if entry is not None else None
         else:
             slot = None
+        if slot is None and ref in removed_refs:
+            slot = removed_bucket.setdefault(ref, [])
         if slot is None:
             skipped.append(ref)
             continue

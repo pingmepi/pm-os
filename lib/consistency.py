@@ -11,10 +11,7 @@ artifact frontmatter, telemetry.jsonl, and optional context/sources YAML.
 """
 from __future__ import annotations
 
-import hashlib
-import os
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -157,48 +154,10 @@ def check_project(project_root) -> list[Issue]:
     return issues
 
 
-def _enhancement_fingerprint(path: Path) -> str | None:
-    """Recompute the read-only fingerprint captured by pm_enhance.py."""
-    listed = subprocess.run(
-        [
-            "git", "-C", str(path), "ls-files", "-z", "--cached", "--others",
-            "--exclude-standard",
-        ],
-        capture_output=True,
-    )
-    if listed.returncode != 0:
-        return None
-    relative_paths = sorted(
-        item for item in listed.stdout.decode("utf-8", errors="surrogateescape").split("\0")
-        if item
-    )
-    digest = hashlib.sha256()
-    for relative in relative_paths:
-        candidate = path / relative
-        digest.update(relative.encode("utf-8", errors="surrogateescape"))
-        digest.update(b"\0")
-        if candidate.is_symlink():
-            digest.update(b"L\0")
-            digest.update(os.readlink(str(candidate)).encode("utf-8", errors="surrogateescape"))
-        elif candidate.is_file():
-            digest.update(b"F\0")
-            try:
-                with candidate.open("rb") as handle:
-                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                        digest.update(chunk)
-            except OSError:
-                return None
-        else:
-            digest.update(b"M\0")
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
-def _git_read(path: Path, *args: str) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(path), *args], capture_output=True, text=True,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
+# Recompute drift evidence with the SAME implementation pm_enhance.py captured
+# with, so a non-Git codebase gets the identical os.walk fallback fingerprint
+# instead of None (which would read as false drift). See lib/repo_fingerprint.py.
+from repo_fingerprint import git_value as _git_read, repository_fingerprint as _enhancement_fingerprint
 
 
 def _check_enhancement_state(project_root: Path) -> list[Issue]:
@@ -304,23 +263,31 @@ def _check_enhancement_state(project_root: Path) -> list[Issue]:
         expected_fingerprint = (
             repository.get("fingerprint_after") or repository.get("fingerprint_before")
         )
-        actual_sha = _git_read(repo, "rev-parse", "HEAD") if repo.is_dir() else None
-        actual_porcelain = (
-            _git_read(repo, "status", "--porcelain", "--untracked-files=all")
-            if repo.is_dir() else None
-        )
-        actual_fingerprint = _enhancement_fingerprint(repo) if repo.is_dir() else None
-        if (
-            actual_sha is None
-            or actual_sha != expected_sha
-            or actual_porcelain != expected_porcelain
-            or actual_fingerprint != expected_fingerprint
-        ):
+        if not repo.is_dir():
+            # The pinned checkout is gone entirely — that is real drift.
             issues.append(Issue(
                 CODE_ENHANCEMENT_REPOSITORY_DRIFT, "error", None,
-                f"Active enhancement {active} no longer matches its read-only repository snapshot",
+                f"Active enhancement {active} pins a codebase that is no longer a readable directory",
                 "Restore the pinned checkout or run the explicit /pm-enhance refresh workflow.",
             ))
+        else:
+            # For a non-Git codebase every expected git value is None and the
+            # fingerprint uses the os.walk fallback, so None == None is NOT drift.
+            # Comparing actual against expected (never a bare `actual_sha is None`)
+            # is what keeps an unchanged non-Git codebase from tripping the gate.
+            actual_sha = _git_read(repo, "rev-parse", "HEAD")
+            actual_porcelain = _git_read(repo, "status", "--porcelain", "--untracked-files=all")
+            actual_fingerprint = _enhancement_fingerprint(repo)
+            if (
+                actual_sha != expected_sha
+                or actual_porcelain != expected_porcelain
+                or actual_fingerprint != expected_fingerprint
+            ):
+                issues.append(Issue(
+                    CODE_ENHANCEMENT_REPOSITORY_DRIFT, "error", None,
+                    f"Active enhancement {active} no longer matches its read-only repository snapshot",
+                    "Restore the pinned checkout or run the explicit /pm-enhance refresh workflow.",
+                ))
 
     try:
         delta = active_enhancement_delta(project_root, require_approved=False)

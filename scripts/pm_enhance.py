@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import os
 import shutil
-import subprocess
 import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -23,6 +22,10 @@ from frontmatter import read as fm_read, update_status  # noqa: E402
 from project import artifact_path, get_stage, load_meta, resolve_project  # noqa: E402
 from consistency import check_project  # noqa: E402
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
+from repo_fingerprint import (  # noqa: E402
+    git_value as _git_value,
+    repository_fingerprint as _repository_fingerprint,
+)
 from telemetry import log  # noqa: E402
 
 
@@ -186,62 +189,6 @@ def _capture_approved_artifacts(
     if not captured:
         raise EnhancementError("no approved artifacts to capture; approve stage 00 first")
     return captured
-
-
-def _git_value(path: Optional[Path], *args: str) -> Optional[str]:
-    if path is None:
-        return None
-    result = subprocess.run(
-        ["git", "-C", str(path), *args], capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip()
-
-
-def _git_visible_paths(path: Path):
-    result = subprocess.run(
-        [
-            "git", "-C", str(path), "ls-files", "-z", "--cached", "--others",
-            "--exclude-standard",
-        ],
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        return None
-    decoded = result.stdout.decode("utf-8", errors="surrogateescape")
-    return sorted(item for item in decoded.split("\0") if item)
-
-
-def _repository_fingerprint(path: Path) -> str:
-    """Hash Git-visible worktree bytes without following links or reading .git."""
-    relative_paths = _git_visible_paths(path)
-    if relative_paths is None:
-        relative_paths = []
-        for current, directories, files in os.walk(path, followlinks=False):
-            directories[:] = sorted(name for name in directories if name != ".git")
-            current_path = Path(current)
-            for name in sorted(files):
-                relative_paths.append((current_path / name).relative_to(path).as_posix())
-        relative_paths.sort()
-
-    digest = hashlib.sha256()
-    for relative in relative_paths:
-        candidate = path / relative
-        digest.update(relative.encode("utf-8", errors="surrogateescape"))
-        digest.update(b"\0")
-        if candidate.is_symlink():
-            digest.update(b"L\0")
-            digest.update(os.readlink(str(candidate)).encode("utf-8", errors="surrogateescape"))
-        elif candidate.is_file():
-            digest.update(b"F\0")
-            with candidate.open("rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-        else:
-            digest.update(b"M\0")
-        digest.update(b"\0")
-    return digest.hexdigest()
 
 
 def _local_codebase(raw: Optional[str]) -> Optional[Path]:

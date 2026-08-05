@@ -19,10 +19,66 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from pathlib import Path
-from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES
+
+import yaml
+
+from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES, CORE_STAGE_ORDER
 from hashing import stage_content_hash, CompositeHashError
 from frontmatter import update_status
 from telemetry import log
+
+
+# Product/implementation stages that, in an enhancement, must not be generated
+# until the affected slice is recorded. Context pre-stages (00*) are exempt — you
+# need them approved *to* record the boundary (set-boundary requires 00c/00u).
+_PRODUCT_STAGE_IDS = set(CORE_STAGE_ORDER) | {"08", "09"}
+
+
+def _enhancement_boundary_gate(project_root: Path, meta: dict, stage_id: str) -> None:
+    """Block a product stage in enhancement mode until an affected-slice boundary
+    is recorded. Enhancement mode = an external-product project (project_type
+    enhancement) or a started enhancement cycle (.enhancements/). The decision
+    interview behind set-boundary is skippable, so this costs the PM nothing but a
+    recorded intent — which anchors the delta, checks, and handoff.
+
+    Escape hatch: PM_OS_SKIP_ENH_BOUNDARY=1 (for non-interactive/automation)."""
+    if stage_id not in _PRODUCT_STAGE_IDS:
+        return
+    if os.environ.get("PM_OS_SKIP_ENH_BOUNDARY", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return
+    index_path = project_root / ".enhancements" / "index.yaml"
+    enhancement_mode = meta.get("project_type") == "enhancement" or index_path.exists()
+    if not enhancement_mode:
+        return
+
+    active_cycle = None
+    boundary_recorded = False
+    if index_path.exists():
+        try:
+            index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
+            active_cycle = index.get("active_cycle")
+            if active_cycle:
+                ctx_path = project_root / ".enhancements" / str(active_cycle) / "context.yaml"
+                context = yaml.safe_load(ctx_path.read_text(encoding="utf-8")) or {}
+                boundary_recorded = bool((context.get("boundary") or {}).get("recorded_at"))
+        except Exception:
+            boundary_recorded = False
+
+    if boundary_recorded:
+        return
+
+    print(
+        f"\n[pre-stage] BLOCKED: this is an enhancement — record the affected slice "
+        f"before generating stage {stage_id} ({STAGE_NAMES.get(stage_id, stage_id)}).\n\n"
+        "  1. /pm-enhance start        (freeze the approved baseline)\n"
+        "  2. approve 00c and 00u      (the codebase + decision understanding)\n"
+        "  3. /pm-enhance set-boundary (record the affected slice)\n\n"
+        "The decision interview is skippable — give whatever you have; it all becomes "
+        "useful context and anchors the delta, checks, and handoff.\n"
+        "(Set PM_OS_SKIP_ENH_BOUNDARY=1 only for deliberate non-interactive runs.)",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def read_edited_choice(stage_id: str) -> str:
@@ -126,6 +182,10 @@ def main():
         sys.exit(1)
 
     meta = load_meta(project_root)
+
+    # Enhancement projects must record the affected slice before any product stage.
+    _enhancement_boundary_gate(project_root, meta, stage_id)
+
     upstream_ids = upstream_stage_ids(stage_id, meta)
 
     def _upstream_hash(uid, apath):
