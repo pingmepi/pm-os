@@ -742,7 +742,27 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
-_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests (PR #65). #37-40 merged via PR #64. Lands via commit → push → `pm_os_update.py`._
+## 44. 🔵 Enhancement targets a single codebase; no support for two/more repos
+
+**Severity:** P3 — feature request, deferred from the E2 zip-source work (PR #68).
+**Status:** 🔵 Open (deferred; not scoped).
+
+**Symptom:** `.meta.yaml` `codebase_path`/`codebase_ref` are single scalars — one codebase per enhancement project (`scripts/pm_enhance.py`, `scripts/pm_context_import.py prepare-codebase`). A product split across separate repos (e.g. a frontend repo + a backend repo) cannot both be bound; the only multi-location support is `--subpath` for a single monorepo package. The read-only scanner already handles a combined tree well (both top-level boundaries appear in the inventory/surfaces/impact cone), so a practical interim is to combine the repos into one tree + `git init` before `prepare-codebase`.
+
+**Proposed direction (not scoped):** allow a list of codebase sources (each cloned/extracted into `.codebase/<name>/`), fingerprinted independently, with the scanner unioning their inventories. Requires a meta-schema change (`codebase_path` → list) with migration, and threading through `pm_enhance` repository seed/refresh/drift.
+
+## 45. 🔵 Scanner has no user-configurable ignore list
+
+**Severity:** P3 — feature request, deferred from the E2 zip-source work (PR #68).
+**Status:** 🔵 Open (deferred; not scoped).
+
+**Symptom:** `pm_codebase_inventory.py` auto-excludes the usual noise (`EXCLUDED_DIRS` = `.git`, `node_modules`, `vendor`, `dist`, `build`, `coverage`, `.venv/venv`, `__pycache__`, `.next`, `.turbo`, plus binary suffixes, >1 MiB files, and `.gitignore` via `git ls-files --exclude-standard`), but a PM cannot add project-specific paths to skip. Note: deploy/Docker files are kept **on purpose** — they map to the `operations` surface for impact analysis — so any configurable ignore must be opt-in, not a default.
+
+**Proposed direction (not scoped):** an optional per-project ignore list (a `--exclude` flag and/or a `.codebase/.pmignore`) merged with `EXCLUDED_DIRS`, surfaced in the `00c` coverage/exclusions section so skipped paths stay auditable.
+
+---
+
+_Entries 41-43 recorded 2026-08-05: #41/#42 from the GH #63 (AdCept) engine follow-ups, #43 from an offline-install `pm_os_update` report. All fixed on `fix/handoff-update-polish` with tests (PR #65). #37-40 merged via PR #64. **Entries 44-45 recorded 2026-08-05** as deferred feature requests from the E2 zip-codebase work (PR #68). Lands via commit → push → `pm_os_update.py`._
 
 ---
 

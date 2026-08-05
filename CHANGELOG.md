@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.5.0 — 2026-08-05
+
+### Added
+- **E2 affected-slice enhancement pathway (`/pm-enhance`).** A live product with a read-only codebase is enhanced inside the same PM-OS project. `/pm-enhance start` freezes the approved artifacts + repository evidence into an immutable cycle baseline; a decision interview records the affected slice (`set-boundary`); stages 01–09 regenerate in place, updating only affected stable-ID blocks and carrying unaffected content forward; `/pm-enhance delta` derives the frozen-baseline-vs-current change set; `refresh` repins code evidence; and `complete` closes the cycle so the canonical artifacts become the next baseline. `/pm-status` derives active/completed guidance and `/pm-check` gains E2 invariants (baseline integrity, repository drift, change-outside-boundary, surface/regression/implementation/migration traces). The target codebase is never modified. Mechanics in `scripts/pm_enhance.py`, `lib/enhancement.py`; design in `docs/archive/pm-os-e2-execution-runbook.md` (PR #68).
+- **`.zip` codebase sources.** `--codebase` (and `pm_context_import.py prepare-codebase`) accept a `.zip` archive alongside a git URL or local directory. The archive is extracted read-only into the project's `.codebase/` (zip-slip guarded, single wrapper folder flattened) and turned into a self-contained one-commit git checkout, so a zip behaves like a clone for SHA pinning, dirty-state, and refresh. The standalone scanner (`pm_codebase_inventory.py --path`) also accepts a `.zip`. Re-preparing the same archive reuses; a different archive is refused.
+- **Delta-only handoff.** In an active enhancement, `/pm-handoff --package` and the Jira export scope automatically to the computed delta — changed stories/epics/QA/NFRs plus the minimum parent closure and explicit removal tickets, not the whole product — each carrying affected surfaces, regression invariants, compatibility/migration, and rollout/rollback context.
+
+### Changed
+- **Enhancement product stages are gated on a recorded affected slice.** In an enhancement project, stages 01–09 will not generate until `/pm-enhance start` and `set-boundary` have run (`hooks/pre-stage.py`); greenfield/prototype projects are unaffected. `PM_OS_SKIP_ENH_BOUNDARY=1` escapes for non-interactive automation.
+
+### Fixed
+- **Non-Git codebases no longer read as repository drift.** `/pm-check` and the E2 lifecycle now share one fingerprint (`lib/repo_fingerprint.py`) with an `os.walk` fallback, so an unchanged non-Git codebase recomputes to the same hash instead of falsely reporting `ENHANCEMENT_REPOSITORY_DRIFT` and blocking `complete`.
+- **Delta stable-ID parsing + from-scratch coverage.** The delta reuses the canonical `split_stable_id_blocks` (heading / bullet / ordered-list / bare-line / bold forms) and surfaces a stage authored *during* the enhancement (external product, no prior PRD) as all-`new`, so its work is never dropped from the delta or handoff. Whole-artifact handoff projections scope to the delta (full when the stage is new, changed-blocks excerpt when edited in place, baseline reference otherwise); a coarse non-UI stage change still ships its content, and an omitted baseline prototype is never linked.
+- **Removed-ticket recordability.** `pm_handoff record` persists removed / `NFR-` refs so re-export never creates duplicate removal tickets.
+- **Scanner relative imports.** The `00c` impact scanner resolves Python (`from .x`) and JS/TS (`./x`) relative imports, so a relative dependency lands in the impact cone instead of non-touch.
+- **Stale enhancement lock is reclaimed.** A crashed lifecycle op no longer wedges every future `/pm-enhance` op: the lock records its owner PID and a lock whose owner is gone is reclaimed.
+
 ## 1.4.7 — 2026-08-04
 
 ### Added

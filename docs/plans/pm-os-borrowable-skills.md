@@ -69,7 +69,7 @@ Cross-referencing the 11 stage skills + 10 utility skills against the available 
 
 **Security/write/network review:** the repositories were shallow-cloned only into a disposable `/tmp` directory for inspection. E2 adopts no executable, network call, install step, subprocess wrapper, or target-repository output from them. The production path remains the PM-OS-owned `pm-context-scan-codebase` skill plus deterministic local helpers. This also preserves Claude/Codex parity.
 
-**PM-OS skills inspired by the review:** strengthen `pm-context-scan-codebase` with inventory → bounded focus → evidence-driven widening; add `/pm-enhance` for same-project lifecycle/baseline mechanics; and keep the tests-first building loop in `pm-os-e2-execution-runbook.md`. These are original PM-OS-owned contracts, not vendored marketplace skills.
+**PM-OS skills inspired by the review:** strengthen `pm-context-scan-codebase` with inventory → bounded focus → evidence-driven widening; add `/pm-enhance` for same-project lifecycle/baseline mechanics; and keep the tests-first building loop in `../archive/pm-os-e2-execution-runbook.md`. These are original PM-OS-owned contracts, not vendored marketplace skills.
 
 ### Primary candidate: `acquire-codebase-knowledge`
 

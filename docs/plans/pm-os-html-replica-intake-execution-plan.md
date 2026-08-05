@@ -1,7 +1,7 @@
 # PM-OS Pathway 2 HTML Replica Intake — Execution Plan
 
 **Working name:** P2H — HTML Replica Intake  
-**Status:** Planned; dependency-locked behind the merge of `feat/e2-affected-slice-enhancement`  
+**Status:** Planned; the E2 dependency is now unblocked (E2 merged in v1.5.0, PR #68)  
 **Execution branch:** create `feat/pathway-2-html-replica-intake` from refreshed `main` only after E2 merges  
 **Scope:** Pathway 2 intake when the PM has an HTML replica of the product but no codebase access  
 **Canonical pathway:** `docs/plans/pm-os-entry-pathways-plan.md`  
