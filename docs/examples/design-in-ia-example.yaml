@@ -1,0 +1,185 @@
+# design-in/ia.yaml — returned by design, read by the PM at the verification gate.
+#
+# Written by the designer (or their agent) after the Figma work is finished, against
+# the design brief in 04-design-spec.md. Every state in the brief's `Required state
+# inventory` appears here as a real frame with its own node_id — that is the point of
+# this file: a developer opens the exact frame instead of reconstructing the
+# interaction that produces it.
+#
+# The designer does NOT assign SCR-### ids. PM-OS mints those at ingest, keyed to
+# node_id, so renaming a frame never renumbers the traceability spine.
+
+ia_format_version: 1
+
+figma:
+  file_key: 7Kq2mXvLpR8nD4sYtBcW1e
+  file_url: https://www.figma.com/design/7Kq2mXvLpR8nD4sYtBcW1e/MLR-Review-Queue
+  version: "2891447306512334019"
+  last_modified: "2026-08-13T16:42:11Z"
+  design_system:
+    - Core Web Library v4.2
+    - Core Tokens / Light
+    - Core Tokens / Dark
+
+screens:
+  - name: Review queue
+    node_id: "12:340"
+    node_url: https://www.figma.com/design/7Kq2mXvLpR8nD4sYtBcW1e?node-id=12-340
+    purpose: The reviewer's worklist — assets assigned to them, sortable, with a due-date filter.
+    serves: [US-001, US-003, FR-001, FR-003, UJ-001, UJ-002]
+    data_fields: [asset_id, asset_title, material_type, submitted_by, due_date, review_status, due_before, due_after]
+    components: [DataTable, StatusPill, DateRangeFilter, Pagination, EmptyState, Toast, SkeletonRows]
+    states:
+      - name: default
+        node_id: "12:340"
+        trigger: Reviewer lands with assets assigned
+        transient: false
+      - name: loading
+        node_id: "12:352"
+        trigger: Initial fetch
+        transient: true
+      - name: empty
+        node_id: "12:361"
+        trigger: No assets assigned to this reviewer
+        transient: false
+      - name: filter-applied
+        node_id: "12:374"
+        trigger: Due-date filter active, results present
+        transient: false
+      - name: filtered-empty
+        node_id: "12:388"
+        trigger: Filter matches nothing — distinct from the unfiltered empty state
+        transient: false
+      - name: toast-returned
+        node_id: "12:401"
+        trigger: Return succeeds; reviewer is back on the queue
+        transient: true
+      - name: toast-save-failed
+        node_id: "12:409"
+        trigger: Return fails on the network; does not auto-dismiss
+        transient: true
+
+  - name: Asset detail
+    node_id: "12:420"
+    node_url: https://www.figma.com/design/7Kq2mXvLpR8nD4sYtBcW1e?node-id=12-420
+    purpose: Full-length reading surface for one asset, with the decision controls held below the fold of the preview.
+    serves: [US-001, US-002, FR-002, REQ-001, UJ-001, UJ-002]
+    data_fields: [asset_id, asset_title, material_type, submitted_by, due_date, review_status, asset_preview, decision, decided_at, decided_by]
+    components: [DocumentViewer, StatusPill, MetadataList, ButtonGroup, PermissionDeniedState, ReadOnlyBanner]
+    states:
+      - name: default
+        node_id: "12:420"
+        trigger: Reviewer opens an asset assigned to them
+        transient: false
+      - name: permission-denied
+        node_id: "12:437"
+        trigger: Asset is assigned to another reviewer — no partial content shown
+        transient: false
+      - name: decision-recorded
+        node_id: "12:449"
+        trigger: Any decision saved; surface becomes read-only
+        transient: false
+
+  - name: Return for revision
+    node_id: "12:460"
+    node_url: https://www.figma.com/design/7Kq2mXvLpR8nD4sYtBcW1e?node-id=12-460
+    purpose: Modal overlay capturing the mandatory reason for returning an asset.
+    serves: [US-002, FR-002]
+    data_fields: [decision, reviewer_comment]
+    components: [Modal, TextArea, CharacterCount, InlineFieldError, ButtonGroup]
+    states:
+      - name: default
+        node_id: "12:460"
+        trigger: Reviewer chooses "Return for revision"
+        transient: false
+      - name: validation-error
+        node_id: "12:472"
+        trigger: Submit attempted with an empty comment
+        transient: false
+      - name: submitting
+        node_id: "12:481"
+        trigger: Submit in flight; comment preserved, controls disabled
+        transient: true
+
+flows:
+  - journey: UJ-001
+    name: Reviewer clears their assigned queue
+    sequence:
+      - {screen: Review queue, state: loading}
+      - {screen: Review queue, state: default}
+      - {screen: Asset detail, state: default}
+      - {screen: Asset detail, state: decision-recorded}
+      - {screen: Review queue, state: toast-returned}
+    recovery:
+      - {screen: Review queue, state: empty, note: End of queue — nothing left assigned}
+      - {screen: Asset detail, state: permission-denied, note: Stale link to a reassigned asset}
+
+  - journey: UJ-002
+    name: Reviewer returns an asset for revision
+    sequence:
+      - {screen: Review queue, state: default}
+      - {screen: Asset detail, state: default}
+      - {screen: Return for revision, state: default}
+      - {screen: Return for revision, state: submitting}
+      - {screen: Review queue, state: toast-returned}
+    recovery:
+      - {screen: Return for revision, state: validation-error, note: Empty comment blocked per FR-002}
+      - {screen: Review queue, state: toast-save-failed, note: Comment preserved; retry offered}
+
+components:
+  reused:
+    - DataTable
+    - StatusPill
+    - DateRangeFilter
+    - Pagination
+    - EmptyState
+    - Toast
+    - SkeletonRows
+    - Modal
+    - TextArea
+    - InlineFieldError
+    - ButtonGroup
+    - MetadataList
+    - DocumentViewer
+    - PermissionDeniedState
+  new:
+    - name: CharacterCount
+      node_id: "12:498"
+      rationale: >
+        The brief requires a remaining-character count from 1,800 of 2,000 that is
+        announced politely to screen readers. Core Web Library v4.2's TextArea has no
+        count affordance and its helper-text slot is not a live region. Built as a
+        composition over the existing TextArea rather than a fork — it consumes only
+        library tokens and adds no new visual language.
+    - name: ReadOnlyBanner
+      node_id: "12:506"
+      rationale: >
+        The decision-recorded state needs a persistent, non-dismissible notice that the
+        surface is now read-only and audited. The library's Alert auto-dismisses and
+        reads as transient, which would misrepresent an audited final state.
+
+tokens:
+  collections_used:
+    - Core Tokens / Light
+    - Core Tokens / Dark
+  outside_system: []
+
+excluded_frames:
+  - {name: Queue — card layout exploration, node_id: "12:120", reason: exploration}
+  - {name: Queue — v2 with bulk actions, node_id: "12:168", reason: superseded — bulk actions are prohibited by the brief}
+  - {name: Scratch / spacing tests, node_id: "12:41", reason: scratch}
+
+open_questions:
+  - >
+    The brief specifies focus "returns to the queue list" after a decision, but not
+    whether it lands on the row just decided (now removed from the queue) or the row
+    that takes its place. I designed the latter — focus moves to the row now occupying
+    that position — because returning focus to a removed row is not possible. Please
+    confirm this matches the intent of REQ-001's audit expectations.
+  - >
+    `review_status` has four values but the queue only ever shows assets in "Pending
+    review" or "In review". I designed the StatusPill to render all four so the
+    decision-recorded state on Asset detail can use the same component. Confirm the
+    queue should never surface Approved or Returned rows, rather than showing them
+    greyed out — the brief prohibits showing other reviewers' work but is silent on
+    one's own completed work.

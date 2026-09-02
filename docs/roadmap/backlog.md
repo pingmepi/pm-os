@@ -39,7 +39,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 - `install.sh` now resolves the interpreter (`python3` → `python` → `py -3`) and uses it throughout, so a Git-Bash install no longer hard-requires a literal `python3`.
 
 **Still open:**
-- **24 skill-inline `python3 …` invocations** in `skills/**/SKILL.md` (e.g. `PM_OS_STAGE=03 python3 ~/.pm-os/hooks/pre-stage.py`) still assume `python3` resolves *and* use bash-only `VAR=val cmd` env-prefix syntax — which breaks under **PowerShell** (the shell Claude Code used on the test machine).
+- **Skill-inline `python3 …` invocations** in `skills/**/SKILL.md` still assume `python3` resolves *and*, where they set the stage, use bash-only `VAR=val cmd` env-prefix syntax — which is a **parser error under PowerShell** (the shell Claude Code used on the test machine), not a fallback. **Re-counted 2026-08-20: ~130 `python3` invocations across 26 `SKILL.md` files, of which 9 use the `PM_OS_STAGE=<NN> python3 …` env-prefix form.** (The earlier "24" figure predates the skill growth since v1.2.0 and is superseded.)
 - **Shell standardization decision needed:** require Git Bash on Windows (then only `python3` resolution remains — solvable via an installer-created shim) **vs.** make skills shell-portable + ship an `install.ps1`. Recommendation: **standardize on Git Bash + installer shim** (lowest blast radius; CC already prefers Git Bash on Windows).
 - No `install.ps1` exists; `install.sh` is bash-only.
 
@@ -759,6 +759,65 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 **Symptom:** `pm_codebase_inventory.py` auto-excludes the usual noise (`EXCLUDED_DIRS` = `.git`, `node_modules`, `vendor`, `dist`, `build`, `coverage`, `.venv/venv`, `__pycache__`, `.next`, `.turbo`, plus binary suffixes, >1 MiB files, and `.gitignore` via `git ls-files --exclude-standard`), but a PM cannot add project-specific paths to skip. Note: deploy/Docker files are kept **on purpose** — they map to the `operations` surface for impact analysis — so any configurable ignore must be opt-in, not a default.
 
 **Proposed direction (not scoped):** an optional per-project ignore list (a `--exclude` flag and/or a `.codebase/.pmignore`) merged with `EXCLUDED_DIRS`, surfaced in the `00c` coverage/exclusions section so skipped paths stay auditable.
+
+## 46. 🟠 Deterministic codebase substrate resolves imports for five file extensions only
+
+**Severity:** P1 — the mandatory affected-slice gate on stages 01–09 rests on this substrate, and for a non-Python/JS codebase it contributes **zero** dependency edges. Fails silently: the scan still returns a well-formed report, just without the evidence the impact cone is supposed to be built from.
+**Status:** 🟠 Open — verified against the current code 2026-08-20.
+
+**Symptom:** `scripts/pm_codebase_inventory.py` resolves relative imports into the impact cone by extension-guessing against a fixed candidate list: `.py`, `.ts`, `.tsx`, `.js`, `.jsx` (plus `/__init__.py` and `/index.*`). A Java, C#, Go, Rust, Ruby, PHP, Kotlin or Swift codebase produces an inventory and keyword matches but **no dependency edges at all**, so the impact cone reduces to agent judgment over a file list.
+
+**Evidence:** `scripts/pm_codebase_inventory.py:129`, `:149-153`, `:165-169` — the three candidate-suffix constructions, all hardcoded to the same five extensions. `skills/pm-context-scan-codebase/SKILL.md` describes the script's "dependency edges" as evidence for the impact cone without qualifying the language coverage.
+
+**Proposed direction (not scoped):** two independent options, not exclusive. (a) Extend the resolver with per-language import patterns for the languages actually encountered — cheap per language, unbounded in total. (b) Consume an external AST-based graph as an *optional* substrate with the current resolver as the fallback (the Atlassian-MCP degradation pattern) — evaluated in `technical-optimisation-brainstorm.md` §3, which recommends a bake-off on one real non-Python/JS codebase before either is chosen. Minimum viable fix regardless of direction: **state the coverage limit in the `00c` coverage/exclusions section** so a zero-edge scan is visibly a coverage gap rather than an apparent clean result.
+
+## 47. 🟠 `/pm-status` gives no next action outside enhancement mode
+
+**Severity:** P2 — orientation friction paid on every interaction, by every PM. Not correctness-affecting.
+**Status:** 🟠 Open — verified against the current code 2026-08-20.
+
+**Symptom:** `scripts/pm_status.py` prints a `Next: …` line **only** inside the enhancement-mode branch (`Next: approve 00c/00u and run /pm-enhance set-boundary` / `Next: regenerate the affected stages, then run /pm-check`). For a normal product project the PM gets the stage table and must infer the next command from stage statuses.
+
+**Evidence:** `scripts/pm_status.py` — the two `print("Next: …")` calls sit inside `if enhancement:` / `elif enhancement.get("active")`. No equivalent exists on the standard path.
+
+**Proposed fix:** derive the next action from `STAGE_ORDER` + statuses and print one line with the exact command for the active runtime: first `pending` → run that stage; a `draft` → review then `/pm-approve NN`; an `edited` stage → `/pm-approve NN --reapprove` (entry #7's path); a `stale` downstream → regenerate, naming the upstream that changed; all approved → `/pm-handoff --package` or the optional capstones. Read-only over existing state; touches no gate logic.
+
+## 48. 🟡 Every command requires the CWD to be inside the project; no `--project` selector
+
+**Severity:** P2 — ceremony on every invocation, and the failure mode is uninformative.
+**Status:** 🟡 Open.
+
+**Symptom:** `lib/project.resolve_project()` finds the active project by walking up from CWD to the nearest `.meta.yaml`, so a PM must `cd` into the right directory before any `/pm-*` command. Outside a project the error is a bare `Not inside a PM-OS project.` with no indication of which projects exist or where they live.
+
+**Evidence:** `lib/project.py` — `resolve_project()`. `scripts/pm_status.py` — the `except FileNotFoundError` branch prints the bare message and exits 1. `config.load_config()` already knows `projects_dir`, so the information needed to do better is present.
+
+**Proposed fix:** an optional `--project <slug>` resolving against `projects_dir` (falling back to the current CWD walk when absent), and make the not-in-a-project error list the available project slugs. Additive; no state-machine change.
+
+## 49. 🟡 Contract warnings are counted, not located
+
+**Severity:** P3 — an alarm with no address; the PM cannot act on it without a second command.
+**Status:** 🟡 Open — verified against the current code 2026-08-20.
+
+**Symptom:** `/pm-status` runs `validate_artifact()` for stages 03/04/05/06/08 and prints `· ⚠ contract warnings: <n>` — the count only. The findings themselves are discarded, so the PM learns something is wrong but not what or where.
+
+**Evidence:** `scripts/pm_status.py` — `findings = validate_artifact(...)` followed by `contract_str = f"  · ⚠ contract warnings: {len(findings)}"`; `findings` is not used again.
+
+**Proposed fix:** print the findings (or the first two or three with a "+N more"), or at minimum append the exact command that shows them. Same pattern as entry #47 — the information already exists and is being thrown away at the display layer.
+
+## 50. 🟡 Terminal errors inconsistently name the next command
+
+**Severity:** P3 — dead-end messages on a workflow the PM cannot navigate without knowing the command names.
+**Status:** 🟡 Open — verified against the current code 2026-08-20.
+
+**Symptom:** `hooks/pre-stage.py` ends some blocking paths with the exact runtime-specific command (`Claude: /pm-approve <stage>` / `Codex: $pm-approve <stage>`) and others with prose only ("Approve or regenerate blocking stages before proceeding"), leaving the PM to work out which command and which stage.
+
+**Evidence:** `hooks/pre-stage.py:320-321` (names the command) vs `:254-258` (does not). The same inconsistency recurs across scripts that exit non-zero.
+
+**Proposed fix:** a one-pass sweep so every terminal error ends with the exact next command for the active runtime. Wording only — no logic change — and it composes with #47's next-action line.
+
+---
+
+_**Entries 46-50 recorded 2026-08-20**, each verified against the current code before logging, during two exploration passes (technical/knowledge layer and PM usability) captured in `technical-optimisation-brainstorm.md` and `pm-experience-brainstorm.md`. Entry #2's still-open bullet was re-counted in the same pass and its stale "24 invocations" figure corrected. Following this file's stated boundary, only **verified gaps in built things** were logged here: the design possibilities those explorations surfaced — context routing, graph edge types, an external AST substrate, reading surfaces, the anti-list of things not to build — stay in the two brainstorms, and the roadmap-level framing stays in `current-state-review.md`. Documentation-only; lands via the normal commit → push → `pm_os_update.py` path._
 
 ---
 
