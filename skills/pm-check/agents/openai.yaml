@@ -1,4 +1,4 @@
 interface:
   display_name: "Check Consistency"
-  short_description: "Check PM-OS project consistency"
-  default_prompt: "Use $pm-check to check this PM-OS project's internal consistency."
+  short_description: "Check PM-OS consistency and design handoff readiness"
+  default_prompt: "Use $pm-check to check this PM-OS project's internal consistency. Add --design when validating a returned design-in package or approved design handoff readiness."
