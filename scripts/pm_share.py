@@ -52,7 +52,7 @@ from artifact_contracts import (  # noqa: E402
     split_user_story_blocks,
     work_breakdown_section,
 )
-from delivery_map import build_prd_delivery_map, normalize_title, title_of  # noqa: E402
+from delivery_map import build_prd_delivery_map, body_of, normalize_title, title_of  # noqa: E402
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
@@ -88,21 +88,21 @@ AUDIENCES = ("dev", "design", "qa", "business")
 AUDIENCE_CATEGORIES: dict[str, set[str]] = {
     # Full read-only artifact projections (PMOS-002): the source-of-truth document
     # behind the decomposed stories/epics, not only the derived fragments. Dev gets
-    # the PRD + TRD; design gets the design spec.
-    "prd_full": {"dev"},
+    # the PRD + TRD; design gets the PRD before design work and the design spec after
+    # approval.
+    "prd_full": {"dev", "design"},
     "trd_full": {"dev"},
     "design_spec_full": {"design"},
-    "stories": {"dev", "qa"},
+    "design_brief": {"design"},
+    "designer_workflow": {"design"},
+    "stories": {"dev", "design", "qa"},
+    "requirements": {"dev", "qa"},
     "epics": {"dev", "business"},
     "overview": {"business"},
     "prioritization": {"dev", "business"},
     "user_journeys": {"dev", "design", "qa", "business"},
-    # qa included (not just dev/business) because the story template links every
-    # story to impact analysis — without it, that link would dangle in qa/, the
-    # only other audience folder that carries stories. QA also legitimately uses
-    # impact analysis to scope regression coverage.
-    "impact_analysis": {"dev", "qa", "business"},
-    "nfrs": {"dev", "qa"},
+    "impact_analysis": {"dev", "design", "qa", "business"},
+    "nfrs": {"dev", "design", "qa"},
     "qa_scenarios": {"qa"},
     "screen_map": {"design", "qa"},
     "wireframes": {"dev", "design", "qa"},
@@ -118,6 +118,15 @@ def _stage_status(meta: dict, stage_id: str) -> str | None:
     for stage in meta.get("stages", []):
         if stage.get("id") == stage_id:
             return stage.get("status")
+    return None
+
+
+def _design_mode(fm: dict | None, body: str | None) -> str | None:
+    mode = (fm or {}).get("design_mode")
+    if mode:
+        return str(mode)
+    if body and "This is a design brief, not a finished design spec" in body:
+        return "brief"
     return None
 
 
@@ -339,6 +348,32 @@ def _render_story(ctx: dict) -> str:
     return env.get_template("handoff-story.md.j2").render(frontmatter=frontmatter_block, **ctx)
 
 
+def _render_requirement(ctx: dict) -> str:
+    if Environment is None:
+        raise RuntimeError("jinja2 is required to render the handoff package")
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATES_DIR)),
+        autoescape=False,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    fm_fields = {
+        "requirement_id": ctx.get("requirement_id"),
+        "title": ctx.get("title"),
+        "epic": ctx.get("epic"),
+        "priority": ctx.get("priority"),
+        "owning_stories": list(ctx.get("owning_stories") or []),
+        "generated_from": list(ctx.get("generated_from") or []),
+        "canonical_source": ctx.get("canonical_source"),
+        "generated_at": ctx.get("generated_at"),
+    }
+    frontmatter_block = yaml.safe_dump(
+        fm_fields, default_flow_style=False, sort_keys=False, allow_unicode=True
+    )
+    return env.get_template("handoff-requirement.md.j2").render(frontmatter=frontmatter_block, **ctx)
+
+
 def _screen_link(scr_id: str, has_proto: bool, anchored_ids: set[str]) -> str | None:
     """Relative link from a `stories/` or `reference/` file (both one level under
     an audience folder, same as `wireframes/`) into the copied prototype.
@@ -355,6 +390,11 @@ def _screen_link(scr_id: str, has_proto: bool, anchored_ids: set[str]) -> str | 
     if scr_id in anchored_ids:
         return f"../wireframes/prototype.html#{scr_id}"
     return "../wireframes/prototype.html"
+
+
+def _screen_design_refs(spine: dict, scr_id: str) -> list[dict]:
+    entry = ((spine.get("screens") or {}).get(scr_id) or {})
+    return list(entry.get("design_refs") or [])
 
 
 _DELTA_BASELINE_NOTE = (
@@ -454,8 +494,12 @@ def build_package(
     # edited spec here would put unapproved screen names into the package (and stamp
     # them as a source) while the spine deliberately excluded them.
     design_body = None
+    design_fm, raw_design_body = _read_artifact(root, "04")
     if _stage_status(meta, "04") == "approved":
-        _design_fm, design_body = _read_artifact(root, "04")
+        design_body = raw_design_body
+    design_brief_body = None
+    if _stage_status(meta, "04") == "draft" and _design_mode(design_fm, raw_design_body) == "brief":
+        design_brief_body = raw_design_body
     # TRD tasks (the backend/technical work implementing each requirement) come from
     # stage 08, and only when it is exactly `approved` — same rule as the design spec.
     # A draft/stale/edited TRD contributes no tasks (the fresh spine excludes them too),
@@ -514,6 +558,8 @@ def build_package(
     # and every rendered string are computed exactly once for the whole call.)
     stories: list[dict] = []  # {id, title, filename, content, epic, priority, requirements}
     story_index: list[dict] = []
+    requirements: list[dict] = []
+    requirement_index: list[dict] = []
     # Story ids that resolved to >=1 screen, captured from the same per-story
     # resolution the story files use (requirements *and* journeys). The screen map's
     # "Stories with no screen" list is derived from this set, not from each screen's
@@ -545,13 +591,80 @@ def build_package(
             or set(delivery.story_requirements.get(story_id, [])) & changed_refs
         }
 
+    selected_requirement_ids = set(delivery.requirement_blocks)
+    if enhancement_delta:
+        selected_requirement_ids = {
+            req_id for req_id in delivery.requirement_blocks
+            if req_id in changed_refs
+        }
+        for story_id in selected_story_ids:
+            selected_requirement_ids.update(
+                req_id for req_id in delivery.story_requirements.get(story_id, [])
+                if req_id in delivery.requirement_blocks
+            )
+
+    requirement_to_stories: dict[str, list[str]] = {req_id: [] for req_id in delivery.requirement_blocks}
+    for story_id, req_ids in delivery.story_requirements.items():
+        for req_id in req_ids:
+            if req_id == story_id or req_id not in delivery.requirement_blocks:
+                continue
+            requirement_to_stories.setdefault(req_id, []).append(story_id)
+
+    for req_id, req_block in delivery.requirement_blocks.items():
+        if req_id not in selected_requirement_ids:
+            continue
+        req_title = title_of(req_id, req_block)
+        req_filename = f"{req_id}-{_slug(req_title, req_id.lower())}.md"
+        owning_stories = requirement_to_stories.get(req_id, [])
+        rendered_req = _render_requirement({
+            "requirement_id": req_id,
+            "title": req_title,
+            "epic": delivery.requirement_to_epic.get(req_id) or NOT_CAPTURED,
+            "priority": delivery.priorities.get(req_id) or NOT_CAPTURED,
+            "owning_stories": owning_stories,
+            "requirement_body": req_block.strip() or NOT_CAPTURED,
+            "generated_from": [prd_stamp] if prd_stamp else [],
+            "canonical_source": "03-prd.md",
+            "generated_at": now,
+        })
+        requirements.append({
+            "id": req_id,
+            "title": req_title,
+            "filename": req_filename,
+            "content": rendered_req,
+        })
+        requirement_index.append({
+            "id": req_id,
+            "title": req_title,
+            "filename": req_filename,
+            "epic": delivery.requirement_to_epic.get(req_id),
+            "priority": delivery.priorities.get(req_id),
+            "owning_stories": owning_stories,
+        })
+
     for story_id, block in delivery.story_blocks.items():
         if story_id not in selected_story_ids:
             continue
         title = _story_title(story_id, block)
         epic_ref = delivery.story_to_epic.get(story_id)
+        epic_rec = delivery.epics.get(epic_ref) if epic_ref else None
         reqs = delivery.story_requirements.get(story_id, [story_id])
         journeys = delivery.story_journeys.get(story_id, [])
+        story_requirement_blocks = []
+        for req in [r for r in reqs if r != story_id]:
+            req_block = delivery.requirement_blocks.get(req)
+            story_requirement_blocks.append({
+                "id": req,
+                "title": title_of(req, req_block) if req_block else req,
+                "body": req_block.strip() if req_block else NOT_CAPTURED,
+            })
+        story_acceptance_blocks = []
+        for ac in delivery.story_acceptance.get(story_id, []):
+            ac_block = delivery.acceptance_blocks.get(ac)
+            story_acceptance_blocks.append({
+                "id": ac,
+                "body": body_of(ac_block, ac) if ac_block else NOT_CAPTURED,
+            })
 
         tc_ids: list[str] = []
         for r in reqs:
@@ -589,6 +702,7 @@ def build_package(
                 "name": _story_title(scr, screen_blocks.get(scr, "")),
                 "body": _screen_body(screen_blocks.get(scr, ""), scr) or NOT_CAPTURED,
                 "link": _screen_link(scr, emit_proto, anchored_ids),
+                "design_refs": _screen_design_refs(spine, scr),
             }
             for scr in screen_ids
         ]
@@ -622,9 +736,15 @@ def build_package(
             "story_id": story_id,
             "title": title,
             "epic": epic_ref or NOT_CAPTURED,
+            "epic_title": epic_rec.title if epic_rec else NOT_CAPTURED,
+            "epic_context": epic_rec.body.strip() if epic_rec else "",
             "priority": delivery.priorities.get(story_id) or NOT_CAPTURED,
             "story_body": _strip_decl_line(block, story_id) or NOT_CAPTURED,
             "requirements": [r for r in reqs if r != story_id],
+            "requirement_blocks": story_requirement_blocks,
+            "acceptance_blocks": story_acceptance_blocks,
+            "impact_analysis": (_section_of(prd_body, "impact analysis").strip() or NOT_CAPTURED),
+            "nfrs": (_section_of(prd_body, "non-functional requirements").strip() or NOT_CAPTURED),
             "journeys": journeys,
             "test_cases": test_cases,
             "test_case_ids": tc_ids,
@@ -719,17 +839,30 @@ def build_package(
             req_id for req_id, req_epic in delivery.requirement_to_epic.items()
             if req_epic == epic_ref
         ]
+        linked_req_lines: list[str] = []
+        plain_req_lines: list[str] = []
         if epic_requirements:
-            footer += [f"- {req}" for req in epic_requirements]
+            req_lookup = {req["id"]: req for req in requirement_index}
+            for req in epic_requirements:
+                req_rec = req_lookup.get(req)
+                if req_rec:
+                    linked_req_lines.append(
+                        f"- **{req}** [{req_rec['title']}](../requirements/{req_rec['filename']})"
+                    )
+                    plain_req_lines.append(f"- **{req}** {req_rec['title']}")
+                else:
+                    linked_req_lines.append(f"- **{req}**")
+                    plain_req_lines.append(f"- **{req}**")
         else:
-            footer.append(NOT_CAPTURED)
+            linked_req_lines.append(NOT_CAPTURED)
+            plain_req_lines.append(NOT_CAPTURED)
 
-        def _epic_doc(story_lines: list[str]) -> str:
+        def _epic_doc(story_lines: list[str], req_lines: list[str]) -> str:
             return _stamped_doc(
                 f"{epic_ref} · {epic_rec.title}",
                 [prd_stamp] if prd_stamp else [],
                 now,
-                "\n".join(header + story_lines + footer) + "\n",
+                "\n".join(header + story_lines + footer + req_lines) + "\n",
             )
 
         filename = f"{epic_ref}-{_slug(epic_rec.title, epic_ref.lower())}.md"
@@ -737,8 +870,8 @@ def build_package(
             "id": epic_ref,
             "title": epic_rec.title,
             "filename": filename,
-            "content": _epic_doc(linked_story_lines),
-            "content_plain": _epic_doc(plain_story_lines),
+            "content": _epic_doc(linked_story_lines, linked_req_lines),
+            "content_plain": _epic_doc(plain_story_lines, plain_req_lines),
         })
         epic_index.append({"id": epic_ref, "title": epic_rec.title, "filename": filename})
 
@@ -783,6 +916,15 @@ def build_package(
     reference_docs["design_spec_full"] = ("design-spec.md", _stamped_doc(
         "Design Spec", [design_stamp] if design_stamp else [], now,
         design_projection + "\n"))
+    if design_brief_body:
+        reference_docs["design_brief"] = ("design-brief.md", _stamped_doc(
+            "Draft Design Brief",
+            [design_stamp] if design_stamp else [],
+            now,
+            "> This is an unapproved design brief for external design work, not a canonical design spec.\n\n"
+            + design_brief_body.strip()
+            + "\n",
+        ))
 
     # --- screen map (the reverse view: screen → the stories it serves) ---
     # An unchanged, baselined design spec contributes no delta, so its screen map
@@ -813,6 +955,9 @@ def build_package(
     for aud in audiences_to_build:
         aud_dir = audience_dirs[aud]
         cats = _categories_for_audience(aud)
+        if aud == "design" and not design_brief_body:
+            cats.discard("design_brief")
+            cats.discard("designer_workflow")
         (aud_dir / HANDOFF_MARKER).write_text(
             "PM-OS handoff package — generated by /pm-handoff --package. "
             "Safe to delete; this audience folder is regenerated wholesale on each run.\n",
@@ -824,6 +969,13 @@ def build_package(
             for story in stories:
                 path = aud_dir / "stories" / story["filename"]
                 path.write_text(story["content"], encoding="utf-8")
+                written.append(path)
+
+        if "requirements" in cats:
+            (aud_dir / "requirements").mkdir(parents=True, exist_ok=True)
+            for requirement in requirements:
+                path = aud_dir / "requirements" / requirement["filename"]
+                path.write_text(requirement["content"], encoding="utf-8")
                 written.append(path)
 
         if "epics" in cats:
@@ -839,6 +991,11 @@ def build_package(
         if "overview" in cats:
             path = aud_dir / "00-overview.md"
             path.write_text(overview_content, encoding="utf-8")
+            written.append(path)
+
+        if "designer_workflow" in cats:
+            path = aud_dir / "DESIGNER-WORKFLOW.md"
+            path.write_text(_designer_workflow_doc(project_name, now), encoding="utf-8")
             written.append(path)
 
         reference_cats = [c for c in reference_docs if c in cats]
@@ -857,7 +1014,7 @@ def build_package(
             written.append(path)
 
         readme = _audience_readme(
-            project_name, now, story_index, epic_index, generated_sources(root),
+            project_name, now, story_index, epic_index, requirement_index, generated_sources(root),
             emit_proto and "wireframes" in cats, aud, cats,
         )
         if enhancement_delta:
@@ -916,13 +1073,16 @@ def _screen_map_table(
             "`Serves:` line to `04-design-spec.md`, re-approve it, and regenerate.\n"
         )
 
-    lines = ["| Screen | Name | Serves | Prototype |", "|---|---|---|---|"]
+    lines = ["| Screen | Name | Serves | Figma | Prototype |", "|---|---|---|---|---|"]
     for scr_id, block in screen_blocks.items():
         served = traceability.requirements_for_screen(root, scr_id, index=spine)
         name = _story_title(scr_id, block)
+        refs = _screen_design_refs(spine, scr_id)
+        default = next((ref for ref in refs if ref.get("kind") == "screen"), None)
+        figma_cell = f"[Open]({default['url']})" if default and default.get("url") else NOT_CAPTURED
         link = _screen_link(scr_id, has_proto, anchored_ids)
         link_cell = f"[Open]({link})" if link else NOT_CAPTURED
-        lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} | {link_cell} |")
+        lines.append(f"| {scr_id} | {name} | {', '.join(served) if served else NOT_CAPTURED} | {figma_cell} | {link_cell} |")
 
     uncovered = [
         f"{story['id']} · {story['title']}"
@@ -971,7 +1131,7 @@ def generated_sources(root: Path) -> list[str]:
 
 
 def _audience_readme(
-    project_name: str, when: str, story_index, epic_index, sources, has_proto: bool,
+    project_name: str, when: str, story_index, epic_index, requirement_index, sources, has_proto: bool,
     audience: str, cats: set[str],
 ) -> str:
     """A reading guide scoped to exactly the files present in this audience folder."""
@@ -998,10 +1158,18 @@ def _audience_readme(
         lines += ["", "## User stories"]
         for story in story_index:
             lines.append(f"- [{story['id']} · {story['title']}](stories/{story['filename']})")
+    if "requirements" in cats:
+        lines += ["", "## Functional requirements"]
+        if requirement_index:
+            for req in requirement_index:
+                lines.append(f"- [{req['id']} · {req['title']}](requirements/{req['filename']})")
+        else:
+            lines.append("- Functional requirements: not captured in source")
     reference_lines = {
         "prd_full": "- [Product requirements (PRD)](reference/prd.md) — the full approved PRD",
         "trd_full": "- [Technical requirements (TRD)](reference/trd.md) — architecture & backend work breakdown",
         "design_spec_full": "- [Design spec](reference/design-spec.md) — the full approved design spec",
+        "design_brief": "- [Draft design brief](reference/design-brief.md) — unapproved work order for external design",
         "prioritization": "- [Prioritization method](reference/prioritization.md)",
         "user_journeys": "- [User journeys](reference/user-journeys.md)",
         "screen_map": "- [Screen map](reference/screen-map.md) — which screens serve which stories, with prototype links",
@@ -1012,10 +1180,40 @@ def _audience_readme(
     present_reference = [line for cat, line in reference_lines.items() if cat in cats]
     if present_reference:
         lines += ["", "## Reference"] + present_reference
+    if "designer_workflow" in cats:
+        lines += ["", "## Designer workflow", "- [Designer workflow](DESIGNER-WORKFLOW.md)"]
     if has_proto:
         lines += ["", "## Design", "- [Prototype](wireframes/prototype.html)"]
     lines.append("")
     return "\n".join(lines)
+
+
+def _designer_workflow_doc(project_name: str, when: str) -> str:
+    return (
+        f"# {project_name} - Designer Workflow\n\n"
+        f"> Generated {when}. This is the supported external-design workflow for a "
+        "stage-04 design brief package.\n\n"
+        "## Inputs\n\n"
+        "- Read `reference/prd.md` for the approved product requirements.\n"
+        "- Read `stories/` for per-story behavior, acceptance, and traceability.\n"
+        "- Read `reference/nfrs.md` and `reference/user-journeys.md` before deriving screens.\n"
+        "- Read `reference/design-brief.md` as the PM-owned work order. It is a draft, not an approved design spec.\n\n"
+        "## Phase 1 - Inventory the design system\n\n"
+        "Inspect the available Figma libraries, variables, components, and patterns. Do not create, move, rename, or delete frames during this phase.\n\n"
+        "## Phase 2 - Derive the work order and pause\n\n"
+        "Create a screen/state/field/component work-order table from the PRD stories, NFRs, journeys, and draft design brief. Stop and get designer approval before building anything.\n\n"
+        "## Phase 3 - Agree the file convention and pause\n\n"
+        "Agree the Figma page and frame naming convention, including `<Screen> / <state>` naming for state frames. Stop until the designer approves the convention.\n\n"
+        "## Phase 4 - Build the scaffold\n\n"
+        "Build a coverage-complete scaffold using approved design-system assets and approved vocabulary. The scaffold proves every required screen, state, field, and component location exists; it is not the finished design.\n\n"
+        "## Phase 5 - Designer finishes the design\n\n"
+        "The designer owns layout, hierarchy, density, emphasis, component fit, and defensible visual decisions. Do not treat the scaffold as final without designer review.\n\n"
+        "## Phase 6 - Read-only export\n\n"
+        "Run a separate export pass after the design is finished. That pass is read-only: it must not edit, move, rename, or create Figma objects. It writes both files under `design-in/`:\n\n"
+        "- `design-in/ia.yaml`\n"
+        "- `design-in/design-notes.md`\n\n"
+        "Self-check before handoff: every PRD journey has a flow, every UI story has a screen or screenless rationale, every required state has a frame, every required field appears on a serving screen, every new component has a rationale, and `tokens.outside_system` is empty or justified.\n"
+    )
 
 
 def _write_hub_readme(handoff_root: Path, project_name: str, when: str) -> Path:

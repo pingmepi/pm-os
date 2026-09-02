@@ -495,10 +495,6 @@ def test_prd_product_epics_validate_declared_ownership(tmp_path):
         "**Outcome:** Operators complete work.\n"
         "**Scope:** Primary work execution.\n"
         "**Success signal:** Completed work is confirmed.\n"
-        "### EPIC-002 — Audit workflow\n"
-        "**Outcome:** Supervisors can audit work.\n"
-        "**Scope:** Audit visibility.\n"
-        "**Success signal:** Audit trail is visible.\n"
         "## User Journeys\n",
     ).replace(
         "### US-001 — Complete work\n",
@@ -531,6 +527,166 @@ def test_prd_product_epics_reject_missing_unknown_and_multiple_refs(tmp_path):
     assert "USER_STORY_EPIC_REF_MULTIPLE" in codes
     assert "USER_STORY_EPIC_REF_UNKNOWN" in codes
     assert "FUNCTIONAL_REQUIREMENT_EPIC_REF_MISSING" in codes
+
+
+def test_prd_product_epics_warn_on_catch_all_shape(tmp_path):
+    root = _project(tmp_path)
+    prd = """# Product Requirements Document: Test
+## Overview
+Test product.
+## Goals and Non-Goals
+Goals.
+## Product Epics
+### EPIC-001 - Whole MVP
+**Outcome:** Operators complete all MVP work.
+**Scope:** Intake, review, and audit.
+**Success signal:** MVP is usable.
+## Prioritization Method
+MoSCoW.
+## User Journeys
+### UJ-001 - Intake
+**Primary user:** Operator
+**Context and trigger:** Request arrives.
+**Goal:** Capture request.
+**Preconditions:** Access.
+**Happy path:** Capture.
+**Alternate/failure paths:** Recover.
+**Completion signal:** Saved.
+**Prototype priority:** High
+**Traceability:** US-001, FR-001.
+### UJ-002 - Audit
+**Primary user:** Supervisor
+**Context and trigger:** Work completes.
+**Goal:** Review history.
+**Preconditions:** Audit data.
+**Happy path:** Review.
+**Alternate/failure paths:** Missing data.
+**Completion signal:** Audit accepted.
+**Prototype priority:** Medium
+**Traceability:** US-002, FR-002.
+## User Stories with Acceptance Criteria
+### US-001 - Capture request
+Epic: EPIC-001
+Priority: Must
+Happy path: Capture.
+Edge cases / alternate paths: Invalid data.
+Acceptance: Saved.
+Traceability: UJ-001, FR-001.
+### US-002 - Review audit
+Epic: EPIC-001
+Priority: Should
+Happy path: Review.
+Edge cases / alternate paths: Missing data.
+Acceptance: Reviewed.
+Traceability: UJ-002, FR-002.
+## Functional Requirements
+- FR-001 - Store request.
+  Epic: EPIC-001
+  Priority: Must
+- FR-002 - Show audit history.
+  Epic: EPIC-001
+  Priority: Should
+## Non-Functional Requirements
+Fast.
+## Data & Governance
+Internal data.
+## Edge Cases
+Invalid data.
+## Risks
+Adoption.
+"""
+    _write(root, "03-prd.md", prd, contract_version=contracts.CONTRACT_VERSION)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "EPIC_OVERCONSOLIDATED" in codes
+
+
+def test_prd_product_epics_warn_on_fragmented_and_layer_shapes(tmp_path):
+    root = _project(tmp_path)
+    prd = """# Product Requirements Document: Test
+## Overview
+Test product.
+## Goals and Non-Goals
+Goals.
+## Product Epics
+### EPIC-001 - Frontend
+**Outcome:** Operators can use the intake UI.
+**Scope:** Intake UI.
+**Success signal:** UI is accepted.
+### EPIC-002 - Backend
+**Outcome:** Operators can save the intake data.
+**Scope:** Intake services.
+**Success signal:** Save works.
+## Prioritization Method
+MoSCoW.
+## User Journeys
+### UJ-001 - Intake
+**Primary user:** Operator
+**Context and trigger:** Request arrives.
+**Goal:** Capture request.
+**Preconditions:** Access.
+**Happy path:** Capture.
+**Alternate/failure paths:** Recover.
+**Completion signal:** Saved.
+**Prototype priority:** High
+**Traceability:** US-001, US-002.
+## User Stories with Acceptance Criteria
+### US-001 - Capture form
+Epic: EPIC-001
+Priority: Must
+Happy path: Capture.
+Edge cases / alternate paths: Invalid data.
+Acceptance: Saved.
+Traceability: UJ-001.
+### US-002 - Persist form
+Epic: EPIC-002
+Priority: Must
+Happy path: Persist.
+Edge cases / alternate paths: Database unavailable.
+Acceptance: Stored.
+Traceability: UJ-001.
+## Functional Requirements
+- FR-001 - Store request.
+  Epic: EPIC-002
+  Priority: Must
+## Non-Functional Requirements
+Fast.
+## Data & Governance
+Internal data.
+## Edge Cases
+Invalid data.
+## Risks
+Adoption.
+"""
+    _write(root, "03-prd.md", prd, contract_version=contracts.CONTRACT_VERSION)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "EPIC_FRAGMENTED" in codes
+    assert "EPIC_LAYER_SHAPED" in codes
+
+
+def test_prd_product_epics_error_when_empty(tmp_path):
+    root = _project(tmp_path)
+    prd = _valid_prd().replace(
+        "## User Journeys\n",
+        "## Product Epics\n"
+        "### EPIC-001 - Primary workflow\n"
+        "**Outcome:** Operators complete work.\n"
+        "**Scope:** Primary work execution.\n"
+        "**Success signal:** Completed work is confirmed.\n"
+        "### EPIC-002 - Audit workflow\n"
+        "**Outcome:** Supervisors can audit work.\n"
+        "**Scope:** Audit visibility.\n"
+        "**Success signal:** Audit trail is visible.\n"
+        "## User Journeys\n",
+    ).replace(
+        "### US-001 — Complete work\n",
+        "### US-001 — Complete work\nEpic: EPIC-001\n",
+    ).replace(
+        "- FR-001 — Complete the work.",
+        "- FR-001 — Complete the work.\n  - Epic: EPIC-001",
+    )
+    _write(root, "03-prd.md", prd, contract_version=contracts.CONTRACT_VERSION)
+    codes = {f.code for f in contracts.validate_artifact(root, "03")}
+    assert "EPIC_EMPTY" in codes
 
 
 def test_qa_plan_per_test_case_trace_is_enforced(tmp_path):

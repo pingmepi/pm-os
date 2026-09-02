@@ -52,6 +52,14 @@ SCREEN_ID_RE = re.compile(r"\bSCR-\d{3,}\b", re.IGNORECASE)
 TASK_ID_RE = re.compile(r"\bTSK-\d{3,}\b", re.IGNORECASE)
 EPIC_ID_RE = re.compile(r"\bEPIC-\d{3,}\b", re.IGNORECASE)
 
+EPIC_FRAGMENTATION_RATIO = 0.8
+EPIC_OVERCONSOLIDATION_ITEM_THRESHOLD = 4
+_EPIC_LAYER_RE = re.compile(r"\b(frontend|front-end|backend|back-end|database|api|qa|design)\b", re.IGNORECASE)
+_EPIC_OUTCOME_RATIONALE_RE = re.compile(
+    r"\b(outcome rationale|delivery rationale|user outcome|business outcome|why this epic)\b",
+    re.IGNORECASE,
+)
+
 
 def requirement_ids(text: str) -> list[str]:
     """Return the unique, upper-cased requirement ids (REQ/US/FR-###) in ``text``,
@@ -875,6 +883,58 @@ def _validate_stage_03(project_root: Path, sections: dict[str, str], body: str) 
 
         _validate_epic_ownership("USER_STORY", story_blocks)
         _validate_epic_ownership("FUNCTIONAL_REQUIREMENT", requirement_blocks)
+
+        ownership_counts = {epic_id: 0 for epic_id in declared_epics}
+        for block in story_blocks.values():
+            refs = block_epic_refs(block)
+            if len(refs) == 1 and refs[0] in ownership_counts:
+                ownership_counts[refs[0]] += 1
+        for block in requirement_blocks.values():
+            refs = block_epic_refs(block)
+            if len(refs) == 1 and refs[0] in ownership_counts:
+                ownership_counts[refs[0]] += 1
+
+        empty_epics = sorted(epic_id for epic_id, count in ownership_counts.items() if count == 0)
+        if empty_epics:
+            findings.append(Finding(
+                "ERROR", "EPIC_EMPTY",
+                "Product Epics with no owned story or functional requirement: "
+                + ", ".join(empty_epics),
+            ))
+
+        total_delivery_items = len(story_blocks) + len(requirement_blocks)
+        if len(declared_epics) == 1 and total_delivery_items >= EPIC_OVERCONSOLIDATION_ITEM_THRESHOLD and len(journey_blocks) > 1:
+            only_epic = next(iter(declared_epics))
+            block = epic_blocks.get(only_epic, "")
+            if not _EPIC_OUTCOME_RATIONALE_RE.search(block):
+                findings.append(Finding(
+                    "WARNING", "EPIC_OVERCONSOLIDATED",
+                    f"{only_epic} owns the whole PRD across {len(journey_blocks)} journeys and "
+                    f"{total_delivery_items} delivery items. Keep one epic only when the PRD "
+                    "states why the MVP is genuinely one outcome/workstream.",
+                ))
+
+        if len(declared_epics) > 1 and total_delivery_items:
+            one_item_epics = [epic_id for epic_id, count in ownership_counts.items() if count == 1]
+            if len(one_item_epics) / len(declared_epics) >= EPIC_FRAGMENTATION_RATIO or len(declared_epics) >= len(story_blocks):
+                findings.append(Finding(
+                    "WARNING", "EPIC_FRAGMENTED",
+                    "Most Product Epics own only one delivery item, or epic count approaches "
+                    "story count. Epics should group coherent outcome-oriented workstreams: "
+                    + ", ".join(sorted(one_item_epics)),
+                ))
+
+        layer_shaped = []
+        for epic_id, block in epic_blocks.items():
+            first = block.strip().splitlines()[0] if block.strip() else ""
+            if _EPIC_LAYER_RE.search(first) and not _EPIC_OUTCOME_RATIONALE_RE.search(block):
+                layer_shaped.append(epic_id)
+        if layer_shaped:
+            findings.append(Finding(
+                "WARNING", "EPIC_LAYER_SHAPED",
+                "Product Epics appear to be technical layers rather than user/business "
+                "outcomes. Add an outcome rationale or reshape: " + ", ".join(sorted(layer_shaped)),
+            ))
     if _genai_project(project_root):
         findings.extend(_validate_model_selection(
             _section(sections, "Model Selection Rationale"),

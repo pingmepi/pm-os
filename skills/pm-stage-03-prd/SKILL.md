@@ -154,7 +154,7 @@ Write a Product Requirements Document with these base sections.
 
 ## Product Epics
 
-<Define the product-level workstreams or outcome areas that will become Jira Epics. Use `### EPIC-### — <epic name>` for each epic and include **Outcome**, **Scope**, and **Success signal**. Create as many epics as the MVP naturally has distinct workstreams/outcomes; do not collapse the whole project into one epic unless the approved scope is genuinely one workstream. `EPIC-###` ids are stable and append-only across regenerations.>
+<Define the product-level workstreams or outcome areas that will become Jira Epics. Use `### EPIC-### — <epic name>` for each epic and include **Outcome**, **Scope**, and **Success signal**. Create as many epics as the MVP naturally has distinct user/business outcomes or independently plan-able delivery workstreams; do not collapse the whole project into one epic unless the approved scope is genuinely one workstream, and say why one epic is sufficient. Do not create one epic per story/screen/component/requirement, and do not create technical-layer epics such as frontend/backend/database/API/QA/design unless the epic itself includes a clear user/business outcome rationale. `EPIC-###` ids are stable and append-only across regenerations.>
 
 ## Prioritization Method
 
@@ -376,6 +376,7 @@ Pull them from the artifact (lightly trimmed for readability), and invite the PM
 - Every major requirement must trace to the approved scope, MVP boundary, explicit constraint, or stage 01 success hypothesis.
 - Goals and Non-Goals must be visibly distinct, not blended together.
 - Product Epics must use stable `EPIC-###` ids with Outcome, Scope, and Success signal. Stories and functional requirements must each name exactly one declared epic with a labeled `Epic: EPIC-###` line so Jira export, readable handoff, and traceability stay in sync.
+- Product Epics must be sized around coherent user/business outcomes. A single epic needs a short rationale when several journeys or delivery items exist; one-story epics need a distinct independently plan-able outcome; technical-layer epics need an explicit outcome rationale or should be reshaped.
 - Prioritization Method must name the framework and how it was applied. Every `US-###` and `FR-###`/`REQ-###` must carry a labeled `Priority:` value consistent with that method so story ordering is auditable and the traceability spine can index it.
 - User Stories with Acceptance Criteria must be testable, prioritized, and cover the critical flows needed for launch. Each story should be a self-contained mini-spec with explicit Happy path, Edge cases / alternate paths, data fields, key UI steps with per-step system process + acceptance + corner cases/exceptions, and traceability so the handoff can render it without invention.
 - Impact Analysis should name the shared components, cross-product functionality, third-party integrations, and jurisdiction/regulatory impacts the change touches — or explicitly state the change is self-contained.
