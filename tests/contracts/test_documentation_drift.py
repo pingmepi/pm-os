@@ -33,7 +33,7 @@ def test_model_policy_constant():
 def test_spec_event_list_covers_emitted_events():
     """The spec's telemetry event list documents the events the code actually emits — guards
     against the spec going stale when an event type is added."""
-    spec = (REPO_ROOT / "docs" / "reference" / "pm-os-spec.md").read_text()
+    spec = (REPO_ROOT / "docs" / "reference" / "pm-os-spec.md").read_text(encoding="utf-8")
     for event in ("stage_started", "stage_generated", "stage_approved", "stage_imported",
                   "stage_backfilled", "context_ingested", "stage_edited_via_note",
                   "artifact_validation_warning", "feedback_submitted", "stage_marked_stale"):
@@ -42,7 +42,7 @@ def test_spec_event_list_covers_emitted_events():
 
 def test_architecture_documents_runtime_paths():
     """ARCHITECTURE.md records the canonical runtime/sync paths the installer/updater use."""
-    arch = (REPO_ROOT / "ARCHITECTURE.md").read_text()
+    arch = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
     assert "~/.claude/skills" in arch
     assert "~/.agents/skills" in arch
     assert "~/.pm-os/hooks" in arch

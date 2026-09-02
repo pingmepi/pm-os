@@ -601,7 +601,7 @@ def _discover_pack_members(root: Path) -> list:
     views_dir = root / VIEWS_DIR_REL
     if views_dir.is_dir():
         for v in sorted(views_dir.glob("*.md")):
-            ordered.append(str(v.relative_to(root)))
+            ordered.append(v.relative_to(root).as_posix())
 
     members = []
     for rel in ordered:

@@ -160,7 +160,7 @@ def test_register_classifies_new_formats_with_modality(pmos, new_project):
     (folder / "screenshot.png").write_bytes(b"\x89PNG fake")
     res = run_script(pmos, "pm_context_import.py", "register", "drop", "--type", "research", cwd=proj)
     assert res.returncode == 0, res.stderr
-    sources = yaml.safe_load((proj / ".sources.yaml").read_text())
+    sources = yaml.safe_load((proj / ".sources.yaml").read_text(encoding="utf-8"))
     by_mod = {s["modality"] for s in sources}
     assert {"text", "slides", "spreadsheet", "image"} <= by_mod
     # maybe-lossy modalities are pre-tagged `unverified` so they can't earn High confidence
@@ -178,7 +178,7 @@ def test_pack_manifest_builds_fixed_order_and_records_meta(pmos, new_project):
     _write_pack(proj)
     res = run_script(pmos, "pm_context_import.py", "pack-manifest", cwd=proj)
     assert res.returncode == 0, res.stderr
-    manifest = yaml.safe_load((proj / "00-context" / "manifest.yaml").read_text())
+    manifest = yaml.safe_load((proj / "00-context" / "manifest.yaml").read_text(encoding="utf-8"))
     paths = [m["path"] for m in manifest["members"]]
     assert paths == [
         "00-context-wiki.md",
@@ -187,7 +187,7 @@ def test_pack_manifest_builds_fixed_order_and_records_meta(pmos, new_project):
         "00-context/views/market-landscape.md",
     ]
     assert all(m.get("hash") for m in manifest["members"])
-    meta = yaml.safe_load((proj / ".meta.yaml").read_text())
+    meta = yaml.safe_load((proj / ".meta.yaml").read_text(encoding="utf-8"))
     assert meta["context_pack"]["manifest"] == "00-context/manifest.yaml"
     assert meta["context_pack"]["member_count"] == 4
 
@@ -221,7 +221,7 @@ def test_composite_00w_commit_and_approve_uses_composite_hash(pmos, new_project)
     import sys
     sys.path.insert(0, str(pmos.install / "lib"))
     import hashing
-    meta = yaml.safe_load((proj / ".meta.yaml").read_text())
+    meta = yaml.safe_load((proj / ".meta.yaml").read_text(encoding="utf-8"))
     recorded = next(s for s in meta["stages"] if s["id"] == "00w")["content_hash"]
     assert recorded == hashing.hash_composite_artifact(proj)
     assert recorded != hashing.hash_artifact_body(str(proj / "00-context-wiki.md"))

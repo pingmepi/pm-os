@@ -34,7 +34,7 @@ def test_openai_yaml_interface_metadata_is_well_formed():
     """OpenAI skill descriptors expose stable UI metadata and an explicit $skill prompt."""
     for sd in skill_dirs():
         path = sd / "agents" / "openai.yaml"
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         interface = data.get("interface", {}) if isinstance(data, dict) else {}
         assert interface.get("display_name"), f"{sd.name}: missing display_name"
         short = interface.get("short_description")
@@ -91,7 +91,7 @@ def test_stage_skills_print_both_runtime_entrypoints():
     """Stage skills surface both Claude (/pm-*) and Codex ($pm-*) entrypoints where they tell
     the PM what to run next."""
     for sid in STAGE_IDS:
-        body = (stage_skill_dir(sid) / "SKILL.md").read_text()
+        body = (stage_skill_dir(sid) / "SKILL.md").read_text(encoding="utf-8")
         assert "/pm-approve" in body and "$pm-approve" in body, f"stage {sid}: missing runtime entrypoints"
 
 
@@ -108,7 +108,7 @@ def test_product_artifact_skills_enforce_current_contracts():
         "08": ("## Work Breakdown", "## Open Technical Questions", "artifact_contract_version: 7"),
     }
     for stage_id, markers in expected.items():
-        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text()
+        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text(encoding="utf-8")
         for marker in markers:
             assert marker in body, f"stage {stage_id}: missing contract marker {marker!r}"
         assert f"pm_validate_artifact.py {stage_id} --mode strict" in body
@@ -118,7 +118,7 @@ def test_stage_skills_use_python_snapshot_helper():
     """Generated artifact history is owned by pm_snapshot.py, not by hand-written
     agent copies inside each stage skill."""
     for sid in STAGE_IDS:
-        body = (stage_skill_dir(sid) / "SKILL.md").read_text()
+        body = (stage_skill_dir(sid) / "SKILL.md").read_text(encoding="utf-8")
         assert f"pm_snapshot.py {sid}" in body, f"stage {sid}: missing snapshot helper call"
         assert "Save to history" not in body, f"stage {sid}: still asks the agent to hand-write history"
 
@@ -129,7 +129,7 @@ def test_context_import_skill_produces_modular_pack():
     revert to the single-page-only wiki that left the pack infrastructure dormant.
     Guards the gap found in the end-to-end dogfood: composite hashing/dual-mode reads
     only engage when the producer actually writes the pack and builds the manifest."""
-    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text(encoding="utf-8")
     # Producer must write the pack members and assemble the manifest.
     for marker in ("00-context/evidence.yaml", "00-context/sources.md", "pack-manifest", "pack-validate"):
         assert marker in body, f"context-import skill missing pack marker {marker!r}"
@@ -143,7 +143,7 @@ def test_context_import_skill_produces_modular_pack():
 
 def test_context_import_skill_has_interview_step():
     """pm-context-import must place the coverage-driven interview between preflight and 00u."""
-    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text(encoding="utf-8")
     assert "Step 4b" in body and "Interview" in body
     assert "preflight yields ⚠️/⛔" in body
     assert "coverage-driven" in body
@@ -159,7 +159,7 @@ def test_context_import_skill_has_interview_step():
     assert "exactly 5" not in body
     assert "five-question maximum" not in body
 
-    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text())
+    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text(encoding="utf-8"))
     interface = data.get("interface", {}) if isinstance(data, dict) else {}
     assert "interview" in interface.get("default_prompt", "").lower()
     assert "known unknown" in interface.get("default_prompt", "").lower()
@@ -167,7 +167,7 @@ def test_context_import_skill_has_interview_step():
 
 def test_context_import_skill_has_e2_decision_interview():
     """E2 codebase intake asks unresolved decisions and records the binding boundary."""
-    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "pm-context-import" / "SKILL.md").read_text(encoding="utf-8")
     for marker in (
         "Step 4c — Enhancement decision interview",
         "production baseline",
@@ -185,7 +185,7 @@ def test_context_import_skill_has_e2_decision_interview():
         assert marker in body, f"context-import missing E2 interview marker {marker!r}"
     assert "repo-interview-prep" not in body
 
-    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text())
+    data = yaml.safe_load((REPO_ROOT / "skills" / "pm-context-import" / "agents" / "openai.yaml").read_text(encoding="utf-8"))
     prompt = (data.get("interface") or {}).get("default_prompt", "")
     assert "enhancement decision interview" in prompt.lower()
 
@@ -195,7 +195,7 @@ def test_pm_interview_skill_contract():
     keeps the coverage-driven interview contract, and never self-approves."""
     sd = REPO_ROOT / "skills" / "pm-interview"
     assert (sd / "SKILL.md").exists(), "pm-interview SKILL.md missing"
-    body = (sd / "SKILL.md").read_text()
+    body = (sd / "SKILL.md").read_text(encoding="utf-8")
     # reads the open unknowns from the mechanical helper
     assert "list-unknowns" in body
     # reuses E1 answer-registration, then marks the addressed unknowns resolved
@@ -217,7 +217,7 @@ def test_pm_interview_skill_contract():
     assert "PM_OS_INTERVIEW" in body
     assert "Do not self-approve" in body or "do not self-approve" in body
 
-    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text())
+    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text(encoding="utf-8"))
     interface = data.get("interface", {}) if isinstance(data, dict) else {}
     assert "$pm-interview" in interface.get("default_prompt", "")
     assert "known unknown" in interface.get("default_prompt", "").lower()
@@ -227,7 +227,7 @@ def test_pm_enhance_skill_contract():
     """E2: /pm-enhance owns same-project lifecycle while preserving normal gates."""
     sd = REPO_ROOT / "skills" / "pm-enhance"
     assert (sd / "SKILL.md").exists(), "pm-enhance SKILL.md missing"
-    body = (sd / "SKILL.md").read_text()
+    body = (sd / "SKILL.md").read_text(encoding="utf-8")
     for marker in (
         "same project",
         "pm_enhance.py start",
@@ -245,7 +245,7 @@ def test_pm_enhance_skill_contract():
     assert "child project" in body
     assert "repo-interview-prep" not in body
 
-    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text())
+    data = yaml.safe_load((sd / "agents" / "openai.yaml").read_text(encoding="utf-8"))
     interface = data.get("interface", {}) if isinstance(data, dict) else {}
     assert "$pm-enhance" in interface.get("default_prompt", "")
     assert "same project" in interface.get("default_prompt", "").lower()
@@ -253,7 +253,7 @@ def test_pm_enhance_skill_contract():
 
 def test_codebase_scan_skill_has_e2_inventory_and_impact_contract():
     """E2: the portable scanner owns inventory, bounded focus, and widening evidence."""
-    body = (REPO_ROOT / "skills" / "pm-context-scan-codebase" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "pm-context-scan-codebase" / "SKILL.md").read_text(encoding="utf-8")
     for marker in (
         "Repository identity",
         "Inventory & ownership boundaries",
@@ -314,13 +314,13 @@ def test_stage_skills_implement_e2_behavior_table():
         ),
     }
     for stage_id, markers in required.items():
-        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text()
+        body = (stage_skill_dir(stage_id) / "SKILL.md").read_text(encoding="utf-8")
         for marker in markers:
             assert marker in body, f"stage {stage_id} missing E2 marker {marker!r}"
 
 
 def test_prototype_html_uses_interaction_model_not_genai_flag():
-    body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "pm-prototype-html" / "SKILL.md").read_text(encoding="utf-8")
     assert "Interaction model" in body
     assert "?review=1" in body
     assert "review-only" in body

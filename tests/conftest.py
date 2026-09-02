@@ -92,6 +92,7 @@ def pmos(tmp_path, monkeypatch):
     env = dict(os.environ)
     env.update({
         "HOME": str(home),
+        "USERPROFILE": str(home),
         "PM_OS_DIR": str(h.install),
         "CLAUDE_CONFIG_DIR": str(h.claude),
         "CODEX_SKILLS_DIR": str(h.codex),
@@ -103,12 +104,14 @@ def pmos(tmp_path, monkeypatch):
         # the suite's post-approval sync assertions stay deterministic. Tests
         # exercising the deferred path override this per-call.
         "PM_OS_SYNC_BLOCKING": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
         "PYTHONPATH": pythonpath,
         "GIT_AUTHOR_NAME": "tester", "GIT_AUTHOR_EMAIL": "tester@example.com",
         "GIT_COMMITTER_NAME": "tester", "GIT_COMMITTER_EMAIL": "tester@example.com",
     })
     h.env = env
-    for key in ("HOME", "PM_OS_DIR", "CLAUDE_CONFIG_DIR", "CODEX_SKILLS_DIR",
+    for key in ("HOME", "USERPROFILE", "PM_OS_DIR", "CLAUDE_CONFIG_DIR", "CODEX_SKILLS_DIR",
                 "PM_OS_PROJECTS_DIR", "PM_OS_USER", "PM_OS_FEEDBACK_REPO",
                 # In-process git calls (e.g. push_feedback_repo invoked directly,
                 # not via run_script) read the ambient env, so the identity must be
