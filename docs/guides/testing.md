@@ -62,6 +62,7 @@ PM-OS code resolves its home two ways, so the harness isolates both:
 ### Helpers (`tests/helpers.py`)
 
 - `run_script(pmos, "pm_x.py", *args, cwd=…, stdin=…)` — run a script from the temp install with the isolated env.
+- Every subprocess call spawns `sys.executable`, never a literal `python3`, so the suite runs on Windows where `python3` is not on PATH. A new test that shells out must follow this.
 - `run_hook(pmos, "pre-stage.py", stage, cwd=…, extra_env=…)` — run a gate hook the way a skill does (`PM_OS_STAGE=NN`).
 - `write_artifact(path, stage=…, project=…, status=…, body=…, **frontmatter)` — build a minimal stage artifact.
 
@@ -164,7 +165,7 @@ one-line description. The matching docstring in code carries the same intent for
 
 **`test_config.py`** — config + model policy
 - `test_load_config_reads_temp_install` — reads the isolated config; applies model-policy defaults.
-- `test_model_tier_for_stage` — deep-reasoning stages (00w/00u/03/04/06/08/09) → `deep-reasoning`; others → `standard`.
+- `test_model_tier_for_stage` — deep-reasoning stages (00c/00w/00u/03/04/06/08/09) → `deep-reasoning`; others → `standard`.
 - `test_load_config_allows_missing_feedback_repo` — configs without `feedback_repo` load with an empty optional value instead of failing install/runtime commands.
 - `test_model_tier_falls_back_without_config` — returns a sane tier even if config load fails.
 

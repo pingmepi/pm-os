@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **`00c` joins the deep-reasoning model tier.** `deep_reasoning_stages` is now `["00c", "00w", "00u", "03", "04", "06", "08", "09"]` (`lib/config.py`). The codebase-understanding doc carries the same downstream weight as the other context-build docs — every enhancement stage cites it — but was the one context-build stage left on the standard tier, so `model_tier_for_stage("00c")` reported `standard` while the SOP already documented it as deep-reasoning. Config merges the new policy stage in for existing on-disk configs, so no migration is needed.
+
+### Fixed
+- **`config.yaml` could not be rewritten on Windows.** `_write_config_atomic` (`lib/config.py`) and `pm_os_install.py` finished the atomic write with `Path.rename`, which raises `WinError 183` when the destination already exists — so every reconfigure or re-install onto an existing config failed with `✗ FAILED to write config.yaml` while the POSIX path silently overwrote. Both now use `os.replace`, the portable atomic-overwrite primitive. Surfaced by `test_install_seeds_context_overlay`.
+- **T4 install/verify harness ran only where `python3` is on PATH.** `tests/integration/test_install_verify_update.py` hardcoded `"python3"` in its subprocess call (the rest of the suite already used `sys.executable`), so all 11 of its tests failed on a stock Windows Python. Documented the convention in `docs/guides/testing.md` §3.
+
+### Docs
+- **SOP reconciled with the shipped v1.5 surface** (`docs/guides/sop.md`). Removed four instructions to run `/pm-validate-artifact`, which is not a skill — validation runs automatically in strict mode at generation and warning mode at approval (stages 03/04/05/06/08 + the HTML prototype), with findings surfaced by `/pm-status`; documented `/pm-check` (including the enhancement cycle invariants) as the PM-facing consistency check; documented the third entry route (`--entry prototype`) and corrected the codebase-preparation attribution — `/pm-new --codebase` only records the source, `/pm-context-import --codebase` clones/extracts into the read-only `.codebase/`; added the full `/pm-enhance` cycle (`start`/`set-boundary`/`show`/`delta`/`refresh`/`complete`) and the delta-only handoff; added the `/pm-os-update` path; dropped the stale "dev handoff is planned" and "once import exists" claims; cross-referenced `enhancement-quickstart.md`.
+
 ## 1.5.0 — 2026-08-05
 
 ### Added

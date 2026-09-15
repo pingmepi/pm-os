@@ -817,6 +817,66 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
+## 51. 🟠 `/pm-approve` never fails closed on artifact-contract errors — strict validation is agent compliance, not enforcement
+
+**Severity:** P1 — the contract layer's ERROR findings (including the traceability ones) are advisory at the only mandatory choke point in the pipeline. An artifact that violates its contract can be approved, hashed, indexed, and exported with nothing but a printed warning.
+**Status:** 🟠 Open — verified against the current code 2026-09-05.
+
+**Symptom:** `pm_approve.py` calls `validate_artifact()` for stages 03/04/05/06/08 and then prints *"approval will continue"* — for WARNING **and** ERROR findings alike. Approval proceeds, the content hash is written, `post-approve.py` rebuilds `.traceability.yaml` from the artifact anyway, and the finding survives only as an `artifact_validation_warning` telemetry line. The strict, exit-1 path (`pm_validate_artifact.py <NN> --mode strict`) exists and works — but it is invoked **only** by an instruction inside each stage `SKILL.md`, i.e. it fires when the agent chooses to run it. Nothing in the state machine requires it to have run. Same for `/pm-check`: `hooks/pre-stage.py` runs `check_project()` as an explicitly non-blocking advisory whose exceptions are swallowed silently.
+
+**Evidence:**
+- `scripts/pm_approve.py:142-149` — `validation_findings = validate_artifact(...)`; the only consequence is `print("Warning: … approval will continue")`. No `error_count()` check, no exit, no `--force` distinction. Telemetry at `:180-188`.
+- `scripts/pm_validate_artifact.py:38` — `if args.mode == "strict" and error_count(findings): sys.exit(1)`. The mechanism exists; nothing mandatory calls it.
+- `skills/pm-stage-03-prd/SKILL.md:327`, `…-04:344`, `…-05:249`, `…-06:282`, `…-08:333` — the strict invocations, all prompt-level.
+- `hooks/pre-stage.py:230-241` — consistency advisory, `except Exception: pass`, explicitly documented as never affecting the gate decision.
+- ERROR-level traceability findings this lets through: `USER_STORY_IDS_MISSING`, `FUNCTIONAL_REQUIREMENT_IDS_MISSING` (`lib/artifact_contracts.py:783,836`), `TEST_CASE_IDS_MISSING`, `TEST_CASE_TRACE_MISSING` (`:1012,1022`).
+
+**Why it matters beyond this file:** it is the same failure shape as entry #1 — a check whose enforcement depends on an agent electing to run it. #1 closed the loophole for the human-in-the-loop gate; this is the equivalent loophole for the contract layer. Also related to #49: `/pm-status` counts contract warnings without locating them, so the PM has no second signal either.
+
+**Proposed fix:** make `pm_approve.py` fail closed on ERROR-severity findings (WARNINGs keep the current print-and-continue behavior), with an explicit `--force` / `PM_OS_APPROVE_FORCE=1` escape that logs a distinct `artifact_validation_overridden` event naming the codes overridden. The escape matters: warn-mode exists because imported/adopted prose artifacts (`skills/pm-context-import/SKILL.md:437`) legitimately cannot satisfy a contract they predate, and those paths must keep working. Non-interactive safety per `CLAUDE.md` — the flag is the escape, and the refusal must name the exact repair command.
+
+---
+
+## 52. 🟠 Stable IDs can be silently renumbered on regeneration — nothing diffs the ID set across versions (outside enhancement mode)
+
+**Severity:** P1 — the single largest hole in the traceability spine. Every downstream link (`TC → US/FR`, `TSK → US/FR`, `SCR → US/UJ`, exported Jira ticket keys) is a plain string reference. If a regeneration renumbers `US-004`, every one of those links silently retargets or dangles, and no check fires.
+**Status:** 🟠 Open — verified against the current code 2026-09-05.
+
+**Symptom:** "These `US-###` ids are the **stable traceability handles** … never renumber an existing story across regenerations; only append new ids" is prose in the stage skills, repeated in 03/04/06/08. There is no code anywhere in the core pipeline that compares the ID set of a regenerated artifact against its predecessor. A stage-03 regeneration that emits the same eight stories under shifted numbers passes every contract check (the ids are well-formed and present), rebuilds `.traceability.yaml` clean (it is derived fresh from the new body), and quietly breaks the QA plan's and TRD's citations — which then surface, if at all, as *warnings* (`TRD_TASK_UNKNOWN_REQ`, `SCREEN_UNKNOWN_REQ`) attached to the wrong stage, blaming the downstream artifact for an upstream renumber.
+
+**Evidence:**
+- `lib/artifact_contracts.py:453-464` — `STABLE_ID_TYPES` / `split_stable_id_blocks()` exist and already produce exactly the id→block map a diff needs. Consumers: `lib/enhancement.py:29-33` and `scripts/pm_share.py:440` only. Nothing calls it for version-over-version comparison.
+- `lib/consistency.py:447-460` — the `.history` checks verify a snapshot *exists* and its *hash matches*; they never open two bodies and compare ids.
+- `lib/traceability.py` `build_index()` — derived fresh from current bodies each time, so a renumber produces a clean-looking index, not a diff.
+- **The exception that proves it is buildable:** enhancement mode already does this — `scripts/pm_enhance.py` `_build_delta()` diffs stable-ID blocks against a frozen baseline and raises `EnhancementError` on `unexpected_changed_ids`. The machinery is present; the normal pipeline just doesn't use it.
+- The raw material is also already on disk: `scripts/pm_approve.py` `_latest_generated_snapshot()` locates the prior `.history` body.
+
+**Proposed fix:** at approval (and/or at generation), diff `split_stable_id_blocks(new_body).keys()` against the last approved `.history` snapshot for that stage. Ids that **disappeared** while a similar count of new ids appeared are the renumber signal — report as an ERROR naming the dropped ids and every downstream reference that cites them (resolvable from `.traceability.yaml` without a rescan). Deliberate deletions stay possible via the same override as #51. Additive to the spine, no state-machine change — consistent with "grow the traceability spine, not the state machine."
+
+---
+
+## 53. 🟠 Traceability coverage gaps are warning-only in the core pipeline, but hard-blocking in enhancement mode
+
+**Severity:** P2 — asymmetric rigor. The same class of gap that refuses to let an enhancement cycle close is a printed line the core pipeline exports straight past. A PRD whose requirements have zero test coverage and zero implementing tasks reaches a Jira export without a single blocking signal.
+**Status:** 🟠 Open (design question, not a defect) — verified against the current code 2026-09-05.
+
+**Symptom:** Every core-pipeline traceability gap is `warning` severity: `TRD_TASK_ORPHAN` (task with no `Implements:`), `TRD_TASK_UNKNOWN_REQ` (implements an id the PRD doesn't declare), `TRD_REQ_NOT_IMPLEMENTED`, `SCREEN_ORPHAN`, `SCREEN_UNKNOWN_REQ`, `STORY_HAS_NO_SCREEN`, `SCREEN_IDS_MISSING`, plus the contract's `REQUIREMENT_COVERAGE_GAP`. `post-approve.py` prints uncovered requirements and moves on; `pm_share.py` renders a "Stories with no screen" section in the package; `pm_handoff.py` exports regardless. In enhancement mode the identical questions are `error` severity and genuinely block: `ENHANCEMENT_REGRESSION_TRACE_MISSING` (changed req with no TC), `ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING` (no TSK), `ENHANCEMENT_SURFACE_TRACE_MISSING`, `ENHANCEMENT_INVARIANT_TRACE_MISSING`, `ENHANCEMENT_MIGRATION_TRACE_MISSING`.
+
+**Evidence:**
+- Warning severities: `lib/consistency.py:724,732,743,775,809,817,828`; `lib/artifact_contracts.py:1048-1054` (`REQUIREMENT_COVERAGE_GAP`), whose docstring states the intent explicitly — *"Coverage is reported as a WARNING (not a hard error) so prose QA plans on existing projects degrade gracefully instead of failing approval/import."*
+- Error severities + the block: `lib/consistency.py:342-400` and `scripts/pm_enhance.py:666-671` — `errors = [issue for issue in check_project(root) if issue.severity == "error"]` → `raise EnhancementError(...)`, refusing cycle completion.
+- Non-blocking consumers: `hooks/post-approve.py:152-155` (prints `uncovered_requirements()`); `scripts/pm_share.py:1087-1101` (renders the gap); `scripts/pm_handoff.py:174-205` (gates on approval *status* only, never on coverage).
+
+**Note on what is already sound:** the links themselves are deterministic — one shared set of extractors in `lib/artifact_contracts.py` feeds the validator, `lib/traceability.py:build_index()`, and the handoff assembler (the fix from #11), the index is rebuilt by `post-approve.py` rather than by the agent, and dangling references *are* detected. What no code can check is whether a link is **semantically right**: that `TSK-014` genuinely implements `FR-012` and not `FR-013` is judgment, and stays the agent's (same substrate limit as #27). This entry is only about the gaps the system *can* see and chooses not to enforce.
+
+**Proposed fix (decision needed, not scoped):** the graceful-degradation rationale is real for imported/prose projects but is currently applied to *every* project, including ones generated entirely under the current contracts. Options: (a) leave as-is and instead make the gaps unmissable at the export boundary — `/pm-handoff` refuses (or requires explicit confirmation) when a requirement being exported has no covering `TC-###`, which is where an untraced requirement actually costs something; (b) promote coverage gaps to errors for `origin: generated` artifacts only, keeping warn-mode for imported/backfilled ones (`.meta.yaml` already records `origin`); (c) keep them warnings but surface them in `/pm-status` with locations (composes with #49). Recommendation: **(a) + (c)** — enforce at the boundary where the gap has a consequence, and make it visible before then, without adding a new blocking state to the core gate.
+
+---
+
+_**Entries 51-53 recorded 2026-09-05**, during a review of what actually enforces traceability end-to-end (parsers → derived index → checkers → export), each verified against the current code before logging. The deterministic half of the spine held up: shared extractors, an index rebuilt by `post-approve.py` rather than by the agent, `_read_body_if_approved` keeping non-approved 04/08 out of it, and `pm_handoff.py` rebuilding the index fresh instead of trusting `.traceability.yaml`. These three entries are the enforcement gaps around it: nothing mandatory fails closed (#51), stable ids are stable only by prose (#52), and coverage gaps block only in enhancement mode (#53). #51 and #52 are defects with clear fixes; #53 is a deliberate design choice logged for a decision. Documentation-only; lands via the normal commit → push → `pm_os_update.py` path._
+
+---
+
 _**Entries 46-50 recorded 2026-08-20**, each verified against the current code before logging, during two exploration passes (technical/knowledge layer and PM usability) captured in `technical-optimisation-brainstorm.md` and `pm-experience-brainstorm.md`. Entry #2's still-open bullet was re-counted in the same pass and its stale "24 invocations" figure corrected. Following this file's stated boundary, only **verified gaps in built things** were logged here: the design possibilities those explorations surfaced — context routing, graph edge types, an external AST substrate, reading surfaces, the anti-list of things not to build — stay in the two brainstorms, and the roadmap-level framing stays in `current-state-review.md`. Documentation-only; lands via the normal commit → push → `pm_os_update.py` path._
 
 ---

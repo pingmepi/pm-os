@@ -2,7 +2,8 @@
 
 **Audience:** Product managers and the cross-functional partners (design, engineering, QA, data) who review or consume PM-OS artifacts.
 **Status:** Recommended defaults. Teams may adapt the governance below to project size and risk, but should do so deliberately, not by accident.
-**Applies to:** PM-OS v1 across both supported runtimes (Claude Code and OpenAI Codex).
+**Applies to:** PM-OS v1.5 across both supported runtimes (Claude Code and OpenAI Codex).
+**Related guides:** [`enhancement-quickstart.md`](enhancement-quickstart.md) — the enhancement pathway, condensed · [`offline-install.md`](offline-install.md) — locked-down and air-gapped installs · [`testing.md`](testing.md) — what the test suite covers.
 
 ---
 
@@ -44,7 +45,8 @@ No stage progresses autonomously. Every gate requires explicit PM approval.
 - Keeping product decisions, design intent, QA, and metrics in one traceable chain.
 - Giving every stage a named human owner and an explicit approval gate.
 - Producing artifacts that are reproducible, diffable, and easy to edit in Markdown.
-- *(Planned)* Dev handoff, QA bug triage, release readiness, and feedback ingestion — coming in later phases.
+- Handing that definition to the people who build it — a per-audience handoff package and Jira tickets (§4.5).
+- *(Planned)* QA bug triage, release readiness, feedback ingestion, and the design half of external handoff (Figma pull/push) — coming in later phases.
 
 ### What PM-OS is not
 - Not a replacement for product judgment. It drafts and recommends; the PM decides.
@@ -67,11 +69,19 @@ Use PM-OS when **most** of the following are true:
 | The work spans more than a throwaway experiment | The stage overhead pays off when the artifact will be read by others. |
 | Inputs can be sanitized | The business statement and notes contain no confidential or regulated data. |
 
-**In v1**, there are three entry points, all following the same PM-approval model: (1) a new business statement (`/pm-new`); (2) existing material you've already authored — research, brief, scope, PRD, design notes — via `/pm-context-import`, which builds a gated context wiki + understanding doc, then adopts your artifacts and backfills the upstream gaps below them; or (3) an **enhancement to an existing product** (`/pm-new --entry enhancement --codebase <source>`, where `<source>` is a git URL — GitHub/GitLab/any remote — a local directory, or a `.zip` archive of the code), where `/pm-context-import` additionally runs a read-only codebase scan and produces a gated codebase-understanding doc (`00c`) that grounds the downstream stages on the existing system. Later phases will add entry points for Jira/Linear tickets and QA bugs.
+**In v1.5**, a project starts on one of three **entry routes** (`/pm-new <slug> --entry new|prototype|enhancement`), all following the same PM-approval model:
+
+| Entry route | Use it when | What follows |
+|---|---|---|
+| **`new`** | You're starting from an idea or a business statement. | Straight to stage 01 — or seed it first with material you've already authored (research, brief, scope, PRD, design notes) via `/pm-context-import`, which builds a gated context wiki (`00w`) + understanding doc (`00u`), adopts your artifacts, and backfills the upstream gaps below them. |
+| **`prototype`** | You already have an approved prototype or design, but no code yet. | The project stays a new-product project; `/pm-context-import <prototype-or-design-files>` turns the prototype into gated context before stage 01, so it enters as reviewed evidence rather than an unexamined input. |
+| **`enhancement`** | You're changing a **live product**, and its codebase is the ground truth. | `--codebase <source>` names the code — a git URL (GitHub/GitLab/any remote), a local directory, or a `.zip` archive. `/pm-context-import --codebase <source>` then prepares it read-only and produces a gated codebase-understanding doc (`00c`) that every downstream stage cites. Continue in the same project for every later change (§4.6, and [`enhancement-quickstart.md`](enhancement-quickstart.md)). |
+
+Later phases will add entry points for Jira/Linear tickets and QA bugs.
 
 ### When **not** to use it (or use a lighter touch)
 - **Tiny or throwaway work** — a one-line bug fix or a quick spike doesn't need the full stage pipeline. The ceremony will cost more than it returns.
-- **Decisions already made and documented elsewhere (v1)** — don't regenerate a PRD that already exists and is being executed against; you'll create a competing source of truth. Once import/ingest exists, adopt the existing artifact instead.
+- **Decisions already made and documented elsewhere** — don't regenerate a PRD that already exists and is being executed against; you'll create a competing source of truth. **Adopt** the existing artifact with `/pm-context-import` instead of re-deriving it.
 - **Inputs you cannot sanitize** — if the only useful framing requires PHI/PII/secrets, stop and resolve the data-handling question first (see §7).
 - **Live incident or execution tracking** — PM-OS defines product intent and coordinates lifecycle state; it is not a ticket tracker or status board.
 
@@ -136,17 +146,26 @@ Run the verifier after setup:
 python3 ~/.pm-os/scripts/pm_os_verify.py --runtime claude
 python3 ~/.pm-os/scripts/pm_os_verify.py --runtime codex
 ```
+Or from inside an agent session: `/pm-os-verify` (Claude) / `$pm-os-verify` (Codex).
+
+**Keeping an install current.** Updates go through one route only:
+```text
+Claude: /pm-os-update            Codex: $pm-os-update
+```
+It fast-forwards the install to the released version and re-syncs skills (and, for Claude, hooks) into the runtime's directories. Re-run `/pm-os-verify` afterwards. Never hand-edit the installed `~/.pm-os` or the runtime skill directories — a manual change diverges the install and blocks every future update. (`/pm-os-install` covers a first-time or reconfigured install from inside a session.)
 
 ### 4.2 Start a project
 ```text
-Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <source>]
-Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry enhancement --codebase <source>]
+Claude: /pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry new|prototype|enhancement] [--codebase <source>]
+Codex:  $pm-new <project-slug> ["<business statement>"] --genai|--no-genai [--entry new|prototype|enhancement] [--codebase <source>]
 ```
 - Keep the slug short and stable; it's used in paths and history.
 - Write the business statement in plain language. **Sanitize it first** (§7). The statement is optional — omit it to add it later (a placeholder is written into `00`).
 - Pass `--genai` or `--no-genai` to set whether this is a GenAI/agentic product. In an interactive shell `pm-new` prompts; run non-interactively (the usual case inside an agent) you must pass the flag (or set `PM_OS_GENAI_FLAG`).
-- For a live product that is **not yet represented in PM-OS**, pass `--entry enhancement --codebase <source>` — a git URL (GitHub/GitLab), a local directory, or a `.zip` archive of the code. A remote is cloned and a zip is extracted into the project's read-only `.codebase/`; the target code is never modified. `/pm-context-import` then builds its gated `00c` evidence. For every later enhancement, work inside this same project with `/pm-enhance`; do not create another project.
-- **Enhancement projects gate every product stage on a recorded affected slice.** In an enhancement, stages 01–09 will not generate until you have run `/pm-enhance start` (freeze the approved baseline) and `/pm-enhance set-boundary` (record the affected slice), after approving `00c`/`00u`. The decision interview behind `set-boundary` is skippable — answer what you can — but the boundary must exist so the delta, checks, and handoff are anchored. This gate does not apply to greenfield or prototype projects.
+- **Pick the entry route** (§2). If you omit `--entry`, the skill infers it from how you described the work and defaults to `new`; state it explicitly when it matters.
+- For an **approved prototype or design with no code behind it yet**, pass `--entry prototype`. The project stays a new-product project (`project_type: new_product`) and records the route; import the prototype and any supporting material with `/pm-context-import <prototype-or-design-files>` so it becomes gated context (`00w`/`00u`) rather than an unreviewed input.
+- For a **live product not yet represented in PM-OS**, pass `--entry enhancement --codebase <source>` — a git URL (GitHub/GitLab), a local directory, or a `.zip` archive of the code. `/pm-new` only *records* the source in `.meta.yaml`; the next step, `/pm-context-import --codebase <source>`, is what clones a remote or extracts a zip into the project's own read-only `.codebase/` copy and builds the gated `00c` evidence. Your original repository is never modified. For every later enhancement, work inside this same project with `/pm-enhance` (§4.6); do not create another project.
+- **Enhancement projects gate every product stage on a recorded affected slice** — stages 01–09 will not generate until the cycle is started and the boundary recorded. See §4.6; the gate does not apply to `new` or `prototype` projects.
 - The project is created under the `projects_dir` from your config (default `~/pm-projects`).
 - This seeds `00-business-statement.md` and `.meta.yaml`, including the `genai_flag` that controls whether stages emit GenAI-specific sections, and (for enhancements) `project_type`/`codebase_path`. The business statement is a gated stage (`00`): review and approve it before generating stage 01.
 
@@ -166,15 +185,18 @@ Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you a
 2. **Approval is explicit and follows review.** A draft is not a decision until someone runs `pm-approve` for that stage. Don't approve to "unblock" yourself.
 3. **Surface conflicts; don't silently override.** If a new note contradicts an approved upstream artifact, raise it and decide deliberately — re-open the upstream stage if the decision actually changed.
 4. **Edit drafts freely before approval.** The Markdown is yours to refine. Generated drafts are snapshotted under `.history/` by `pm_snapshot.py`, so you can regenerate without fear.
-5. **Validate artifact quality before approving stages 03–05.** Run `/pm-validate-artifact 03` (or 04, 05) to check section completeness, user-journey coverage, and interaction-model consistency. Required-section errors block approval; warnings are advisory and recorded as `artifact_validation_warning` telemetry on approval — you can proceed, but review them with the same attention as a reviewer comment.
+5. **Read the validation findings before you approve.** You don't run the validator yourself — PM-OS runs it for you. Generating stages 03, 04, 05, 06, 08 (and the HTML prototype) runs the artifact contract in **strict** mode, so a missing required section is caught and repaired before you ever see the draft. Approval re-runs it in **warning** mode: findings are printed, recorded as `artifact_validation_warning` telemetry, and surfaced by `/pm-status` as `⚠ contract warnings: N` on the stage. Warnings do not block approval — that is precisely the point at which *you* decide — so read each one with the same attention as a reviewer comment. For a whole-project consistency check at any time, run `/pm-check` (§4.4).
 
 ### 4.4 Check state and capture feedback any time
 ```text
 Claude: /pm-status               Codex: $pm-status
+Claude: /pm-check                Codex: $pm-check
 Claude: /pm-feedback 03          Codex: $pm-feedback 03
 Claude: /pm-sync                 Codex: $pm-sync
 Claude: /pm-interview            Codex: $pm-interview
 ```
+
+**Consistency check (`/pm-check`).** Read-only, safe to run any time, and the fastest way to answer *"is this project actually coherent?"* It checks that `.meta.yaml` and each artifact's frontmatter agree, that no approved artifact has been edited since approval (hash drift), that upstream approvals are shaped correctly, that the telemetry hash chain is intact, that expected artifacts exist, and that TRD `TSK-###` task ids are unique, sequential, and trace to real PRD requirements. In an **enhancement** project it adds the cycle invariants: baseline integrity, repository drift, changes made outside the recorded boundary, and missing surface / regression / implementation / migration traces. It never changes anything — it prints the remediation command for each finding (for example `/pm-approve 04`), and you decide. Run it before a handoff and before closing an enhancement cycle.
 
 **Known unknowns.** When you seed a project via `/pm-context-import`, any interview question you skip is recorded in `00-context/known-unknowns.md` as an open gap — never a silent assumption. `/pm-status` shows the count (`Known unknowns: N open`). Run `/pm-interview` any time to re-run the interview against just those still-open gaps: answers are registered as PM-authored context and the resolved gaps are marked in place (never deleted), so the audit trail stays intact.
 - `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
@@ -196,7 +218,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 ```text
 Claude: /pm-handoff --package      Codex: $pm-handoff --package
 ```
-Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get separate epic, story, and requirement files; every story is self-contained and embeds the text of referenced `FR-###`/`REQ-###` requirements, `AC-###` acceptance criteria, impact analysis, and NFRs instead of relying on hyperlinks for implementation-critical context. Story files also walk the traceability spine through journeys, covering test cases, serving `SCR-###` screens, exact Figma screen/state links when available, and implementing `TSK-###` backend tasks when the optional TRD is approved. Business gets the overview and epic index. Design/QA get `reference/screen-map.md` (the screen → stories reverse view) and the prototype; when stage 04 is a draft design brief (`design_mode: brief`), the design audience also gets `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so external designers can return structured `design-in/` evidence before PM-OS ingests the canonical design spec with `pm_design_ingest.py` / stage-04 `--ingest`. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
+Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get separate epic, story, and requirement files; every story is self-contained and embeds the text of referenced `FR-###`/`REQ-###` requirements, `AC-###` acceptance criteria, impact analysis, and NFRs instead of relying on hyperlinks for implementation-critical context. Story files also walk the traceability spine through journeys, covering test cases, serving `SCR-###` screens, exact Figma screen/state links when available, and implementing `TSK-###` backend tasks when the optional TRD is approved. Business gets the overview and epic index. Design/QA get `reference/screen-map.md` (the screen → stories reverse view) and the prototype; *(rolling out — external design authority, not yet on the released `main`:)* when stage 04 is a draft design brief (`design_mode: brief`), the design audience also gets `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so external designers can return structured `design-in/` evidence before PM-OS ingests the canonical design spec with `pm_design_ingest.py` / stage-04 `--ingest`. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
 
 **Export to Jira (`/pm-handoff`).**
 ```text
@@ -209,6 +231,32 @@ Two routes:
 - **Offline** (`/pm-handoff jira --offline`) — writes `handoff/jira-import.csv` plus an import guide, which you upload through Jira's own CSV importer with your normal Jira login. No connector, no API token. Afterwards, recover the created keys from Jira (search the `pm-os` label) and record them with `pm_handoff.py record` so both routes end in the same state.
 
 Re-running creates *new* tickets — it does not detect ones you already created. Check `.traceability.yaml` for recorded tickets before a second run.
+
+**In an active enhancement cycle, the handoff is delta-only.** Both `--package` and the Jira export scope themselves automatically to the computed delta (§4.6): the changed epics, stories, requirements, test cases, and tasks, plus the minimum parent closure needed to keep the hierarchy intact, plus explicit tickets for anything you removed — each carrying its affected surfaces, regression invariants, compatibility/migration notes, and rollout/rollback context. Dev and QA read only what actually changed, not a re-dump of the whole product.
+
+### 4.6 Enhancing a product that's already in PM-OS
+
+**One product = one PM-OS project.** Every later change to that product is an **enhancement cycle** inside the same project — never a new project, never a child project, never a parallel approval state machine.
+
+```text
+Claude: /pm-enhance              Codex: $pm-enhance
+```
+The skill drives the cycle for you. The underlying steps are worth knowing, because `/pm-status` and `/pm-check` report against them:
+
+| Step | What it does |
+|---|---|
+| `start` | Freezes the currently approved artifacts plus the pinned code evidence into an immutable cycle baseline. Refuses a second active cycle. It consumes an **already-prepared** local codebase — it never clones or extracts; that's `/pm-context-import`'s job (§4.2). |
+| `set-boundary` | Records the affected slice from the decision interview: current → target behavior, affected surfaces (UI / API / data / service / event / integration / ops), explicit non-touch areas, regression invariants, compatibility and migration, rollout/rollback, and decision authority. |
+| `show` | Prints the active cycle and the boundary it recorded. |
+| `delta` | Computes the frozen-baseline-vs-current change set that scopes `/pm-check` and the handoff. |
+| `refresh` | Re-pins the code evidence after the target repository moves, and stales the affected pipeline. Always explicit, never silent. |
+| `complete` | Closes the cycle; the canonical artifacts become the next cycle's baseline. |
+
+**The boundary is a hard gate.** Product stages 01–09 will not generate until `start` and `set-boundary` have run — and `set-boundary` requires `00c`/`00u` to be approved first. If you try a stage before that, PM-OS stops and tells you to record the affected slice. This is deliberate: the delta, the checks, and the handoff all need something to scope against. The interview questions are **skippable** — answer what you know; anything you skip is logged as a known unknown (§4.4) rather than assumed. An unresolved baseline, boundary, invariant, or required migration blocks downstream generation unless you record an explicit accepted risk.
+
+Each stage then covers the **enhancement only** — the current-product gap and the delta — updating the affected blocks and carrying unaffected content forward untouched, rather than rewriting the whole product definition.
+
+**The target codebase is read-only throughout.** PM-OS reads files and does read-only Git inspection. It never edits, commits, switches refs, installs dependencies, builds, or writes documentation into your repository — every artifact it produces lives inside the PM-OS project.
 
 ---
 
@@ -241,7 +289,10 @@ Re-running creates *new* tickets — it does not detect ones you already created
 | **Maintaining a parallel PRD elsewhere** | Two sources of truth diverge; nobody knows which is current. | Pick one home. If PM-OS owns it, link to it from your tracker rather than copying; once import exists, ingest the external artifact instead. |
 | **Editing `.meta.yaml` by hand** | Corrupts the state machine (status, hashes, approvals). | Let the helper commands manage state; edit Markdown bodies, not the meta file. |
 | **Ignoring `pm-status` before resuming** | You regenerate or approve the wrong stage. | Run `pm-status` first to ground yourself in the current state. |
-| **Dismissing artifact contract warnings on stages 03–05** | Warnings flag user-journey gaps or interaction-model conflicts that propagate into the QA plan and prototype brief. | Run `/pm-validate-artifact` before approval and review every warning with the same rigor as a reviewer comment — `artifact_validation_warning` events are recorded in telemetry for later audit. |
+| **Dismissing artifact contract warnings** | Warnings flag user-journey gaps, unlabeled requirements, or interaction-model conflicts that propagate into the QA plan, the prototype, and the handoff. | Read the findings printed at generation and at approval, and run `/pm-check` before you approve — with the same rigor as a reviewer comment. `artifact_validation_warning` events are recorded in telemetry for later audit. |
+| **Ignoring `/pm-check` before a handoff** | You export a package or Jira tickets built on drifted, unapproved, or untraceable state. | Run `/pm-check` first; it's read-only and prints the remediation command for every finding. |
+| **Starting a second project for the next enhancement** | Baseline lineage breaks, the delta has nothing to compare against, and the product's history forks. | One product = one project. Continue with `/pm-enhance` in the existing project (§4.6). |
+| **Hand-editing the installed `~/.pm-os` or the runtime skill directories** | Diverges the install and blocks every future update for you and everyone who follows the same route. | Change nothing there by hand; use `/pm-os-update`. |
 
 ---
 
@@ -260,11 +311,15 @@ Re-running creates *new* tickets — it does not detect ones you already created
 |---|---|---|
 | Install | `./install.sh --runtime claude --pm-user <id>` | `./install.sh --runtime codex --pm-user <id>` |
 | New project | `/pm-new <slug> "<statement>"` | `$pm-new <slug> "<statement>"` |
+| Start from an approved prototype | `/pm-new <slug> --entry prototype` | `$pm-new <slug> --entry prototype` |
 | First intake of external product | `/pm-new <slug> --entry enhancement --codebase <source>` | `$pm-new <slug> --entry enhancement --codebase <source>` |
 | Later enhancement in same project | `/pm-enhance` | `$pm-enhance` |
+| Enhancement cycle steps | `/pm-enhance` → `start` / `set-boundary` / `show` / `delta` / `refresh` / `complete` | same |
 | Import context | `/pm-context-import <files-or-folder>` | `$pm-context-import <files-or-folder>` |
+| Scan a codebase (standalone) | `/pm-context-scan-codebase` | `$pm-context-scan-codebase` |
+| Scan documents (standalone) | `/pm-context-scan-docs` | `$pm-context-scan-docs` |
 | Generate stage *N* | `/pm-stage-0N-...` | `$pm-stage-0N-...` |
-| Validate artifact (03–05) | `/pm-validate-artifact 0N` | `$pm-validate-artifact 0N` |
+| Consistency check (read-only) | `/pm-check` | `$pm-check` |
 | Approve stage *N* | `/pm-approve 0N` | `$pm-approve 0N` |
 | Project status | `/pm-status` | `$pm-status` |
 | Re-run interview (open gaps) | `/pm-interview` | `$pm-interview` |
@@ -275,8 +330,9 @@ Re-running creates *new* tickets — it does not detect ones you already created
 | Handoff package (per-audience files) | `/pm-handoff --package` | `$pm-handoff --package` |
 | Handoff to Jira | `/pm-handoff jira` | `$pm-handoff jira` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
+| Update install | `/pm-os-update` | `$pm-os-update` |
 
 **Pipeline order:** (00 business statement) → [00w context wiki* + 00u understanding doc* + 00c codebase understanding*, if using `/pm-context-import`] → 01 brief → 02 scope → 03 PRD* → 04 design spec* → 05 prototype brief → 06 QA plan* → 07 metrics plan → (08 TRD*, optional) → (09 Roadmap*, optional; uses approved TRD when available).
-`*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully. Validate stages 03–05 with `/pm-validate-artifact` before approving.
+`*` = deep-reasoning stage; prefer the strongest available reasoning model and review carefully. Stage generation and approval validate the artifact contract automatically (stages 03, 04, 05, 06, 08 and the HTML prototype) — read the findings, and run `/pm-check` for whole-project consistency before approving or handing off.
 
 **The one rule to remember:** *generate, review, approve — in order, one stage at a time, on sanitized inputs.*

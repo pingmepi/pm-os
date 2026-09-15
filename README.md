@@ -248,7 +248,7 @@ reduce gate coverage. Approval, hash-drift, and staleness behavior are identical
 across runtimes; `pm-os-verify` confirms this with a gate self-test.
 
 Model policy is runtime-neutral. PM-OS stores `default_model_tier: standard` and
-`deep_reasoning_stages: ["00w", "00u", "03", "04", "06", "08", "09"]` in local config instead of concrete
+`deep_reasoning_stages: ["00c", "00w", "00u", "03", "04", "06", "08", "09"]` in local config instead of concrete
 provider model ids. Claude users should run deep-reasoning stages on Opus or the
 strongest available reasoning model. Codex users should run those stages on a
 high/deep reasoning model.

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.integration
 
 def _run(pmos, script, *args, env=None, stdin=""):
     return subprocess.run(
-        ["python3", str(pmos.install / "scripts" / script), *args],
+        [sys.executable, str(pmos.install / "scripts" / script), *args],
         cwd=str(pmos.projects), env=env or pmos.env, input=stdin,
         capture_output=True, text=True, timeout=60,
     )
@@ -32,7 +32,7 @@ def test_install_writes_config_with_model_policy(pmos):
     cfg = yaml.safe_load((pmos.install / "config.yaml").read_text())
     assert cfg["pm_user"] == "alice"
     assert cfg["default_model_tier"] == "standard"
-    assert cfg["deep_reasoning_stages"] == ["00w", "00u", "03", "04", "06", "08", "09"]
+    assert cfg["deep_reasoning_stages"] == ["00c", "00w", "00u", "03", "04", "06", "08", "09"]
 
 
 def test_install_missing_pm_user_fails_non_interactive(pmos):
