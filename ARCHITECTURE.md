@@ -310,7 +310,7 @@ For diagnosis, prefer a layered read:
 
 ## 7. Runtime agnosticism
 
-Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/openai.yaml`** (Codex interface metadata). `install.sh` / `pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00w","00u","03","04","06","08","09"]`); skills advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
+Every skill ships **`SKILL.md`** (Claude, YAML frontmatter) **and** **`agents/openai.yaml`** (Codex interface metadata). `install.sh` / `pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00c","00w","00u","03","04","06","08","09"]`); skills advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
 
 ---
 

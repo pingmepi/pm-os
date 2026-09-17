@@ -21,6 +21,12 @@ from artifact_contracts import (
     _sections,
 )
 
+AC_ID_RE = re.compile(r"\bAC-\d{3,}\b", re.IGNORECASE)
+_AC_BLOCK_START_RE = re.compile(
+    r"^(?:(?P<hashes>#{1,6})\s+|[-*+]\s+|\d+\.\s+)?\*{0,2}(?P<id>AC-\d{3,})\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True)
 class Epic:
@@ -34,11 +40,13 @@ class PrdDeliveryMap:
     epics: dict[str, Epic] = field(default_factory=dict)
     story_blocks: dict[str, str] = field(default_factory=dict)
     requirement_blocks: dict[str, str] = field(default_factory=dict)
+    acceptance_blocks: dict[str, str] = field(default_factory=dict)
     journey_blocks: dict[str, str] = field(default_factory=dict)
     story_to_epic: dict[str, str] = field(default_factory=dict)
     requirement_to_epic: dict[str, str] = field(default_factory=dict)
     priorities: dict[str, str] = field(default_factory=dict)
     story_requirements: dict[str, list[str]] = field(default_factory=dict)
+    story_acceptance: dict[str, list[str]] = field(default_factory=dict)
     story_journeys: dict[str, list[str]] = field(default_factory=dict)
     unassigned: list[str] = field(default_factory=list)
 
@@ -130,6 +138,10 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
     requirement_blocks = split_functional_requirement_blocks(
         _section(sections, "Functional Requirements") or ""
     )
+    acceptance_blocks = _split_blocks(
+        _section(sections, "Acceptance Criteria") or prd_body or "",
+        _AC_BLOCK_START_RE,
+    )
     journey_blocks = _split_blocks(_section(sections, "User Journeys") or "", _UJ_BLOCK_START_RE)
 
     epics = {
@@ -155,11 +167,13 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
     }
 
     story_requirements: dict[str, list[str]] = {}
+    story_acceptance: dict[str, list[str]] = {}
     story_journeys: dict[str, list[str]] = {}
     unassigned: list[str] = []
 
     for story_id, block in story_blocks.items():
         forward_reqs = [m.upper() for m in FUNCTIONAL_REQ_ID_RE.findall(block)]
+        forward_acceptance = [m.upper() for m in AC_ID_RE.findall(block)]
         forward_journeys = [m.upper() for m in JOURNEY_ID_RE.findall(block)]
         reverse_reqs = [
             rid for rid, req_block in requirement_blocks.items()
@@ -170,6 +184,7 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
             if re.search(rf"\b{re.escape(story_id)}\b", journey_block, re.IGNORECASE)
         ]
         story_requirements[story_id] = list(dict.fromkeys([story_id] + forward_reqs + reverse_reqs))
+        story_acceptance[story_id] = list(dict.fromkeys(forward_acceptance))
         story_journeys[story_id] = list(dict.fromkeys(forward_journeys + reverse_journeys))
         if declared_epics and story_id not in story_to_epic:
             unassigned.append(story_id)
@@ -182,11 +197,13 @@ def build_prd_delivery_map(prd_body: str) -> PrdDeliveryMap:
         epics=epics,
         story_blocks=story_blocks,
         requirement_blocks=requirement_blocks,
+        acceptance_blocks=acceptance_blocks,
         journey_blocks=journey_blocks,
         story_to_epic=story_to_epic,
         requirement_to_epic=requirement_to_epic,
         priorities=priorities,
         story_requirements=story_requirements,
+        story_acceptance=story_acceptance,
         story_journeys=story_journeys,
         unassigned=list(dict.fromkeys(unassigned)),
     )

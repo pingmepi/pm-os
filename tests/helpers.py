@@ -6,6 +6,7 @@ Everything here operates against the *isolated temp install* built by the
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,7 @@ def stage_skill_dir(stage_id: str):
 
 
 def run_script(pmos, script: str, *args: str, cwd: Path | None = None,
-               stdin: str | None = None, extra_env: dict | None = None):
+               stdin: str | None = "", extra_env: dict | None = None):
     """Run scripts/<script> from the temp install with the isolated env.
 
     Returns the CompletedProcess (capture_output, text). `cwd` defaults to the
@@ -37,12 +38,13 @@ def run_script(pmos, script: str, *args: str, cwd: Path | None = None,
         env = {**pmos.env, **extra_env}
     script_path = pmos.install / "scripts" / script
     return subprocess.run(
-        ["python3", str(script_path), *args],
+        [sys.executable, str(script_path), *args],
         cwd=str(cwd or pmos.projects),
         env=env,
         input=stdin,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
     )
 
@@ -54,12 +56,13 @@ def run_hook(pmos, hook: str, stage: str, cwd: Path, *, extra_env: dict | None =
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
-        ["python3", str(pmos.install / "hooks" / hook)],
+        [sys.executable, str(pmos.install / "hooks" / hook)],
         cwd=str(cwd),
         env=env,
         input=stdin,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
     )
 

@@ -8,8 +8,9 @@ REQUIRED_KEYS = ["pm_user", "projects_dir"]
 DEFAULT_FEEDBACK_REPO = ""
 DEFAULT_MODEL_TIER = "standard"
 # Stages whose generation warrants the strongest available reasoning model: PRD, design
-# spec, QA plan, TRD, roadmap, and the context-build docs (context wiki + understanding).
-DEEP_REASONING_STAGES = ["00w", "00u", "03", "04", "06", "08", "09"]
+# spec, QA plan, TRD, roadmap, and the context-build docs (codebase understanding, context
+# wiki, context understanding).
+DEEP_REASONING_STAGES = ["00c", "00w", "00u", "03", "04", "06", "08", "09"]
 
 _config_cache = None
 
@@ -97,7 +98,9 @@ def _write_config_atomic(config: dict) -> None:
     tmp = CONFIG_PATH.with_suffix(".yaml.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    tmp.rename(CONFIG_PATH)
+    # os.replace, not Path.rename: on Windows a rename onto an existing file raises
+    # WinError 183, so re-writing an existing config.yaml would fail.
+    os.replace(tmp, CONFIG_PATH)
 
 
 def _read_version() -> str:

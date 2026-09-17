@@ -73,6 +73,10 @@ When sources differ, resolve contradictions in this order: PRD, then scope, then
 
 The PM may pass one or more `--note "<text>"` arguments when invoking this stage (read them from `$ARGUMENTS`). Treat each note as explicit steering for the design spec - for example, simplifying navigation, avoiding a component type, prioritizing mobile, or deferring a flow.
 
+- If `$ARGUMENTS` includes both `--brief` and `--ingest`, stop without writing and tell the PM to choose exactly one stage-04 mode.
+- If `$ARGUMENTS` includes `--brief`, run **Brief mode** below.
+- If `$ARGUMENTS` includes `--ingest`, run **Ingest mode** below.
+- If neither flag is present, generate the normal single-pass design spec using the existing output specification.
 - If no `--note` arguments are present, generate normally.
 - **Carry-forward on regeneration.** If `04-design-spec.md` already exists with non-empty `generation_notes` from a prior draft, surface them and ask before regenerating: "Previous draft used these notes: <list>. Reuse them for this regeneration? [Y/n]". Merge any reused notes with new `--note` values, de-duplicated. If declined, drop the prior notes.
 - Apply notes **forward only** by default: they shape this design spec and downstream stages.
@@ -139,6 +143,58 @@ log('stage_started', Path('.'), '04', {})
 # Output specification
 
 Write a Design Spec with exactly these sections. This skill writes Markdown only; any HTML companion is generated separately after approval when the hook/template path supports it.
+
+## Stage-04 external-design modes
+
+### Brief mode (`--brief`)
+
+Use this when a separate designer will own Figma and the visual/interaction decisions. Write the ordinary `04-design-spec.md` as a draft with `design_mode: brief` in frontmatter. The artifact is a PM-owned design brief, not an approved design spec.
+
+In brief mode:
+
+- preserve the normal pre-stage gate, context loading, snapshot, validation, metadata, history, and telemetry flow;
+- write PM-owned constraints: `Input Behavior Reconciliation`, `Product UX Guardrails`, `Design Principles`, `Responsive & Platform Behavior`, `UX Content Rules`, and `Accessibility Notes`;
+- include `### Required state inventory` and `### Data fields per requirement` under `Input Behavior Reconciliation`;
+- put `_Pending external design input - see design-in/ia.yaml._` in designer-owned IA, flow, component, typography, color, spacing, and iconography sections;
+- do not emit `SCR-###`, layouts, components, token values, or Figma references; and
+- tell the PM to run `$pm-handoff --package --audience design` after reviewing the draft brief.
+
+`SCREEN_IDS_MISSING` is expected for a brief-mode draft and is not an approval signal. Approval still happens only after the returned design is ingested into this same artifact.
+
+### Ingest mode (`--ingest`)
+
+Use this after the designer has finished Figma and returned both files under `design-in/`:
+
+- `design-in/ia.yaml`
+- `design-in/design-notes.md`
+
+Before changing `04-design-spec.md`, run:
+
+```bash
+python3 ~/.pm-os/scripts/pm_check.py --design
+```
+
+If the command reports design errors, stop without writing. If it reports open questions, surface them to the PM and continue only when the PM confirms they do not block ingest.
+
+Then run the deterministic ingest writer:
+
+```bash
+python3 ~/.pm-os/scripts/pm_design_ingest.py
+```
+
+In ingest mode:
+
+- require an existing stage-04 draft whose frontmatter or body marks it as `design_mode: brief`;
+- preserve PM-owned brief sections verbatim;
+- replace only designer-owned pending sections with the returned IA, flows, components, design-system references, and Figma state links;
+- assign sequential `SCR-###` screen IDs in flow order, keyed to Figma `node_id`;
+- on regeneration, reuse the existing `SCR-###` for the same `node_id`, append IDs for new screens, and never renumber surviving screens;
+- keep states inside their screen; do not give states their own `SCR-###`;
+- include each screen's purpose, bare-ID `Serves:` line, default Figma URL, data fields, and state name/trigger/Figma URL;
+- label the semantic review separately: check whether returned design decisions contradict Product UX Guardrails, UX Content Rules, PRD behavior, or approved vocabulary. If a contradiction is suspected, stop for PM/designer resolution rather than rewriting either side silently; and
+- write the ordinary `04-design-spec.md` as a draft with `design_mode: ingested`, updating frontmatter, `.meta.yaml`, `.history/`, and telemetry.
+
+Do not approve the artifact. The PM must review and run `$pm-approve 04`.
 
 GenAI handling:
 - If `genai_flag=false`, write a conventional product design spec. Do not introduce AI-specific UI, confidence displays, human review queues, or model-state components unless the approved PRD explicitly requires them.
@@ -270,6 +326,7 @@ After generating, do the following in order:
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
    artifact_contract_version: 7
+   design_mode: <brief or ingested when using --brief/--ingest; omit for default mode>
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
@@ -302,6 +359,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
        'model': '<the actual model id you are running as, e.g. claude-opus-4-8>',
        'model_tier': model_tier_for_stage('04'),
        'prompt_version': '0.4.0',
+       'design_mode': '<brief|ingested|default>',
        'notes': [<--note values used verbatim, or empty list>],
    })
    "

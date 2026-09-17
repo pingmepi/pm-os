@@ -20,7 +20,7 @@ def test_model_tier_for_stage(pmos):
     """Deep-reasoning stages — context build (00w/00u), PRD (03), design (04), QA (06), TRD (08),
     roadmap (09) — resolve to 'deep-reasoning'; all others to the configured default. Single
     source of truth that skills derive their tier from."""
-    for deep in ("00w", "00u", "03", "04", "06", "08", "09"):
+    for deep in ("00c", "00w", "00u", "03", "04", "06", "08", "09"):
         assert config.model_tier_for_stage(deep) == "deep-reasoning"
     for std in ("00", "01", "02", "05", "07"):
         assert config.model_tier_for_stage(std) == "standard"
@@ -43,7 +43,7 @@ def test_model_policy_defaults_merge_stale_config(pmos):
 
     cfg = config.load_config()
 
-    for deep in ("00w", "00u", "03", "04", "06", "08", "09", "custom"):
+    for deep in ("00c", "00w", "00u", "03", "04", "06", "08", "09", "custom"):
         assert deep in cfg["deep_reasoning_stages"]
     assert config.model_tier_for_stage("00w") == "deep-reasoning"
     assert config.model_tier_for_stage("custom") == "deep-reasoning"

@@ -13,11 +13,50 @@ not tracked by the state machine. -->
 
 {{ story_body }}
 
+## Epic context
+
+{% if epic_context %}### {{ epic }} · {{ epic_title }}
+
+{{ epic_context }}
+{{ "\n" }}
+{% else %}— not captured in source —
+
+{% endif %}## Requirements this story implements
+
+{% if requirement_blocks %}{% for req in requirement_blocks %}### {{ req.id }} · {{ req.title }}
+
+{{ req.body }}
+
+{% endfor %}{% else %}— not captured in source —
+
+{% endif %}{% if acceptance_blocks %}## Referenced acceptance criteria
+
+{% for ac in acceptance_blocks %}### {{ ac.id }}
+
+{{ ac.body }}
+
+{% endfor %}{% endif %}## Cross-cutting constraints
+
+### Impact analysis
+
+{{ impact_analysis }}
+
+### Non-functional requirements
+
+{{ nfrs }}
+
 ## Screens this story touches
 
 {% if screens %}{% for screen in screens %}### {{ screen.id }} · {{ screen.name }}
 
 {{ screen.body }}
+{% if screen.design_refs %}
+
+**Figma screen/state links:**
+{% for ref in screen.design_refs %}
+- {{ ref.label }}{% if ref.trigger %} — trigger: {{ ref.trigger }}{% endif %}: [Open in Figma]({{ ref.url }})
+{% endfor %}
+{% endif %}
 {% if screen.link %}
 **Prototype:** [Open {{ screen.id }} in the interactive prototype]({{ screen.link }})
 {% endif %}
@@ -47,4 +86,4 @@ not tracked by the state machine. -->
 - **Covering test cases:** {{ test_case_ids | join(', ') if test_case_ids else '— not captured in source —' }}
 - **Screens:** {{ screen_ids | join(', ') if screen_ids else '— not captured in source —' }}
 - **Backend tasks:** {{ task_ids | join(', ') if task_ids else '— not captured in source —' }}
-- **Impact & non-functional:** see [impact analysis](../reference/impact-analysis.md) · [NFRs](../reference/nfrs.md)
+- **Impact & non-functional:** embedded above

@@ -56,6 +56,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 from typing import Optional
 
 import yaml
@@ -97,6 +98,8 @@ _TASK_REF_SLOTS = ("tickets",)
 _EPIC_REF_SLOTS = ("tickets",)
 _SCREEN_REF_SLOTS = ("design_refs",)
 
+FIGMA_URL_RE = re.compile(r"https://(?:www\.)?figma\.com/[^\s)>]+", re.IGNORECASE)
+
 
 def traceability_path(project_root: Path | str) -> Path:
     return Path(project_root) / TRACEABILITY_FILENAME
@@ -136,6 +139,38 @@ def _read_body_if_approved(path: Path) -> Optional[str]:
     except Exception:
         return None
     return body if (fm or {}).get("status") == "approved" else None
+
+
+def design_refs(block: str) -> list[dict[str, str]]:
+    """Extract exact Figma deep links from one screen block.
+
+    Ingested design specs emit a default screen link plus one line per state. The
+    handoff package keeps these as structured data so story files can present the
+    clickable screen/state contract without relying on a developer to hunt through
+    copied prose.
+    """
+    refs: list[dict[str, str]] = []
+    for line in (block or "").splitlines():
+        match = FIGMA_URL_RE.search(line)
+        if not match:
+            continue
+        url = match.group(0).rstrip(".,;")
+        lower = line.lower()
+        label = "default"
+        kind = "screen"
+        state_match = re.search(r"\bstate\s*[:\-]\s*([^—–|\(\[]+)", line, re.IGNORECASE)
+        if state_match:
+            label = state_match.group(1).strip(" -*`")
+            kind = "state"
+        elif "default figma" in lower or "figma" in lower:
+            label = "default"
+            kind = "screen"
+        trigger_match = re.search(r"\btrigger\s*[:\-]\s*([^—–|]+)", line, re.IGNORECASE)
+        ref = {"kind": kind, "label": label or kind, "url": url}
+        if trigger_match:
+            ref["trigger"] = trigger_match.group(1).strip()
+        refs.append(ref)
+    return refs
 
 
 
@@ -245,7 +280,7 @@ def build_index(project_root: Path | str) -> dict:
             screens[scr_id] = {
                 "source": artifact_path(project_root, "04").name,
                 "serves": served,
-                **{slot: [] for slot in _SCREEN_REF_SLOTS},
+                "design_refs": design_refs(block),
             }
             for req_id in served:
                 if req_id.upper().startswith("UJ-"):
@@ -309,7 +344,7 @@ def _merge_reserved(old: dict, new: dict) -> dict:
     for scr_id, entry in new.get("screens", {}).items():
         prior = old_screens.get(scr_id) or {}
         for slot in _SCREEN_REF_SLOTS:
-            if prior.get(slot):
+            if prior.get(slot) and not entry.get(slot):
                 entry[slot] = prior[slot]
     return new
 

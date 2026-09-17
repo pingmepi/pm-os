@@ -73,7 +73,7 @@ Stage state lives in **both** `.meta.yaml` (`stages[]` list) **and** each artifa
 State flows between hooks and scripts via the `PM_OS_STAGE` environment variable, not arguments.
 
 ### Runtime agnosticism
-Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/openai.yaml` (Codex interface metadata). When adding or changing a skill, update both. `install.sh`/`pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `lib/config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00w","00u","03","04","06","08","09"]`); skills/SOP advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
+Every skill ships `SKILL.md` (Claude, with YAML frontmatter) **and** `agents/openai.yaml` (Codex interface metadata). When adding or changing a skill, update both. `install.sh`/`pm_os_update.py` route to `~/.claude/{skills,hooks}` for Claude and `~/.agents/skills` for Codex (Codex skips hooks). Model choice is **config-driven, not hardcoded**: `lib/config.py` stores `default_model_tier` and `deep_reasoning_stages` (`["00c","00w","00u","03","04","06","08","09"]`); skills/SOP advise running deep-reasoning stages on the strongest available model rather than naming a provider model id.
 
 ### Telemetry
 `lib/telemetry.log(event_type, project_root, stage, payload)` appends a hash-chained JSONL line to the project's `telemetry.jsonl` (`prev_event_hash` → `event_hash`). Append-only by convention — never edit past events. Telemetry calls are wrapped so a failure warns but doesn't break the workflow.

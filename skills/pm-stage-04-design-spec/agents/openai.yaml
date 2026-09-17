@@ -1,4 +1,4 @@
 interface:
   display_name: "Stage 04 Design Spec"
-  short_description: "Draft the stage-04 design spec artifact"
-  default_prompt: "Use $pm-stage-04-design-spec to draft a design spec from my approved PRD."
+  short_description: "Draft or ingest the stage-04 design spec artifact"
+  default_prompt: "Use $pm-stage-04-design-spec to draft a design spec from my approved PRD. Use --brief for external design authority and --ingest after design-in is returned."

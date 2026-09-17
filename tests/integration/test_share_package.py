@@ -95,10 +95,13 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     assert (pkg / "dev" / "epics" / "EPIC-001-agency-onboarding.md").exists()
     assert (pkg / "dev" / "epics" / "EPIC-002-agency-discovery.md").exists()
     assert not (pkg / "dev" / "epics" / "US-001-add-external-agency.md").exists()
+    assert (pkg / "dev" / "requirements" / "FR-001-the-system-stores-agencies.md").exists()
+    assert (pkg / "qa" / "requirements" / "FR-001-the-system-stores-agencies.md").exists()
+    assert not (pkg / "business" / "requirements").exists()
     # Epics also duplicate into business (dev + business per the mapping table).
     assert (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").exists()
 
-    story = (pkg / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (pkg / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "epic: EPIC-001" in story
     assert "priority: Must" in story
     assert "- **Priority:** Must" in story
@@ -107,22 +110,41 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
     assert "TC-001, TC-002" in story  # the joined "Covering test cases" line
     # Authored story content is carried through.
     assert "cases can be allocated" in story
+    # Story dossier is semantically standalone: epic context, requirement text, and
+    # cross-cutting constraints are inline instead of link-only references.
+    assert "## Epic context" in story
+    assert "Collections users can add external agencies" in story
+    assert "## Requirements this story implements" in story
+    assert "### FR-001" in story
+    assert "The system stores agencies" in story
+    assert "## Cross-cutting constraints" in story
+    assert "Performance: list loads under 2s" in story
+    assert "Impacted components: PS, Pitboss" in story
+    assert "see [impact analysis]" not in story
     # Provenance stamp + non-canonical banner.
     assert "03-prd.md@" in story
     assert "DO NOT EDIT HERE" in story
     # Stories are duplicated byte-identical into qa/ (dev+qa per the mapping table).
-    assert (pkg / "qa" / "stories" / "US-001-add-external-agency.md").read_text() == story
+    assert (pkg / "qa" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8") == story
 
     # B0: pm-share and pm-handoff must decompose the same approved pipeline with
     # Jira-native refs: Product Epics as Jira Epics, with US-### items as stories.
     # jira-plan.json lands at the handoff/ root, never inside an audience folder.
     assert run_script(pmos, "pm_handoff.py", "plan", cwd=proj).returncode == 0
-    plan = json.loads((pkg / "jira-plan.json").read_text())
+    plan = json.loads((pkg / "jira-plan.json").read_text(encoding="utf-8"))
     jira_epics = {item["ref"] for item in plan["items"] if item["type"] == "Epic"}
     jira_stories = {item["ref"] for item in plan["items"] if item["type"] == "Story"}
     package_epics = {path.name.split("-", 2)[0] + "-" + path.name.split("-", 2)[1] for path in (pkg / "dev" / "epics").glob("EPIC-*.md")}
     assert package_epics == jira_epics == {"EPIC-001", "EPIC-002"}
     assert jira_stories == {"US-001", "US-002"}
+
+    requirement = (pkg / "dev" / "requirements" / "FR-001-the-system-stores-agencies.md").read_text(encoding="utf-8")
+    assert "## Requirement" in requirement
+    assert "FR-001 — The system stores agencies" in requirement
+    assert "**Epic:** EPIC-001" in requirement
+    assert "**Priority:** Must" in requirement
+    assert "**Owning stories:** US-001" in requirement
+    assert "03-prd.md@" in requirement
 
 
 def test_package_flags_unsourced_sections_instead_of_fabricating(pmos, new_project):
@@ -131,7 +153,25 @@ def test_package_flags_unsourced_sections_instead_of_fabricating(pmos, new_proje
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
     # US-002 has no covering test case and no FR — those must be flagged, not invented.
-    story = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
+    assert "— not captured in source —" in story
+
+
+def test_package_story_inlines_ac_blocks_and_unknown_refs(pmos, new_project):
+    prd = _PRD.replace(
+        "Acceptance: agency saved with status Sent for approval.",
+        "Acceptance: AC-001, AC-999.",
+    ) + "\n## Acceptance Criteria\n- AC-001 — Agency save is persisted with status Sent for approval.\n"
+    proj = new_project("handoff-ac-inline", "A problem")
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
+    assert "## Referenced acceptance criteria" in story
+    assert "Agency save is persisted with status Sent for approval" in story
+    assert "### AC-999" in story
     assert "— not captured in source —" in story
 
 
@@ -159,7 +199,7 @@ Given valid fields, the agency is saved.
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "FR-001" in story
     assert "UJ-001" in story
     assert "TC-001" in story
@@ -186,7 +226,7 @@ def test_package_keeps_full_body_for_single_line_test_cases(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "Verify the agency saves with a valid code" in story
     assert "Verify a duplicate code is rejected" in story
 
@@ -197,15 +237,15 @@ def test_package_overview_and_reference_docs(pmos, new_project):
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
     pkg = proj / "handoff"
 
-    assert "Collections users at mid-size banks" in (pkg / "business" / "00-overview.md").read_text()
-    assert "MoSCoW" in (pkg / "dev" / "reference" / "prioritization.md").read_text()
-    assert "[Prioritization method](reference/prioritization.md)" in (pkg / "dev" / "README.md").read_text()
-    assert "Pitboss" in (pkg / "dev" / "reference" / "impact-analysis.md").read_text()
-    assert "under 2s" in (pkg / "dev" / "reference" / "nfrs.md").read_text()
+    assert "Collections users at mid-size banks" in (pkg / "business" / "00-overview.md").read_text(encoding="utf-8")
+    assert "MoSCoW" in (pkg / "dev" / "reference" / "prioritization.md").read_text(encoding="utf-8")
+    assert "[Prioritization method](reference/prioritization.md)" in (pkg / "dev" / "README.md").read_text(encoding="utf-8")
+    assert "Pitboss" in (pkg / "dev" / "reference" / "impact-analysis.md").read_text(encoding="utf-8")
+    assert "under 2s" in (pkg / "dev" / "reference" / "nfrs.md").read_text(encoding="utf-8")
     # impact-analysis and nfrs also duplicate into qa (so a dev-only link never dangles
     # in the qa story files, which cite impact-analysis too).
-    assert "Pitboss" in (pkg / "qa" / "reference" / "impact-analysis.md").read_text()
-    assert "under 2s" in (pkg / "qa" / "reference" / "nfrs.md").read_text()
+    assert "Pitboss" in (pkg / "qa" / "reference" / "impact-analysis.md").read_text(encoding="utf-8")
+    assert "under 2s" in (pkg / "qa" / "reference" / "nfrs.md").read_text(encoding="utf-8")
 
 
 _PROJ_DESIGN = """## Information Architecture
@@ -226,9 +266,9 @@ Create the persistence layer for agencies.
 
 
 def test_package_projects_prd_trd_into_dev_and_design_spec_into_design(pmos, new_project):
-    """Dev gets the full PRD + TRD as read-only reference projections; design gets the full
-    design spec — the source-of-truth docs behind the decomposed stories/epics (PMOS-002).
-    Each is scoped to its audience and wired into the README with a valid link."""
+    """Dev gets the full PRD + TRD as read-only reference projections; design gets the
+    approved PRD and approved design spec. Each is scoped to its audience and wired
+    into the README with a valid link."""
     proj = new_project("handoff-projections", "A problem")
     # Approve 04 before 06 so approving the design spec doesn't stale-cascade the QA plan;
     # 08 last (nothing downstream to cascade).
@@ -239,22 +279,77 @@ def test_package_projects_prd_trd_into_dev_and_design_spec_into_design(pmos, new
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
     pkg = proj / "handoff"
 
-    dev_prd = (pkg / "dev" / "reference" / "prd.md").read_text()
+    dev_prd = (pkg / "dev" / "reference" / "prd.md").read_text(encoding="utf-8")
     assert "Product Requirements (PRD)" in dev_prd and "US-001" in dev_prd
-    dev_trd = (pkg / "dev" / "reference" / "trd.md").read_text()
+    dev_trd = (pkg / "dev" / "reference" / "trd.md").read_text(encoding="utf-8")
     assert "Architecture Overview" in dev_trd and "TSK-001" in dev_trd
-    design_spec = (pkg / "design" / "reference" / "design-spec.md").read_text()
+    design_spec = (pkg / "design" / "reference" / "design-spec.md").read_text(encoding="utf-8")
     assert "Information Architecture" in design_spec and "SCR-001" in design_spec
+    design_prd = (pkg / "design" / "reference" / "prd.md").read_text(encoding="utf-8")
+    assert "Product Requirements (PRD)" in design_prd and "US-001" in design_prd
+    assert (pkg / "design" / "stories" / "US-001-add-external-agency.md").exists()
+    assert "under 2s" in (pkg / "design" / "reference" / "nfrs.md").read_text(encoding="utf-8")
 
-    dev_readme = (pkg / "dev" / "README.md").read_text()
+    dev_readme = (pkg / "dev" / "README.md").read_text(encoding="utf-8")
+    design_readme = (pkg / "design" / "README.md").read_text(encoding="utf-8")
     assert "[Product requirements (PRD)](reference/prd.md)" in dev_readme
     assert "[Technical requirements (TRD)](reference/trd.md)" in dev_readme
-    assert "[Design spec](reference/design-spec.md)" in (pkg / "design" / "README.md").read_text()
+    assert "[Product requirements (PRD)](reference/prd.md)" in design_readme
+    assert "[Design spec](reference/design-spec.md)" in design_readme
 
-    # Scoping: PRD/TRD are dev-only; the design spec is design-only.
-    assert not (pkg / "design" / "reference" / "prd.md").exists()
+    # Scoping: TRD remains dev-only; the approved design spec is design-only.
     assert not (pkg / "design" / "reference" / "trd.md").exists()
     assert not (pkg / "dev" / "reference" / "design-spec.md").exists()
+    assert not (pkg / "design" / "DESIGNER-WORKFLOW.md").exists()
+
+
+def test_package_design_audience_includes_draft_brief_and_workflow(pmos, new_project):
+    import frontmatter
+    import project
+
+    brief_design = """# Design Spec: Agency
+
+> **This is a design brief, not a finished design spec.**
+
+## Information Architecture
+_Pending external design input — see design-in/ia.yaml._
+
+## Input Behavior Reconciliation
+### Required state inventory
+| # | Serves | State | Trigger |
+|---|---|---|---|
+| 1 | US-001, FR-001 | Agency list - default | User lands |
+
+### Data fields per requirement
+**US-001 - Add external agency**
+| Field | Type | Mandatory |
+|---|---|---|
+| Agency Code | string | yes |
+"""
+    proj = new_project("handoff-design-brief", "A problem")
+    _approve_pipeline(pmos, proj)
+    make_draft(proj, "04", body=brief_design)
+    path = project.artifact_path(proj, "04")
+    fm, body = frontmatter.read(str(path))
+    frontmatter.write(str(path), {**fm, "design_mode": "brief"}, body)
+
+    res = run_script(pmos, "pm_share.py", "--package", "--audience", "design", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    pkg = proj / "handoff" / "design"
+
+    readme = (pkg / "README.md").read_text(encoding="utf-8")
+    assert "[Draft design brief](reference/design-brief.md)" in readme
+    assert "[Designer workflow](DESIGNER-WORKFLOW.md)" in readme
+    assert "This is an unapproved design brief" in (pkg / "reference" / "design-brief.md").read_text(encoding="utf-8")
+    workflow = (pkg / "DESIGNER-WORKFLOW.md").read_text(encoding="utf-8")
+    assert "Phase 1 - Inventory the design system" in workflow
+    assert "Stop and get designer approval before building anything" in workflow
+    assert "Stop until the designer approves the convention" in workflow
+    assert "Read-only export" in workflow
+    assert "must not edit, move, rename, or create Figma objects" in workflow
+    assert (pkg / "reference" / "prd.md").exists()
+    assert (pkg / "stories" / "US-001-add-external-agency.md").exists()
+    assert (pkg / "reference" / "nfrs.md").exists()
 
 
 def test_package_projects_absent_optional_sources_as_notes(pmos, new_project):
@@ -265,23 +360,23 @@ def test_package_projects_absent_optional_sources_as_notes(pmos, new_project):
     _approve_pipeline(pmos, proj)  # no 04/08 approved
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
     pkg = proj / "handoff"
-    assert "Stage 08 (TRD) is not approved" in (pkg / "dev" / "reference" / "trd.md").read_text()
-    assert "Stage 04 (design spec) is not approved" in (pkg / "design" / "reference" / "design-spec.md").read_text()
+    assert "Stage 08 (TRD) is not approved" in (pkg / "dev" / "reference" / "trd.md").read_text(encoding="utf-8")
+    assert "Stage 04 (design spec) is not approved" in (pkg / "design" / "reference" / "design-spec.md").read_text(encoding="utf-8")
     # PRD is always approved (gated), so its projection carries the real body.
-    assert "US-001" in (pkg / "dev" / "reference" / "prd.md").read_text()
+    assert "US-001" in (pkg / "dev" / "reference" / "prd.md").read_text(encoding="utf-8")
 
 
 def test_package_is_read_only_and_does_not_touch_state_machine(pmos, new_project):
     """Generating the package must not change .meta.yaml, artifact hashes, or statuses."""
     proj = new_project("handoff-readonly", "A problem")
     _approve_pipeline(pmos, proj)
-    meta_before = (proj / ".meta.yaml").read_text()
-    prd_before = (proj / "03-prd.md").read_text()
+    meta_before = (proj / ".meta.yaml").read_text(encoding="utf-8")
+    prd_before = (proj / "03-prd.md").read_text(encoding="utf-8")
 
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    assert (proj / ".meta.yaml").read_text() == meta_before
-    assert (proj / "03-prd.md").read_text() == prd_before
+    assert (proj / ".meta.yaml").read_text(encoding="utf-8") == meta_before
+    assert (proj / "03-prd.md").read_text(encoding="utf-8") == prd_before
 
 
 def test_package_requires_a_prd(pmos, new_project):
@@ -398,7 +493,7 @@ def test_package_audience_scoped_rebuild_leaves_others_untouched(pmos, new_proje
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
     other_before = {
-        p: p.read_text() for p in (proj / "handoff").rglob("*")
+        p: p.read_text(encoding="utf-8") for p in (proj / "handoff").rglob("*")
         if p.is_file() and "dev" not in p.relative_to(proj / "handoff").parts
     }
     assert other_before  # sanity: design/qa/business actually produced files
@@ -410,11 +505,11 @@ def test_package_audience_scoped_rebuild_leaves_others_untouched(pmos, new_proje
 
     assert run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency-fast.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency-fast.md").read_text(encoding="utf-8")
     assert "Add external agency FAST" in story
 
     for path, content_before in other_before.items():
-        assert path.read_text() == content_before, f"{path} changed during a dev-only rebuild"
+        assert path.read_text(encoding="utf-8") == content_before, f"{path} changed during a dev-only rebuild"
 
 
 def test_package_audience_conflict_stops_before_any_content_write(pmos, new_project):
@@ -513,7 +608,7 @@ def test_package_maps_screens_to_each_story(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Screens this story touches" in story
     assert "SCR-001 · Agency list" in story and "SCR-002 · Add agency form" in story
     assert "the landing surface listing every agency" in story  # the screen's own body
@@ -521,7 +616,7 @@ def test_package_maps_screens_to_each_story(pmos, new_project):
     assert "04-design-spec.md@" in story  # provenance includes the design spec
 
     # US-002 is served by SCR-001 only.
-    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
     assert "**Screens:** SCR-001" in other and "SCR-002" not in other
 
 
@@ -535,14 +630,14 @@ def test_package_screen_map_reference_lists_coverage_both_ways(pmos, new_project
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     assert "| SCR-001 | Agency list | US-001, UJ-001 |" in screen_map
     assert "## Stories with no screen" in screen_map
     assert "US-002 · List agencies" in screen_map
     assert "04-design-spec.md@" in screen_map  # stamped with its source
-    assert "[Screen map](reference/screen-map.md)" in (proj / "handoff" / "design" / "README.md").read_text()
+    assert "[Screen map](reference/screen-map.md)" in (proj / "handoff" / "design" / "README.md").read_text(encoding="utf-8")
     # screen-map is duplicated into qa/ too (design + qa per the mapping table).
-    assert (proj / "handoff" / "qa" / "reference" / "screen-map.md").read_text() == screen_map
+    assert (proj / "handoff" / "qa" / "reference" / "screen-map.md").read_text(encoding="utf-8") == screen_map
 
 
 def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
@@ -564,15 +659,159 @@ def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
     # The story file resolves SCR-001 through the journey.
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "SCR-001" in story
     # ...and the reverse map must not contradict it: both stories are covered, so no
     # story may appear under "Stories with no screen". Deriving coverage from each
     # screen's literal `serves` ids (the bug) would report US-001 uncovered here.
-    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     tail = screen_map.split("## Stories with no screen")[-1] if "## Stories with no screen" in screen_map else ""
     assert "US-001 · Add external agency" not in tail, "US-001 is covered via its journey but reported uncovered"
     assert "US-002 · List agencies" not in tail
+
+
+def _write_design_in_return(proj):
+    design_dir = proj / "design-in"
+    design_dir.mkdir()
+    (design_dir / "ia.yaml").write_text(
+        """ia_format_version: 1
+figma:
+  file_key: abc123
+  file_url: https://www.figma.com/design/abc123/Agency
+  version: "42"
+  last_modified: "2026-08-13T16:42:11Z"
+  design_system: [Core Web Library]
+screens:
+  - name: Agency list
+    node_id: "1:1"
+    node_url: https://www.figma.com/design/abc123/Agency?node-id=1-1
+    purpose: List every agency with loading and empty states.
+    serves: [US-001, US-002, FR-001, UJ-001]
+    data_fields: [agency_code, status]
+    components: [DataTable, StatusPill]
+    states:
+      - {name: default, node_id: "1:1", trigger: User opens agencies, transient: false}
+      - {name: loading, node_id: "1:2", trigger: Agency list fetch starts, transient: true}
+      - {name: empty, node_id: "1:3", trigger: No agencies exist, transient: false}
+  - name: Add agency form
+    node_id: "2:1"
+    node_url: https://www.figma.com/design/abc123/Agency?node-id=2-1
+    purpose: Capture and submit a new external agency.
+    serves: [US-001, FR-001]
+    data_fields: [agency_code, status]
+    components: [Form, TextInput, Button]
+    states:
+      - {name: default, node_id: "2:1", trigger: User chooses add agency, transient: false}
+      - {name: validation-error, node_id: "2:2", trigger: User submits an invalid agency code, transient: false}
+flows:
+  - journey: UJ-001
+    name: Manage agencies
+    sequence:
+      - {screen: Agency list, state: loading}
+      - {screen: Agency list, state: default}
+      - {screen: Add agency form, state: default}
+    recovery:
+      - {screen: Agency list, state: empty, note: No rows yet}
+      - {screen: Add agency form, state: validation-error, note: Agency code is required}
+components:
+  reused: [DataTable, StatusPill, Form, TextInput, Button]
+  new: []
+tokens:
+  collections_used: [Core Web Library]
+  outside_system: []
+excluded_frames: []
+open_questions: []
+""",
+        encoding="utf-8",
+    )
+    (design_dir / "design-notes.md").write_text(
+        """# Design notes
+
+## Decisions and why
+
+The list remains table-shaped because audit position matters.
+""",
+        encoding="utf-8",
+    )
+
+
+def test_design_ingest_preserves_brief_sections_and_package_emits_figma_state_links(pmos, new_project):
+    proj = new_project("handoff-figma-links", "A problem")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+
+    design_brief = """## Input Behavior Reconciliation
+### Required state inventory
+| # | Serves | State | Trigger |
+|---|---|---|---|
+| 1 | US-001, US-002, FR-001 | Agency list - default | User opens agencies |
+| 2 | US-001, US-002, FR-001 | Agency list - loading | Agency list fetch starts |
+| 3 | US-001, US-002, FR-001 | Agency list - empty | No agencies exist |
+| 4 | US-001, FR-001 | Add agency form - default | User chooses add agency |
+| 5 | US-001, FR-001 | Add agency form - validation-error | User submits an invalid agency code |
+
+### Data fields per requirement
+**US-001 - Add external agency**
+| Field | Type | Mandatory |
+|---|---|---|
+| agency_code | string | yes |
+| status | enum | yes |
+
+**US-002 - List agencies**
+| Field | Type | Mandatory |
+|---|---|---|
+| agency_code | string | yes |
+| status | enum | yes |
+
+## Product UX Guardrails
+Bulk delete is prohibited.
+## Design Principles
+Use the system table before inventing cards.
+## Responsive & Platform Behavior
+Desktop-first.
+## UX Content Rules
+Use approved agency vocabulary.
+## Accessibility Notes
+Keyboard order follows visual order.
+"""
+    make_draft(proj, "04", body=design_brief)
+    import frontmatter
+    import project
+    path = project.artifact_path(proj, "04")
+    fm, body = frontmatter.read(str(path))
+    frontmatter.write(str(path), {**fm, "design_mode": "brief"}, body)
+    _write_design_in_return(proj)
+
+    ingest = run_script(pmos, "pm_design_ingest.py", cwd=proj)
+    assert ingest.returncode == 0, ingest.stdout + ingest.stderr
+    design_text = (proj / "04-design-spec.md").read_text(encoding="utf-8")
+    assert "design_mode: ingested" in design_text
+    assert "Bulk delete is prohibited" in design_text
+    assert "SCR-001 — Agency list" in design_text
+    assert "State: loading — trigger: Agency list fetch starts" in design_text
+    assert "https://www.figma.com/design/abc123/Agency?node-id=1-2" in design_text
+
+    assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    check = run_script(pmos, "pm_check.py", "--design", cwd=proj)
+    assert check.returncode == 0, check.stdout + check.stderr
+
+    dev_story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
+    qa_story = (proj / "handoff" / "qa" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
+    for text in (dev_story, qa_story):
+        assert "**Figma screen/state links:**" in text
+        assert "Agency list fetch starts" in text
+        assert "User submits an invalid agency code" in text
+        assert "https://www.figma.com/design/abc123/Agency?node-id=1-1" in text
+        assert "https://www.figma.com/design/abc123/Agency?node-id=1-2" in text
+        assert "https://www.figma.com/design/abc123/Agency?node-id=2-2" in text
+        assert "04-design-spec.md@" in text
+
+    unrelated = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
+    assert "Add agency form" not in unrelated
+    assert "https://www.figma.com/design/abc123/Agency?node-id=2-2" not in unrelated
 
 
 def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
@@ -583,9 +822,9 @@ def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
     _approve_pipeline(pmos, proj)
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "**Screens:** — not captured in source —" in story
-    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     assert "— not captured in source —" in screen_map
     assert "SCR-###" in screen_map  # tells the PM how to fix it
 
@@ -620,10 +859,10 @@ def test_package_excludes_screens_from_an_unapproved_design_spec(pmos, new_proje
     res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
     assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
-    screen_map = (pkg / "design" / "reference" / "screen-map.md").read_text()
+    screen_map = (pkg / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     assert "SCR-099" not in screen_map, "unapproved screen leaked into the package"
     assert "Unreleased admin console" not in screen_map
-    story = next((pkg / "dev" / "stories").glob("US-001-*.md")).read_text()
+    story = next((pkg / "dev" / "stories").glob("US-001-*.md")).read_text(encoding="utf-8")
     assert "SCR-099" not in story
 
 
@@ -635,7 +874,7 @@ def test_package_resolves_screens_from_a_stale_on_disk_index(pmos, new_project):
     # Simulate a pre-screens index: strip the screens map and reverse links.
     import yaml
     tpath = proj / ".traceability.yaml"
-    index = yaml.safe_load(tpath.read_text())
+    index = yaml.safe_load(tpath.read_text(encoding="utf-8"))
     index["schema_version"] = 2
     index.pop("screens", None)
     for entry in (index.get("requirements") or {}).values():
@@ -644,7 +883,7 @@ def test_package_resolves_screens_from_a_stale_on_disk_index(pmos, new_project):
 
     res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
     assert res.returncode == 0, res.stderr
-    story = next((proj / "handoff" / "dev" / "stories").glob("US-001-*.md")).read_text()
+    story = next((proj / "handoff" / "dev" / "stories").glob("US-001-*.md")).read_text(encoding="utf-8")
     assert "SCR-001" in story, "stale on-disk index silently hid the screens"
 
 
@@ -663,11 +902,11 @@ def test_screen_link_emitted_when_anchor_present(pmos, new_project):
     )
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "../wireframes/prototype.html#SCR-001" in story
     assert "../wireframes/prototype.html#SCR-002" in story
 
-    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text()
+    screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     assert "../wireframes/prototype.html#SCR-001" in screen_map
 
     # The prototype itself is duplicated into dev (not just design/qa), since dev
@@ -686,7 +925,7 @@ def test_screen_link_falls_back_when_anchor_absent(pmos, new_project):
     )
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "#SCR-001" not in story
     assert "../wireframes/prototype.html" in story  # plain link, not a dead hash
 
@@ -697,7 +936,7 @@ def test_screen_link_omitted_without_a_prototype(pmos, new_project):
     proj = _project_with_screens(pmos, new_project, "handoff-screen-link-noproto")
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "SCR-001" in story
     assert "prototype.html" not in story
     assert not (proj / "handoff" / "dev" / "wireframes").exists()
@@ -726,7 +965,7 @@ def test_package_maps_backend_tasks_to_each_story(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Backend work (TRD tasks)" in story
     assert "TSK-001" in story and "TSK-002" in story
     assert "Build the agency store write path" in story  # the task's own body
@@ -734,7 +973,7 @@ def test_package_maps_backend_tasks_to_each_story(pmos, new_project):
     assert "08-trd.md@" in story  # provenance includes the TRD
 
     # US-002 cites no FR, so no task implements it — backend work is flagged, not invented.
-    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    other = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
     assert "## Backend work (TRD tasks)" in other
     assert "**Backend tasks:** — not captured in source —" in other
 
@@ -747,7 +986,7 @@ def test_package_without_trd_degrades_backend_to_not_captured(pmos, new_project)
     _approve_pipeline(pmos, proj)
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Backend work (TRD tasks)" in story
     assert "**Backend tasks:** — not captured in source —" in story
     assert "08-trd.md@" not in story  # no TRD in provenance when there are no tasks
@@ -786,12 +1025,12 @@ def test_business_epic_has_no_dangling_story_links(pmos, new_project):
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
     pkg = proj / "handoff"
 
-    biz_epic = (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").read_text()
+    biz_epic = (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").read_text(encoding="utf-8")
     assert "US-001" in biz_epic                    # story still referenced
     assert "../stories/" not in biz_epic           # but not as a dangling link
     assert not (pkg / "business" / "stories").exists()
 
-    dev_epic = (pkg / "dev" / "epics" / "EPIC-001-agency-onboarding.md").read_text()
+    dev_epic = (pkg / "dev" / "epics" / "EPIC-001-agency-onboarding.md").read_text(encoding="utf-8")
     assert "](../stories/US-001-add-external-agency.md)" in dev_epic  # dev link present...
     assert (pkg / "dev" / "stories" / "US-001-add-external-agency.md").exists()  # ...and resolves
 
@@ -821,9 +1060,9 @@ def test_journey_shared_screen_not_attributed_to_every_story(pmos, new_project):
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    us1 = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    us1 = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "**Screens:** SCR-001, SCR-002" in us1  # US-001 keeps both — direct
-    us2 = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text()
+    us2 = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
     assert "**Screens:** SCR-001" in us2  # direct shared screen
     assert "SCR-002" not in us2           # not pulled in via the shared journey
 
@@ -847,7 +1086,7 @@ def test_global_ia_prose_does_not_leak_into_story_screen_body(pmos, new_project)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
     assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
 
-    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text()
+    story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "SCR-002 · Add agency form" in story        # the screen is present...
     assert "capture a new agency" in story             # ...with its own body kept...
     assert "All screens share the global header" not in story  # ...but not the global prose

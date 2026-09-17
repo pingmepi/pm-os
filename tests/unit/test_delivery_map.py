@@ -3,7 +3,7 @@ title carries no stray Markdown emphasis into filenames, headings, or Jira summa
 See docs/guides/testing.md §5 (T1)."""
 import pytest
 
-from delivery_map import normalize_title, title_of
+from delivery_map import build_prd_delivery_map, normalize_title, title_of
 
 pytestmark = pytest.mark.unit
 
@@ -32,3 +32,15 @@ def test_title_of_epic_strips_bold_wrapped_declaration():
 def test_title_of_falls_back_to_id_when_titleless():
     """A declaration with no human title after the id falls back to the id itself."""
     assert title_of("EPIC-009", "### EPIC-009\n") == "EPIC-009"
+
+
+def test_delivery_map_extracts_referenced_acceptance_criteria_blocks():
+    prd = """## User Stories with Acceptance Criteria
+### US-001 - Add item
+Acceptance: AC-001.
+## Acceptance Criteria
+- AC-001 - Item is saved and audit-stamped.
+"""
+    delivery = build_prd_delivery_map(prd)
+    assert delivery.story_acceptance["US-001"] == ["AC-001"]
+    assert "Item is saved" in delivery.acceptance_blocks["AC-001"]

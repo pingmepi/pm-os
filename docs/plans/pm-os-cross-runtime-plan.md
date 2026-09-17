@@ -223,7 +223,7 @@ Changes:
 - Remove concrete provider model ids from shared config and shared skill frontmatter.
 - Store runtime-neutral policy metadata:
   - `default_model_tier: standard`
-  - `deep_reasoning_stages: ["00w", "00u", "03", "04", "06", "08", "09"]`
+  - `deep_reasoning_stages: ["00c", "00w", "00u", "03", "04", "06", "08", "09"]`
 - Keep the deep-reasoning model-tier semantics for those stages without making shared config assume any provider.
 - Keep Claude pathways working through runtime-specific instructions only: Claude users map `deep-reasoning` to Opus or the strongest available reasoning model; Codex users map it to a high/deep reasoning model.
 

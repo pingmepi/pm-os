@@ -136,7 +136,9 @@ def main():
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(tmp_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        tmp_path.rename(CONFIG_PATH)
+        # os.replace, not Path.rename: Windows raises WinError 183 renaming onto an
+        # existing file, which would break every reconfigure/re-install.
+        os.replace(tmp_path, CONFIG_PATH)
 
         # Verify by reading back
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:

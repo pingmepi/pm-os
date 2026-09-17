@@ -1,6 +1,7 @@
 """T7 — negative / resilience: broken or hostile local state must fail with a clear error and
 never corrupt the project. See docs/guides/testing.md §5 (T7)."""
 import subprocess
+import sys
 
 import pytest
 
@@ -51,6 +52,6 @@ def test_pm_new_non_interactive_requires_genai_decision(pmos):
     env = dict(pmos.env)
     env.pop("PM_OS_GENAI_FLAG", None)
     res = subprocess.run(
-        ["python3", str(pmos.install / "scripts" / "pm_new.py"), "needs-genai", "A problem"],
+        [sys.executable, str(pmos.install / "scripts" / "pm_new.py"), "needs-genai", "A problem"],
         cwd=str(pmos.projects), env=env, input="", capture_output=True, text=True, timeout=60)
     assert res.returncode != 0

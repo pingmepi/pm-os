@@ -14,7 +14,7 @@ def test_readonly_commands_do_not_sync():
     """pm_status and pm_share are pure local reads — they must not import git_sync or push
     anywhere (only approval/feedback/explicit sync touch the network)."""
     for script in ("pm_status.py", "pm_share.py"):
-        src = (REPO_ROOT / "scripts" / script).read_text()
+        src = (REPO_ROOT / "scripts" / script).read_text(encoding="utf-8")
         assert "git_sync" not in src, f"{script} must not import git_sync"
         assert "push" not in src.lower(), f"{script} must not push"
 
@@ -41,6 +41,6 @@ def test_fixtures_have_no_secrets_or_hardcoded_home():
     secret = re.compile(r"ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}")
     home_marker = "/" + "Users" + "/"  # avoid embedding the literal here
     for py in (REPO_ROOT / "tests").rglob("*.py"):
-        text = py.read_text()
+        text = py.read_text(encoding="utf-8")
         assert not secret.search(text), f"{py.name}: looks like an embedded secret"
         assert home_marker not in text, f"{py.name}: hardcoded absolute home path"

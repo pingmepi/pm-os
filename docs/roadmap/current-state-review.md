@@ -155,6 +155,18 @@ These are lifecycle-coverage gaps in what PM-OS *doesn't yet do* — distinct fr
 4. **No localization or UX-writing workflow.** No stage covers content design / UX writing or localization/translation for multi-market products. Surfaced here; not yet elaborated elsewhere.
 5. **Metrics-late / feasibility-late ordering.** Success-metrics planning (stage 07) and technical feasibility / TRD (stage 08) sit near the end of the pipeline, after design and prototype. Feasibility can invalidate scope and metrics should shape the PRD, so both arguably belong earlier — a sequencing critique of the fixed stage order, not a missing feature.
 
+### Open explorations extending this section (2026-08-20)
+
+Three sibling brainstorms now extend §3/§5/§7. All are **open explorations, not decisions**; each carries file-level grounding references and its own "what not to build" position. Verified defects surfaced by them were logged in `backlog.md` (#46-50); the design possibilities deliberately were not.
+
+| Doc | Axis | The claim it opens with |
+|---|---|---|
+| [`product-shape-and-flexibility-brainstorm.md`](product-shape-and-flexibility-brainstorm.md) | Product shape | PM-OS models one product as one linear artifact chain — its strength and its ceiling |
+| [`technical-optimisation-brainstorm.md`](technical-optimisation-brainstorm.md) | Technical / knowledge layer | PM-OS **already has a knowledge graph** (`.traceability.yaml`) — derived, per-project, thin on edge types, and with no reader. Assesses Obsidian, Graphify, hosted temporal graphs, and the context-routing / edge-growth work that outranks them |
+| [`pm-experience-brainstorm.md`](pm-experience-brainstorm.md) | Human surface | PM-OS is friendly to the agent and unfriendly to the human — so the question is not "build a UI" but "what does the agent tell the PM, and when" |
+
+They share a governing constraint with each other and with this document: **grow around the state machine, never into it** — files stay canonical, derived indexes stay disposable, and ceremony may be cut but decisions may not.
+
 ---
 
 ## 4. How Much Needs to Change
