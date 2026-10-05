@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="PDLC v2 splits stage 04 in time: the PM writes a constraints-only design brief, an external designer builds in Figma against an existing design system, and PM-OS ingests the result back into the same stage 04 artifact for one approval.">
+<title>PDLC v2 — External Design Authority</title>
+<desc>Stage 04 splits in time, not in stage id. Boundary A sends the PRD and design brief out to a designer; boundary B, which does not exist today, brings design-in/ia.yaml back for ingest; boundary C to dev and QA is already built.</desc>
+<defs>
+<marker id="arrPm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1D5B63"/></marker>
+<marker id="arrExt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#A8321F"/></marker>
+<marker id="arrInk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#6B7883"/></marker>
+</defs>
+
+<rect x="0" y="0" width="1600" height="900" fill="#E9ECEF"/>
+
+<!-- HEADER -->
+<text x="64" y="66" font-family="Archivo, 'Segoe UI Semibold', 'Helvetica Neue', sans-serif" font-size="44" font-weight="600" letter-spacing="-0.6" fill="#131B21">PDLC v2 — External Design Authority</text>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="64" y="99" font-size="17" fill="#56636D">Stage 04 splits in time, not in stage id: the PM writes the constraints, the designer writes the design.</text>
+  <rect x="1100" y="45" width="11" height="11" fill="#1D5B63"/>
+  <text x="1121" y="55" font-size="14" fill="#56636D">Built today in PM-OS</text>
+  <rect x="1100" y="69" width="11" height="11" fill="#A8321F"/>
+  <text x="1121" y="79" font-size="14" fill="#56636D">New in PDLC v2 — not built</text>
+  <text x="1100" y="103" font-size="12.5" font-family="'IBM Plex Mono', Consolas, monospace" fill="#8B959D">docs/plans/pm-os-external-design-authority-plan.md</text>
+</g>
+<line x1="64" y1="120" x2="1536" y2="120" stroke="#C3CBD2" stroke-width="1"/>
+
+<!-- DESIGNER, OUTSIDE PM-OS -->
+<rect x="430" y="136" width="570" height="152" rx="3" fill="#F7E9E5" stroke="#A8321F" stroke-width="1.5" stroke-dasharray="7 5"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="452" y="164" font-size="12.5" font-weight="600" letter-spacing="1.6" fill="#A8321F">OUTSIDE PM-OS</text>
+  <text x="452" y="198" font-size="25" font-weight="600" fill="#131B21" font-family="Archivo, 'Segoe UI Semibold', sans-serif">Designer</text>
+  <text x="452" y="227" font-size="14" fill="#3E4A54">Own agent, own Figma MCP, an existing design system.</text>
+  <text x="452" y="247" font-size="14" fill="#3E4A54">Every required state becomes a real frame with its own node_id.</text>
+  <text x="452" y="267" font-size="14" fill="#3E4A54">Never writes a stage artifact. Never mints an id.</text>
+</g>
+
+<!-- BOUNDARY A, OUT -->
+<line x1="496" y1="418" x2="496" y2="294" stroke="#1D5B63" stroke-width="2" marker-end="url(#arrPm)"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif" text-anchor="end">
+  <text x="484" y="302" font-size="13.5" font-weight="600" fill="#1D5B63">A · out: 03-prd.md +</text>
+  <text x="484" y="320" font-size="13.5" font-weight="600" fill="#1D5B63">04-design-spec.md</text>
+  <text x="484" y="338" font-size="13" fill="#7A858E">exists today, wrong payload</text>
+</g>
+
+<!-- BOUNDARY B, IN -->
+<line x1="930" y1="294" x2="930" y2="418" stroke="#A8321F" stroke-width="2.6" marker-end="url(#arrExt)"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="944" y="302" font-size="13.5" font-weight="600" fill="#A8321F">B · in: design-in/ia.yaml</text>
+  <text x="944" y="320" font-size="13.5" font-weight="600" fill="#A8321F">+ design-notes.md</text>
+  <text x="944" y="338" font-size="13" fill="#7A858E">no route exists today</text>
+</g>
+
+<!-- PM-OS BOUNDARY -->
+<rect x="64" y="358" width="1094" height="366" rx="3" fill="#DFE4E8" stroke="#1D5B63" stroke-width="1.5"/>
+<rect x="86" y="348" width="360" height="21" fill="#E9ECEF"/>
+<text x="88" y="364" font-family="'IBM Plex Sans', 'Segoe UI', sans-serif" font-size="12.5" font-weight="600" letter-spacing="1.6" fill="#1D5B63">PM-OS · LOCAL FILES · GATED · HASH-CHAINED</text>
+
+<!-- STAGE 03 -->
+<rect x="92" y="420" width="170" height="204" rx="2" fill="#FBFCFD" stroke="#C3CBD2" stroke-width="1"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="112" y="448" font-size="12" font-weight="600" letter-spacing="1.4" fill="#6B7883">STAGE 03</text>
+  <text x="112" y="484" font-size="25" font-weight="600" fill="#131B21" font-family="Archivo, 'Segoe UI Semibold', sans-serif">PRD</text>
+  <rect x="112" y="500" width="78" height="24" rx="2" fill="#DCE7E7"/>
+  <text x="124" y="516" font-size="12.5" font-weight="600" letter-spacing="0.6" fill="#1D5B63">approved</text>
+  <text x="112" y="560" font-size="13" fill="#7A858E">The last stage</text>
+  <text x="112" y="578" font-size="13" fill="#7A858E">the PM owns</text>
+  <text x="112" y="596" font-size="13" fill="#7A858E">outright.</text>
+</g>
+<line x1="264" y1="522" x2="292" y2="522" stroke="#6B7883" stroke-width="2" marker-end="url(#arrInk)"/>
+
+<!-- STAGE 04 RUN 1 -->
+<rect x="296" y="420" width="400" height="204" rx="2" fill="#FBFCFD" stroke="#C3CBD2" stroke-width="1"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="318" y="448" font-size="12" font-weight="600" letter-spacing="1.4" fill="#6B7883">STAGE 04 · RUN 1</text>
+  <rect x="600" y="431" width="54" height="22" rx="2" fill="#E4E8EB"/>
+  <text x="612" y="446" font-size="12.5" font-weight="600" fill="#56636D">draft</text>
+  <text x="318" y="484" font-size="25" font-weight="600" fill="#131B21" font-family="Archivo, 'Segoe UI Semibold', sans-serif">Design Brief</text>
+  <text x="318" y="512" font-size="14" fill="#3E4A54">Constraints only. The PM no longer authors IA,</text>
+  <text x="318" y="530" font-size="14" fill="#3E4A54">screens, components or tokens.</text>
+  <rect x="318" y="556" width="7" height="7" fill="#A8321F"/>
+  <text x="334" y="563" font-size="14" font-weight="600" fill="#131B21">Data fields per requirement</text>
+  <rect x="318" y="580" width="7" height="7" fill="#A8321F"/>
+  <text x="334" y="587" font-size="14" font-weight="600" fill="#131B21">Required state inventory</text>
+  <text x="318" y="610" font-size="13" fill="#7A858E">Two new sections — neither exists in any shipped contract.</text>
+</g>
+
+<!-- STAGE 04 RUN 2 -->
+<rect x="730" y="420" width="400" height="204" rx="2" fill="#FBFCFD" stroke="#C3CBD2" stroke-width="1"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="752" y="448" font-size="12" font-weight="600" letter-spacing="1.4" fill="#6B7883">STAGE 04 · RUN 2</text>
+  <rect x="1034" y="431" width="54" height="22" rx="2" fill="#E4E8EB"/>
+  <text x="1046" y="446" font-size="12.5" font-weight="600" fill="#56636D">draft</text>
+  <text x="752" y="484" font-size="25" font-weight="600" fill="#131B21" font-family="Archivo, 'Segoe UI Semibold', sans-serif">Ingest</text>
+  <rect x="752" y="503" width="7" height="7" fill="#1D5B63"/>
+  <text x="768" y="510" font-size="13.5" fill="#3E4A54">Mint SCR-### keyed on node_id — the designer</text>
+  <text x="768" y="527" font-size="13.5" fill="#3E4A54">never assigns ids, so renaming a frame cannot</text>
+  <text x="768" y="544" font-size="13.5" fill="#3E4A54">renumber the spine.</text>
+  <rect x="752" y="561" width="7" height="7" fill="#1D5B63"/>
+  <text x="768" y="568" font-size="13.5" fill="#3E4A54">Cite the real design-system tokens.</text>
+  <rect x="752" y="585" width="7" height="7" fill="#1D5B63"/>
+  <text x="768" y="592" font-size="13.5" fill="#3E4A54">Frame deep links land inside each SCR-### block,</text>
+  <text x="768" y="609" font-size="13.5" fill="#3E4A54">so they reach dev and QA unchanged.</text>
+</g>
+
+<!-- GATE -->
+<rect x="92" y="644" width="1038" height="60" rx="2" fill="#D2DEDE" stroke="#1D5B63" stroke-width="1"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="112" y="670" font-size="14.5" font-weight="600" fill="#1D5B63">GATE  ·  /pm-approve 04 — verify the returned IA against the brief, then approve.</text>
+  <text x="112" y="690" font-size="13.5" fill="#3E4A54">04 stays draft while the designer works, so the existing linear gate already blocks 05–08. One artifact, one hash, one approval.</text>
+</g>
+
+<!-- BOUNDARY C -->
+<line x1="1160" y1="500" x2="1212" y2="500" stroke="#1D5B63" stroke-width="2" marker-end="url(#arrPm)"/>
+
+<!-- DEV AND QA -->
+<rect x="1218" y="420" width="318" height="204" rx="2" fill="#FBFCFD" stroke="#1D5B63" stroke-width="1.5"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="1240" y="448" font-size="12" font-weight="600" letter-spacing="1.4" fill="#1D5B63">BOUNDARY C · BUILT</text>
+  <text x="1240" y="484" font-size="25" font-weight="600" fill="#131B21" font-family="Archivo, 'Segoe UI Semibold', sans-serif">Dev &amp; QA</text>
+  <text x="1240" y="512" font-size="14" font-family="'IBM Plex Mono', Consolas, monospace" fill="#1D5B63">/pm-handoff --package</text>
+  <text x="1240" y="542" font-size="14" fill="#3E4A54">Stories joined to screens,</text>
+  <text x="1240" y="560" font-size="14" fill="#3E4A54">plus the frames those</text>
+  <text x="1240" y="578" font-size="14" fill="#3E4A54">screens now point to.</text>
+  <line x1="1240" y1="592" x2="1514" y2="592" stroke="#C3CBD2" stroke-width="1"/>
+  <text x="1240" y="612" font-size="13" fill="#7A858E">05 · 06 · 07 · 08 unchanged</text>
+</g>
+
+<!-- FOOTER -->
+<line x1="64" y1="752" x2="1536" y2="752" stroke="#C3CBD2" stroke-width="1"/>
+<line x1="547" y1="762" x2="547" y2="872" stroke="#C3CBD2" stroke-width="1"/>
+<line x1="1053" y1="762" x2="1053" y2="872" stroke="#C3CBD2" stroke-width="1"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', sans-serif">
+  <text x="64" y="778" font-size="12" font-weight="600" letter-spacing="1.5" fill="#A8321F">WHY — THE ADCEPT RUN</text>
+  <text x="64" y="806" font-size="14" fill="#3E4A54">A coding agent built from PM-authored prose missed a specified</text>
+  <text x="64" y="825" font-size="14" fill="#3E4A54">field, and could not reach intermediate rendered states.</text>
+  <text x="64" y="844" font-size="14" fill="#3E4A54">Prose cannot fix the second. An addressable frame can.</text>
+
+  <text x="570" y="778" font-size="12" font-weight="600" letter-spacing="1.5" fill="#1D5B63">WHO DECIDES</text>
+  <text x="570" y="806" font-size="14" fill="#3E4A54">The PM owns what the product must do. The designer owns how</text>
+  <text x="570" y="825" font-size="14" fill="#3E4A54">it is expressed. Neither signs off on the other's work — and</text>
+  <text x="570" y="844" font-size="14" fill="#3E4A54">nothing reaches engineering until both have.</text>
+
+  <text x="1076" y="778" font-size="12" font-weight="600" letter-spacing="1.5" fill="#1D5B63">WHAT IT COSTS</text>
+  <text x="1076" y="806" font-size="14" fill="#3E4A54">No new stage ids, no renumbering 05–09, no schema migration.</text>
+  <text x="1076" y="825" font-size="14" fill="#3E4A54">The pilot route runs on prompt steering and the context overlay</text>
+  <text x="1076" y="844" font-size="14" fill="#3E4A54">alone — zero engine change. The engine work is unstarted.</text>
+</g>
+</svg>

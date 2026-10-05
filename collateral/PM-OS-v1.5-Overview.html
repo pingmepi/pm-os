@@ -1,0 +1,1452 @@
+<title>PM-OS v1.5</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* ============================================================
+     PM-OS v1.5 — async read-through deck
+     Palette carried over from the repo's deck generators
+     (docs/build_deck.js): petrol ink, teal, mint, plus semantic
+     green / amber / coral for shipped / planned / not-built.
+     ============================================================ */
+
+  :root {
+    color-scheme: light;
+
+    --ink:        #0B2430;
+    --ink-2:      #14333F;
+    --teal:       #0B6F79;
+    --teal-soft:  #E6F1F0;
+    --mint:       #0F9E85;
+    --green:      #2E7D5B;
+    --amber:      #9A6A0E;
+    --amber-soft: #F7EEDB;
+    --coral:      #B4443F;
+
+    --paper:      #F4F7F6;
+    --surface:    #FFFFFF;
+    --surface-2:  #EDF3F2;
+    --line:       #D6E3E1;
+    --line-soft:  #E4EDEB;
+    --text:       #12232B;
+    --text-2:     #3C5057;
+    --muted:      #5F7278;
+
+    --on-ink:     #F2F8F7;
+    --on-ink-2:   #A8C6C6;
+    --on-ink-3:   #7A9EA3;
+
+    --shadow: 0 1px 2px rgba(11, 36, 48, .05), 0 8px 22px -14px rgba(11, 36, 48, .22);
+
+    --display: "Newsreader", Georgia, "Times New Roman", serif;
+    --body: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+    --col: 1080px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+
+      --ink:        #061620;
+      --ink-2:      #0E2A34;
+      --teal:       #4FC3C9;
+      --teal-soft:  #10333A;
+      --mint:       #3FD5B4;
+      --green:      #5CC08D;
+      --amber:      #E0AC55;
+      --amber-soft: #33280F;
+      --coral:      #F08079;
+
+      --paper:      #08191F;
+      --surface:    #0E252D;
+      --surface-2:  #123039;
+      --line:       #21454F;
+      --line-soft:  #1A3B44;
+      --text:       #E8F2F1;
+      --text-2:     #BCD2D2;
+      --muted:      #8FAAAE;
+
+      --on-ink:     #EAF5F4;
+      --on-ink-2:   #A5C6C7;
+      --on-ink-3:   #7C9FA4;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 26px -16px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ink:        #061620;
+    --ink-2:      #0E2A34;
+    --teal:       #4FC3C9;
+    --teal-soft:  #10333A;
+    --mint:       #3FD5B4;
+    --green:      #5CC08D;
+    --amber:      #E0AC55;
+    --amber-soft: #33280F;
+    --coral:      #F08079;
+
+    --paper:      #08191F;
+    --surface:    #0E252D;
+    --surface-2:  #123039;
+    --line:       #21454F;
+    --line-soft:  #1A3B44;
+    --text:       #E8F2F1;
+    --text-2:     #BCD2D2;
+    --muted:      #8FAAAE;
+
+    --on-ink:     #EAF5F4;
+    --on-ink-2:   #A5C6C7;
+    --on-ink-3:   #7C9FA4;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 26px -16px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- top rail ---------- */
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--paper);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .rail-in {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 0 28px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .rail-mark {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    color: var(--teal);
+    white-space: nowrap;
+  }
+  .rail-mark span { color: var(--muted); }
+  .rail-nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    margin-left: auto;
+    scrollbar-width: none;
+  }
+  .rail-nav::-webkit-scrollbar { display: none; }
+  .rail-nav a {
+    font-size: 12.5px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 9px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .rail-nav a:hover { color: var(--teal); background: var(--teal-soft); }
+  .progress {
+    height: 2px;
+    background: var(--mint);
+    width: 0;
+    transition: width .12s linear;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .progress { transition: none; }
+  }
+
+  /* ---------- panel scaffolding ---------- */
+
+  .panel {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 62px 28px 58px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .panel:last-of-type { border-bottom: 0; }
+
+  .eyebrow {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 14px;
+  }
+  .eyebrow b {
+    font-weight: 500;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-size: clamp(27px, 3.5vw, 39px);
+    font-weight: 500;
+    line-height: 1.14;
+    letter-spacing: -.012em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+    color: var(--text);
+  }
+  h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .stand {
+    font-size: 18px;
+    line-height: 1.62;
+    color: var(--text-2);
+    max-width: 68ch;
+    margin: 0 0 30px;
+  }
+  .stand strong { color: var(--text); font-weight: 600; }
+  p { max-width: 70ch; }
+  .note {
+    font-size: 14.5px;
+    color: var(--muted);
+    max-width: 78ch;
+    margin: 22px 0 0;
+    padding-left: 15px;
+    border-left: 2px solid var(--line);
+    font-style: italic;
+  }
+  .note strong { font-style: normal; color: var(--teal); }
+  code, .k {
+    font-family: var(--mono);
+    font-size: .875em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: .08em .34em;
+    white-space: nowrap;
+  }
+  a { color: var(--teal); }
+
+  /* ---------- cover ---------- */
+
+  .cover {
+    background: var(--ink);
+    color: var(--on-ink);
+    border-bottom: 0;
+  }
+  .cover-in {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 74px 28px 66px;
+  }
+  .cover-tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--mint);
+    margin-bottom: 26px;
+  }
+  .cover h1 {
+    font-family: var(--display);
+    font-size: clamp(52px, 9vw, 96px);
+    font-weight: 500;
+    letter-spacing: -.03em;
+    line-height: .96;
+    margin: 0 0 20px;
+    color: #FFFFFF;
+  }
+  .cover-lede {
+    font-family: var(--display);
+    font-size: clamp(21px, 2.6vw, 29px);
+    line-height: 1.32;
+    font-weight: 400;
+    color: var(--on-ink);
+    max-width: 26ch;
+    margin: 0 0 22px;
+  }
+  .cover-sub {
+    font-size: 16.5px;
+    line-height: 1.6;
+    color: var(--on-ink-2);
+    max-width: 62ch;
+    margin: 0 0 34px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--on-ink-2);
+    border: 1px solid #22505A;
+    background: var(--ink-2);
+    border-radius: 3px;
+    padding: 5px 10px;
+  }
+  .chip.hi { color: var(--mint); border-color: #1F6A6B; }
+
+  .readmap {
+    margin-top: 44px;
+    padding-top: 26px;
+    border-top: 1px solid #1D444F;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+    gap: 6px 30px;
+  }
+  .readmap h4 {
+    grid-column: 1 / -1;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--on-ink-3);
+    font-weight: 500;
+    margin: 0 0 8px;
+  }
+  .readmap a {
+    display: flex;
+    gap: 11px;
+    font-size: 14.5px;
+    color: var(--on-ink-2);
+    text-decoration: none;
+    padding: 4px 0;
+    border-bottom: 1px solid transparent;
+  }
+  .readmap a:hover { color: #FFFFFF; border-bottom-color: #2A5A64; }
+  .readmap a i {
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 12px;
+    color: var(--mint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- cards ---------- */
+
+  .grid { display: grid; gap: 18px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 22px 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .card p { font-size: 14.5px; color: var(--muted); margin: 0; max-width: none; }
+  .card p + p { margin-top: 10px; }
+  .card-top {
+    display: block;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    margin: -22px -22px 18px;
+  }
+  .t-coral { background: var(--coral); }
+  .t-teal  { background: var(--teal); }
+  .t-mint  { background: var(--mint); }
+  .t-green { background: var(--green); }
+  .t-amber { background: var(--amber); }
+
+  .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--teal);
+    color: #fff;
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 13px;
+  }
+
+  /* ---------- rows (label + prose) ---------- */
+
+  .rows { display: flex; flex-direction: column; gap: 12px; }
+  .row {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--teal);
+    border-radius: 4px;
+    padding: 17px 20px;
+    display: grid;
+    grid-template-columns: minmax(150px, 240px) 1fr;
+    gap: 6px 26px;
+    align-items: baseline;
+  }
+  .row > b {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .row > span { font-size: 14.5px; color: var(--muted); }
+  .row > span strong { color: var(--text-2); font-weight: 600; }
+  @media (max-width: 620px) {
+    .row { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- pipeline diagram ---------- */
+
+  .flowwrap { overflow-x: auto; padding-bottom: 6px; }
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    min-width: 900px;
+  }
+  .stage {
+    flex: 1 1 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px 8px 13px;
+    text-align: center;
+    position: relative;
+  }
+  .stage.group {
+    flex: 0 0 208px;
+    background: var(--surface-2);
+    border-color: var(--teal);
+    text-align: left;
+    padding: 12px 14px 13px;
+  }
+  .stage .sid {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--teal);
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+  .stage .snm {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    display: block;
+    margin-top: 2px;
+    line-height: 1.25;
+  }
+  .stage .sfx { font-size: 11px; color: var(--muted); display: block; margin-top: 4px; line-height: 1.4; }
+  .stage.opt { border-style: dashed; background: transparent; }
+  .gatemark {
+    flex: 0 0 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--mint);
+    font-weight: 500;
+  }
+  .band {
+    margin-top: 14px;
+    background: var(--teal-soft);
+    border: 1px solid var(--teal);
+    border-radius: 4px;
+    padding: 11px 16px;
+    font-size: 14px;
+    color: var(--text-2);
+    min-width: 900px;
+  }
+  .band b { color: var(--teal); }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin-top: 18px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .legend i {
+    font-style: normal;
+    font-family: var(--mono);
+    color: var(--mint);
+    margin-right: 6px;
+  }
+
+  /* ---------- state pills ---------- */
+
+  .states { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .pill {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    border-radius: 3px;
+    padding: 5px 11px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text-2);
+  }
+  .pill.on  { border-color: var(--green); color: var(--green); }
+  .pill.mid { border-color: var(--amber); color: var(--amber); }
+  .pill.off { border-color: var(--coral); color: var(--coral); }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; }
+  th, td {
+    text-align: left;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 14.5px;
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td b { font-weight: 600; color: var(--text); }
+  td.mono { font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--teal); }
+  td small { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+  .tag.ship { color: var(--green); border-color: var(--green); background: transparent; }
+  .tag.part { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+  .tag.no   { color: var(--coral); border-color: var(--coral); background: transparent; }
+
+  /* ---------- step sequence ---------- */
+
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: grid;
+    grid-template-columns: 118px 1fr;
+    gap: 24px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line-soft);
+    align-items: baseline;
+  }
+  .step:first-child { border-top: 0; }
+  .step > .cmd {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--teal);
+    font-weight: 500;
+  }
+  .step > div { font-size: 14.5px; color: var(--muted); }
+  .step > div b { display: block; font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 1fr; gap: 6px; }
+  }
+
+  /* ---------- quote / kicker line ---------- */
+
+  .kicker {
+    font-family: var(--display);
+    font-size: 20px;
+    line-height: 1.42;
+    font-style: italic;
+    color: var(--teal);
+    max-width: 62ch;
+    margin: 30px 0 0;
+    padding-left: 18px;
+    border-left: 3px solid var(--mint);
+  }
+
+  /* ---------- closing ---------- */
+
+  .close { background: var(--ink); color: var(--on-ink); }
+  .close .eyebrow { color: var(--mint); }
+  .close .eyebrow b { color: var(--on-ink-3); }
+  .close h2 { color: #FFFFFF; }
+  .close .stand { color: var(--on-ink-2); }
+  .close .stand strong { color: #FFFFFF; }
+  .close .card {
+    background: var(--ink-2);
+    border-color: #22505A;
+    box-shadow: none;
+  }
+  .close .card h3 { color: #FFFFFF; }
+  .close .card p { color: var(--on-ink-2); }
+  .close code {
+    background: #0A2028;
+    border-color: #22505A;
+    color: var(--mint);
+    white-space: normal;
+  }
+  .close a { color: var(--mint); }
+  .close .note { color: var(--on-ink-3); border-left-color: #22505A; }
+  .close .note strong { color: var(--mint); }
+
+  .colophon {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 22px 28px 40px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    justify-content: space-between;
+  }
+
+  a:focus-visible, .rail-nav a:focus-visible {
+    outline: 2px solid var(--mint);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  /* ============================================================
+     PRINT / PDF
+     Deck pagination: one panel per A4 page, full-bleed grounds,
+     light palette regardless of the viewer's theme. Type is sized
+     so no panel exceeds 297mm — every page is a whole section.
+     ============================================================ */
+
+  @page {
+    size: A4 portrait;
+    margin: 0;            /* panels carry their own padding, so dark pages bleed */
+  }
+
+  @media print {
+    /* Force the light token set: these selectors match or beat the
+       dark blocks above and come later in source order. */
+    :root,
+    :root:not([data-theme="light"]),
+    :root[data-theme="dark"] {
+      color-scheme: light;
+      --ink:        #0B2430;
+      --ink-2:      #14333F;
+      --teal:       #0B6F79;
+      --teal-soft:  #E6F1F0;
+      --mint:       #0F9E85;
+      --green:      #2E7D5B;
+      --amber:      #9A6A0E;
+      --amber-soft: #F7EEDB;
+      --coral:      #B4443F;
+      --paper:      #FFFFFF;
+      --surface:    #FFFFFF;
+      --surface-2:  #EDF3F2;
+      --line:       #C4D7D5;
+      --line-soft:  #D9E6E4;
+      --text:       #12232B;
+      --text-2:     #31454C;
+      --muted:      #51646A;
+      --on-ink:     #F2F8F7;
+      --on-ink-2:   #B9D4D4;
+      --on-ink-3:   #92B3B8;
+      --shadow: none;
+    }
+
+    html, body { background: #FFFFFF; font-size: 11pt; }
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .rail, .progress, .colophon { display: none !important; }
+
+    /* --- Page geometry: every panel is exactly one slide -------------
+       min-height just under 297mm so sub-pixel rounding can't spill a
+       blank page; padding is inside the box, so dark panels bleed to
+       all four page edges. */
+    .panel, .cover {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 292mm;
+      padding: 13mm 14mm 11mm;
+      margin: 0;
+      max-width: none;
+      border-bottom: 0;
+      break-before: page;
+      page-break-before: always;
+      break-inside: auto;
+    }
+    /* Content stays top-aligned on the page. Pushing the trailing
+       takeaway to the page baseline was tried and reverted: on the
+       sparser pages it opened a void mid-page, which reads far worse
+       than air at the foot of a slide. */
+
+    /* The screen grids are sized for a 1080px column; at 182mm a
+       three-up row breaks to 2 + 1 and orphans the last card. Pin the
+       column counts so each row stays whole. */
+    .g2 { grid-template-columns: repeat(2, 1fr); }
+    .g3 { grid-template-columns: repeat(3, 1fr); }
+    .g4 { grid-template-columns: repeat(2, 1fr); }
+    .cover {
+      break-before: auto;
+      page-break-before: auto;
+      padding: 0;
+    }
+    .cover-in {
+      box-sizing: border-box;
+      min-height: 292mm;
+      max-width: none;
+      padding: 19mm 14mm 15mm;
+      display: flex;
+      flex-direction: column;
+    }
+    .cover .readmap { margin-top: auto; padding-top: 11mm; }
+
+    /* The page-level spacers are set inline on the markup; normalise
+       them so they can't push a panel over the page height. */
+    .panel [style*="margin-top"] { margin-top: 5mm !important; }
+
+    /* Nothing splits mid-element. */
+    .card, .row, .step, .stage, .band, .kicker, .note,
+    .flowwrap, .tablewrap, tr, h2, h3 {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    h2, h3 { break-after: avoid; page-break-after: avoid; }
+
+    /* --- Cover ------------------------------------------------------ */
+    .cover-tag { font-size: 10pt; margin-bottom: 9mm; }
+    .cover h1 { font-size: 72pt; margin-bottom: 7mm; }
+    .cover-lede { font-size: 20pt; margin-bottom: 6mm; }
+    .cover-sub { font-size: 11.5pt; margin-bottom: 8mm; }
+    .chip { font-size: 8.8pt; }
+    .readmap a { font-size: 10pt; }
+    .readmap h4 { font-size: 9pt; }
+
+    /* --- Body type -------------------------------------------------- */
+    .eyebrow { font-size: 9pt; margin-bottom: 4mm; }
+    h2 { font-size: 23pt; margin-bottom: 5mm; }
+    h3 { font-size: 13pt; }
+    .stand { font-size: 11.8pt; margin-bottom: 6mm; }
+
+    .grid { gap: 11px; }
+    .rows { gap: 10px; }
+    .card { padding: 13px 14px 14px; }
+    .card-top { margin: -13px -14px 11px; }
+    .card p { font-size: 9.6pt; }
+    .card p + p { margin-top: 8px; }
+    .num { width: 24px; height: 24px; font-size: 11pt; margin-bottom: 9px; }
+    .row { padding: 10px 14px; }
+    .row > b { font-size: 11.4pt; }
+    .row > span { font-size: 9.9pt; }
+    .step { padding: 8px 0; }
+    .step > .cmd { font-size: 9.2pt; }
+    .step > div { font-size: 9.9pt; }
+    .step > div b { font-size: 11.4pt; margin-bottom: 2px; }
+    .kicker { font-size: 12pt; margin-top: 6mm !important; }
+    .note { font-size: 9.6pt; margin-top: 6mm !important; }
+    .pill { font-size: 9.2pt; }
+    .states { gap: 8px; }
+
+    /* --- Pipeline diagram: drop the scroll min-widths and tighten the
+       chips so all ten stages fit the text column. ------------------- */
+    .flowwrap { overflow: visible; }
+    .flow, .band { min-width: 0; }
+    .stage { padding: 8px 2px 9px; }
+    .stage.group { flex: 0 0 140px; padding: 9px 10px; }
+    .stage .sid { font-size: 12pt; }
+    .stage .snm { font-size: 8pt; }
+    .stage .sfx { font-size: 6.8pt; line-height: 1.32; }
+    .gatemark { flex: 0 0 14px; font-size: 10pt; }
+    .band { font-size: 9.2pt; padding: 9px 12px; }
+    .legend { font-size: 9.2pt; margin-top: 4mm; }
+
+    /* --- Tables fit the text column. -------------------------------- */
+    table { min-width: 0; }
+    th { font-size: 7.8pt; }
+    td { font-size: 9.5pt; padding: 7px 10px; }
+    td small { font-size: 8.6pt; }
+    td.mono { font-size: 8.8pt; }
+    .tag { font-size: 7.8pt; }
+
+    /* --- Per-panel trims: these five carry the most content and would
+       otherwise spill a near-empty continuation page. ---------------- */
+    #what .card p, #enhance .step > div { font-size: 9.4pt; }
+    #daily .step { padding: 6px 0; }
+    #daily .step > div { font-size: 9.4pt; }
+    #daily .step > div b { font-size: 10.8pt; }
+    #scope td { font-size: 8.9pt; padding: 5px 9px; }
+    #scope td small { font-size: 8.2pt; }
+    #scope .kicker { font-size: 11pt; }
+    #start .card p { font-size: 9.2pt; }
+    #start .row { padding: 9px 13px; }
+    #start .row > span { font-size: 9.4pt; }
+
+    /* --- Dark pages keep their ground, edge to edge. ---------------- */
+    .cover, .close {
+      background: var(--ink) !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    a { text-decoration: none; }
+  }
+</style>
+
+<div class="rail">
+  <div class="rail-in">
+    <div class="rail-mark">PM-OS <span>v1.5.0</span></div>
+    <nav class="rail-nav">
+      <a href="#why">Why</a>
+      <a href="#what">What it is</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#gate">Gates</a>
+      <a href="#entry">Ways in</a>
+      <a href="#enhance">Enhancements</a>
+      <a href="#spine">Traceability</a>
+      <a href="#integrity">Integrity</a>
+      <a href="#handoff">Handoff</a>
+      <a href="#daily">Day to day</a>
+      <a href="#scope">Scope</a>
+      <a href="#start">Start here</a>
+    </nav>
+  </div>
+  <div class="progress" id="prog"></div>
+</div>
+
+<!-- ===================== COVER ===================== -->
+<header class="cover">
+  <div class="cover-in">
+    <div class="cover-tag">Version 1.5.0 &nbsp;·&nbsp; Written to be read, not presented</div>
+    <h1>PM-OS</h1>
+    <p class="cover-lede">A PM-led operating layer for the product development lifecycle.</p>
+    <p class="cover-sub">
+      It takes the context a product manager already has &mdash; research, a brief, a PRD, or a live
+      codebase &mdash; and turns it into a chain of reviewable product documents, where every step is
+      blocked until a human approves the one before it. It runs on the PM's own machine, inside the AI
+      coding agent they already use. There is no app to log into.
+    </p>
+    <div class="chips">
+      <span class="chip hi">Local-first</span>
+      <span class="chip hi">Human-gated</span>
+      <span class="chip">Claude Code + OpenAI Codex</span>
+      <span class="chip">26 agent skills</span>
+      <span class="chip">Markdown · YAML · JSONL</span>
+      <span class="chip">No backend, no GUI</span>
+    </div>
+
+    <div class="readmap">
+      <h4>What's in here &nbsp;— about a 10-minute read</h4>
+      <a href="#why"><i>01</i> Why it exists</a>
+      <a href="#what"><i>02</i> What PM-OS is &mdash; and isn't</a>
+      <a href="#pipeline"><i>03</i> The pipeline</a>
+      <a href="#gate"><i>04</i> What a gate actually does</a>
+      <a href="#entry"><i>05</i> Three ways in</a>
+      <a href="#enhance"><i>06</i> Changing a live product</a>
+      <a href="#spine"><i>07</i> The traceability spine</a>
+      <a href="#integrity"><i>08</i> Keeping the documents honest</a>
+      <a href="#handoff"><i>09</i> Getting it to the team</a>
+      <a href="#daily"><i>10</i> What the PM actually does</a>
+      <a href="#scope"><i>11</i> Shipped, and not</a>
+      <a href="#start"><i>12</i> Start here</a>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== 01 WHY ===================== -->
+<section class="panel" id="why">
+  <div class="eyebrow"><b>01 / 12</b> Why it exists</div>
+  <h2>Product definition is slow, inconsistent, and ungated</h2>
+  <p class="stand">
+    Nothing below is a tooling complaint. These are three failure modes that show up on almost every
+    product, and each one costs rework later in the build.
+  </p>
+
+  <div class="grid g3">
+    <div class="card">
+      <span class="card-top t-coral"></span>
+      <h3>The thread breaks</h3>
+      <p>Research, brief, scope, PRD, design and QA live in different documents and different tools. Decisions drift between them, and months later nobody can trace why a given requirement exists.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-coral"></span>
+      <h3>Quality is uneven</h3>
+      <p>Every PM writes specs differently. What a developer receives depends on who wrote it and how much time that person had that week &mdash; not on any agreed standard.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-coral"></span>
+      <h3>Nothing is enforced</h3>
+      <p>Work races ahead of approval. Design builds on a scope nobody signed off; QA writes tests against a PRD that has already changed underneath them.</p>
+    </div>
+  </div>
+
+  <p class="kicker">
+    The cost is rework, slow handoffs, and &mdash; in regulated work &mdash; real compliance risk.
+    PM-OS attacks the third problem first, because fixing enforcement is what makes the other two stay fixed.
+  </p>
+</section>
+
+<!-- ===================== 02 WHAT ===================== -->
+<section class="panel" id="what">
+  <div class="eyebrow"><b>02 / 12</b> What it is</div>
+  <h2>A gated pipeline that turns context into approved artifacts</h2>
+  <p class="stand">
+    PM-OS is not an application and not a document generator. It is a <strong>lifecycle state
+    machine that the PM drives and an AI agent powers</strong>. The agent drafts; the PM judges;
+    the state machine refuses to move until the PM says so.
+  </p>
+
+  <div class="grid g4">
+    <div class="card">
+      <span class="num">1</span>
+      <h3>A skill suite</h3>
+      <p>26 skills installed into the PM's existing AI agent. The PM types <code>/pm-new</code>, <code>/pm-stage-03-prd</code>, <code>/pm-approve</code> and the agent does the work. Nothing to deploy, no service to stand up.</p>
+    </div>
+    <div class="card">
+      <span class="num">2</span>
+      <h3>Plain files</h3>
+      <p>Every stage is Markdown, with state in YAML and an event log in JSONL &mdash; all on the PM's own machine. Portable, diffable, editable in any editor, and not locked inside a vendor's tool.</p>
+    </div>
+    <div class="card">
+      <span class="num">3</span>
+      <h3>Human gates</h3>
+      <p>Each stage is a draft until it is explicitly approved. The next stage physically cannot run until the one before it is approved &mdash; enforced by code, not convention.</p>
+    </div>
+    <div class="card">
+      <span class="num">4</span>
+      <h3>The PM decides</h3>
+      <p>The agent prepares and validates. The PM sets scope, makes trade-offs, and approves. Nothing progresses autonomously, and no stage self-approves.</p>
+    </div>
+  </div>
+
+  <div class="rows" style="margin-top:26px">
+    <div class="row" style="border-left-color: var(--coral)">
+      <b>What it is not</b>
+      <span>
+        Not a replacement for product judgment &mdash; it drafts and recommends, the PM decides.
+        Not a system of record for live execution; Jira, Linear and Asana keep that job.
+        Not a place for confidential customer data, PHI, PII, secrets or credentials.
+        And not a sign-off authority &mdash; approving a stage records <strong>your</strong> decision,
+        it does not substitute for whatever formal sign-off your organisation requires.
+      </span>
+    </div>
+  </div>
+
+  <p class="note">
+    <strong>On the surface it presents:</strong> PM-OS deliberately has no graphical interface. The PM
+    works in conversation with their agent and reviews Markdown files. That keeps the artifacts open and
+    portable, and it means the tool inherits every improvement to the underlying agent.
+  </p>
+</section>
+
+<!-- ===================== 03 PIPELINE ===================== -->
+<section class="panel" id="pipeline">
+  <div class="eyebrow"><b>03 / 12</b> How it works</div>
+  <h2>Understanding first, then seven gated stages</h2>
+  <p class="stand">
+    A project starts by building shared understanding, then walks a fixed sequence of stages. Each stage
+    writes one Markdown document. Each arrow below is a <strong>gate</strong> &mdash; an approval the
+    agent cannot cross on its own.
+  </p>
+
+  <div class="flowwrap">
+    <div class="flow">
+      <div class="stage group">
+        <span class="sid">00</span>
+        <span class="snm">Understanding</span>
+        <span class="sfx">Business statement, plus a context wiki (00w), an understanding doc (00u), and a codebase-understanding doc (00c) when there is existing code. Each one is itself approved.</span>
+      </div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">01</span><span class="snm">Brief</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">02</span><span class="snm">Scope</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">03</span><span class="snm">PRD</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">04</span><span class="snm">Design spec</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">05</span><span class="snm">Prototype brief</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">06</span><span class="snm">QA plan</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage"><span class="sid">07</span><span class="snm">Metrics plan</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage opt"><span class="sid">08</span><span class="snm">TRD</span><span class="sfx">optional</span></div>
+      <div class="gatemark">&rsaquo;</div>
+      <div class="stage opt"><span class="sid">09</span><span class="snm">Roadmap</span><span class="sfx">optional</span></div>
+    </div>
+    <div class="band">
+      <b>Company context overlay</b> &mdash; company, team, glossary and guardrails, injected into every
+      stage above. Installed once per machine, so artifacts speak your domain's vocabulary and respect
+      your rules without the PM repeating them in every prompt.
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i>&rsaquo;</i> Each arrow is a human approval gate</span>
+    <span><i>08 / 09</i> Optional capstones, run after the core pipeline is approved</span>
+  </div>
+
+  <div class="grid g2" style="margin-top:30px">
+    <div class="card">
+      <span class="card-top t-teal"></span>
+      <h3>Later stages read approved upstream work</h3>
+      <p>Stage 04 doesn't re-guess the requirements &mdash; it reads the approved PRD. Stage 06 tests what the PRD and design spec actually say. Approved upstream documents are the binding source of truth for everything below them, which is why the gates matter.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-mint"></span>
+      <h3>Two stages produce something you can click</h3>
+      <p>Approving the design spec renders a browsable HTML preview. Approving the prototype brief generates a working interactive HTML prototype &mdash; real screens, real navigation &mdash; so reviewers can react to a thing rather than a description.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 04 GATE ===================== -->
+<section class="panel" id="gate">
+  <div class="eyebrow"><b>04 / 12</b> The control that matters</div>
+  <h2>What a gate actually does</h2>
+  <p class="stand">
+    "Approval gate" sounds like process language. In PM-OS it is three concrete mechanical behaviours
+    that run every time a stage starts.
+  </p>
+
+  <div class="rows">
+    <div class="row">
+      <b>Blocks unapproved work</b>
+      <span>A stage refuses to run while any stage above it is pending, still a draft, or stale. This is checked by code before generation begins, so it is not a guideline someone can decide to skip under deadline pressure.</span>
+    </div>
+    <div class="row">
+      <b>Detects silent edits</b>
+      <span>Every approved document's body is hashed. If someone edits an approved document after the fact, the next gate re-hashes it, notices, and marks it <strong>edited</strong> &mdash; then asks the PM to re-approve before anything downstream is allowed to build on it. You cannot quietly rewrite a decision after sign-off.</span>
+    </div>
+    <div class="row">
+      <b>Cascades staleness</b>
+      <span>Re-approve an upstream document and every already-approved document beneath it is marked <strong>stale</strong>. The PM sees exactly what now rests on a changed decision, instead of finding out during QA.</span>
+    </div>
+  </div>
+
+  <h3 style="margin-top:32px">The five states a stage can be in</h3>
+  <div class="states">
+    <span class="pill">pending</span>
+    <span class="pill mid">draft</span>
+    <span class="pill on">approved</span>
+    <span class="pill off">edited</span>
+    <span class="pill off">stale</span>
+  </div>
+  <p style="font-size:14.5px;color:var(--muted);margin-top:14px">
+    <code>pending</code> not written yet &nbsp;·&nbsp; <code>draft</code> generated, awaiting review
+    &nbsp;·&nbsp; <code>approved</code> signed off and binding &nbsp;·&nbsp; <code>edited</code> changed
+    after approval &nbsp;·&nbsp; <code>stale</code> something above it moved. The last two are the
+    honest ones: they exist so the project can admit it is out of sync.
+  </p>
+
+  <p class="kicker">Net effect: the document set can never lie about what has actually been reviewed.</p>
+</section>
+
+<!-- ===================== 05 ENTRY ===================== -->
+<section class="panel" id="entry">
+  <div class="eyebrow"><b>05 / 12</b> Getting started on a project</div>
+  <h2>Three ways in &mdash; including "I already have all this"</h2>
+  <p class="stand">
+    A blank-page tool is useless to a PM who walks in with six months of research. PM-OS opens on one of
+    three entry routes, and all three end up in the same gated pipeline.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Route</th><th>Use it when</th><th>What happens</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">new</td>
+          <td><b>You're starting from an idea</b><small>A business statement, or a fuzzy problem.</small></td>
+          <td>Straight into stage 01. Or seed it first from material you already authored &mdash; research, a brief, a scope doc, a PRD, design notes. PM-OS reads them, builds a context wiki and an understanding doc for you to approve, adopts the documents you wrote, and back-fills the gaps beneath them.</td>
+        </tr>
+        <tr>
+          <td class="mono">prototype</td>
+          <td><b>You have a prototype or design, but no code</b><small>Sales built a demo; design has a Figma flow.</small></td>
+          <td>The prototype is ingested as reviewed context <em>before</em> stage 01, so it enters as examined evidence rather than an unquestioned starting assumption.</td>
+        </tr>
+        <tr>
+          <td class="mono">enhancement</td>
+          <td><b>You're changing a live product</b><small>The existing codebase is the ground truth.</small></td>
+          <td>Point PM-OS at the code &mdash; a Git URL, a local folder, or a <code>.zip</code>. It performs a strictly read-only scan and produces a codebase-understanding document that every downstream stage cites, so the brief describes the change rather than re-describing the whole product.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="note">
+    <strong>Why the import path matters:</strong> a PM's existing PRD is adopted, not regenerated.
+    Re-deriving a document that already exists and is being built against would create a competing
+    source of truth &mdash; the exact problem this tool is meant to remove.
+  </p>
+</section>
+
+<!-- ===================== 06 ENHANCE ===================== -->
+<section class="panel" id="enhance">
+  <div class="eyebrow"><b>06 / 12</b> New in v1.5</div>
+  <h2>Changing a live product without rewriting its whole definition</h2>
+  <p class="stand">
+    Most product work isn't greenfield &mdash; it's the fourteenth change to something already in
+    production. v1.5's headline capability handles that case inside the <strong>same project</strong>,
+    so a product accumulates one continuous definition history instead of a graveyard of one-off docs.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <span class="cmd">start</span>
+      <div><b>Freeze a baseline</b>The currently approved artifacts and the current state of the code are frozen into an immutable snapshot. That snapshot is what every later comparison is measured against.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">set-boundary</span>
+      <div><b>Decide what's in scope</b>A short interview records the <em>affected slice</em> &mdash; which parts of the product this change touches. Stages will not generate until this is recorded, which stops an "enhancement" from quietly becoming an unbounded rewrite.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">stages 01&ndash;09</span>
+      <div><b>Regenerate in place</b>The same pipeline runs, but only the affected sections are updated. Everything outside the boundary is carried forward untouched, and the gates still apply exactly as before.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">delta</span>
+      <div><b>See only what changed</b>PM-OS derives the change set between the frozen baseline and now: changed stories and epics, changed QA scenarios, new non-functional requirements, and explicit removals.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">complete</span>
+      <div><b>Close the cycle</b>The updated artifacts become the baseline for the next change. Two cycles of provenance are kept, so you can see what the definition looked like before.</div>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:30px">
+    <div class="card">
+      <span class="card-top t-green"></span>
+      <h3>Your code is never modified</h3>
+      <p>The codebase is cloned or extracted into a read-only working copy inside the project and pinned to a commit. PM-OS reads it to understand the system; it never writes to it, and it warns the PM if the source has drifted since the scan.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-mint"></span>
+      <h3>Handoff scopes itself to the delta</h3>
+      <p>The team receives the change, not the entire product definition again &mdash; the changed stories plus the minimum parent context needed to make sense of them, with removals stated explicitly rather than left implied.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 07 SPINE ===================== -->
+<section class="panel" id="spine">
+  <div class="eyebrow"><b>07 / 12</b> Traceability</div>
+  <h2>Every requirement carries an ID, and the IDs connect</h2>
+  <p class="stand">
+    This is what separates PM-OS from a folder of well-written documents. Requirements, stories, screens,
+    test cases and engineering tasks all carry stable identifiers, and the links between them are
+    maintained automatically as stages are approved.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>What it names</th><th>Declared in</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">EPIC-###</td><td>A product workstream or outcome. Every story and requirement belongs to exactly one.</td><td>PRD</td></tr>
+        <tr><td class="mono">US-###</td><td>A user story, with its happy path and edge cases spelled out.</td><td>PRD</td></tr>
+        <tr><td class="mono">FR-### / REQ-###</td><td>A functional requirement, carrying an explicit priority.</td><td>PRD</td></tr>
+        <tr><td class="mono">UJ-###</td><td>A user journey, flagged for whether the prototype should cover it.</td><td>PRD</td></tr>
+        <tr><td class="mono">SCR-###</td><td>A screen, declaring which stories and journeys it serves.</td><td>Design spec</td></tr>
+        <tr><td class="mono">TC-###</td><td>A test case, tied to the requirement it covers.</td><td>QA plan</td></tr>
+        <tr><td class="mono">TSK-###</td><td>An engineering task, tied to the requirement it implements.</td><td>TRD</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid g3" style="margin-top:26px">
+    <div class="card">
+      <span class="card-top t-teal"></span>
+      <h3>Questions it can answer locally</h3>
+      <p>Which test scenarios cover this requirement? Which screens does this story touch? Which backend tasks implement it? Which stories has no screen been designed for? All answered from the files, with no service to query.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-teal"></span>
+      <h3>It rebuilds itself on approval</h3>
+      <p>The link table is regenerated whenever a stage is approved, and only <em>approved</em> stages contribute. A screen invented in a draft design spec can never leak into a developer's story file.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-teal"></span>
+      <h3>It survives into the tracker</h3>
+      <p>When work is exported to Jira, each ticket carries its PM-OS identifier as a field and a label, and the created ticket keys are written back &mdash; so the chain still connects after the work leaves PM-OS.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 08 INTEGRITY ===================== -->
+<section class="panel" id="integrity">
+  <div class="eyebrow"><b>08 / 12</b> Quality control</div>
+  <h2>The documents themselves are checked, not just approved</h2>
+  <p class="stand">
+    An approval gate confirms a human looked. It doesn't confirm the document is complete. So PM-OS also
+    holds artifacts to a structural contract and can audit a whole project on demand.
+  </p>
+
+  <div class="rows">
+    <div class="row">
+      <b>Artifact contracts</b>
+      <span>Each stage has structural expectations: a PRD must declare journeys, epics, priorities and per-story happy paths and edge cases; a design spec must trace journeys to flows and declare its screens; a prototype brief must record which high-priority journeys it deliberately left out. Missing pieces <strong>block generation</strong> while the document is being written, and are reported as warnings at approval time so existing projects are never trapped.</span>
+    </div>
+    <div class="row">
+      <b>A read-only project audit</b>
+      <span>One command answers "is this project internally consistent right now?" &mdash; checking state against document frontmatter, drift in approved bodies, the shape of upstream approvals, missing artifacts, duplicate or orphaned identifiers, and story coverage. It reports; it never silently repairs.</span>
+    </div>
+    <div class="row">
+      <b>A tamper-evident event log</b>
+      <span>Every generation, approval and import appends a hash-chained event to the project's log &mdash; each entry carrying the hash of the one before it. It also records how long the PM took to approve and how much they edited the draft, which is how the team learns which stages the agent is actually good at.</span>
+    </div>
+  </div>
+
+  <p class="note">
+    <strong>Why the edit-distance measure matters:</strong> it is the only honest signal of draft quality.
+    A stage the PM rewrites heavily every time is a stage whose prompt needs work &mdash; and that shows
+    up as a number rather than a vague sense that "the PRDs aren't great."
+  </p>
+</section>
+
+<!-- ===================== 09 HANDOFF ===================== -->
+<section class="panel" id="handoff">
+  <div class="eyebrow"><b>09 / 12</b> Handoff</div>
+  <h2>Getting it to the people who build it</h2>
+  <p class="stand">
+    A definition nobody reads is worthless. Export takes three shapes, and the one that gets used most is
+    the middle one &mdash; because developers, designers and QA each want a different slice of the same
+    approved material.
+  </p>
+
+  <div class="grid g3">
+    <div class="card">
+      <span class="card-top t-teal"></span>
+      <h3>Raw text</h3>
+      <p>One stage, or every approved stage, dumped as plain text. For pasting into an email, a ticket, or a chat thread. Deliberately dumb, and useful precisely because of it.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-mint"></span>
+      <h3>A per-audience package</h3>
+      <p>The approved pipeline is decomposed into four folders &mdash; <code>dev</code>, <code>design</code>, <code>qa</code>, <code>business</code> &mdash; each carrying only what that audience needs. One file per story, plus reference material and the full source documents behind it.</p>
+    </div>
+    <div class="card">
+      <span class="card-top t-mint"></span>
+      <h3>Jira tickets</h3>
+      <p>The approved definition becomes epics, stories and tasks: dry run, confirm, then create through the Atlassian connector, with ticket keys recorded back. No connector? An offline CSV for Jira's own importer ends in the same state.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:32px">What a developer opens</h3>
+  <p style="font-size:15px;color:var(--muted)">
+    A single story file, containing the story itself and its requirements, its acceptance-level happy path
+    and edge cases, <b>the screens it touches</b> &mdash; each one a direct link into the interactive
+    prototype at that exact screen &mdash; <b>the test cases that cover it</b>, and <b>the backend tasks
+    that implement it</b>. Where the source material genuinely doesn't say, the file says so plainly
+    instead of inventing an answer.
+  </p>
+
+  <p class="kicker">
+    Every section of that file is resolved from approved documents through the identifier spine. It is
+    assembled, not re-written &mdash; so it cannot disagree with the PRD.
+  </p>
+</section>
+
+<!-- ===================== 10 DAILY ===================== -->
+<section class="panel" id="daily">
+  <div class="eyebrow"><b>10 / 12</b> In practice</div>
+  <h2>What the PM actually does, in order</h2>
+  <p class="stand">
+    The whole loop is: <strong>ask for a stage, read it, fix what's wrong, approve it.</strong> Repeat
+    seven times. The tool's job is to make the "fix what's wrong" step honest and the "approve it" step
+    mean something.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <span class="cmd">/pm-new</span>
+      <div><b>Create the project</b>Name it, say what it's for, and pick the entry route. If you have existing material, hand it over now rather than later.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-context-import</span>
+      <div><b>Give it your context</b>Point it at your research, documents, or codebase. It builds an understanding document that states what it learned, how confident it is in each part, and what it still doesn't know &mdash; and you approve that before any spec is written.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-interview</span>
+      <div><b>Close the open questions</b>The open unknowns stay listed. When you have answers, re-run the interview against just those gaps; your answers are recorded as high-confidence, PM-authored context and the resolved gaps are marked closed.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-stage-NN</span>
+      <div><b>Generate a stage</b>The gate checks upstream approvals first, then the agent writes the document using the approved upstream work and your company context. Deep-reasoning stages are flagged to run on the strongest model available.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">read &amp; edit</span>
+      <div><b>Review it like a document</b>It's Markdown. Edit it directly, or ask the agent to change a section. Both are normal; re-approval absorbs the change and the hash follows it.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-approve</span>
+      <div><b>Approve, and unlock the next stage</b>Your decision is recorded, downstream staleness is cascaded, HTML companions are rendered where relevant, and the next stage becomes runnable.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-status · /pm-check</span>
+      <div><b>Know where you stand</b>Where every stage is, what changed recently, whether anything drifted, and how many known unknowns are still open.</div>
+    </div>
+    <div class="step">
+      <span class="cmd">/pm-handoff</span>
+      <div><b>Ship the definition</b>Raw text, the per-audience package, or Jira tickets &mdash; scoped automatically to the delta when you're in an enhancement cycle.</div>
+    </div>
+  </div>
+
+  <p class="note">
+    <strong>Also there when you need them:</strong> <code>/pm-feedback</code> to rate a stage's output
+    (this is how the prompts improve), <code>/pm-enhance</code> for the enhancement cycle,
+    <code>/pm-prototype-html</code> to regenerate the clickable prototype, and <code>/pm-sync</code> to
+    push telemetry and feedback to the team's shared repository.
+  </p>
+</section>
+
+<!-- ===================== 11 SCOPE ===================== -->
+<section class="panel" id="scope">
+  <div class="eyebrow"><b>11 / 12</b> Honest scope</div>
+  <h2>What's shipped, and what isn't yet</h2>
+  <p class="stand">
+    v1.5 is a complete <strong>product-definition</strong> system with one real external integration.
+    The rest of the lifecycle is designed but not built. That distinction is worth being precise about,
+    because the roadmap reads more impressive than the current tool if you blur it.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>Status</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Gated product definition</b></td><td><span class="tag ship">Shipped</span></td><td>Understanding group plus stages 01&ndash;07, with optional TRD and roadmap capstones.</td></tr>
+        <tr><td><b>Flexible intake</b></td><td><span class="tag ship">Shipped</span></td><td>Three entry routes; import and adopt existing PM-authored material; re-runnable discovery interview.</td></tr>
+        <tr><td><b>Enhancement cycles</b></td><td><span class="tag ship">Shipped</span></td><td>Frozen baselines, recorded affected slice, read-only codebase understanding, delta-only handoff.</td></tr>
+        <tr><td><b>Traceability spine</b></td><td><span class="tag ship">Shipped</span></td><td>Epics, stories, requirements, journeys, screens, test cases and tasks, with a local resolver.</td></tr>
+        <tr><td><b>Artifact contracts &amp; project audit</b></td><td><span class="tag ship">Shipped</span></td><td>Structural validation at generation and approval; read-only consistency check.</td></tr>
+        <tr><td><b>Per-audience handoff package</b></td><td><span class="tag ship">Shipped</span></td><td>Decomposed dev / design / QA / business folders with full source projections.</td></tr>
+        <tr><td><b>Jira export</b></td><td><span class="tag ship">Shipped</span></td><td>Via the Atlassian connector, or a fully offline CSV for Jira's own importer.</td></tr>
+        <tr><td><b>Two agent runtimes</b></td><td><span class="tag ship">Shipped</span></td><td>Claude Code and OpenAI Codex, with verified gate parity. Offline and mirrored installs supported.</td></tr>
+        <tr><td><b>Delivery model</b><small>Scope tiers and delivery increments</small></td><td><span class="tag part">Designed</span></td><td>Planned and specified, not yet implemented.</td></tr>
+        <tr><td><b>Design integration</b><small>Figma pull and push</small></td><td><span class="tag part">Designed</span></td><td>The design half of external handoff. A pilot is underway to move design authority to the designer; productization is planned.</td></tr>
+        <tr><td><b>Linear export · Gemini runtime</b></td><td><span class="tag part">Planned</span></td><td>The extension points exist; the integrations don't.</td></tr>
+        <tr><td><b>Dev-phase support</b></td><td><span class="tag no">Not built</span></td><td>Connecting requirements to pull requests and in-flight implementation.</td></tr>
+        <tr><td><b>QA bug triage</b></td><td><span class="tag no">Not built</span></td><td>Analysing reported bugs against the codebase and suggesting fix plans.</td></tr>
+        <tr><td><b>Release readiness · feedback loop</b></td><td><span class="tag no">Not built</span></td><td>Release decisions, and ingesting shipped-product feedback back into the next cycle.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="kicker">
+    The direction is the same gated, PM-led model widened across the lifecycle &mdash; intake, definition,
+    design, dev handoff, QA, release, feedback &mdash; consuming artifacts from wherever work actually
+    happens. The PM stays the decision-maker at every new stage.
+  </p>
+</section>
+
+<!-- ===================== 12 START ===================== -->
+<section class="panel close" id="start">
+  <div class="eyebrow"><b>12 / 12</b> Start here</div>
+  <h2>Trying it takes about ten minutes</h2>
+  <p class="stand">
+    You need <strong>Git, Python 3.11 or newer, and one of the two supported agents</strong>. Everything
+    installs into your home directory; nothing runs as a service and nothing calls home.
+  </p>
+
+  <div class="grid g3">
+    <div class="card">
+      <h3>1 &nbsp;Install</h3>
+      <p>Clone the repository and run the installer for your agent:</p>
+      <p><code>./install.sh --runtime claude</code></p>
+      <p>On a locked-down corporate machine, an offline zip install and a GitLab mirror are both supported &mdash; see the offline install guide.</p>
+    </div>
+    <div class="card">
+      <h3>2 &nbsp;Verify</h3>
+      <p>The installer checks itself: config, shared libraries, gate hooks, installed skills, and a self-test that runs the real gate in a throwaway project to confirm it blocks an unapproved stage.</p>
+      <p>If that self-test passes, the install is sound.</p>
+    </div>
+    <div class="card">
+      <h3>3 &nbsp;Run one project end to end</h3>
+      <p>Pick something real but small. Create it, import whatever context you already have, and walk stages 01 to 07, approving each one.</p>
+      <p>Then run the handoff package and give it to a developer. Their reaction is the actual evaluation.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:38px">Where to read more</h3>
+  <div class="rows" style="margin-top:14px">
+    <div class="row" style="background:var(--ink-2); border-color:#22505A; border-left-color:var(--mint)">
+      <b style="color:#fff">The operating procedure</b>
+      <span style="color:var(--on-ink-2)">
+        <code>docs/guides/sop.md</code> &mdash; how, when and where to use PM-OS: roles, the standard
+        workflow, best-fit cases, the pitfalls, and data-handling rules. Start here if you're deciding
+        whether to adopt it.
+      </span>
+    </div>
+    <div class="row" style="background:var(--ink-2); border-color:#22505A; border-left-color:var(--mint)">
+      <b style="color:#fff">The state of the product</b>
+      <span style="color:var(--on-ink-2)">
+        <code>docs/roadmap/current-state-review.md</code> &mdash; the canonical review of what is
+        implemented versus planned, with evidence for each claim.
+        <code>docs/roadmap/backlog.md</code> tracks verified-but-unfixed issues.
+      </span>
+    </div>
+    <div class="row" style="background:var(--ink-2); border-color:#22505A; border-left-color:var(--mint)">
+      <b style="color:#fff">How it's built</b>
+      <span style="color:var(--on-ink-2)">
+        <code>ARCHITECTURE.md</code> &mdash; component wiring, the stage state machine, and the
+        generate-then-approve sequence. <code>docs/reference/generated-doc-formats.md</code> shows the
+        section-by-section shape of every document PM-OS produces.
+      </span>
+    </div>
+  </div>
+
+  <p class="note">
+    <strong>One question worth asking a PM who has used it:</strong> not "did it write a good PRD?" but
+    "did anything downstream get built on a decision nobody had approved?" That's the problem this tool
+    was built to make impossible.
+  </p>
+</section>
+
+<div class="colophon">
+  <span>PM-OS v1.5.0 &nbsp;·&nbsp; product-definition pipeline</span>
+  <span>Local-first &nbsp;·&nbsp; human-gated &nbsp;·&nbsp; PM-led</span>
+</div>
+
+<script>
+  (function () {
+    var prog = document.getElementById("prog");
+    function update() {
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      var pct = max > 0 ? (h.scrollTop || document.body.scrollTop) / max * 100 : 0;
+      prog.style.width = pct + "%";
+    }
+    addEventListener("scroll", update, { passive: true });
+    addEventListener("resize", update);
+    update();
+  })();
+</script>

@@ -1,12 +1,23 @@
 # Changelog
 
-## Unreleased
+## 1.5.1 — 2026-09-17
+
+### Added
+- **External design authority: stage 04 can be designed outside PM-OS (PR #75, EDA-101–106).** A separate designer can now own Figma while the PM keeps ownership of constraints and approval, all inside the same stage 04 artifact:
+  - **`--brief` mode** writes `04-design-spec.md` as a PM-owned design brief (`design_mode: brief`): guardrails, required state inventory, data fields per requirement, content and accessibility rules. Designer-owned sections are left as pending placeholders.
+  - **The `design-in/` return format** (`design-in/ia.yaml` + `design-in/design-notes.md`) is versioned, parsed and structurally validated (`lib/design_input.py`). Worked examples are in `docs/examples/`.
+  - **`--ingest` mode** (`scripts/pm_design_ingest.py`, `lib/design_ingest.py`) validates the return first. An invalid return never touches stage 04. A valid one fills only the designer-owned sections, keeps the PM-owned brief text verbatim, and assigns `SCR-###` ids keyed to the Figma `node_id`, so re-ingesting the same frames keeps the same ids. The result stays a draft (`design_mode: ingested`) until the PM runs `/pm-approve 04`.
+  - **`/pm-check --design`** runs the design-input checks (missing fields, states, coverage, links) and, once the design is approved, verifies that the generated dev/QA story dossiers carry the right screen and Figma links (EDA-105, EDA-202).
+  - **A pre-design handoff for designers.** While stage 04 is still a brief, `/pm-handoff --package --audience design` also ships `reference/design-brief.md` and `DESIGNER-WORKFLOW.md`, together with the PRD, stories, NFRs and journeys (EDA-106).
+- **Standalone handoff dossiers (EDA-201, EDA-302, EDA-303).** Dev and QA packages now get a separate file for each requirement (`templates/handoff-requirement.md.j2`). Each story dossier includes the full text of its epic, requirements, acceptance criteria, NFRs and impact analysis, so it doesn't depend on links for anything needed to implement it. When a design is ingested, the exact Figma screen and state links and their triggers are copied into the dev and QA stories.
+- **Epic shape calibration (EDA-301).** Stage 03 guidance now asks for outcome-based epics. Approval-time contract checks give advisory warnings for epics that are empty (`EPIC_EMPTY`), split too finely (`EPIC_FRAGMENTED`), organised by technical layer (`EPIC_LAYER_SHAPED`) or used as a catch-all (`EPIC_OVERCONSOLIDATED`).
 
 ### Changed
 - **`00c` joins the deep-reasoning model tier.** `deep_reasoning_stages` is now `["00c", "00w", "00u", "03", "04", "06", "08", "09"]` (`lib/config.py`). The codebase-understanding doc carries the same downstream weight as the other context-build docs — every enhancement stage cites it — but was the one context-build stage left on the standard tier, so `model_tier_for_stage("00c")` reported `standard` while the SOP already documented it as deep-reasoning. Config merges the new policy stage in for existing on-disk configs, so no migration is needed.
 
 ### Fixed
 - **`config.yaml` could not be rewritten on Windows.** `_write_config_atomic` (`lib/config.py`) and `pm_os_install.py` finished the atomic write with `Path.rename`, which raises `WinError 183` when the destination already exists — so every reconfigure or re-install onto an existing config failed with `✗ FAILED to write config.yaml` while the POSIX path silently overwrote. Both now use `os.replace`, the portable atomic-overwrite primitive. Surfaced by `test_install_seeds_context_overlay`.
+- **Windows pytest harness portability.** `tests/helpers.py` runs scripts through `sys.executable` and captures output as UTF-8. `tests/conftest.py` isolates both `HOME` and `USERPROFILE` and forces UTF-8 for subprocesses. Context-pack manifests now record member paths with POSIX separators (`.as_posix()`), so the pack evidence is portable across platforms.
 - **T4 install/verify harness ran only where `python3` is on PATH.** `tests/integration/test_install_verify_update.py` hardcoded `"python3"` in its subprocess call (the rest of the suite already used `sys.executable`), so all 11 of its tests failed on a stock Windows Python. Documented the convention in `docs/guides/testing.md` §3.
 
 ### Docs

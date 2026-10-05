@@ -39,6 +39,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 - `install.sh` now resolves the interpreter (`python3` → `python` → `py -3`) and uses it throughout, so a Git-Bash install no longer hard-requires a literal `python3`.
 
 **Still open:**
+- **Re-confirmed 2026-10-05 by GH #77-6:** skills failed in about 12 sessions on a machine with only `py`, and bash-style `$HOME` paths in skill commands caused `ModuleNotFoundError: telemetry`. The shell decision below is still pending.
 - **Skill-inline `python3 …` invocations** in `skills/**/SKILL.md` still assume `python3` resolves *and*, where they set the stage, use bash-only `VAR=val cmd` env-prefix syntax — which is a **parser error under PowerShell** (the shell Claude Code used on the test machine), not a fallback. **Re-counted 2026-08-20: ~130 `python3` invocations across 26 `SKILL.md` files, of which 9 use the `PM_OS_STAGE=<NN> python3 …` env-prefix form.** (The earlier "24" figure predates the skill growth since v1.2.0 and is superseded.)
 - **Shell standardization decision needed:** require Git Bash on Windows (then only `python3` resolution remains — solvable via an installer-created shim) **vs.** make skills shell-portable + ship an `install.ps1`. Recommendation: **standardize on Git Bash + installer shim** (lowest blast radius; CC already prefers Git Bash on Windows).
 - No `install.ps1` exists; `install.sh` is bash-only.
@@ -870,6 +871,237 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 **Note on what is already sound:** the links themselves are deterministic — one shared set of extractors in `lib/artifact_contracts.py` feeds the validator, `lib/traceability.py:build_index()`, and the handoff assembler (the fix from #11), the index is rebuilt by `post-approve.py` rather than by the agent, and dangling references *are* detected. What no code can check is whether a link is **semantically right**: that `TSK-014` genuinely implements `FR-012` and not `FR-013` is judgment, and stays the agent's (same substrate limit as #27). This entry is only about the gaps the system *can* see and chooses not to enforce.
 
 **Proposed fix (decision needed, not scoped):** the graceful-degradation rationale is real for imported/prose projects but is currently applied to *every* project, including ones generated entirely under the current contracts. Options: (a) leave as-is and instead make the gaps unmissable at the export boundary — `/pm-handoff` refuses (or requires explicit confirmation) when a requirement being exported has no covering `TC-###`, which is where an untraced requirement actually costs something; (b) promote coverage gaps to errors for `origin: generated` artifacts only, keeping warn-mode for imported/backfilled ones (`.meta.yaml` already records `origin`); (c) keep them warnings but surface them in `/pm-status` with locations (composes with #49). Recommendation: **(a) + (c)** — enforce at the boundary where the gap has a consequence, and make it visible before then, without adding a new blocking state to the core gate.
+
+---
+
+## 54. 🔴 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
+
+**Severity:** P0. The human-in-the-loop guarantee from entry #1 depends on the gate's non-TTY branch, and on Windows that branch never runs.
+**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
+
+**Symptom:** An agent runs a stage whose upstream was edited after approval. The gate prints the `[1] Continue / [2] Re-approve / [3] Cancel` menu and then crashes with `EOFError` at `input("Choice [1/2/3]: ")`. It should instead print the BLOCKED message that sends the decision to the PM.
+
+**Root cause:** `hooks/pre-stage.py` `read_edited_choice()` uses `sys.stdin.isatty()` to tell an agent session from a human (`:107`). On Windows the `NUL` device reports `isatty() == True`, because the CRT check asks "is this a character device", not "is this a console". So an agent shell whose stdin is redirected from `NUL` gets past the check to `input()` (`:131`), which hits EOF. Reproduced with `py -c "import sys; print(sys.stdin.isatty())" < NUL`, which prints `True`.
+
+**Why it matters beyond the crash:** The crash fails closed only by accident. Any harness that feeds stdin a byte (an empty line, or `y`) would let the agent, not the PM, choose `[1]` and implicitly re-approve. That is exactly the bypass #1 closed.
+
+**Proposed fix:** Check for a real console. On Windows, treat stdin as a TTY only when `GetConsoleMode` succeeds on the stdin handle (`NUL` and pipes fail it). Leave POSIX behaviour unchanged. Also treat `EOFError` from `input()` as "no human present" and take the same block path.
+
+---
+
+## 55. 🔴 The gate overwrites the approved `content_hash` when it detects drift (GH #77-10, #77-11)
+
+**Severity:** P1. One line causes three visible defects and destroys the only on-disk record of what the PM approved.
+**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Symptom:**
+1. The edited-upstream warning prints the same value for "Approved hash" and "Current hash".
+2. `/pm-check` then reports `META_FRONTMATTER_HASH_MISMATCH` for the edited stage.
+3. That finding's suggested fix, "Re-run /pm-approve {sid}", approves the edited body without ever showing the PM that it differs from what they approved.
+
+**Root cause:** In `hooks/pre-stage.py` Step 1 (`:212-228`), when `current_hash != stage_meta["content_hash"]`, the gate:
+- sets the status to `edited`;
+- logs `stage_edited_post_approval`;
+- then runs `stage_meta["content_hash"] = current_hash; save_meta(...)`.
+
+The frontmatter still holds the approved hash, so meta and frontmatter now disagree (symptom 2). Step 3 then prints `stage_meta["content_hash"]` as the "approved" hash, but that is the value it just overwrote (symptom 1, `:266-269`). The approved hash survives only in the telemetry event's `old_hash`.
+
+**Proposed fix:**
+- Do not overwrite `content_hash` on drift. Record the new hash separately in `edited_hash`, so `content_hash` keeps meaning "the hash the PM approved" and stays in lockstep with the frontmatter.
+- Implicit re-approval (`[1]`) and `/pm-approve` already rewrite both fields; they should also clear `edited_hash`.
+- Change the `META_FRONTMATTER_HASH_MISMATCH` suggested fix (`lib/consistency.py:558-560`) so it no longer recommends re-approving blind.
+
+---
+
+## 56. 🔴 Approving a large artifact can hang indefinitely on the edit-distance metric (GH #77-3)
+
+**Severity:** P1. Approval of a big PRD never completes. The stage is left half-approved: frontmatter and meta are written, but there is no `stage_approved` event, no hook run, no cascade and no commit.
+**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Root cause:** `scripts/pm_approve.py:198-205` computes `char_edit_distance(gen_body, body)` (`lib/text_metrics.py:10-27`). It is a pure-Python Levenshtein DP that keeps two rows and costs O(len(a)·len(b)). For the reported 466 KB PRD that is about 2×10¹¹ cell updates, which takes hours. It runs after the approval is written and before telemetry, the hook and the cascade. Killing it therefore leaves exactly the window described in #31.
+
+**Proposed fix:** Bound the metric. Above a size threshold, record a cheaper line-level distance, or `null` with a reason, instead of the exact character DP. The metric is an observability signal and must never gate approval.
+
+---
+
+## 57. 🟠 The post-approve hook has no timeout and runs the stale cascade in a separate process (GH #77-4; #31 Part 1)
+
+**Severity:** P1. This is #31 actually happening: a stage 08 re-approval hung and stage 09 was never marked stale. `/pm-check` then reported `DOWNSTREAM_UPSTREAM_STALE`.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Evidence:** `scripts/pm_approve.py:231-241` runs `subprocess.run([sys.executable, hook])` with no `timeout`, and the hook inherits stdin. The downstream cascade happens only inside that subprocess, after the HTML render (`hooks/post-approve.py:110-132`). Anything that hangs before the cascade, whether the render or a git child process waiting for input, means downstream stages are never marked stale.
+
+**Proposed fix:**
+- Move the cascade into `pm_approve.py` and run it before the hook, so the approval and the cascade are saved together. The hook then finds nothing left to cascade.
+- Run the hook with `stdin=DEVNULL` and a timeout.
+- Report a timeout as a warning that names the command to catch up.
+
+---
+
+## 58. 🟠 `--reapprove` cannot rebind a stage whose upstream was re-approved (GH #77-12)
+
+**Severity:** P2. The fix that `DOWNSTREAM_UPSTREAM_STALE` asks for ("re-approve the flagged stage") does nothing when the flagged stage's own body hasn't changed.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Evidence:** `scripts/pm_approve.py:109-117` checks only the stage's own body hash. If it is unchanged, it exits with "already approved and unchanged since approval. No action taken." It never compares the stored `upstream_hashes_at_approval` against the upstreams' current `content_hash`, which is exactly the mismatch that `lib/consistency.py` `_check_downstream_upstream_hashes` reports.
+
+**Proposed fix:** `--reapprove` should also act when the recorded upstream hashes differ from the current ones. It rebinds `upstream_hashes_at_approval` and logs a separate `stage_rebound` event that names the upstreams that changed. The body hash, approval timestamp and approver are left alone, because nothing in the body changed.
+
+---
+
+## 59. 🟠 Handoff filenames have no length limit, so the package crashes on the Windows path limit (GH #77-1, #77-2)
+
+**Severity:** P1 on Windows. `/pm-handoff --package` stops partway through. Every link into a folder it never got to create (for example `../wireframes/prototype.html#SCR-###`) is then broken.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Evidence:**
+- `scripts/pm_share.py` `_slug()` (`:217`) is `re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")`, with no length cap.
+- It names requirement (`:617`), story (`:759`) and epic (`:868`) files.
+- A requirement title written as a full sentence produces a filename of about 500 characters, and Windows paths fail at 260.
+
+**Proposed fix:** Cap the slug at a fixed length and cut it at a word boundary. Filenames stay id-first (`REQ-001-…`), so they remain unique and stable. Every link already goes through the same filename helper.
+
+---
+
+## 60. 🟠 File I/O and console output assume UTF-8 without asking for it (GH #77-7, #77-8)
+
+**Severity:** P1 on Windows, where the default code page is cp1252. Reported failures:
+- `pm_context_import.py` wrote an em dash as byte `0x97` and corrupted `.sources.yaml`.
+- `pm_os_verify.py` crashed printing `✓`.
+- Hook and sync logs show `�`.
+
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `pm_new`, `pm_os_verify`, `pm_context_import` and `pm_share` (among others) read and write files without an explicit `encoding`. Only the installer, `config` and `git_sync` switch stdout to UTF-8.
+
+**Proposed fix:** Pass `encoding="utf-8"` explicitly to every text read and write in `lib/`, `scripts/` and `hooks/`. On Windows, switch stdout and stderr to UTF-8 when each entry point starts. Add a contract test that fails on any `read_text()`, `write_text()` or text-mode `open()` without an explicit encoding.
+
+---
+
+## 61. 🟠 The approval commit adds every file in the project with `git add -A` (GH #77-14, #72)
+
+**Severity:** P2. Approving a stage committed unrelated working files (helper scripts, notes) and nearly committed a screenshot containing a credential.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Evidence:** `lib/project_git.py:87` runs `["add", "-A"]`. A related problem (#72): when `.git/index.lock` exists or can't be written, the warning repeats git's raw `fatal:` text and doesn't tell the PM what to do.
+
+**Proposed fix:**
+- Stage only the paths PM-OS owns, then commit. That means stage artifacts and their companions, `.meta.yaml`, `.history/`, `.traceability.yaml`, `telemetry.jsonl`, `00-context/`, `handoff/` and `.enhancements/`.
+- Turn the `index.lock` failure into a message that says what to do.
+
+---
+
+## 62. 🟠 Central sync failures show up only in a background log (GH #77-16)
+
+**Severity:** P2. In one project, about 30 background pushes in a row failed with `could not read Username for 'https://github.com'`. Telemetry never left the machine, and nothing told the PM.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
+
+**Proposed fix:** `/pm-status` shows the last sync result and the number of approvals not yet synced. A missing-credentials failure is reported once, together with the fix.
+
+---
+
+## 63. 🟠 No mechanical way to finalise a stage written outside its skill (GH #77-15)
+
+**Severity:** P2. Very large stages sometimes have to be written in parts or by hand (see #66). For those, nothing does the end-of-stage steps in one go:
+- stamp `generated_hash`;
+- write the `.history` snapshot;
+- set meta to `draft`;
+- log `stage_generated`.
+
+The reporter had to write their own `finish_stage.py`.
+**Status:** 🟠 Open. The end-of-stage steps exist only as inline bash in each stage's `SKILL.md`.
+
+**Proposed fix:** Add `scripts/pm_finish_stage.py <NN>`, which the skills call and which can also be run directly.
+
+---
+
+## 64. 🟠 Validator gaps: no contract for 02/07/09, and two false positives in the prototype check (GH #77-18, #77-19)
+
+**Severity:** P2.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+
+**Evidence:**
+- `scripts/pm_validate_artifact.py:16` accepts only 03, 04, 05, 05-html, 06 and 08.
+- In `lib/artifact_contracts.py` `validate_prototype_html`:
+  - `INPUT_LABEL_MISSING` accepts only a separate `<label for="id">`. An input wrapped inside `<label>…</label>` is valid HTML but is flagged.
+  - The "Step N of" check fires whenever the design body mentions "flat hierarchy", "one screen" or "single surface", even when the prototype's stepper is legitimate.
+
+**Proposed fix:**
+- Accept wrapping labels.
+- Fire the stepper check only when the IA actually declares a single surface.
+- Add 02/07/09 contracts (overlaps #20).
+
+---
+
+## 65. 🟠 The traceability rebuild ignores the QA plan's non-functional test table (GH #77-20)
+
+**Severity:** P2. In the reported project, 16 to 19 NFRs show as untested even though the QA plan covers them.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `lib/traceability.py:242` builds test-case links only from `split_test_case_blocks()`. That function recognises `TC-###` headings, bullets and bare lines, but not Markdown table rows, and the `Non-Functional Tests` section (`lib/artifact_contracts.py:195`) is usually a table.
+
+**Proposed fix:** Parse table rows that carry a `TC-###`/`NFT-###` id and requirement ids into the same index. Add a regression test with an NFT section written as a table.
+
+---
+
+## 66. 🟠 Artifacts grow too large for an agent to read in one pass (GH #77-25, #78)
+
+**Severity:** P2, and it gets worse as projects grow. In the reported project:
+- the PRD was 466 KB, the QA plan 270 KB and the prototype 572 KB;
+- reads hit the agent's 25k-token and 256 KB limits;
+- six sessions ran out of context;
+- stage generation was cut off four times.
+
+#78 is the same problem seen from the developer side: an agent had to start several subagents just to read the PRD.
+**Status:** 🟠 Open (needs design). The handoff package already splits out epics, stories and requirements (EDA-302/303), but the stage artifacts themselves are still single files.
+
+**Direction:** Per-epic views of the PRD and QA plan that agents read instead of the whole artifact. Generating a very large stage in parts depends on #63.
+
+---
+
+## 67. 🟠 Design ingest works only from a brief-mode draft, so Figma can't be attached to an already-approved 04 (GH #77-23)
+
+**Severity:** P2.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05:
+- `lib/design_ingest.py:58` requires `design_mode: brief`.
+- `:111-113` mints a new `SCR-{n:03d}` id for every `node_id` it hasn't seen before.
+
+So a project whose 04 was approved in the normal single-pass mode (here SCR-001 to SCR-048) can't map returned Figma frames onto its existing screens.
+
+**Direction:** An ingest mode for an approved 04 that matches on `SCR-###` ids declared in `ia.yaml` (or on a `node_id` → `SCR` map). It writes a new draft that reuses the existing ids.
+
+---
+
+## 68. 🟠 `/pm-handoff --package` deletes files PM-OS didn't generate from the audience folders (GH #77-24)
+
+**Severity:** P2. A designer kit saved under `handoff/design/` was wiped the next time the package was built.
+**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
+
+**Proposed fix:** Keep a manifest of the files PM-OS writes, next to the marker, and delete only those. Leave any other file alone and note that it was kept. The sprint-scoped package requested in the same report belongs with the delivery-increment design (#28).
+
+**The rest of GH #77, recorded elsewhere or not a defect:**
+- #6 (`python3` / `$HOME` paths) → entry #2.
+- #5 (package-build performance, not yet profiled) → follow-up under #66.
+- #13 (every edit marks all later stages stale) is by design.
+- #9 is shell behaviour, not PM-OS.
+- #17 was fixed by the reporter's recovery event.
+- #21 is GH #76.
+- #22 → entry #48.
+
+---
+
+## 69. 🔵 GitHub requests #70, #71, #73, #74, #76 and #79, not yet scoped
+
+**Status:** 🔵 Logged for triage. None of these is yet a verified defect in shipped behaviour.
+- **#70:** `ENHANCEMENT_CHANGE_OUTSIDE_BOUNDARY` lists every FR, US and NFR in `content-translation-v3`. This looks like a full PRD regeneration inside an enhancement cycle rather than a bug in the check. Triage needs the project's frozen baseline.
+- **#71:** Mermaid diagrams for user journeys.
+- **#73:** TRD tasks split cleanly into backend and frontend, with none spanning both.
+- **#74:** Jira stories that stand alone, plus a flag to build the package the same way. Story dossiers became standalone in v1.5.1 (EDA-303), so check what is still missing.
+- **#76:** A capability and feature layer between business requirements and epics. Overlaps GH #77-21.
+- **#79:** The evidence ledger (`00-context/evidence.yaml`) has no mechanical validation. Confirmed: only `pm_context_import.py` refers to the filename, and only as a path constant.
+
+---
+
+_**Entries 54-69 recorded 2026-10-05** from GitHub issues #70–#79, mainly the 25-item "prism run" report (#77). Each was verified against the v1.5.1 code before logging, and #54 was also reproduced on a Windows 11 machine. For three items, the root cause found differs from the report's explanation:_
+- _#54: Windows `NUL` reports `isatty()` as True._
+- _#55: a single meta overwrite causes both the identical-hash warning and the hash mismatch._
+- _#56: the likely cause of the reported approval hang is the edit-distance DP, not the hook._
 
 ---
 
