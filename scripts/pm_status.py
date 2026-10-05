@@ -74,7 +74,7 @@ def _open_known_unknowns(root):
 def _print_sync_status(root, tpath):
     """Central sync health: last success, approvals not yet synced, and the fix
     for missing credentials (backlog #62)."""
-    from git_sync import is_auth_failure, read_sync_status
+    from sync_status import is_auth_failure, read_sync_status
 
     status = read_sync_status(root) or {}
     last_success = status.get("last_success_at")
@@ -101,7 +101,7 @@ def _print_sync_status(root, tpath):
                 repo = load_config().get("feedback_repo") or "<feedback_repo>"
             except Exception:
                 repo = "<feedback_repo>"
-            print("  No git credentials for the feedback repo, so nothing has been pushed. "
+            print("  No git credentials for the feedback repo, so nothing has reached it. "
                   f"Sign in once from a terminal (for example: git ls-remote {repo}), "
                   "then run /pm-sync.")
         else:

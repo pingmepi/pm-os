@@ -69,7 +69,7 @@ def test_prompts_use_the_console_aware_stdin_check():
 def test_skill_snippets_do_not_resolve_lib_through_shell_home():
     """GH #77-6. Skill snippets add ~/.pm-os/lib with os.path.expanduser in Python.
     Interpolating $HOME into the Python string breaks under Git Bash on Windows,
-    where $HOME is /c/Users/... and Python cannot import from it."""
+    where $HOME is a POSIX-style /c/... path that Python cannot import from."""
     offenders = [str(p.relative_to(REPO_ROOT)) for p in (REPO_ROOT / "skills").rglob("SKILL.md")
                  if "'$HOME/.pm-os/lib'" in p.read_text(encoding="utf-8")]
     assert not offenders, offenders

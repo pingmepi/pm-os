@@ -4,7 +4,7 @@
 
 ### Added
 - **`scripts/pm_finish_stage.py <NN> --model <id>` (backlog #63, GH #77-15).** Records a stage artifact written outside its skill (in parts, by hand, by another tool) as a generated draft in one call: `.history` snapshot and `generated_hash`, meta + frontmatter to `draft`, `stage_generated` telemetry. Previously there was no supported way to make such an artifact approvable.
-- **`/pm-status` shows central-sync health (backlog #62, GH #77-16).** Each sync now records its outcome in `.pm-os-sync.json` (gitignored). `/pm-status` shows the last result and how many approvals have not reached the central repo yet. If the failure is missing git credentials, it names the feedback repo and the one-time fix, because a background push that failed every time used to be visible only in `.pm-os-sync.log`.
+- **`/pm-status` shows central-sync health (backlog #62, GH #77-16).** Each sync now records its outcome in `.pm-os-sync.json` (gitignored, `lib/sync_status.py`). `/pm-status` shows the last result and how many approvals have not reached the central repo yet. If the failure is missing git credentials, it names the feedback repo and the one-time fix, because a background push that failed every time used to be visible only in `.pm-os-sync.log`.
 
 ### Fixed
 - **Windows: scripts crashed printing ✓ when their output was piped (backlog #60, GH #77-8).** Piped stdout on Windows defaults to cp1252. Every script and hook now switches stdout/stderr to UTF-8 at startup on Windows only (`lib/console.ensure_utf8_stdio`); other platforms are untouched.
