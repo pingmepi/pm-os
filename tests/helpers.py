@@ -116,7 +116,7 @@ def generate_stage(proj: Path, stage_id: str, body: str = "Generated body.\n",
     # Retain a generated snapshot (what edit distance diffs the approved body against).
     hist = proj / ".history"
     hist.mkdir(exist_ok=True)
-    (hist / f"{apath.stem}.20260101T000000+00:00.generated.md").write_text(
+    (hist / f"{apath.stem}.20260101T000000Z.generated.md").write_text(
         apath.read_text(), encoding="utf-8")
     telemetry.log("stage_started", proj, stage_id, {})
     telemetry.log("stage_generated", proj, stage_id, {

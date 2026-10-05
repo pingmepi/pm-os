@@ -555,7 +555,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 31. 🟡 Approval can leave a partially-transitioned pipeline (approve→cascade not atomic; invariant never read)
 
 **Severity:** P1 — silent invalid state: downstream stages left `approved` against an obsolete upstream approval, with no detector anywhere.
-**Status:** 🟡 Detector released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`); the atomicity refactor (Part 1) remains open. Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
+**Status:** 🟡 Detector released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). The atomicity refactor (Part 1) is fixed on branch `fix/approval-state-integrity`, not yet released (see #57). Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
 
 **Fixed (detector — Part 2):** `lib/consistency.py` gains `_check_downstream_upstream_hashes` (`DOWNSTREAM_UPSTREAM_STALE`), which flags any `approved` stage whose recorded `upstream_hashes_at_approval[uid]` ≠ the (still-approved) upstream's current `content_hash` — finally consuming the written-but-unread field, and repairing already-corrupted projects (the PM re-approves the flagged stage). Regression: `test_pm_check_flags_downstream_approved_against_changed_upstream` (`tests/integration/test_approval_and_staleness.py`). **Still open (atomicity — Part 1):** making the approve→cascade a single atomic unit (so the window can't open) touches the core state machine (`pm_approve.py` + `post-approve.py` + the pre-stage gate) and is deliberately left for its own focused pass; the detector makes the state visible and repairable in the meantime.
 
@@ -874,10 +874,10 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
-## 54. 🔴 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
+## 54. 🟡 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
 
 **Severity:** P0. The human-in-the-loop guarantee from entry #1 depends on the gate's non-TTY branch, and on Windows that branch never runs.
-**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. `lib/console.stdin_is_interactive()` is now used by the gate. Regressions: `test_gate_blocks_instead_of_crashing_on_nul_stdin`, `test_windows_nul_stdin_is_not_interactive`. The other prompts (`pm_new`, `pm_feedback`, `pm_os_install`, `pm_context_import`) still use plain `isatty()`; they move to the helper in the Windows bundle (Phase 3a). Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
 
 **Symptom:** An agent runs a stage whose upstream was edited after approval. The gate prints the `[1] Continue / [2] Re-approve / [3] Cancel` menu and then crashes with `EOFError` at `input("Choice [1/2/3]: ")`. It should instead print the BLOCKED message that sends the decision to the PM.
 
@@ -889,10 +889,10 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
-## 55. 🔴 The gate overwrites the approved `content_hash` when it detects drift (GH #77-10, #77-11)
+## 55. 🟡 The gate overwrites the approved `content_hash` when it detects drift (GH #77-10, #77-11)
 
 **Severity:** P1. One line causes three visible defects and destroys the only on-disk record of what the PM approved.
-**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Meta keeps `content_hash` and records `edited_hash`; the mismatch remediation was reworded. Regressions: `test_gate_keeps_approved_hash_when_it_detects_drift`, `test_approving_an_edited_stage_clears_the_drift_record`. Projects already corrupted by the old gate still show the mismatch until the edited stage is re-approved. The warning now reads the approved hash from the frontmatter, so it is correct for those projects too. Verified against the v1.5.1 code on 2026-10-05.
 
 **Symptom:**
 1. The edited-upstream warning prints the same value for "Approved hash" and "Current hash".
@@ -913,10 +913,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 56. 🔴 Approving a large artifact can hang indefinitely on the edit-distance metric (GH #77-3)
+## 56. 🟡 Approving a large artifact can hang indefinitely on the edit-distance metric (GH #77-3)
 
 **Severity:** P1. Approval of a big PRD never completes. The stage is left half-approved: frontmatter and meta are written, but there is no `stage_approved` event, no hook run, no cascade and no commit.
-**Status:** 🔴 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Approval uses `bounded_edit_distance` and computes it once. Regressions: `test_approving_a_large_edited_artifact_does_not_hang`, plus two unit tests. Verified against the v1.5.1 code on 2026-10-05.
 
 **Root cause:** `scripts/pm_approve.py:198-205` computes `char_edit_distance(gen_body, body)` (`lib/text_metrics.py:10-27`). It is a pure-Python Levenshtein DP that keeps two rows and costs O(len(a)·len(b)). For the reported 466 KB PRD that is about 2×10¹¹ cell updates, which takes hours. It runs after the approval is written and before telemetry, the hook and the cascade. Killing it therefore leaves exactly the window described in #31.
 
@@ -924,10 +924,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 57. 🟠 The post-approve hook has no timeout and runs the stale cascade in a separate process (GH #77-4; #31 Part 1)
+## 57. 🟡 The post-approve hook has no timeout and runs the stale cascade in a separate process (GH #77-4; #31 Part 1)
 
 **Severity:** P1. This is #31 actually happening: a stage 08 re-approval hung and stage 09 was never marked stale. `/pm-check` then reported `DOWNSTREAM_UPSTREAM_STALE`.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. The cascade lives in `lib/cascade.py` and runs inside `pm_approve.py` in the approval's meta write. The hook is a timed subprocess with stdin closed. Regression: `test_downstream_is_stale_even_when_the_hook_hangs`. This also closes #31 Part 1, apart from the few-millisecond gap between the frontmatter writes and the single meta write. Removing that gap needs a write lock (open PR #52). Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `scripts/pm_approve.py:231-241` runs `subprocess.run([sys.executable, hook])` with no `timeout`, and the hook inherits stdin. The downstream cascade happens only inside that subprocess, after the HTML render (`hooks/post-approve.py:110-132`). Anything that hangs before the cascade, whether the render or a git child process waiting for input, means downstream stages are never marked stale.
 
@@ -938,10 +938,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 58. 🟠 `--reapprove` cannot rebind a stage whose upstream was re-approved (GH #77-12)
+## 58. 🟡 `--reapprove` cannot rebind a stage whose upstream was re-approved (GH #77-12)
 
 **Severity:** P2. The fix that `DOWNSTREAM_UPSTREAM_STALE` asks for ("re-approve the flagged stage") does nothing when the flagged stage's own body hasn't changed.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Regressions: `test_reapprove_rebinds_a_stage_to_its_reapproved_upstream`, `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream`. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `scripts/pm_approve.py:109-117` checks only the stage's own body hash. If it is unchanged, it exits with "already approved and unchanged since approval. No action taken." It never compares the stored `upstream_hashes_at_approval` against the upstreams' current `content_hash`, which is exactly the mismatch that `lib/consistency.py` `_check_downstream_upstream_hashes` reports.
 

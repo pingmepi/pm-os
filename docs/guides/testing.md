@@ -179,6 +179,14 @@ one-line description. The matching docstring in code carries the same intent for
 **`test_text_metrics.py`** — edit distance
 - `test_char_edit_distance_known` — Levenshtein on known pairs + empties.
 - `test_normalized_edit_distance_range` — 0.0 identical … 1.0 fully different.
+- `test_bounded_distance_is_exact_within_budget_and_an_upper_bound_beyond` — backlog #56: on random inputs the trimmed `char_edit_distance` matches a reference Levenshtein; `bounded_edit_distance` is exact when it says `exact` and never undercounts when it falls back to `line_approx`.
+- `test_bounded_distance_on_artifact_sized_input_is_fast` — backlog #56: a ~500 KB body with scattered edits is measured in well under a second, as `line_approx`, with a distance proportional to the edits.
+
+**`test_console.py`** — is a human at stdin? (`lib/console.py`)
+- `test_non_tty_and_broken_streams_are_not_interactive` — a non-TTY stream and a closed stream that raises are both non-interactive.
+- `test_tty_on_posix_is_interactive` — off Windows, `isatty()` True is trusted as before.
+- `test_tty_on_windows_requires_a_console_handle` — on Windows `isatty()` alone is not enough; no console handle means non-interactive.
+- `test_windows_nul_stdin_is_not_interactive` — backlog #54 (Windows only): with stdin from `NUL`, `isatty()` is True but `stdin_is_interactive()` is False.
 
 **`test_context.py`** — context overlay (Codex regression guards)
 - `test_unfilled_pack_is_noop_every_stage` — an unfilled/seed-identical pack renders nothing for all 9 stages.
@@ -313,10 +321,19 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_reapproving_upstream_cascades_downstream_stale` — re-approving 01 marks approved 02 stale + logs `stage_marked_stale`.
 - `test_reapprove_rejects_without_flag` — approving an already-approved stage without `--reapprove` is a no-op that points the PM at the flag.
 - `test_reapprove_with_flag_reapproves_direct_edit` — `--reapprove` re-approves a stage the PM edited directly while still `approved` (no downstream gate needed first), cascades stale downstream, and logs `reapproved_from_approved: true`.
-- `test_reapprove_noop_when_unchanged` — `--reapprove` on an approved stage with no body drift is a true no-op: no new telemetry, no downstream staleness.
+- `test_reapprove_noop_when_unchanged` — `--reapprove` on an approved stage with no body drift (and no upstream change) is a true no-op: no new telemetry, no downstream staleness.
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 - `test_pm_check_flags_downstream_approved_against_changed_upstream` — backlog #31 detector: an `approved` stage whose recorded `upstream_hashes_at_approval[uid]` no longer matches the still-`approved` upstream's current `content_hash` (the invalid state an interrupted stale-cascade leaves) is flagged `DOWNSTREAM_UPSTREAM_STALE`; a correctly-approved chain is clean.
+
+**`test_approval_integrity.py`** — approval state integrity (backlog #54–#58)
+- `test_gate_blocks_instead_of_crashing_on_nul_stdin` — #54: the gate run with stdin from the null device (Windows `NUL` reports `isatty()` True) takes the BLOCKED path to `/pm-approve`, with no `EOFError`.
+- `test_gate_keeps_approved_hash_when_it_detects_drift` — #55: on drift, meta keeps the approved `content_hash` (in lockstep with frontmatter) and records `edited_hash`; the warning shows two different hashes; no `META_FRONTMATTER_HASH_MISMATCH`.
+- `test_approving_an_edited_stage_clears_the_drift_record` — #55: explicit and implicit re-approval both leave one hash in meta + frontmatter and drop `edited_hash`.
+- `test_downstream_is_stale_even_when_the_hook_hangs` — #57/#31: with a post-approve hook that hangs, approval returns at `PM_OS_POST_APPROVE_TIMEOUT` and the downstream stage is already `stale` in meta, frontmatter and telemetry.
+- `test_reapprove_rebinds_a_stage_to_its_reapproved_upstream` — #58: `--reapprove` on an unchanged stage whose recorded upstream hash moved rebinds it (`stage_rebound`), leaves its own hash and downstream stages alone, and clears `DOWNSTREAM_UPSTREAM_STALE`; a second run is a no-op.
+- `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream` — #58: rebinding is refused while any upstream is not approved, naming it.
+- `test_approving_a_large_edited_artifact_does_not_hang` — #56: a ~400 KB generated stage with PM edits approves inside the runner timeout and records `edit_distance_method: line_approx`.
 
 **`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
 - `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.

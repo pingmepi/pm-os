@@ -2,9 +2,11 @@
 """
 post-approve hook - runs after pm-approve completes.
 
-1. Render companion HTML for stages 04 and 05.
-2. Cascade staleness: downstream approved stages -> stale.
-3. Sync telemetry + feedback JSONL to feedback repo (deferred by default).
+1. Cascade staleness: downstream approved stages -> stale. pm_approve.py has
+   already done this in the same write as the approval (backlog #31/#57), so
+   here it is an idempotent safety net that normally finds nothing to demote.
+2. Render companion HTML for stages 04 and 05.
+3. Rebuild the traceability index, commit the project locally, and sync telemetry + feedback JSONL to feedback repo (deferred by default).
 """
 
 import subprocess
@@ -16,8 +18,8 @@ import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-from project import resolve_project, load_meta, save_meta, get_stage, artifact_path, downstream_stage_ids
-from frontmatter import update_status
+from project import resolve_project, load_meta, save_meta, get_stage
+from cascade import cascade_stale
 from html_render import render_design_spec, render_prototype_mockup
 from telemetry import log
 from git_sync import push_feedback_repo
@@ -86,6 +88,15 @@ def main():
 
     meta = load_meta(project_root)
 
+    # --- Cascade staleness to downstream approved stages (first: cheapest, most important) ---
+    stale_logged = cascade_stale(
+        meta, project_root, [stage_id],
+        {"reason": "upstream_approved", "triggering_upstream_stage": stage_id},
+    )
+    if stale_logged:
+        save_meta(meta, project_root)
+        print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
+
     # --- Render companion HTML for stages with generated previews ---
     # E2 non-UI work uses surface-appropriate validation artifacts; it must not
     # acquire fabricated design/prototype HTML merely because stages 04/05 were approved.
@@ -106,30 +117,6 @@ def main():
                 print(f"[post-approve] Rendered fallback companion HTML: {output_path.name}")
     except Exception as e:
         print(f"[post-approve] WARNING: Could not render companion HTML: {e}", file=sys.stderr)
-
-    # --- Cascade staleness to downstream approved stages ---
-    downstream_ids = downstream_stage_ids(stage_id, meta)
-
-    stale_logged = []
-    for did in downstream_ids:
-        try:
-            ds_meta = get_stage(meta, did)
-        except KeyError:
-            continue
-        if ds_meta["status"] == "approved":
-            ds_meta["status"] = "stale"
-            apath = artifact_path(project_root, did)
-            if apath.exists():
-                update_status(str(apath), "stale")
-            log("stage_marked_stale", project_root, did, {
-                "reason": "upstream_approved",
-                "triggering_upstream_stage": stage_id,
-            })
-            stale_logged.append(did)
-
-    if stale_logged:
-        save_meta(meta, project_root)
-        print(f"[post-approve] Marked downstream stages stale: {', '.join(stale_logged)}")
 
     # --- Rebuild the traceability spine when an ID-bearing stage is approved ---
     # Stage 03 (PRD) declares requirement ids; stage 04 (design spec) declares the
