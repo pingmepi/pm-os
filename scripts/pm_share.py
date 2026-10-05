@@ -27,6 +27,11 @@ Usage:
     python3 pm_share.py --package --audience dev           # rebuild only handoff/dev/
     python3 pm_share.py --package --output DIR             # write to DIR instead
     python3 pm_share.py --package --html                   # also emit an index.html per audience
+    python3 pm_share.py ... --allow-secrets                # export despite likely secrets (logged)
+
+Every mode first scans the artifacts it would export for likely secrets
+(lib/secret_scan, GH #63 PMOS-001) and refuses — writing nothing — unless
+--allow-secrets is given. Output names file:line + kind, never the value.
 """
 from __future__ import annotations
 
@@ -59,6 +64,7 @@ from delivery_map import build_prd_delivery_map, body_of, normalize_title, title
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
+import secret_scan  # noqa: E402
 import traceability  # noqa: E402
 
 try:
@@ -1328,9 +1334,26 @@ def _write_html_index(
     return path
 
 
-# --- raw mode (original pm-share behavior, unchanged) -------------------------
+# --- secret gate ------------------------------------------------------------------
 
-def _raw_export(root: Path, stage_id: str | None, output: str | None) -> None:
+# Stage artifacts the package reads (see build_package): brief, scope, PRD, design
+# spec/brief, QA plan, TRD — plus the stage-05 prototype copied into wireframes/.
+# Scanned whenever present, whatever their status: a secret sitting in a draft the
+# package might pick up is still worth stopping on.
+PACKAGE_SOURCE_STAGES = ("01", "02", "03", "04", "06", "08")
+PROTOTYPE_FILENAME = "05-prototype-mockup.html"
+
+
+def package_source_paths(root: Path) -> list[Path]:
+    paths = [artifact_path(root, sid) for sid in PACKAGE_SOURCE_STAGES]
+    paths.append(root / PROTOTYPE_FILENAME)
+    return [p for p in paths if p.exists()]
+
+
+# --- raw mode (original pm-share behavior, plus the secret gate) -----------------
+
+def _raw_export(root: Path, stage_id: str | None, output: str | None,
+                allow_secrets: bool = False) -> None:
     meta = load_meta(root)
 
     if stage_id:
@@ -1345,6 +1368,11 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None) -> None:
     if not stages_to_share:
         print("No approved stages to share.")
         sys.exit(0)
+
+    # Gate before printing/writing anything: raw mode echoes bodies verbatim.
+    secret_scan.guard_export(
+        root, [p for p in (artifact_path(root, sid) for sid in stages_to_share) if p.exists()],
+        allow=allow_secrets, export="handoff_raw")
 
     lines = [f"# {meta['project_name']}", f"Project: {meta['project_slug']} | PM-OS {meta['pm_os_version']}", ""]
 
@@ -1386,6 +1414,11 @@ def main() -> None:
              "leaving other audience subfolders untouched. Omit to (re)build all four.",
     )
     parser.add_argument("--html", action="store_true", help="With --package, also emit an index.html per built audience folder")
+    parser.add_argument(
+        "--allow-secrets", dest="allow_secrets", action="store_true",
+        help="Export even though the scan found likely secrets (API keys, tokens, private "
+             "keys) in the exported artifacts. Logged as secrets_allowed; rotate the credential.",
+    )
     args = parser.parse_args()
 
     if args.audience and not args.package:
@@ -1399,13 +1432,16 @@ def main() -> None:
 
     if args.package:
         out_dir = Path(args.output) if args.output else root / "handoff"
+        # Before build_package touches handoff/: a blocked export writes nothing.
+        secret_scan.guard_export(root, package_source_paths(root),
+                                 allow=args.allow_secrets, export="handoff_package")
         written = build_package(root, out_dir, with_html=args.html, audience=args.audience)
         scope = f"handoff/{args.audience}/" if args.audience else "handoff/{dev,design,qa,business}/"
         print(f"Handoff package written to {scope} ({len(written)} files).")
         print("This package is read-only — regenerate with `/pm-handoff --package` after approving PRD/QA/design changes.")
         return
 
-    _raw_export(root, args.stage_id, args.output)
+    _raw_export(root, args.stage_id, args.output, args.allow_secrets)
 
 
 if __name__ == "__main__":

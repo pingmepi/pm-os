@@ -6,7 +6,9 @@ normalizing/reverse-generating stage artifacts) lives in the pm-context-import
 SKILL.md. This script only moves bytes and updates state:
 
   register   preserve a raw source in .history/, register it in .sources.yaml,
-             log a context_ingested event.
+             log a context_ingested event. Likely secrets (lib/secret_scan) are
+             redacted from text snapshots; a non-redactable source (pdf/docx/...)
+             holding one is refused unless --allow-secrets (GH #63 PMOS-001).
   preflight  print the backfill-feasibility verdicts for a provided combo
              (uses lib.project.resolve_backfill); exits non-zero if any gap is
              infeasible so a caller can block.
@@ -18,6 +20,7 @@ The SKILL writes the markdown bodies; this script never generates content.
 """
 import argparse
 import hashlib
+import io
 import os
 import re
 import shutil
@@ -43,6 +46,7 @@ from hashing import hash_artifact_body, stage_content_hash, CompositeHashError
 from frontmatter import read as fm_read, write as fm_write, update_status
 from telemetry import log
 from artifact_contracts import format_findings, validate_artifact
+import secret_scan
 
 
 def _now():
@@ -109,8 +113,96 @@ ANSWERED_RE = re.compile(r"^\s*-\s*\[[xX]\]\s*ANSWERED:\s*(.+?)\s*$")
 SKIPPED_RE = re.compile(r"^\s*-\s*\[\s*\]\s*SKIPPED:\s*(.+?)\s*$")
 
 
-def _register_one(root, src, src_type, ts, sources):
-    """Snapshot one file and append a provenance entry to ``sources`` (in place)."""
+# --- secret scanning (GH #63 PMOS-001) -------------------------------------------
+# `.history/` is committed to the project's local git repo, so a live credential in
+# a source must never be snapshotted verbatim. Text-like sources are redacted in
+# the snapshot (`[REDACTED:<kind>]`); container formats (pdf/docx/pptx/xlsx/...) can't
+# be rewritten safely, so they are best-effort scanned and REFUSED on a hit unless
+# the PM passes --allow-secrets. Output and telemetry name file/line/kind only.
+REDACTABLE_EXTS = TEXT_EXTS | {".csv", ".tsv", ".svg", ".rtf"}
+_XML_TAG_RE = re.compile(r"<[^>]+>")
+_ZIP_MEMBER_SCAN_LIMIT = 20 * 1024 * 1024
+
+
+class SecretsBlocked(Exception):
+    """A non-redactable source holds likely secrets and --allow-secrets was not given."""
+
+    def __init__(self, src, findings):
+        super().__init__(src.name)
+        self.src = src
+        self.findings = findings
+
+
+def _binary_text(data: bytes) -> str:
+    """Cheap text view of a container source for scanning only (never persisted).
+    OOXML (docx/pptx/xlsx) is a zip of XML parts — tags are stripped with no
+    separator so a key split across text runs still reads contiguously. Anything
+    else (pdf, legacy office, images) is a raw latin-1 view: uncompressed text is
+    caught, compressed streams are not — this is best effort, not a guarantee."""
+    buf = io.BytesIO(data)
+    if zipfile.is_zipfile(buf):
+        parts = []
+        try:
+            with zipfile.ZipFile(buf) as zf:
+                for info in zf.infolist():
+                    if info.filename.endswith(".xml") and info.file_size <= _ZIP_MEMBER_SCAN_LIMIT:
+                        parts.append(_XML_TAG_RE.sub("", zf.read(info).decode("utf-8", errors="replace")))
+        except (zipfile.BadZipFile, OSError, RuntimeError):
+            pass
+        return "\n".join(parts)
+    return data.decode("latin-1")
+
+
+def _secret_snapshot_bytes(src: Path, data: bytes):
+    """(bytes to persist, findings, redacted?) for one source.
+
+    Redactable text is decoded (utf-8, else latin-1 — both round-trip the
+    untouched bytes exactly), redacted, and re-encoded. Everything else is scanned
+    via _binary_text and returned unchanged, with line-less findings."""
+    if src.suffix.lower() in REDACTABLE_EXTS and not secret_scan.is_binary(data):
+        try:
+            text, enc = data.decode("utf-8"), "utf-8"
+        except UnicodeDecodeError:
+            text, enc = data.decode("latin-1"), "latin-1"
+        redacted, findings = secret_scan.redact_text(text)
+        findings = [secret_scan.Finding(f.line, f.kind, f.preview, src.name) for f in findings]
+        return (redacted.encode(enc) if findings else data), findings, True
+    findings = [secret_scan.Finding(None, f.kind, f.preview, src.name)
+                for f in secret_scan.scan_text(_binary_text(data))]
+    return data, findings, False
+
+
+def _log_secret_event(root, event, payload):
+    try:
+        log(event, root, None, payload)
+    except Exception as e:
+        print(f"Warning: telemetry logging failed: {e}")
+
+
+def _report_blocked(root, blocked: SecretsBlocked) -> None:
+    print(f"Blocked: {blocked.src.name} looks like it contains "
+          f"{len(blocked.findings)} secret(s) (values not shown):")
+    print(secret_scan.format_findings(blocked.findings))
+    print("  This format can't be redacted in place, so it was NOT preserved or registered. "
+          "Remove the secret from the original (and rotate it — treat it as exposed), then "
+          "re-register; or re-run with --allow-secrets to keep the file verbatim (logged).")
+    _log_secret_event(root, "secrets_blocked", {
+        "surface": "context_import",
+        "source_filename": blocked.src.name,
+        **secret_scan.summarize(blocked.findings),
+    })
+
+
+def _register_one(root, src, src_type, ts, sources, allow_secrets=False):
+    """Snapshot one file and append a provenance entry to ``sources`` (in place).
+
+    Likely secrets are redacted from text snapshots; a non-redactable source with
+    a hit raises SecretsBlocked (nothing written) unless ``allow_secrets``."""
+    data = src.read_bytes()
+    snapshot_bytes, findings, redacted = _secret_snapshot_bytes(src, data)
+    if findings and not redacted and not allow_secrets:
+        raise SecretsBlocked(src, findings)
+
     stamp = ts.replace(":", "").replace("-", "")[:15]
     src_id = f"src_{len(sources) + 1:03d}"
     history = root / ".history"
@@ -118,7 +210,7 @@ def _register_one(root, src, src_type, ts, sources):
     snapshot = history / f"source-{stamp}-{src.name}"
     if snapshot.exists():  # collision (same name within the same second) — disambiguate
         snapshot = history / f"source-{stamp}-{src_id}-{src.name}"
-    snapshot.write_bytes(src.read_bytes())
+    snapshot.write_bytes(snapshot_bytes)
 
     modality = _modality_for(src)
     sources.append({
@@ -152,6 +244,29 @@ def _register_one(root, src, src_type, ts, sources):
         })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
+
+    if findings:
+        summary = secret_scan.summarize(findings)
+        # Recorded on the source entry so the SKILL (and a later reader) knows the
+        # snapshot is not byte-identical to the original — or, when allowed, that it
+        # still holds a live secret.
+        sources[-1]["secrets_redacted" if redacted else "secrets_unredacted"] = summary["count"]
+        sources[-1]["secret_kinds"] = summary["kinds"]
+        if redacted:
+            print(f"Warning: {len(findings)} likely secret(s) found in {src.name} — redacted "
+                  f"in the preserved snapshot (values not shown):")
+        else:
+            print(f"Warning: {len(findings)} likely secret(s) found in {src.name} — kept "
+                  f"VERBATIM because --allow-secrets was given (values not shown):")
+        print(secret_scan.format_findings(findings))
+        print("  Rotate the credential(s) at the source — the original document still holds "
+              "them and should be treated as exposed.")
+        _log_secret_event(root, "secrets_redacted" if redacted else "secrets_allowed", {
+            "surface": "context_import",
+            "source_id": src_id,
+            "source_filename": src.name,
+            **summary,
+        })
     return src_id, snapshot
 
 
@@ -169,8 +284,13 @@ def cmd_register(args):
         sources = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or []
 
     # --- Single file ---
+    allow = getattr(args, "allow_secrets", False)
     if src.is_file():
-        src_id, snapshot = _register_one(root, src, args.type, ts, sources)
+        try:
+            src_id, snapshot = _register_one(root, src, args.type, ts, sources, allow)
+        except SecretsBlocked as blocked:
+            _report_blocked(root, blocked)
+            sys.exit(1)
         sources_path.write_text(
             yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8"
         )
@@ -178,7 +298,7 @@ def cmd_register(args):
         return
 
     # --- Folder: walk recursively, register document files, report coverage ---
-    registered, skipped, subdirs = [], [], set()
+    registered, skipped, blocked, subdirs = [], [], [], set()
     for path in sorted(src.rglob("*")):
         rel = path.relative_to(src)
         if any(part in IGNORE_DIRS or part.startswith(".") for part in rel.parts[:-1]):
@@ -190,7 +310,14 @@ def cmd_register(args):
         if path.parent != src:
             subdirs.add(str(path.parent.relative_to(src)))
         if path.suffix.lower() in DOC_EXTS:
-            src_id, _ = _register_one(root, path, args.type, ts, sources)
+            try:
+                src_id, _ = _register_one(root, path, args.type, ts, sources, allow)
+            except SecretsBlocked as exc:
+                # One unredactable file with a secret must not sink the whole folder:
+                # skip it loudly and keep registering the rest.
+                _report_blocked(root, exc)
+                blocked.append(str(rel))
+                continue
             registered.append((src_id, str(rel)))
         else:
             skipped.append(str(rel))
@@ -209,6 +336,10 @@ def cmd_register(args):
         print(f"Skipped {len(skipped)} non-document file(s) — review if any hold context:")
         for rel in skipped:
             print(f"  (skipped) {rel}")
+    if blocked:
+        print(f"Blocked {len(blocked)} file(s) holding likely secrets (not preserved — see above):")
+        for rel in blocked:
+            print(f"  (blocked) {rel}")
 
 
 def _question_from_bullet(line: str):
@@ -315,7 +446,11 @@ def cmd_record_interview(args):
     if sources_path.exists():
         sources = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or []
 
-    src_id, snapshot = _register_one(root, src, "context", ts, sources)
+    try:
+        src_id, snapshot = _register_one(root, src, "context", ts, sources)
+    except SecretsBlocked as blocked:
+        _report_blocked(root, blocked)
+        sys.exit(1)
     source = next(s for s in sources if s["id"] == src_id)
     source.update({
         "authorship": "pm",
@@ -326,7 +461,9 @@ def cmd_record_interview(args):
     sources_path.write_text(
         yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
-    text = src.read_text(encoding="utf-8")
+    # Redacted so a credential pasted into an answer can't ride a skipped question
+    # into 00-context/known-unknowns.md (the snapshot itself is redacted above).
+    text, _ = secret_scan.redact_text(src.read_text(encoding="utf-8"))
     skip_all = (
         os.environ.get("PM_OS_INTERVIEW", "").strip().lower() == "skip"
         or (not stdin_is_interactive() and not args.interview_answers and _is_pending_questions_file(text))
@@ -933,6 +1070,10 @@ def main():
     p_reg.add_argument("file")
     p_reg.add_argument("--type", default="context",
                        help="source type: context|brief|scope|prd|design|research|...")
+    p_reg.add_argument("--allow-secrets", dest="allow_secrets", action="store_true",
+                       help="Preserve a non-redactable source (pdf/docx/pptx/...) verbatim even "
+                            "though it holds likely secrets (logged). Text sources are always "
+                            "redacted instead.")
     p_reg.set_defaults(func=cmd_register)
 
     p_int = sub.add_parser("record-interview",

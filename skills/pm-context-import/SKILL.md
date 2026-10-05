@@ -24,6 +24,7 @@ Building the context wiki (`00w`) and understanding doc (`00u`) is **deep-reason
 - **The gate is the understanding doc.** Three stage-00 docs must be approved before stage 01 runs: `00-business-statement.md`, `00-context-wiki.md`, `00-context-understanding.md`. You scaffold the wiki and understanding as drafts; the **PM approves them** via `/pm-approve`. Do not self-approve them.
 - **Never invent requirements** that aren't in the PM's sources. Reshaping maps their headings onto PM-OS sections; it does not add scope.
 - **The gate is never weakened.** Gaps below an adopted artifact are backfilled, not skipped (see Feasibility map). Backfill commits are bottom-up so upstream hashes are honest.
+- **Never repeat a secret.** `register` scans every source for likely credentials (API keys, tokens, private keys, `password = …` values). Never copy a credential value into the wiki, evidence ledger, understanding doc, any stage artifact, or your replies — not even partially. Read from the redacted `.history/` snapshot, write `[REDACTED]` where the source had one, and refer to it by file and line only.
 
 # Pre-flight
 
@@ -81,6 +82,8 @@ python3 ~/.pm-os/scripts/pm_context_import.py register "<path>" --type <research
 
 Surface both as FYIs so coverage is visible and nothing is dropped silently:
 `FYI: registered N sources across M folders from <path> (raw originals preserved under .history/). FYI: skipped K non-document file(s): <list> — tell me if any of these hold context.`
+
+**Secrets.** If `register` prints `Warning: … likely secret(s) found …`, the snapshot under `.history/` was redacted (`[REDACTED:<kind>]`) and `.sources.yaml` records `secrets_redacted` + `secret_kinds`. Relay the `file:line  kind` lines exactly as printed and tell the PM to **rotate the credential at its source** — the original document still holds it and should be treated as exposed. If it prints `Blocked: …` (a pdf/docx/pptx/xlsx that can't be redacted in place), that file was **not** registered: ask the PM to remove the secret from the original and re-register. Only re-run with `--allow-secrets` (keeps the file verbatim, logged) if the PM explicitly says to after you explain the snapshot will be committed to the project's history. Never print, quote, or summarize the secret value.
 
 # Step 2 — Classify each source: adopt vs. context
 

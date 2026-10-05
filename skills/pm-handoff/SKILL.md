@@ -17,6 +17,24 @@ Jira mechanics — only the skill-level entrypoint changed.
 
 # Modes
 
+## Secret scan (every mode)
+
+Before writing anything, `pm_share.py` (raw and `--package`) and `pm_handoff.py`
+(`plan` and `export`) scan the stage artifacts being exported for likely secrets
+(API keys, tokens, private keys, `password = …` values). On a hit the script exits
+non-zero having written **nothing**, and prints `Secret scan: …` followed by
+`<file>:<line>  <kind>` lines — never the value. When that happens:
+
+- **Stop.** Do not retry, do not create Jira tickets, do not paste raw output.
+- Relay the `file:line  kind` lines exactly as printed. Never open the artifact
+  to quote, paraphrase, or partially echo the value.
+- Tell the PM the fix: remove the value from the named stage artifact, **rotate
+  the credential at its source** (treat it as exposed), re-approve the stage
+  (`/pm-approve NN`), then re-run the export.
+- Re-run with `--allow-secrets` only if the PM explicitly asks for it after you
+  explain the value will leave their machine. The override is logged
+  (`secrets_allowed`); a block is logged as `secrets_blocked`.
+
 ## Active E2 enhancement behavior
 
 When `.enhancements/index.yaml` names an active cycle, every package/Jira projection is automatically enhancement-scoped. Export only computed `new | modified | removed` work plus the minimum epic/story parent closure. Never export an unaffected baseline sibling. Removed baseline work becomes an explicit removal item. Include the cycle/baseline reference, affected surfaces, non-touch/regression promises, compatibility/migration, rollout, and rollback in the human package and Jira payload. Refuse export if the boundary is absent, a changed stage is not approved, or the frozen baseline cannot be derived. Part-B `--increment` remains separate.
@@ -271,6 +289,8 @@ the offline route ends in exactly the same state as the connector route.
 
 ## Guardrails
 
+- **Never echo a secret.** If a secret scan blocks the export, report only the
+  `file:line  kind` lines the script printed (see "Secret scan" above).
 - **Confirm before creating.** No Jira object is created or modified without an
   explicit human "yes" in this conversation. Approval for one run does not carry
   to a later run.

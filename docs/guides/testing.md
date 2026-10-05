@@ -84,6 +84,7 @@ tests/
 │   ├── test_context.py     test_git_sync.py    test_html_render.py
 │   ├── test_artifact_contracts.py     test_traceability.py
 │   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
+│   ├── test_secret_scan.py     # lib/secret_scan.py (GH #63 PMOS-001 secret detection)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -94,6 +95,7 @@ tests/
 │   ├── test_artifact_contract_warnings.py
 │   ├── test_pm_interview.py           test_status_known_unknowns.py
 │   ├── test_failure_recovery.py       test_idempotency.py
+│   ├── test_secret_scanning.py        # import redaction + handoff export gate (GH #63)
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
@@ -217,6 +219,17 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_headings_emphasis_and_links` / `test_lists_preserve_nesting_depth` / `test_tables_mark_the_header_row_and_drop_the_separator` — the documented subset converts headings, `**bold**`→`*bold*`, `~~x~~`→`-x-`, links to `[text|url]`, bullets/ordered items with nesting depth, and tables to `||header||`/`|cell|`.
 - `test_code_is_protected_from_every_other_rule` / `test_unterminated_fence_is_closed` — inline code (`{{…}}`) and fenced blocks (`{code:lang}`) keep their contents verbatim so Markdown syntax inside a code sample survives; a truncated fence is closed rather than swallowing the rest of the ticket.
 - `test_quotes_rules_and_unknown_syntax_pass_through` — blockquotes/`----` convert, and unrecognized text is emitted unchanged (the safe failure mode for a ticket body).
+
+**`test_secret_scan.py`** — secret detection + redaction (`lib/secret_scan.py`, GH #63 PMOS-001, backlog #40). Fake keys are concatenated at runtime so the test file never looks like a committed secret.
+- `test_each_known_format_is_detected` (parametrized) — each high-precision pattern (`google_api_key`, `aws_access_key_id`, `github_token`, `slack_token`, `slack_webhook`, `anthropic_key`, `openai_key`, `stripe_key`, `jwt`) fires on a value of its documented shape with the right kind and line.
+- `test_private_key_block_detected_and_fully_redacted` — a PEM private-key block is one finding and redaction removes header, body, and footer, not just the BEGIN line.
+- `test_generic_assignment_detects_high_entropy_value` — `password = "…"` / `MY_API_KEY=…` with a long mixed value is caught; only the value is replaced, the name stays readable.
+- `test_placeholders_do_not_trigger` (parametrized) — template slots (`<…>`, `${…}`, `{{ … }}`), env lookups (`os.environ`, `process.env`), stand-ins (`changeme`, `xxx…`, `REPLACE_…`) and URLs are not secrets.
+- `test_ordinary_prd_prose_does_not_trigger` — PRD prose that talks *about* keys/tokens/passwords, stable ids, tables, and URLs produces no findings (precision over recall).
+- `test_findings_and_formatting_never_contain_the_value` — **key invariant:** a `Finding` (repr included) never carries the value — only a 4-char masked preview — and `format_findings` prints `path:line  kind` with no preview at all.
+- `test_redact_text_leaves_clean_text_untouched` — clean text (CRLF included) round-trips byte-for-byte.
+- `test_scan_paths_walks_dirs_skips_git_and_binary` — directory scans recurse, report root-relative `path:line`, and skip `.git/` and NUL-bearing binaries.
+- `test_guard_export_blocks_then_allows` — the export gate raises `SystemExit` on a hit (message names `--allow-secrets`), passes with `allow=True`, is silent on clean input, and never prints the value; a telemetry failure only warns.
 
 **`test_project_git.py`** — per-project local version history (`lib/project_git.py`, backlog #18, local half)
 - `test_init_creates_repo_and_initial_commit` / `test_commit_all_adds_commit` / `test_commit_all_nothing_to_commit` — `init_project_repo` makes one initial commit; a later `commit_all` after a change adds exactly one commit; a clean tree is a successful no-op, not an error.
@@ -395,6 +408,15 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_raw_mode_unchanged_by_the_merge` — the pre-existing single-stage/all-approved raw text export is untouched by folding `--package` in alongside it, and raw mode never creates a `handoff/` package as a side effect.
 
 **`test_handoff_share_interop.py`** — the `pm_handoff.py` ↔ `pm_share.py` collision the audience-folder rework was designed to close (previously untested): `test_jira_plan_then_package_does_not_collide` (Jira `plan` first, then `--package`, must both succeed with `jira-plan.*` untouched — this direction used to hard-fail before the rework); `test_package_then_jira_plan_does_not_collide` (the reverse order, which already worked, still does); `test_audience_scoped_package_survives_either_order` (a scoped `--audience dev` rebuild and a Jira `plan` never disturb each other, in either order, since `jira-plan.*` lives at the `handoff/` root and audience content lives one level down).
+
+**`test_secret_scanning.py`** — secrets never persist through context import or leave through a handoff export (GH #63 PMOS-001, backlog #40). Output in every path names `file:line  kind` only; tests assert the fake key never appears on stdout/stderr, in `.sources.yaml`, or in `telemetry.jsonl`.
+- `test_register_redacts_secret_in_text_snapshot` — **acceptance:** registering a text source with a Google API key persists a redacted `.history/` snapshot (`[REDACTED:google_api_key]`), records `secrets_redacted`/`secret_kinds` in `.sources.yaml`, warns with `notes.md:3  google_api_key` + a rotate instruction, and logs `secrets_redacted`.
+- `test_register_clean_source_is_byte_identical` — a clean source is preserved byte-for-byte with no secret fields (the scan never rewrites clean material).
+- `test_register_blocks_unredactable_source_with_secret` — a `.docx` holding a key (split across XML runs) can't be redacted in place, so `register` exits non-zero, snapshots/registers nothing, and logs `secrets_blocked`; a folder import skips just that file (`(blocked) spec.docx`) and still registers the clean ones.
+- `test_register_allow_secrets_keeps_unredactable_source` — `--allow-secrets` keeps the `.docx` verbatim, records `secrets_unredacted`, and logs `secrets_allowed`.
+- `test_package_blocked_by_secret_then_allowed` — **acceptance (handoff):** `pm_share.py --package` exits non-zero with no `handoff/` written while the approved PRD holds a key, naming `03-prd.md:<line>  google_api_key` and `--allow-secrets`; the override builds the package and logs `secrets_allowed` (`surface: handoff_package`).
+- `test_raw_export_blocked_by_secret` — raw mode (which echoes bodies verbatim) is gated the same way: no stdout body, no `--output` file until `--allow-secrets`.
+- `test_jira_plan_and_csv_blocked_by_secret_then_allowed` — `pm_handoff.py plan`/`export` write nothing while the PRD holds a key and proceed with `--allow-secrets`; a clean PRD exports with no `secrets_*` events at all.
 
 The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_split_user_story_blocks_bounds_by_declaration_and_section`, `test_user_story_without_acceptance_warns_not_errors`, `test_contract_version_1_is_still_supported`, `test_impact_analysis_is_a_recommended_prd_section`) — all WARNING-only, so existing `artifact_contract_version: 1` PRDs keep passing.
 
