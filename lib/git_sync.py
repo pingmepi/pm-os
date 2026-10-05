@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -13,6 +14,15 @@ from config import load_config
 
 CACHE_DIR = Path.home() / ".pm-os-feedback-cache"
 SYNCED_FILES = ["telemetry.jsonl", "feedback.jsonl"]
+# Per-project record of the last sync attempt, read by /pm-status. The
+# background push writes only to .pm-os-sync.log, so a sync that failed every
+# time (no credentials) was invisible to the PM (backlog #62).
+SYNC_STATUS_FILENAME = ".pm-os-sync.json"
+# git messages meaning "no credentials for the feedback repo", not a network blip.
+AUTH_FAILURE_MARKERS = (
+    "could not read username", "could not read password", "authentication failed",
+    "terminal prompts disabled", "permission denied (publickey)", "invalid username or password",
+)
 
 
 def _lock_dir() -> Path:
@@ -69,7 +79,9 @@ def push_feedback_repo(project_root) -> dict:
         label = _project_slug(project_root)
     except Exception:
         label = project_root.name
-    return _sync([project_root], label=label)
+    result = _sync([project_root], label=label)
+    _record_status([project_root], result)
+    return result
 
 
 def push_all(projects_dir=None) -> dict:
@@ -96,7 +108,44 @@ def push_all(projects_dir=None) -> dict:
         print(f"[git_sync] No projects found under {projects_dir}.")
         return {"ok": True, "reason": "no projects", "synced": []}
 
-    return _sync(roots, label=f"{len(roots)} project(s)")
+    result = _sync(roots, label=f"{len(roots)} project(s)")
+    _record_status(roots, result)
+    return result
+
+
+def is_auth_failure(reason: str | None) -> bool:
+    """True when a sync failure reason means credentials are missing or rejected."""
+    text = (reason or "").lower()
+    return any(marker in text for marker in AUTH_FAILURE_MARKERS)
+
+
+def read_sync_status(project_root) -> dict | None:
+    """The last recorded sync attempt for a project, or None if none was recorded."""
+    path = Path(project_root) / SYNC_STATUS_FILENAME
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _record_status(roots, result: dict) -> None:
+    """Write each project's sync outcome. Best-effort: never breaks a sync."""
+    now = datetime.now(timezone.utc).isoformat()
+    failed = set(result.get("failed") or [])
+    for root in roots:
+        root = Path(root)
+        if not (root / ".meta.yaml").exists():
+            continue
+        ok = bool(result.get("ok")) and root.name not in failed
+        status = read_sync_status(root) or {}
+        status.update({"last_attempt_at": now, "ok": ok, "reason": result.get("reason")})
+        if ok:
+            status["last_success_at"] = now
+        try:
+            (root / SYNC_STATUS_FILENAME).write_text(json.dumps(status, indent=2) + "\n",
+                                                     encoding="utf-8")
+        except OSError:
+            pass
 
 
 # --- internals ----------------------------------------------------------------
@@ -186,7 +235,7 @@ def _copy_project(project_root: Path, pm: str) -> bool:
 
 
 def _project_slug(project_root: Path) -> str:
-    with open(Path(project_root) / ".meta.yaml", "r") as f:
+    with open(Path(project_root) / ".meta.yaml", "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["project_slug"]
 
 

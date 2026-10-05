@@ -76,7 +76,7 @@ print(render_context('01', '.'))
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+import os, sys; sys.path.insert(0, os.path.expanduser('~/.pm-os/lib'))
 from pathlib import Path
 from telemetry import log
 log('stage_started', Path('.'), '01', {})
@@ -142,7 +142,7 @@ After generating, do the following in order:
 
    ```bash
    python3 -c "
-   import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+   import os, sys; sys.path.insert(0, os.path.expanduser('~/.pm-os/lib'))
    from hashing import hash_artifact_body
    print(hash_artifact_body('<path-to-candidate-artifact>'))
    "
@@ -177,7 +177,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
 6. **Log `stage_generated` event:**
    ```bash
    python3 -c "
-   import sys; sys.path.insert(0, '$HOME/.pm-os/lib')
+   import os, sys; sys.path.insert(0, os.path.expanduser('~/.pm-os/lib'))
    from pathlib import Path
    from telemetry import log
    from config import model_tier_for_stage

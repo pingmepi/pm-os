@@ -17,7 +17,7 @@ def _runtime_version() -> str | None:
     'created-with' pm_os_version — lets telemetry tell provenance from runtime."""
     vpath = PM_OS_DIR / "VERSION"
     try:
-        return vpath.read_text().strip()
+        return vpath.read_text(encoding="utf-8").strip()
     except OSError:
         return None
 
@@ -33,7 +33,7 @@ def log(event_type: str, project_root: Path, stage, payload: dict) -> None:
     meta_path = project_root / ".meta.yaml"
 
     import yaml
-    with open(meta_path, "r") as f:
+    with open(meta_path, "r", encoding="utf-8") as f:
         meta = yaml.safe_load(f)
 
     prev_hash = _last_event_hash(telemetry_path)

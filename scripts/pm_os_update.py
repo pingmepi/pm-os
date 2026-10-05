@@ -7,6 +7,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+if sys.platform == "win32":
+    # Piped output on Windows defaults to cp1252, and printing ✓ then crashes
+    # (backlog #60). Inline rather than lib/console.py: this script must run
+    # even when lib/ is broken.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 
 PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
 CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")))
@@ -88,7 +98,7 @@ def ahead_behind(remote_ref: str) -> tuple[int, int]:
 def print_version() -> None:
     version_path = PM_OS_DIR / "VERSION"
     if version_path.exists():
-        print(f"✓ PM-OS version: {version_path.read_text().strip()}")
+        print(f"✓ PM-OS version: {version_path.read_text(encoding='utf-8').strip()}")
 
 
 def sync_skills(skills_dest: Path) -> None:

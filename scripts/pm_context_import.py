@@ -29,6 +29,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio, stdin_is_interactive  # noqa: E402
+ensure_utf8_stdio()
+
 import yaml
 from config import load_config, model_tier_for_stage
 from project import (
@@ -163,13 +166,13 @@ def cmd_register(args):
     sources_path = root / ".sources.yaml"
     sources = []
     if sources_path.exists():
-        sources = yaml.safe_load(sources_path.read_text()) or []
+        sources = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or []
 
     # --- Single file ---
     if src.is_file():
         src_id, snapshot = _register_one(root, src, args.type, ts, sources)
         sources_path.write_text(
-            yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8"
         )
         print(f"Registered {src_id} ({args.type}) — raw preserved at {snapshot.relative_to(root)}")
         return
@@ -193,7 +196,7 @@ def cmd_register(args):
             skipped.append(str(rel))
 
     sources_path.write_text(
-        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
 
     if not registered:
@@ -310,7 +313,7 @@ def cmd_record_interview(args):
     sources_path = root / ".sources.yaml"
     sources = []
     if sources_path.exists():
-        sources = yaml.safe_load(sources_path.read_text()) or []
+        sources = yaml.safe_load(sources_path.read_text(encoding="utf-8")) or []
 
     src_id, snapshot = _register_one(root, src, "context", ts, sources)
     source = next(s for s in sources if s["id"] == src_id)
@@ -321,12 +324,12 @@ def cmd_record_interview(args):
         "author": _pm(),
     })
     sources_path.write_text(
-        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml.dump(sources, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
     text = src.read_text(encoding="utf-8")
     skip_all = (
         os.environ.get("PM_OS_INTERVIEW", "").strip().lower() == "skip"
-        or (not sys.stdin.isatty() and not args.interview_answers and _is_pending_questions_file(text))
+        or (not stdin_is_interactive() and not args.interview_answers and _is_pending_questions_file(text))
     )
     counts = _parse_interview_markdown(text, skip_all=skip_all)
     _write_known_unknowns(root, counts["skipped"], src_id)

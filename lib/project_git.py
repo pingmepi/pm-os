@@ -29,9 +29,14 @@ DEFAULT_GITIGNORE = (
     "# PM-OS project-level ignores\n"
     ".codebase/\n"
     ".pm-os-sync.log\n"
+    ".pm-os-sync.json\n"
     "__pycache__/\n"
     ".DS_Store\n"
 )
+
+
+# Entries every project .gitignore must carry, added to older projects too.
+REQUIRED_IGNORES = (".codebase/", ".pm-os-sync.log", ".pm-os-sync.json")
 
 
 def git_available() -> bool:
@@ -71,32 +76,86 @@ def ensure_gitignore(project_root: Path) -> None:
         gi.write_text(DEFAULT_GITIGNORE, encoding="utf-8")
         return
     content = gi.read_text(encoding="utf-8")
-    if ".codebase/" not in content:
-        gi.write_text(content.rstrip() + "\n.codebase/\n", encoding="utf-8")
+    present = {line.strip() for line in content.splitlines()}
+    missing = [entry for entry in REQUIRED_IGNORES if entry not in present]
+    if missing:
+        gi.write_text(content.rstrip() + "\n" + "\n".join(missing) + "\n", encoding="utf-8")
+
+
+# What PM-OS writes into a project, besides the stage artifacts themselves (see
+# `owned_paths`). Only these, plus files the PM has already chosen to track, are
+# committed. `git add -A` once swept a PM's helper scripts, notes and a
+# screenshot containing a credential into an approval commit (backlog #61).
+OWNED_FILES = (
+    ".meta.yaml", ".gitignore", ".traceability.yaml", "telemetry.jsonl",
+    "feedback.jsonl", ".sources.yaml", ".codebase-source", "05-prototype-mockup.html",
+)
+OWNED_DIRS = (".history", "00-context", "handoff", ".enhancements", "design-in")
+
+
+def owned_paths(project_root) -> list[str]:
+    """Project-relative paths PM-OS owns that currently exist on disk."""
+    from project import STAGE_NAMES, artifact_path
+
+    project_root = Path(project_root)
+    names = set(OWNED_FILES) | set(OWNED_DIRS)
+    for stage_id in STAGE_NAMES:
+        artifact = artifact_path(project_root, stage_id)
+        names.add(artifact.name)
+        names.add(artifact.with_suffix(".html").name)  # rendered companions
+    return sorted(name for name in names if (project_root / name).exists())
+
+
+def _lock_hint(stderr: str) -> str:
+    """Turn git's raw index.lock failure into something a PM can act on (GH #72)."""
+    first = (stderr.strip().splitlines() or [""])[0]
+    return (
+        f"git could not lock this project's repository ({first}). Usually another "
+        "git tool (an IDE, GitHub Desktop, a sync client) has the folder open, or a "
+        "crashed git left .git/index.lock behind. Close the other tool, or delete "
+        ".git/index.lock if no git process is running. Your approval is saved; the "
+        "next approval's commit will include these changes."
+    )
 
 
 def commit_all(project_root, message: str, pm_user: str | None = None) -> dict:
-    """Stage everything (honoring `.gitignore`) and commit. No-op if the tree is
-    clean. Warn-not-fail: returns a status dict, never raises for a git error."""
+    """Commit PM-OS's own files and any already-tracked changes. No-op when there
+    is nothing to commit. Untracked files PM-OS does not own are left alone and
+    listed under ``untracked_left_out``. Warn-not-fail: returns a status dict,
+    never raises for a git error."""
     project_root = Path(project_root)
     if not git_available():
         return {"ok": False, "reason": "git not available; skipping commit"}
     if not (project_root / ".git").exists():
         return {"ok": False, "reason": "not a git repo; skipping commit"}
 
-    add = _run_git(project_root, ["add", "-A"])
-    if add.returncode != 0:
-        return {"ok": False, "reason": f"git add failed: {add.stderr.strip()}"}
+    ensure_gitignore(project_root)  # older projects predate some PM-OS ignores
+    adds = [["add", "-u"]]  # modifications/deletions of files already tracked
+    owned = owned_paths(project_root)
+    if owned:
+        adds.append(["add", "-A", "--", *owned])
+    for args in adds:
+        add = _run_git(project_root, args)
+        if add.returncode != 0:
+            if "index.lock" in add.stderr:
+                return {"ok": False, "reason": _lock_hint(add.stderr)}
+            return {"ok": False, "reason": f"git add failed: {add.stderr.strip()}"}
 
-    status = _run_git(project_root, ["status", "--porcelain"])
-    if status.returncode == 0 and not status.stdout.strip():
-        return {"ok": True, "reason": "nothing to commit"}
+    untracked = _run_git(project_root, ["ls-files", "--others", "--exclude-standard"])
+    left_out = untracked.stdout.split("\n") if untracked.returncode == 0 else []
+    left_out = [line for line in left_out if line.strip()]
+
+    staged = _run_git(project_root, ["diff", "--cached", "--quiet"])
+    if staged.returncode == 0:
+        return {"ok": True, "reason": "nothing to commit", "untracked_left_out": left_out}
 
     commit = _run_git(project_root, ["commit", "-m", message], pm_user=pm_user)
     if commit.returncode != 0:
         detail = commit.stderr.strip() or commit.stdout.strip()
+        if "index.lock" in detail:
+            return {"ok": False, "reason": _lock_hint(detail)}
         return {"ok": False, "reason": f"git commit failed: {detail}"}
-    return {"ok": True, "reason": "committed"}
+    return {"ok": True, "reason": "committed", "untracked_left_out": left_out}
 
 
 def init_project_repo(project_root, pm_user: str | None = None,

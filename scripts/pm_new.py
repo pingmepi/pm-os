@@ -8,6 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio, stdin_is_interactive  # noqa: E402
+ensure_utf8_stdio()
+
 import yaml
 from config import load_config
 from project import SCHEMA_VERSION
@@ -89,7 +92,7 @@ def main():
         entry_route = "enhancement"
     elif env_mode == "new_product":
         entry_route = "new"
-    elif sys.stdin.isatty():
+    elif stdin_is_interactive():
         entry_route = prompt_entry_route()
     else:
         entry_route = "new"
@@ -121,7 +124,7 @@ def main():
             sys.exit(1)
         genai_flag = parsed
     elif args.genai is None:
-        if not sys.stdin.isatty():
+        if not stdin_is_interactive():
             print("Error: GenAI decision required in non-interactive mode. Pass --genai or --no-genai.")
             sys.exit(1)
         resp = input("Is this a GenAI/agentic product? [y/n]: ").strip().lower()
@@ -133,7 +136,7 @@ def main():
         genai_flag = args.genai
 
     version_path = Path.home() / ".pm-os" / "VERSION"
-    pm_os_version = version_path.read_text().strip() if version_path.exists() else "0.1.0"
+    pm_os_version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else "0.1.0"
 
     pm = cfg.get("pm_user", "unknown")
 
@@ -142,7 +145,7 @@ def main():
     # Resolve business statement: provided inline, prompted on tty, or placeholder
     statement = args.statement
     if statement is None:
-        if sys.stdin.isatty():
+        if stdin_is_interactive():
             resp = input("What do you want to build? (Enter to add later): ").strip()
             statement = resp if resp else None
         if statement is None:
@@ -167,7 +170,7 @@ def main():
     }
     fm_text = yaml.dump(bs_fm, default_flow_style=False, allow_unicode=True, sort_keys=False)
     bs_content = f"---\n{fm_text}---\n\n{statement}\n"
-    (project_root / "00-business-statement.md").write_text(bs_content)
+    (project_root / "00-business-statement.md").write_text(bs_content, encoding="utf-8")
 
     project_name = " ".join(w.capitalize() for w in args.slug.split("-"))
     stages = [{
@@ -204,7 +207,7 @@ def main():
         "pm_os_version": pm_os_version,
         "stages": stages,
     }
-    with open(project_root / ".meta.yaml", "w") as f:
+    with open(project_root / ".meta.yaml", "w", encoding="utf-8") as f:
         yaml.dump(meta, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     (project_root / "telemetry.jsonl").touch()

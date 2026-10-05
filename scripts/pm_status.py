@@ -9,6 +9,9 @@ import yaml
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from project import resolve_project, load_meta, artifact_path
 from frontmatter import read as read_frontmatter
 from artifact_contracts import validate_artifact
@@ -68,6 +71,45 @@ def _open_known_unknowns(root):
     return out
 
 
+def _print_sync_status(root, tpath):
+    """Central sync health: last success, approvals not yet synced, and the fix
+    for missing credentials (backlog #62)."""
+    from git_sync import is_auth_failure, read_sync_status
+
+    status = read_sync_status(root) or {}
+    last_success = status.get("last_success_at")
+    unsynced = 0
+    if tpath.exists():
+        for line in tpath.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get("event_type") == "stage_approved" and (
+                    not last_success or str(e.get("timestamp", "")) > last_success):
+                unsynced += 1
+    if not status:
+        print("Central sync:      no attempt recorded yet")
+    elif status.get("ok"):
+        print(f"Central sync:      OK (last {str(last_success)[:16].replace('T', ' ')})")
+    else:
+        when = str(status.get("last_attempt_at", ""))[:16].replace("T", " ")
+        print(f"Central sync:      FAILED at {when}: {status.get('reason')}")
+        if is_auth_failure(status.get("reason")):
+            try:
+                from config import load_config
+                repo = load_config().get("feedback_repo") or "<feedback_repo>"
+            except Exception:
+                repo = "<feedback_repo>"
+            print("  No git credentials for the feedback repo, so nothing has been pushed. "
+                  f"Sign in once from a terminal (for example: git ls-remote {repo}), "
+                  "then run /pm-sync.")
+        else:
+            print("  Run /pm-sync to retry.")
+    if status and unsynced:
+        print(f"  Approvals not yet synced: {unsynced}")
+
+
 def main():
     try:
         root = resolve_project()
@@ -80,7 +122,7 @@ def main():
     print(f"Project: {meta['project_slug']}")
     genai = "yes" if meta.get("genai_flag") else "no"
     vpath = Path.home() / ".pm-os" / "VERSION"
-    installed = vpath.read_text().strip() if vpath.exists() else "unknown"
+    installed = vpath.read_text(encoding="utf-8").strip() if vpath.exists() else "unknown"
     created_with = meta.get("pm_os_version", "unknown")
     version_str = installed if created_with == installed else f"{installed} (project created with {created_with})"
     print(f"Created: {meta['created_at']}  GenAI: {genai}  PM-OS version: {version_str}")
@@ -162,7 +204,7 @@ def main():
     tpath = root / "telemetry.jsonl"
     events = []
     if tpath.exists():
-        lines = [line.strip() for line in tpath.read_text().splitlines() if line.strip()]
+        lines = [line.strip() for line in tpath.read_text(encoding="utf-8").splitlines() if line.strip()]
         events = lines[-5:]
 
     print()
@@ -181,14 +223,15 @@ def main():
     fpath = root / "feedback.jsonl"
     fc = 0
     if fpath.exists():
-        fc = len([line for line in fpath.read_text().splitlines() if line.strip()])
+        fc = len([line for line in fpath.read_text(encoding="utf-8").splitlines() if line.strip()])
     tc = 0
     if tpath.exists():
-        tc = len([line for line in tpath.read_text().splitlines() if line.strip()])
+        tc = len([line for line in tpath.read_text(encoding="utf-8").splitlines() if line.strip()])
 
     print()
     print(f"Feedback captured: {fc} entries")
     print(f"Telemetry events:  {tc}")
+    _print_sync_status(root, tpath)
 
     open_unknowns = _open_known_unknowns(root)
     print()

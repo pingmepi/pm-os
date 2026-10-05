@@ -17,6 +17,9 @@ import yaml
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from hashing import CompositeHashError, stage_content_hash  # noqa: E402
 from frontmatter import read as fm_read, update_status  # noqa: E402
 from project import artifact_path, get_stage, load_meta, resolve_project  # noqa: E402

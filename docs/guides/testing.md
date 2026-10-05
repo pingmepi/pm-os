@@ -223,6 +223,10 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_gitignore_written_with_codebase` / `test_gitignore_preserves_existing_and_adds_codebase` / `test_codebase_dir_is_not_tracked` — a fresh `.gitignore` excludes `.codebase/`/`.pm-os-sync.log`; an existing one is preserved with `.codebase/` appended; files under `.codebase/` are never committed.
 - `test_identity_injected_without_global_config` — with no ambient git identity (env cleared, global/system config ignored) the `-c user.name/email` injection still supplies a valid author **and** committer = `pm_user`.
 - `test_git_unavailable_warns_not_raises` — with git unavailable both entry points return `ok:false` with a reason and never raise (warn-not-fail: approval/scaffold must not break).
+- `test_commit_all_leaves_out_untracked_files_pm_os_does_not_own` — backlog #61: an approval commit includes PM-OS's own files (artifacts, `.history/`) but not a PM's untracked notes, scripts or screenshots, which are listed in `untracked_left_out`.
+- `test_commit_all_includes_changes_to_files_the_pm_already_tracks` — backlog #61: a file the PM committed themselves keeps being versioned.
+- `test_commit_all_nothing_owned_changed_is_a_no_op` — backlog #61: only non-PM-OS files changed → a successful "nothing to commit", not a failed empty commit.
+- `test_index_lock_failure_names_the_fix` — GH #72: a held `.git/index.lock` produces a warning that names the usual causes and the fix.
 
 **`test_artifact_contracts.py`** — Stage 03–06 artifact quality contracts (`lib/artifact_contracts.py`)
 - `test_valid_prd_contract_has_no_errors` / `test_prd_without_journeys_is_an_error` — a PRD with `UJ-###` user journeys passes; one without fails strict mode with `USER_JOURNEY_MISSING`.
@@ -335,6 +339,15 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream` — #58: rebinding is refused while any upstream is not approved, naming it.
 - `test_approving_a_large_edited_artifact_does_not_hang` — #56: a ~400 KB generated stage with PM edits approves inside the runner timeout and records `edit_distance_method: line_approx`.
 
+**`test_windows_portability.py`** — Windows bundle (backlog #59–#63)
+- `test_verify_output_survives_a_cp1252_pipe` — #60: with output piped and no UTF-8 override, `pm_os_verify.py` prints its ✓ marks instead of dying with `UnicodeEncodeError` (the Windows cp1252 default).
+- `test_package_filenames_are_capped_and_links_still_resolve` — #59: sentence-length story/requirement titles give capped, id-first filenames, and epic → story links still resolve.
+- `test_finish_stage_records_a_hand_written_artifact_as_a_draft` — #63: `pm_finish_stage.py` stamps `generated_hash`, writes the `.history` snapshot, sets meta + frontmatter to `draft` and logs `stage_generated` with the model; approval then measures the edit distance against that snapshot.
+- `test_finish_stage_refuses_a_missing_or_empty_artifact` — #63: a missing or body-less artifact is a clear error with no state change.
+- `test_status_shows_a_successful_sync` — #62: a successful sync is recorded in `.pm-os-sync.json` and `/pm-status` reports it.
+- `test_status_explains_a_credential_failure_and_counts_unsynced_approvals` — #62: a credential failure is reported with the feedback repo and the fix, plus the number of approvals not yet synced.
+- `test_sync_status_file_is_never_committed` — #61/#62: `.pm-os-sync.json` is gitignored (added to older projects) and never committed.
+
 **`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
 - `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.
 - `test_bold_wrapped_bullet_tc_ids_still_populate_the_spine` — IMP-007 end-to-end: a QA plan using bold-wrapped bullet TC ids passes stage-06 approval AND populates `.traceability.yaml` (previously approved silently with an empty spine).
@@ -393,6 +406,7 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 - `test_product_artifact_skills_enforce_current_contracts`: Stages 03–05 contain their required/recommended section templates, current artifact-contract marker, and strict validator invocation; the HTML skill uses the explicit interaction model and separates `?review=1` reviewer chrome.
 - `test_context_import_skill_produces_modular_pack`: the context-import skill instructs writing the pack members (`evidence.yaml`, `sources.md`) and assembling the manifest (`pack-manifest`/`pack-validate`), does not re-impose the single-page wiki limitation, and advertises the pack files in its `writes:` frontmatter — guards the dormant-pack gap found in the dogfood.
 - `test_context_import_skill_has_interview_step`: the context-import skill has Step 4b between preflight and `00u`, guards the coverage-driven/decreasing-impact/no-fixed-total interview contract, and checks the OpenAI skill metadata mirrors the interview and known-unknown flow.
+- `test_windows_portability_contracts` (backlog #54/#60, GH #77-6/7/8): every text `read_text`/`write_text`/`open()` in `lib/`, `scripts/`, `hooks/` passes `encoding=`; every script/hook entry point sets UTF-8 console output on Windows; nothing outside `lib/console.py` uses `sys.stdin.isatty()` to detect a human; no skill snippet resolves `~/.pm-os/lib` through the shell's `$HOME`.
 - `test_documentation_drift`: stage-order shape; every pipeline stage has a skill; model-policy constant; spec documents every emitted event; ARCHITECTURE records the runtime paths.
 
 ### T4 — Install/verify/update parity (`tests/integration/test_install_verify_update.py`)

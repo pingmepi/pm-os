@@ -18,6 +18,9 @@ import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from project import resolve_project, load_meta, save_meta, get_stage
 from cascade import cascade_stale
 from html_render import render_design_spec, render_prototype_mockup
@@ -164,6 +167,11 @@ def main():
         if vcs.get("ok"):
             if vcs.get("reason") == "committed":
                 print(f"[post-approve] Versioned project locally (git): stage {stage_id}.")
+            left_out = vcs.get("untracked_left_out") or []
+            if left_out:
+                shown = ", ".join(left_out[:5]) + (f" (+{len(left_out) - 5} more)" if len(left_out) > 5 else "")
+                print(f"[post-approve] Not committed (not PM-OS files): {shown}. "
+                      "Commit them yourself if you want them versioned.")
         else:
             print(f"[post-approve] WARNING: local git commit skipped — {vcs.get('reason')}",
                   file=sys.stderr)

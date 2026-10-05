@@ -42,6 +42,9 @@ import yaml
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from artifact_contracts import (  # noqa: E402
     _sections,
     information_architecture_section,
@@ -214,8 +217,21 @@ def _split_blocks(text: str, start_re: "re.Pattern[str]") -> dict[str, str]:
 
 # --- package-mode helpers -----------------------------------------------------
 
+# Filename slugs are capped. A requirement title written as a sentence once
+# produced ~500-character filenames: past Windows' 260-character path limit
+# (the package build crashed partway through) and past the 255-byte filename
+# limit on macOS/Linux too (backlog #59). Every package filename is id-first
+# (`REQ-001-<slug>.md`), so a truncated slug stays unique.
+SLUG_MAX_CHARS = 60
+
+
 def _slug(text: str, fallback: str = "item") -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    if len(slug) > SLUG_MAX_CHARS:
+        cut = slug[:SLUG_MAX_CHARS]
+        # Prefer a word boundary, unless that would throw away most of the slug.
+        boundary = cut.rfind("-")
+        slug = (cut[:boundary] if boundary >= SLUG_MAX_CHARS // 2 else cut).strip("-")
     return slug or fallback
 
 
@@ -1351,7 +1367,7 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None) -> None:
     text = "\n".join(lines)
 
     if output:
-        Path(output).write_text(text)
+        Path(output).write_text(text, encoding="utf-8")
         print(f"Exported to {output}")
     else:
         print(text)
