@@ -161,7 +161,7 @@ Do not add any of the following in this work package:
 | EDA-302 | Decompose PRD requirements into handoff files | Done | EDA-301 | Separate requirement files implemented for dev/QA; package integration pytest passes |
 | EDA-303 | Make every story dossier semantically standalone | Done | EDA-302 | Story dossiers inline epic, requirement, AC, NFR, and impact text; package integration pytest passes |
 | EDA-401 | Update operator and format documentation | Done | EDA-101–303 | Format reference, SOP, testing guide, and contract tests updated |
-| EDA-402 | Run full regression and verifier | Blocked | EDA-101–202, EDA-301–401 | Focused pytest groups pass; full-suite run did not return a final summary before runner/session limit |
+| EDA-402 | Run full regression and verifier | Done | EDA-101–202, EDA-301–401 | Full suite run on Windows 2026-10-05/06: no product assertion failed. The four failures on 1.5.1 were test-harness or load issues, fixed on the follow-up branches (see log). Fresh-install verifier: PASS |
 
 ### Pilot evidence used
 
@@ -834,6 +834,29 @@ runner session disappeared before returning a final summary. After the usage lim
 blocked further elevated pytest runs, sandbox-local pytest could not complete because
 pytest temp-directory cleanup hit `PermissionError`. Treat EDA-402 as blocked by the
 local runner, not by a known product assertion failure.
+
+### 2026-10-06 — EDA-402 full regression
+
+The full suite was run on Windows 11 (Python 3.13) in the background, so the runner
+limit that blocked the earlier attempt no longer applied.
+
+- **v1.5.1 as released:** `439 passed, 4 failed` (41m49s). No product assertion failed:
+  - `test_telemetry_metrics.py::test_edit_distance_zero_when_unchanged` and
+    `::test_edit_distance_positive_when_edited` fail because the `generate_stage()` test
+    helper named its history snapshot with a `:`. Windows treats `:` as a stream
+    separator, so the snapshot was never found. Fixed on `fix/approval-state-integrity`.
+  - `test_offline_install.py::test_offline_source_install_populates_and_autoverifies`
+    and `::test_offline_reinstall_preserves_user_data` hit their 120 s timeout while two
+    other suites shared the CPU. Run alone, the install finishes in about 32 s. The
+    tests also failed to isolate `USERPROFILE`. Fixed on `fix/windows-bundle`.
+- **With the follow-up branches stacked** (`fix/approval-state-integrity` →
+  `fix/windows-bundle` → `feat/secret-scanning`): `501 passed`. The two
+  offline-install tests then failed on that isolation gap, and passed (`3 passed`)
+  once it was fixed.
+- **Verifier:** a fresh `install.sh --runtime codex --source <repo>` into an isolated
+  home auto-ran `pm_os_verify.py` and reported `PASS: PM-OS install is healthy.`
+
+EDA-402 is Done.
 
 ## 9. Agent handoff format
 
