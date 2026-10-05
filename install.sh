@@ -227,7 +227,7 @@ fi
 if [[ -n "$CONFIG_PROJECTS_DIR" ]]; then
   CONFIG_ARGS+=("--projects-dir" "$CONFIG_PROJECTS_DIR")
 fi
-$PY "$INSTALL_DIR/scripts/pm_os_install.py" "${CONFIG_ARGS[@]}"
+PM_OS_LIB_PATH="$INSTALL_DIR/lib" $PY "$INSTALL_DIR/scripts/pm_os_install.py" "${CONFIG_ARGS[@]}"
 
 echo ""
 echo "=== PM-OS installation complete ==="
@@ -236,7 +236,7 @@ echo ""
 
 # --- Auto-verify: confirm the install is healthy before handing off ---
 echo "Verifying install..."
-if $PY "$INSTALL_DIR/scripts/pm_os_verify.py" --runtime "$RUNTIME"; then
+if PM_OS_LIB_PATH="$INSTALL_DIR/lib" PM_OS_DIR="$INSTALL_DIR" $PY "$INSTALL_DIR/scripts/pm_os_verify.py" --runtime "$RUNTIME"; then
   echo ""
   if [[ -n "$SOURCE_DIR" ]]; then
     echo "Installed from $SOURCE_DIR. PM-OS runs from ~/.pm-os — you can delete the source folder."

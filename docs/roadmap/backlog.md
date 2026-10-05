@@ -43,6 +43,7 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 - **Skill-inline `python3 …` invocations** in `skills/**/SKILL.md` still assume `python3` resolves *and*, where they set the stage, use bash-only `VAR=val cmd` env-prefix syntax — which is a **parser error under PowerShell** (the shell Claude Code used on the test machine), not a fallback. **Re-counted 2026-08-20: ~130 `python3` invocations across 26 `SKILL.md` files, of which 9 use the `PM_OS_STAGE=<NN> python3 …` env-prefix form.** (The earlier "24" figure predates the skill growth since v1.2.0 and is superseded.)
 - **Shell standardization decision needed:** require Git Bash on Windows (then only `python3` resolution remains — solvable via an installer-created shim) **vs.** make skills shell-portable + ship an `install.ps1`. Recommendation: **standardize on Git Bash + installer shim** (lowest blast radius; CC already prefers Git Bash on Windows).
 - No `install.ps1` exists; `install.sh` is bash-only.
+- **Found 2026-10-06:** `install.sh` places the install under bash `$HOME`, while every Python script resolves `Path.home()` from `USERPROFILE` on Windows. If the two differ (some corporate Git Bash setups set `HOME` to a network drive), the installer and the runtime would use different `~/.pm-os` directories. The installer's own Python steps now get `PM_OS_LIB_PATH`/`PM_OS_DIR` (branch `fix/windows-bundle`), but the runtime split remains part of the shell decision below.
 
 **Note:** Must be tested on a real Windows box — cannot be verified from macOS.
 
