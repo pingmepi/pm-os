@@ -24,8 +24,10 @@ import yaml
 
 from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES, CORE_STAGE_ORDER
 from hashing import stage_content_hash, CompositeHashError
-from frontmatter import update_status
+from frontmatter import update_status, read as fm_read
 from telemetry import log
+from console import stdin_is_interactive
+from cascade import cascade_stale
 
 
 # Product/implementation stages that, in an enhancement, must not be generated
@@ -104,8 +106,9 @@ def read_edited_choice(stage_id: str) -> str:
             )
             sys.exit(1)
         return choices[env_choice]
-    if not sys.stdin.isatty():
-        # Non-interactive (agent session or CI). Implicitly re-approving an edited
+    if not stdin_is_interactive():
+        # Non-interactive (agent session or CI). Not plain isatty(): on Windows an
+        # agent's NUL stdin reports isatty() True (backlog #54). Implicitly re-approving an edited
         # upstream is the PM's decision, not the agent's — so we BLOCK here and do
         # NOT advertise the env-var escape, otherwise an agent reads the hint and
         # bypasses the human. PM_OS_EDITED_UPSTREAM_CHOICE (handled above) remains
@@ -128,7 +131,15 @@ def read_edited_choice(stage_id: str) -> str:
             file=sys.stderr,
         )
         sys.exit(1)
-    return input("Choice [1/2/3]: ").strip()
+    try:
+        return input("Choice [1/2/3]: ").strip()
+    except EOFError:
+        # stdin looked like a terminal but had nothing to read, so no human is
+        # there to choose. Treat it as cancel; the caller then blocks.
+        print("\n[pre-stage] BLOCKED: no answer could be read from the terminal. "
+              "Have the PM re-approve the edited stage (/pm-approve <NN>), or re-run "
+              "this stage from an interactive terminal.", file=sys.stderr)
+        return "3"
 
 
 def cascade_stale_for_edited(meta, project_root, edited_ids):
@@ -142,30 +153,12 @@ def cascade_stale_for_edited(meta, project_root, edited_ids):
     """
     if not edited_ids:
         return []
-    downstream_ids = sorted({
-        did
-        for uid in edited_ids
-        for did in downstream_stage_ids(uid, meta)
-    })
-    stale_logged = []
-    for did in downstream_ids:
-        if did in edited_ids:
-            continue
-        try:
-            ds_meta = get_stage(meta, did)
-        except KeyError:
-            continue
-        if ds_meta["status"] == "approved":
-            ds_meta["status"] = "stale"
-            apath = artifact_path(project_root, did)
-            if apath.exists():
-                update_status(str(apath), "stale")
-            log("stage_marked_stale", project_root, did, {
-                "reason": "upstream_edited_reapproved",
-                "triggering_upstream_stages": sorted(edited_ids),
-            })
-            stale_logged.append(did)
-    return stale_logged
+    return cascade_stale(
+        meta, project_root, sorted(edited_ids),
+        {"reason": "upstream_edited_reapproved",
+         "triggering_upstream_stages": sorted(edited_ids)},
+        skip=edited_ids,
+    )
 
 
 def main():
@@ -224,7 +217,11 @@ def main():
                     "new_hash": current_hash,
                     "detected_via": "pre_stage_hook",
                 })
-                stage_meta["content_hash"] = current_hash
+                # content_hash keeps meaning "the hash the PM approved", in lockstep
+                # with the frontmatter. The drifted hash goes in its own field;
+                # overwriting content_hash here lost the approved hash and caused
+                # META_FRONTMATTER_HASH_MISMATCH (backlog #55).
+                stage_meta["edited_hash"] = current_hash
                 save_meta(meta, project_root)
 
     # --- Step 1.5: non-blocking consistency advisory (read-only, best-effort) ---
@@ -264,8 +261,16 @@ def main():
             stage_meta = get_stage(meta, uid)
             apath = artifact_path(project_root, uid)
             current_hash = _upstream_hash(uid, apath) if apath.exists() else "?"
+            # The frontmatter is the copy the gate never rewrote, so prefer it. It
+            # still holds the approved hash in projects whose meta was overwritten
+            # by an older gate (backlog #55).
+            approved_hash = stage_meta.get("content_hash")
+            try:
+                approved_hash = fm_read(str(apath))[0].get("content_hash") or approved_hash
+            except Exception:
+                pass
             print(f"  Stage {uid} ({name})")
-            print(f"    Approved hash: {stage_meta.get('content_hash', '?')}")
+            print(f"    Approved hash: {approved_hash or '?'}")
             print(f"    Current hash:  {current_hash}")
 
         print(f"""
@@ -285,6 +290,7 @@ Options:
                 old_hash = stage_meta.get("content_hash")
                 stage_meta["status"] = "approved"
                 stage_meta["content_hash"] = current_hash
+                stage_meta.pop("edited_hash", None)
                 update_status(str(apath), "approved", content_hash=current_hash)
                 log("implicit_reapproval", project_root, uid, {
                     "stage": uid,

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **On Windows the edited-upstream gate crashed instead of blocking (backlog #54, GH #77-10).** Windows reports the `NUL` device, which agent shells hand to child processes as stdin, as `isatty() == True`. So `hooks/pre-stage.py` skipped its non-interactive branch and crashed in `input()` with `EOFError`. The block-and-ask-the-PM fix from backlog #1 had therefore never applied on Windows. A new `lib/console.stdin_is_interactive()` additionally requires a real console handle on Windows (`GetConsoleMode`); other platforms are unchanged. An `EOFError` at the prompt now also blocks.
+- **The gate overwrote the approved hash when it detected an edit (backlog #55, GH #77-10/#77-11).** When it marked an upstream `edited`, the gate also replaced `.meta.yaml`'s `content_hash` with the edited body's hash. That one write caused three problems:
+  - the warning showed the same value for "Approved hash" and "Current hash";
+  - `/pm-check` reported `META_FRONTMATTER_HASH_MISMATCH`;
+  - the approved hash survived only in telemetry.
+
+  Meta now keeps the approved hash, in step with the frontmatter, and records the drift as `edited_hash`, which re-approval clears. That `/pm-check` finding now suggests reviewing the change before re-approving, instead of a blind re-run.
+- **Approving a large artifact could hang (backlog #56, GH #77-3).** The generated-versus-approved edit distance was an exact Levenshtein in pure Python, and approval computed it twice: about 2×10¹¹ steps each time for a 466 KB PRD. Approval now uses `bounded_edit_distance`. It strips the common prefix and suffix, stays exact when the remaining difference fits a budget, and otherwise falls back to a line-level upper bound. The `stage_approved` event records which method it used (`edit_distance_method`).
+- **A hung post-approve hook could leave downstream stages approved against changed content (backlog #57 / #31 Part 1, GH #77-4).** `pm_approve.py` now writes the downstream stale cascade together with the approval, in the same `.meta.yaml` write and before the hook runs. The cascade is shared in `lib/cascade.py`, and the hook and the gate use the same code. The hook now runs with stdin closed and a timeout (`PM_OS_POST_APPROVE_TIMEOUT`, default 300 s). On timeout, approval reports what may be incomplete and how to catch up.
+- **`--reapprove` could not repair `DOWNSTREAM_UPSTREAM_STALE` (backlog #58, GH #77-12).** If a stage's body is unchanged but an upstream was re-approved after it, `/pm-approve <NN> --reapprove` now rebinds the stage to the current upstream hashes and logs `stage_rebound`. It refuses while any upstream is not approved. `/pm-check` now points at this command.
+- **Test harness:** `generate_stage()` named its history snapshot with an ISO offset (`+00:00`). Windows treats `:` as a stream separator, so tests that depend on the snapshot silently computed no edit distance. It now uses the same `…Z` form as `pm_snapshot.py`.
+
 ## 1.5.1 — 2026-09-17
 
 ### Added

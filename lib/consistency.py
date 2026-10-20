@@ -557,7 +557,12 @@ def _check_meta_frontmatter_sync(stages, paths, exists) -> list[Issue]:
                 issues.append(Issue(
                     CODE_META_FRONTMATTER_HASH_MISMATCH, "error", sid,
                     f"Stage {sid} content_hash disagrees between .meta.yaml and frontmatter",
-                    f"Re-run /pm-approve {sid}.",
+                    # Not a blind "re-run /pm-approve": that would approve whatever the
+                    # body says now without the PM seeing what changed (backlog #55).
+                    f"The frontmatter content_hash is the one approved. Review how "
+                    f"{paths[sid].name} changed since that approval (its .history/ snapshots "
+                    f"and the local git history), then re-approve it: /pm-approve {sid} "
+                    f"(add --reapprove if it is still 'approved').",
                 ))
     return issues
 
@@ -645,8 +650,8 @@ def _check_downstream_upstream_hashes(meta, stages) -> list[Issue]:
                     f"Stage {sid} is approved against an older {uid} "
                     f"(hash at approval {str(at_approval)[:12]}…, current {str(current)[:12]}…) — "
                     f"a downstream stale-cascade was likely interrupted after {uid} was re-approved.",
-                    f"Re-approve stage {sid} (/pm-approve {sid}) so it reflects the current {uid}, "
-                    f"or re-run the {uid} approval to cascade staleness.",
+                    f"Review stage {sid} against the current {uid}. If it still holds, rebind it "
+                    f"with /pm-approve {sid} --reapprove; if not, regenerate stage {sid}.",
                 ))
     return issues
 

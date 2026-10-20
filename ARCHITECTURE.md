@@ -108,7 +108,7 @@ flowchart TD
 
     subgraph Hooks["hooks/ (run from ~/.pm-os/hooks)"]
         H1["pre-stage.py<br/>(gate)"]
-        H2["post-approve.py<br/>(render + cascade + push)"]
+        H2["post-approve.py<br/>(render + trace + commit + push)"]
     end
 
     subgraph Lib["lib/"]
@@ -156,7 +156,7 @@ flowchart TD
 | Component | Responsibility |
 |-----------|----------------|
 | `skills/pm-stage-NN-*/SKILL.md` | The stage prompt + the inline bash the agent runs: pre-stage gate, read upstream, generate, write draft, log telemetry. Ships an `agents/openai.yaml` twin for Codex. |
-| `skills/pm-approve` → `scripts/pm_approve.py` | Validates status, computes body `content_hash`, writes approval to frontmatter + `.meta.yaml`, logs `stage_approved`, then shells out to `post-approve.py`. |
+| `skills/pm-approve` → `scripts/pm_approve.py` | Validates status, computes body `content_hash`, writes approval to frontmatter + `.meta.yaml` together with the downstream `stale` cascade (`lib/cascade.py`), logs `stage_approved` (with a bounded edit distance), then shells out to `post-approve.py` with `stdin` closed and a timeout. `--reapprove` re-approves a directly edited approved stage, or rebinds an unchanged one to re-approved upstreams (`stage_rebound`). |
 | `skills/pm-new` → `scripts/pm_new.py` | Scaffolds `~/pm-projects/<slug>/`: business statement (`00` as `draft`; optional — a placeholder is written if omitted), `.meta.yaml` (stages `01–09` `pending`), empty telemetry/feedback, `.history/`. Sets `genai_flag`. `--mode enhancement` (or `PM_OS_PROJECT_TYPE`) records `project_type: enhancement`; `--codebase <url-or-path>` records `codebase_path` for the codebase scan. |
 | `skills/pm-context-import` → `scripts/pm_context_import.py` | Mechanical state for the context-intake flow. `register` preserves a raw source in `.history/` + `.sources.yaml` (logs `context_ingested`); `preflight` prints backfill-feasibility verdicts (`resolve_backfill`) and exits non-zero on an infeasible gap; `prepare-codebase` clones (URL) or validates (local path) the enhancement codebase, records its git SHA as `codebase_ref`, and gitignores `.codebase/`; `record-interview` registers a PM interview-answers file as a high-confidence PM-authored source (`origin: interview`), writing skipped questions to `00-context/known-unknowns.md` and logging `interview_conducted` (default `--mode intake`; `--mode rerun` stays silent so a standalone re-run isn't double-counted); `commit` stamps an SKILL-written artifact slot to draft/approved with `origin` (`generated`/`imported`/`backfilled`), body hash, meta + frontmatter, telemetry, and (on approve) `post-approve.py`. Generates no content — judgment lives in the SKILL. |
 | `skills/pm-status` → `scripts/pm_status.py` | Reads `.meta.yaml`; reports stage statuses, recent events, feedback count, and the open `known-unknowns` count. |
@@ -170,8 +170,8 @@ flowchart TD
 | `scripts/pm_validate_artifact.py` | CLI entry point for the Stage 03–06 and Stage 08 artifact contract validator (`lib/artifact_contracts.py`). Accepts `<stage> --mode strict\|warn`: strict mode exits non-zero on blocking findings for new generated artifacts; warn mode prints findings and exits 0. Called in strict mode by stage skills before generation telemetry; called in warn mode by `pm_approve.py` and `pm_context_import.py` so approval/import continue with visible findings logged as `artifact_validation_warning`. |
 | `scripts/pm_snapshot.py` | Deterministic generated-lineage helper. After a stage skill writes `NN-*.md`, this copies that artifact into `.history/<stem>.<timestamp>.generated.md`, stamps/verifies `generated_hash`, and reports warnings without blocking generation. |
 | `scripts/discover_tracking_context.py` | Read-only helper that walks a product root, finds tracking documents (roadmap, implementation plans, status docs, backlogs), and reports recent git-log and doc-change signals as a compact Markdown digest. Used by `pm-update-roadmap-tracking` to ground status updates in evidence. |
-| `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift; runs the implicit-reapproval prompt, cascading `stale` to downstream approved stages on implicit reapproval. |
-| `hooks/post-approve.py` | Renders HTML companions for stages 04/05, cascades `stale` to downstream approved stages, and syncs telemetry/feedback via `git_sync` — deferred to a detached background process by default so the network push never gates approval completion (`PM_OS_SYNC_BLOCKING=1` forces an inline push). |
+| `hooks/pre-stage.py` | **The gate.** Blocks if any upstream is `pending`/`draft`/`stale`; re-hashes approved upstreams to detect post-approval `edited` drift (keeping the approved `content_hash`, recording `edited_hash`); runs the implicit-reapproval prompt (non-interactive detection via `lib/console.py`), cascading `stale` to downstream approved stages on implicit reapproval. |
+| `hooks/post-approve.py` | Re-runs the `stale` cascade as an idempotent safety net (approval already did it), renders HTML companions for stages 04/05, rebuilds the traceability index, commits the project locally, and syncs telemetry/feedback via `git_sync` — deferred to a detached background process by default so the network push never gates approval completion (`PM_OS_SYNC_BLOCKING=1` forces an inline push). |
 | `lib/project.py` | `resolve_project()` walks up from CWD to the nearest `.meta.yaml`; stage order/name tables; `upstream_stage_ids()`. |
 | `lib/hashing.py` | `hash_artifact_body()` (SHA-256 over body only, LF-normalized) and `hash_event()` (chain link). |
 | `lib/frontmatter.py` | YAML frontmatter read/write/`update_status`. |
@@ -181,7 +181,9 @@ flowchart TD
 | `lib/jira_markup.py` | `to_jira_markup()` — Markdown → Jira wiki markup for the offline CSV export's ticket descriptions. A documented subset (headings, emphasis, lists, links, tables, code); unrecognized syntax passes through, and code spans/blocks are protected from every other rule. |
 | `lib/traceability.py` | **The traceability spine** (`.traceability.yaml`, **schema v5**) — a derived, safe-to-delete index rebuilt from the artifact bodies at approval. Links requirement ids (`REQ`/`US`/`FR-###`) to Product Epics (`EPIC-###`), PRD-declared priority values, QA scenarios (`TC-###`), TRD tasks (`TSK-###`, only from an **approved** stage 08), and design-spec screens (`SCR-###`, only from an **approved** stage 04, scoped to `## Information Architecture`), with reverse links and reserved slots (`tickets`/`bugs`/`code_refs`/`design_refs`) preserved across rebuilds. Resolver queries: `scenarios_for_requirement`, `tasks_for_requirement`, `screens_for_requirement`, and their inverses. |
 | `lib/git_sync.py` | Clone-or-fetch the feedback repo cache, copy JSONL, commit, push. `push_feedback_repo()` (one project) and `push_all()` (every project) share one helper, report failures loudly with a status dict, and skip deleted projects. |
-| `lib/text_metrics.py` | Pure-stdlib Levenshtein `char_edit_distance` + `normalized_edit_distance` for generated-vs-approved drift. |
+| `lib/text_metrics.py` | Pure-stdlib Levenshtein `char_edit_distance` + `normalized_edit_distance` for generated-vs-approved drift. Approval uses `bounded_edit_distance`, exact within a cell budget and a line-level upper bound beyond it, so a large artifact cannot hang approval (backlog #56). |
+| `lib/cascade.py` | `cascade_stale()` — the one downstream `stale` cascade shared by `pm_approve.py`, `post-approve.py` and the gate's implicit re-approval. |
+| `lib/console.py` | `stdin_is_interactive()` — the human-at-stdin check for prompts; on Windows it also requires a real console handle, because `NUL` reports `isatty()` True (backlog #54). |
 | `lib/context.py` | **Context overlay loader.** `resolve_context()` / `render_context()` merge the company/team/glossary/guardrails **global** layer + per-stage **format/example** packs + a per-project override (precedence project > stage > global), applying `augment`/`override`/`reference-only` modes and dropping empty/TODO content so an unfilled pack is a no-op. `seed_context()` copies missing files from `context.example/` → `~/.pm-os/context/`. The 9 stage skills call it in a "Load context overlay" step; install/update seed it, and the loader self-seeds on first read if the dir is absent (covers the self-update bootstrap). The live `~/.pm-os/context/` is gitignored user data. |
 | `lib/artifact_contracts.py` | **Stage 03–06 and Stage 08 artifact quality contracts**. `CONTRACT_VERSION = 7`. Validates required/recommended sections, journey drift across stages, Product Epic ownership, PRD priority/prototype-priority labels, design input-behavior reconciliation, prototype-slice auditability, labeled fields for stories/screens/test cases/tasks, and high-signal HTML prototype checks (reviewer chrome uses `class="review-only"`). For `genai_flag: true` projects it also warns when model-selection/serving rationale lacks availability or fallback coverage. Strict mode raises on blocking findings; warn mode returns findings as structured dicts. Called via `scripts/pm_validate_artifact.py`; findings logged as `artifact_validation_warning` telemetry. |
 
@@ -199,7 +201,7 @@ stateDiagram-v2
     pending --> draft: run /pm-stage-NN
     draft --> approved: /pm-approve NN
     approved --> edited: body edited after approval<br/>(hash drift, pre-stage hook)
-    approved --> stale: upstream re-approved<br/>(post-approve or implicit-reapproval cascade)
+    approved --> stale: upstream re-approved<br/>(pm_approve or implicit-reapproval cascade)
     edited --> approved: /pm-approve NN<br/>or implicit reapproval
     stale --> draft: re-run /pm-stage-NN
     stale --> approved: /pm-approve NN (attest still valid)
@@ -247,10 +249,10 @@ sequenceDiagram
     Skill-->>PM: draft ready — review
 
     PM->>Approve: /pm-approve NN
-    Approve->>Lib: hash body, update frontmatter + .meta.yaml, log stage_approved
-    Approve->>Post: subprocess PM_OS_STAGE=NN
-    Post->>Lib: render 04/05 HTML (if applicable)
-    Post->>Lib: cascade stale to downstream approved, log stage_marked_stale
+    Approve->>Lib: hash body, update frontmatter + .meta.yaml + cascade stale (one write)
+    Approve->>Lib: log stage_approved, stage_marked_stale
+    Approve->>Post: subprocess PM_OS_STAGE=NN (stdin closed, timeout)
+    Post->>Lib: re-check cascade (no-op), render 04/05 HTML (if applicable)
     Post->>FB: git_sync push telemetry + feedback
     Post-->>Approve: exit 0
     Approve-->>PM: approved (+ any downstream now stale)
