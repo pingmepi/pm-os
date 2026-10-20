@@ -39,11 +39,11 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 - `install.sh` now resolves the interpreter (`python3` → `python` → `py -3`) and uses it throughout, so a Git-Bash install no longer hard-requires a literal `python3`.
 
 **Still open:**
-- **Re-confirmed 2026-10-05 by GH #77-6:** skills failed in about 12 sessions on a machine with only `py`, and bash-style `$HOME` paths in skill commands caused `ModuleNotFoundError: telemetry`. The `$HOME` half is fixed on branch `fix/windows-bundle`: the 35 snippets now use `os.path.expanduser('~/.pm-os/lib')`, and a contract test guards it. The `python3` half, and the 9 `PM_OS_STAGE=<NN> python3` env-prefix calls, wait on the shell decision below.
+- **Re-confirmed 2026-10-05 by GH #77-6:** skills failed in about 12 sessions on a machine with only `py`, and bash-style `$HOME` paths in skill commands caused `ModuleNotFoundError: telemetry`. The `$HOME` half is fixed and released in v1.5.4: the 35 snippets now use `os.path.expanduser('~/.pm-os/lib')`, and a contract test guards it. The `python3` half, and the 9 `PM_OS_STAGE=<NN> python3` env-prefix calls, wait on the shell decision below.
 - **Skill-inline `python3 …` invocations** in `skills/**/SKILL.md` still assume `python3` resolves *and*, where they set the stage, use bash-only `VAR=val cmd` env-prefix syntax — which is a **parser error under PowerShell** (the shell Claude Code used on the test machine), not a fallback. **Re-counted 2026-08-20: ~130 `python3` invocations across 26 `SKILL.md` files, of which 9 use the `PM_OS_STAGE=<NN> python3 …` env-prefix form.** (The earlier "24" figure predates the skill growth since v1.2.0 and is superseded.)
 - **Shell standardization decision needed:** require Git Bash on Windows (then only `python3` resolution remains — solvable via an installer-created shim) **vs.** make skills shell-portable + ship an `install.ps1`. Recommendation: **standardize on Git Bash + installer shim** (lowest blast radius; CC already prefers Git Bash on Windows).
 - No `install.ps1` exists; `install.sh` is bash-only.
-- **Found 2026-10-06:** `install.sh` places the install under bash `$HOME`, while every Python script resolves `Path.home()` from `USERPROFILE` on Windows. If the two differ (some corporate Git Bash setups set `HOME` to a network drive), the installer and the runtime would use different `~/.pm-os` directories. The installer's own Python steps now get `PM_OS_LIB_PATH`/`PM_OS_DIR` (branch `fix/windows-bundle`), but the runtime split remains part of the shell decision below.
+- **Found 2026-10-06:** `install.sh` places the install under bash `$HOME`, while every Python script resolves `Path.home()` from `USERPROFILE` on Windows. If the two differ (some corporate Git Bash setups set `HOME` to a network drive), the installer and the runtime would use different `~/.pm-os` directories. The installer's own Python steps now get `PM_OS_LIB_PATH`/`PM_OS_DIR` (released in v1.5.4), but the runtime split remains part of the shell decision below.
 
 **Note:** Must be tested on a real Windows box — cannot be verified from macOS.
 
@@ -381,8 +381,8 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 
 ## 21. 🟠 Single hardcoded approver; no multi-party sign-off
 
-**Severity:** P3 — by design for the single-PM v1. Logged as a constraint with a deferred decision, not as a bug.
-**Status:** 🟠 Open (by design).
+**Severity:** P2 — raised from P3 on 2026-10-21. APEX (the PRISM build team) asked for a named approver on every PRD release and a named strategist to sign off the expected outputs in each eval set. A pharma build needs sign-off from more than the PM.
+**Status:** 🟠 Open (by design until a reviewer model is scoped).
 
 **Symptom:** Approval is one boolean by one person. Design review, engineering review, legal/MLR, and client sign-off are unrepresentable, as are "approved with comments" and partial/conditional approval.
 
@@ -413,6 +413,12 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 **Symptom:** `.history/` snapshots *what* an artifact said at a point in time; nothing records *why* it changed, who raised it, what was traded away, or what was rejected. In month nine, "why is this a dropdown" is unanswerable from the repo.
 
 **Evidence:** No `decisions.jsonl` or equivalent exists at project root. `docs/roadmap/current-state-review.md` §8 proposes `recommendations.jsonl` and `imports.jsonl`; neither is built, and both concern PM-OS's own improvement loop rather than product decisions. `docs/roadmap/product-shape-and-flexibility-brainstorm.md` §5 identifies the same need for the (unbuilt) exploration lane — the gap is actually general.
+
+**More evidence (2026-10-21, APEX feedback on PRISM):**
+- Product decisions came up only during the build, for example how to treat bot-protected pages and whether emoji-only sentences belong in a snapshot. Nothing carries a decision made during the build back into the PRD.
+- The PRISM PM tracked 45 open decisions by hand in `open-decisions.csv`, with owner, needed-by date, status and blocked requirements, entirely outside PM-OS.
+
+Open decisions belong in the readiness record (#74). Once a decision is made, it belongs here, and the change note (#73) cites it.
 
 **Status of the fix:** An append-only `decisions.jsonl` written on approval-with-note and on `--reapprove` would match the existing append-log convention. But *what* to capture — and how much to demand from the PM at approval time without adding friction to a gate they pass frequently — is an open discussion, not a scoped design. Deliberately left undecided.
 
@@ -498,6 +504,12 @@ Additive to the traceability spine; no gate, hash, or status change. Prerequisit
 **Severity:** P1 — caps PM-OS at one tier of work handed off once; blocks multi-cycle delivery. The export mismatch was a live bug and is now fixed by B0.
 **Status:** 🟡 Partially fixed. **B0 shipped 2026-07-28:** Stage 03 now declares Product Epics (`EPIC-###`) and `pm_share.py --package` / `pm_handoff.py plan/export` share the same Jira-native mapping (`EPIC-###` as Epic; `US-###` as Story; `FR/REQ-###` as Task; `TSK-###` as Subtask when it implements exactly one exported item, or Task/unparented when appropriate). The temporary synthetic `EPIC-01` handoff mapping is retired for new exports. Scope tiers and delivery increments remain open. **Design captured in** `docs/plans/pm-os-modes-delivery-and-handoff-plan.md` Part B (2026-07-27) — this entry tracks the verified gaps; the plan holds the design.
 
+**Root cause of the APEX feedback (2026-10-21).** Two PRISM sprint handoffs in a row were assembled by hand outside PM-OS, because PM-OS can't cut a sprint-sized PRD and package from the approved product PRD:
+- `sprint-1-r2`, 7 Oct;
+- `sprint-2`, in progress on 21 Oct.
+
+Neither package has `.meta.yaml`, PM-OS frontmatter or telemetry. So the frontmatter, epic, priority and link checks PM-OS already has never ran on them, and most of APEX's findings (#70–#79) trace back to that.
+
 **Symptom:** Two connected gaps remain:
 1. **"MVP" is prose; "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph that every downstream stage treats as binding via LLM judgment — no structured field, id, or flag. Stage 09's `V1`/`V2`/`Expansion` horizons carry **no `US-###`/`FR-###`** (stage 09 is forbidden from generating requirements), so there is no path from a roadmap horizon to a user story. The pipeline can only ever elaborate the single tier stage 02 named MVP, and what separates MVP from the full product is nowhere defined structurally.
 2. **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles.
@@ -556,7 +568,7 @@ Additive to the traceability spine throughout; no gate/hash/status/staleness cha
 ## 31. 🟡 Approval can leave a partially-transitioned pipeline (approve→cascade not atomic; invariant never read)
 
 **Severity:** P1 — silent invalid state: downstream stages left `approved` against an obsolete upstream approval, with no detector anywhere.
-**Status:** 🟡 Detector released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). The atomicity refactor (Part 1) is fixed on branch `fix/approval-state-integrity`, not yet released (see #57). Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
+**Status:** 🟡 Detector released in v1.4.2 (branch `fix/v1.4.1-consistency-defects`). The atomicity refactor (Part 1) is released in v1.5.3 (see #57). One gap of a few milliseconds remains, between the frontmatter writes and the single meta write; closing it needs the project write lock (#24). Verified against v1.4.1 code 2026-08-01. Concrete realization of the long-deferred entry #4.
 
 **Fixed (detector — Part 2):** `lib/consistency.py` gains `_check_downstream_upstream_hashes` (`DOWNSTREAM_UPSTREAM_STALE`), which flags any `approved` stage whose recorded `upstream_hashes_at_approval[uid]` ≠ the (still-approved) upstream's current `content_hash` — finally consuming the written-but-unread field, and repairing already-corrupted projects (the PM re-approves the flagged stage). Regression: `test_pm_check_flags_downstream_approved_against_changed_upstream` (`tests/integration/test_approval_and_staleness.py`). **Still open (atomicity — Part 1):** making the approve→cascade a single atomic unit (so the window can't open) touches the core state machine (`pm_approve.py` + `post-approve.py` + the pre-stage gate) and is deliberately left for its own focused pass; the detector makes the state visible and repairable in the meantime.
 
@@ -703,7 +715,7 @@ Much of the #63 register was run against an older project snapshot and is alread
 
 **Progress:** PMOS-011 fixed (→ #41); the dev-package half of PMOS-002 — full PRD/TRD/design-spec projections — fixed (→ #42). PMOS-003's `context/…` path resolution stays open and folds into the PMOS-001/025 source-path sanitization work above.
 
-**PMOS-001 (secret scanning) — 🟡 fixed on branch `feat/secret-scanning`, not yet released.** New `lib/secret_scan.py` (pure-stdlib, pattern-based: Google/AWS/GitHub/Slack/OpenAI/Anthropic/Stripe keys, JWTs, PEM private keys, and a conservative high-entropy `password|secret|api_key|token = …` rule that skips placeholders). `pm_context_import.py register` redacts text snapshots under `.history/` (`[REDACTED:<kind>]`, recorded as `secrets_redacted`/`secret_kinds` in `.sources.yaml`, `secrets_redacted` event) and refuses a non-redactable source (pdf/docx/pptx/xlsx, best-effort scanned) holding one unless `--allow-secrets`. `pm_share.py` (raw + `--package`) and `pm_handoff.py` (`plan`/`export`) block before writing anything unless `--allow-secrets` (`secrets_blocked`/`secrets_allowed` events). Output and telemetry name file:line + kind only, never the value. Tests: `tests/unit/test_secret_scan.py`, `tests/integration/test_secret_scanning.py`. Still open under this entry: PMOS-025 path sanitization (incl. PMOS-003), PMOS-012/013/014, PMOS-024/026, PMOS-006/020/021. Not covered: secrets already committed to an existing project's `.history/` (rotation + history rewrite is the PM's call), and text inside compressed PDF streams.
+**PMOS-001 (secret scanning) — 🟢 released in v1.5.5.** New `lib/secret_scan.py` (pure-stdlib, pattern-based: Google/AWS/GitHub/Slack/OpenAI/Anthropic/Stripe keys, JWTs, PEM private keys, and a conservative high-entropy `password|secret|api_key|token = …` rule that skips placeholders). `pm_context_import.py register` redacts text snapshots under `.history/` (`[REDACTED:<kind>]`, recorded as `secrets_redacted`/`secret_kinds` in `.sources.yaml`, `secrets_redacted` event) and refuses a non-redactable source (pdf/docx/pptx/xlsx, best-effort scanned) holding one unless `--allow-secrets`. `pm_share.py` (raw + `--package`) and `pm_handoff.py` (`plan`/`export`) block before writing anything unless `--allow-secrets` (`secrets_blocked`/`secrets_allowed` events). Output and telemetry name file:line + kind only, never the value. Tests: `tests/unit/test_secret_scan.py`, `tests/integration/test_secret_scanning.py`. Still open under this entry: PMOS-025 path sanitization (incl. PMOS-003), PMOS-012/013/014, PMOS-024/026, PMOS-006/020/021. Not covered: secrets already committed to an existing project's `.history/` (rotation + history rewrite is the PM's call), and text inside compressed PDF streams.
 
 ---
 
@@ -857,6 +869,8 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 **Proposed fix:** at approval (and/or at generation), diff `split_stable_id_blocks(new_body).keys()` against the last approved `.history` snapshot for that stage. Ids that **disappeared** while a similar count of new ids appeared are the renumber signal — report as an ERROR naming the dropped ids and every downstream reference that cites them (resolvable from `.traceability.yaml` without a rescan). Deliberate deletions stay possible via the same override as #51. Additive to the spine, no state-machine change — consistent with "grow the traceability spine, not the state machine."
 
+**Also needed by #73 (2026-10-21):** the same comparison of stable IDs produces the "which stories changed" list in a handoff change note.
+
 ---
 
 ## 53. 🟠 Traceability coverage gaps are warning-only in the core pipeline, but hard-blocking in enhancement mode
@@ -873,14 +887,14 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 **Note on what is already sound:** the links themselves are deterministic — one shared set of extractors in `lib/artifact_contracts.py` feeds the validator, `lib/traceability.py:build_index()`, and the handoff assembler (the fix from #11), the index is rebuilt by `post-approve.py` rather than by the agent, and dangling references *are* detected. What no code can check is whether a link is **semantically right**: that `TSK-014` genuinely implements `FR-012` and not `FR-013` is judgment, and stays the agent's (same substrate limit as #27). This entry is only about the gaps the system *can* see and chooses not to enforce.
 
-**Proposed fix (decision needed, not scoped):** the graceful-degradation rationale is real for imported/prose projects but is currently applied to *every* project, including ones generated entirely under the current contracts. Options: (a) leave as-is and instead make the gaps unmissable at the export boundary — `/pm-handoff` refuses (or requires explicit confirmation) when a requirement being exported has no covering `TC-###`, which is where an untraced requirement actually costs something; (b) promote coverage gaps to errors for `origin: generated` artifacts only, keeping warn-mode for imported/backfilled ones (`.meta.yaml` already records `origin`); (c) keep them warnings but surface them in `/pm-status` with locations (composes with #49). Recommendation: **(a) + (c)** — enforce at the boundary where the gap has a consequence, and make it visible before then, without adding a new blocking state to the core gate.
+**Proposed fix (decision needed, not scoped):** the graceful-degradation rationale is real for imported/prose projects but is currently applied to *every* project, including ones generated entirely under the current contracts. Options: (a) leave as-is and instead make the gaps unmissable at the export boundary — `/pm-handoff` refuses (or requires explicit confirmation) when a requirement being exported has no covering `TC-###`, which is where an untraced requirement actually costs something; (b) promote coverage gaps to errors for `origin: generated` artifacts only, keeping warn-mode for imported/backfilled ones (`.meta.yaml` already records `origin`); (c) keep them warnings but surface them in `/pm-status` with locations (composes with #49). Recommendation: **(a) + (c)** — enforce at the boundary where the gap has a consequence, and make it visible before then, without adding a new blocking state to the core gate. Option (a) is now part of the handoff release check (#72).
 
 ---
 
-## 54. 🟡 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
+## 54. 🟢 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
 
 **Severity:** P0. The human-in-the-loop guarantee from entry #1 depends on the gate's non-TTY branch, and on Windows that branch never runs.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. `lib/console.stdin_is_interactive()` is now used by the gate. Regressions: `test_gate_blocks_instead_of_crashing_on_nul_stdin`, `test_windows_nul_stdin_is_not_interactive`. The other prompts (`pm_new`, `pm_feedback`, `pm_os_install`, `pm_context_import`) moved to the helper on branch `fix/windows-bundle`, and a contract test forbids `sys.stdin.isatty()` outside `lib/console.py`. Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
+**Status:** 🟢 Fixed — the gate was released in v1.5.3 (PR #82) and the remaining prompts in v1.5.4 (PR #83). `lib/console.stdin_is_interactive()` is now used by the gate. Regressions: `test_gate_blocks_instead_of_crashing_on_nul_stdin`, `test_windows_nul_stdin_is_not_interactive`. The other prompts (`pm_new`, `pm_feedback`, `pm_os_install`, `pm_context_import`) moved to the helper on branch `fix/windows-bundle`, and a contract test forbids `sys.stdin.isatty()` outside `lib/console.py`. Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
 
 **Symptom:** An agent runs a stage whose upstream was edited after approval. The gate prints the `[1] Continue / [2] Re-approve / [3] Cancel` menu and then crashes with `EOFError` at `input("Choice [1/2/3]: ")`. It should instead print the BLOCKED message that sends the decision to the PM.
 
@@ -892,10 +906,10 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
-## 55. 🟡 The gate overwrites the approved `content_hash` when it detects drift (GH #77-10, #77-11)
+## 55. 🟢 The gate overwrites the approved `content_hash` when it detects drift (GH #77-10, #77-11)
 
 **Severity:** P1. One line causes three visible defects and destroys the only on-disk record of what the PM approved.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Meta keeps `content_hash` and records `edited_hash`; the mismatch remediation was reworded. Regressions: `test_gate_keeps_approved_hash_when_it_detects_drift`, `test_approving_an_edited_stage_clears_the_drift_record`. Projects already corrupted by the old gate still show the mismatch until the edited stage is re-approved. The warning now reads the approved hash from the frontmatter, so it is correct for those projects too. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.3 (PR #82). Meta keeps `content_hash` and records `edited_hash`; the mismatch remediation was reworded. Regressions: `test_gate_keeps_approved_hash_when_it_detects_drift`, `test_approving_an_edited_stage_clears_the_drift_record`. Projects already corrupted by the old gate still show the mismatch until the edited stage is re-approved. The warning now reads the approved hash from the frontmatter, so it is correct for those projects too. Verified against the v1.5.1 code on 2026-10-05.
 
 **Symptom:**
 1. The edited-upstream warning prints the same value for "Approved hash" and "Current hash".
@@ -916,10 +930,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 56. 🟡 Approving a large artifact can hang indefinitely on the edit-distance metric (GH #77-3)
+## 56. 🟢 Approving a large artifact can hang indefinitely on the edit-distance metric (GH #77-3)
 
 **Severity:** P1. Approval of a big PRD never completes. The stage is left half-approved: frontmatter and meta are written, but there is no `stage_approved` event, no hook run, no cascade and no commit.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Approval uses `bounded_edit_distance` and computes it once. Regressions: `test_approving_a_large_edited_artifact_does_not_hang`, plus two unit tests. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.3 (PR #82). Approval uses `bounded_edit_distance` and computes it once. Regressions: `test_approving_a_large_edited_artifact_does_not_hang`, plus two unit tests. Verified against the v1.5.1 code on 2026-10-05.
 
 **Root cause:** `scripts/pm_approve.py:198-205` computes `char_edit_distance(gen_body, body)` (`lib/text_metrics.py:10-27`). It is a pure-Python Levenshtein DP that keeps two rows and costs O(len(a)·len(b)). For the reported 466 KB PRD that is about 2×10¹¹ cell updates, which takes hours. It runs after the approval is written and before telemetry, the hook and the cascade. Killing it therefore leaves exactly the window described in #31.
 
@@ -927,10 +941,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 57. 🟡 The post-approve hook has no timeout and runs the stale cascade in a separate process (GH #77-4; #31 Part 1)
+## 57. 🟢 The post-approve hook has no timeout and runs the stale cascade in a separate process (GH #77-4; #31 Part 1)
 
 **Severity:** P1. This is #31 actually happening: a stage 08 re-approval hung and stage 09 was never marked stale. `/pm-check` then reported `DOWNSTREAM_UPSTREAM_STALE`.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. The cascade lives in `lib/cascade.py` and runs inside `pm_approve.py` in the approval's meta write. The hook is a timed subprocess with stdin closed. Regression: `test_downstream_is_stale_even_when_the_hook_hangs`. This also closes #31 Part 1, apart from the few-millisecond gap between the frontmatter writes and the single meta write. Removing that gap needs a write lock (open PR #52). Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.3 (PR #82). The cascade lives in `lib/cascade.py` and runs inside `pm_approve.py` in the approval's meta write. The hook is a timed subprocess with stdin closed. Regression: `test_downstream_is_stale_even_when_the_hook_hangs`. This also closes #31 Part 1, apart from the few-millisecond gap between the frontmatter writes and the single meta write. Removing that gap needs a write lock (open PR #52). Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `scripts/pm_approve.py:231-241` runs `subprocess.run([sys.executable, hook])` with no `timeout`, and the hook inherits stdin. The downstream cascade happens only inside that subprocess, after the HTML render (`hooks/post-approve.py:110-132`). Anything that hangs before the cascade, whether the render or a git child process waiting for input, means downstream stages are never marked stale.
 
@@ -941,10 +955,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 58. 🟡 `--reapprove` cannot rebind a stage whose upstream was re-approved (GH #77-12)
+## 58. 🟢 `--reapprove` cannot rebind a stage whose upstream was re-approved (GH #77-12)
 
 **Severity:** P2. The fix that `DOWNSTREAM_UPSTREAM_STALE` asks for ("re-approve the flagged stage") does nothing when the flagged stage's own body hasn't changed.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. Regressions: `test_reapprove_rebinds_a_stage_to_its_reapproved_upstream`, `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream`. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.3 (PR #82). Regressions: `test_reapprove_rebinds_a_stage_to_its_reapproved_upstream`, `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream`. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `scripts/pm_approve.py:109-117` checks only the stage's own body hash. If it is unchanged, it exits with "already approved and unchanged since approval. No action taken." It never compares the stored `upstream_hashes_at_approval` against the upstreams' current `content_hash`, which is exactly the mismatch that `lib/consistency.py` `_check_downstream_upstream_hashes` reports.
 
@@ -952,10 +966,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 59. 🟡 Handoff filenames have no length limit, so the package crashes on the Windows path limit (GH #77-1, #77-2)
+## 59. 🟢 Handoff filenames have no length limit, so the package crashes on the Windows path limit (GH #77-1, #77-2)
 
 **Severity:** P1 on Windows. `/pm-handoff --package` stops partway through. Every link into a folder it never got to create (for example `../wireframes/prototype.html#SCR-###`) is then broken.
-**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. Slugs capped at 60 characters on a word boundary (`SLUG_MAX_CHARS`). Regression: `test_package_filenames_are_capped_and_links_still_resolve`. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.4 (PR #83). Slugs capped at 60 characters on a word boundary (`SLUG_MAX_CHARS`). Regression: `test_package_filenames_are_capped_and_links_still_resolve`. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:**
 - `scripts/pm_share.py` `_slug()` (`:217`) is `re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")`, with no length cap.
@@ -966,23 +980,23 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 60. 🟡 File I/O and console output assume UTF-8 without asking for it (GH #77-7, #77-8)
+## 60. 🟢 File I/O and console output assume UTF-8 without asking for it (GH #77-7, #77-8)
 
 **Severity:** P1 on Windows, where the default code page is cp1252. Reported failures:
 - `pm_context_import.py` wrote an em dash as byte `0x97` and corrupted `.sources.yaml`.
 - `pm_os_verify.py` crashed printing `✓`.
 - Hook and sync logs show `�`.
 
-**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. All 24 text read/write calls now pass `encoding="utf-8"`, and every entry point calls `lib/console.ensure_utf8_stdio()` (Windows only). Regressions: `test_windows_portability_contracts`, `test_verify_output_survives_a_cp1252_pipe`. Verified against the v1.5.1 code on 2026-10-05: the 24 calls were in `lib/` (config, git_sync, telemetry) and `scripts/` (context_import, feedback, new, os_install, os_update, os_verify, share, status), and nothing reconfigured stdout. (The earlier note that the installer, `config` and `git_sync` already did was wrong.) Reproduced `pm_os_verify.py` dying with `UnicodeEncodeError` on a piped cp1252 stdout.
+**Status:** 🟢 Fixed — released in v1.5.4 (PR #83). All 24 text read/write calls now pass `encoding="utf-8"`, and every entry point calls `lib/console.ensure_utf8_stdio()` (Windows only). Regressions: `test_windows_portability_contracts`, `test_verify_output_survives_a_cp1252_pipe`. Verified against the v1.5.1 code on 2026-10-05: the 24 calls were in `lib/` (config, git_sync, telemetry) and `scripts/` (context_import, feedback, new, os_install, os_update, os_verify, share, status), and nothing reconfigured stdout. (The earlier note that the installer, `config` and `git_sync` already did was wrong.) Reproduced `pm_os_verify.py` dying with `UnicodeEncodeError` on a piped cp1252 stdout.
 
 **Proposed fix:** Pass `encoding="utf-8"` explicitly to every text read and write in `lib/`, `scripts/` and `hooks/`. On Windows, switch stdout and stderr to UTF-8 when each entry point starts. Add a contract test that fails on any `read_text()`, `write_text()` or text-mode `open()` without an explicit encoding.
 
 ---
 
-## 61. 🟡 The approval commit adds every file in the project with `git add -A` (GH #77-14, #72)
+## 61. 🟢 The approval commit adds every file in the project with `git add -A` (GH #77-14, #72)
 
 **Severity:** P2. Approving a stage committed unrelated working files (helper scripts, notes) and nearly committed a screenshot containing a credential.
-**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. `commit_all` stages `git add -u` (files already tracked) plus `owned_paths()` and reports any other new files as `untracked_left_out`. `index.lock` failures get an actionable message. Regressions: four new `test_project_git.py` tests. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟢 Fixed — released in v1.5.4 (PR #83). `commit_all` stages `git add -u` (files already tracked) plus `owned_paths()` and reports any other new files as `untracked_left_out`. `index.lock` failures get an actionable message. Regressions: four new `test_project_git.py` tests. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `lib/project_git.py:87` runs `["add", "-A"]`. A related problem (#72): when `.git/index.lock` exists or can't be written, the warning repeats git's raw `fatal:` text and doesn't tell the PM what to do.
 
@@ -992,10 +1006,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 62. 🟡 Central sync failures show up only in a background log (GH #77-16)
+## 62. 🟢 Central sync failures show up only in a background log (GH #77-16)
 
 **Severity:** P2. In one project, about 30 background pushes in a row failed with `could not read Username for 'https://github.com'`. Telemetry never left the machine, and nothing told the PM.
-**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. Each sync writes `.pm-os-sync.json` (gitignored). `/pm-status` shows the last outcome, the number of approvals not yet synced, and for credential failures the feedback repo plus the fix. Regressions: three `test_windows_portability.py` tests. Verified against the v1.5.1 code on 2026-10-05: `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
+**Status:** 🟢 Fixed — released in v1.5.4 (PR #83). Each sync writes `.pm-os-sync.json` (gitignored). `/pm-status` shows the last outcome, the number of approvals not yet synced, and for credential failures the feedback repo plus the fix. Regressions: three `test_windows_portability.py` tests. Verified against the v1.5.1 code on 2026-10-05: `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
 
 **Proposed fix:** `/pm-status` shows the last sync result and the number of approvals not yet synced. A missing-credentials failure is reported once, together with the fix.
 
@@ -1010,7 +1024,7 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 - log `stage_generated`.
 
 The reporter had to write their own `finish_stage.py`.
-**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. `scripts/pm_finish_stage.py <NN> --model <id>` ships and is documented in the SOP. The nine stage skills still spell the steps out inline; switching them over is a separate change, kept out of this bundle to avoid touching every stage prompt at once. Regressions: two `test_windows_portability.py` tests. The end-of-stage steps used to exist only as inline bash in each stage's `SKILL.md`.
+**Status:** 🟡 Script released in v1.5.4 (PR #83); switching the stage skills over to it is still open. `scripts/pm_finish_stage.py <NN> --model <id>` ships and is documented in the SOP. It is also the quickest way to bring a hand-written sprint PRD back under PM-OS state until #28 lands. The nine stage skills still spell the steps out inline; switching them over is a separate change, kept out of this bundle to avoid touching every stage prompt at once. Regressions: two `test_windows_portability.py` tests. The end-of-stage steps used to exist only as inline bash in each stage's `SKILL.md`.
 
 **Proposed fix:** Add `scripts/pm_finish_stage.py <NN>`, which the skills call and which can also be run directly.
 
@@ -1045,7 +1059,7 @@ The reporter had to write their own `finish_stage.py`.
 
 ## 66. 🟠 Artifacts grow too large for an agent to read in one pass (GH #77-25, #78)
 
-**Severity:** P2, and it gets worse as projects grow. In the reported project:
+**Severity:** P1 — raised from P2 on 2026-10-21. Along with #28, the PRD's size is why PRISM's sprint handoffs left the pipeline: a sprint PRD written by hand is easier to work with than a 466 KB product PRD. It gets worse as projects grow. In the reported project:
 - the PRD was 466 KB, the QA plan 270 KB and the prototype 572 KB;
 - reads hit the agent's 25k-token and 256 KB limits;
 - six sessions ran out of context;
@@ -1060,7 +1074,7 @@ The reporter had to write their own `finish_stage.py`.
 
 ## 67. 🟠 Design ingest works only from a brief-mode draft, so Figma can't be attached to an already-approved 04 (GH #77-23)
 
-**Severity:** P2.
+**Severity:** P1 — raised from P2 on 2026-10-21. Figma often arrives after the design spec is approved. On PRISM it arrived after the stories, still with gaps (APEX AL-24), and this entry is what stops PM-OS pulling it back in.
 **Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05:
 - `lib/design_ingest.py:58` requires `design_mode: brief`.
 - `:111-113` mints a new `SCR-{n:03d}` id for every `node_id` it hasn't seen before.
@@ -1076,7 +1090,7 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 **Severity:** P2. A designer kit saved under `handoff/design/` was wiped the next time the package was built.
 **Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
 
-**Proposed fix:** Keep a manifest of the files PM-OS writes, next to the marker, and delete only those. Leave any other file alone and note that it was kept. The sprint-scoped package requested in the same report belongs with the delivery-increment design (#28).
+**Proposed fix:** Keep a manifest of the files PM-OS writes, next to the marker, and delete only those. Leave any other file alone and note that it was kept. Build it as the package manifest in #75, so one file serves both purposes. The sprint-scoped package requested in the same report belongs with the delivery-increment design (#28).
 
 **The rest of GH #77, recorded elsewhere or not a defect:**
 - #6 (`python3` / `$HOME` paths) → entry #2.
@@ -1095,9 +1109,221 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 - **#70:** `ENHANCEMENT_CHANGE_OUTSIDE_BOUNDARY` lists every FR, US and NFR in `content-translation-v3`. This looks like a full PRD regeneration inside an enhancement cycle rather than a bug in the check. Triage needs the project's frozen baseline.
 - **#71:** Mermaid diagrams for user journeys.
 - **#73:** TRD tasks split cleanly into backend and frontend, with none spanning both.
-- **#74:** Jira stories that stand alone, plus a flag to build the package the same way. Story dossiers became standalone in v1.5.1 (EDA-303), so check what is still missing.
+- **#74:** Jira stories that stand alone, plus a flag to build the package the same way. Story dossiers became standalone in v1.5.1 (EDA-303), so check what is still missing. Now pulls against #76: APEX wants concise stories, and standalone dossiers are what made them long.
 - **#76:** A capability and feature layer between business requirements and epics. Overlaps GH #77-21.
 - **#79:** The evidence ledger (`00-context/evidence.yaml`) has no mechanical validation. Confirmed: only `pm_context_import.py` refers to the filename, and only as a path constant.
+
+---
+
+## 70. 🟠 Labeled-field values keep a stray `**`, so every bold `Priority:` is stored as `** Must`
+
+**Severity:** P1. It's small to fix but shows up in every handoff. Every story's frontmatter and the traceability index carry the malformed value.
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:**
+- `lib/artifact_contracts.py:225-228` `_LABELED_FIELD_RE` allows `**` around the label only before the colon (`(?:\*\*)?label(?:\*\*)?\s*:`). Stage 03 writes `**Priority:** Must / S2`, where the closing `**` comes after the colon, so it lands in the value.
+- `block_priority("**Priority:** Must / S2")` returns `'** Must / S2'` (reproduced against v1.5.5).
+- In the PRISM project, all 47 dev story files have `priority: '** Must / …'`, and so do 144 priority entries in `.traceability.yaml`.
+- Any other labeled field written in bold has the same problem. Epic ids survive only because they are pulled out by a separate id regex.
+
+**Proposed fix:** Accept `**Label:**` as well as `**Label**:` in `_LABELED_FIELD_RE`, and strip leading emphasis from the value. Add a regression test for both bold forms. Existing projects pick up the fix when they re-approve stage 03, which rebuilds the index.
+
+---
+
+## 71. 🟠 Exported files don't say their approval status, approver or version, and the text export includes unapproved stages
+
+**Severity:** P1. This is APEX finding AL-01: the build team had to compute its own hash to work out which PRD version it had.
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:**
+- Stage artifacts carry `status`, `approved_by`, `approved_at` and `content_hash` in frontmatter, but nothing a person can read as a version (v1, v2…).
+- Handoff projections carry only `generated_from` hashes, `canonical_source` and `generated_at` (`scripts/pm_share.py:363-365`, `:389-391`, `:648-650`, `:777-779`). There is no status, approver, approval date or version.
+- `_raw_export` (`scripts/pm_share.py:1366`) exports `edited` stages, whose body changed after approval, alongside `approved` ones. A single-stage text export does no status check at all, so a draft can go out.
+
+**Proposed fix:**
+- Give each stage an approval revision number (`version: N`, incremented on every approval and re-approval).
+- Stamp `status`, `approved_by`, `approved_at`, `version` and `content_hash` on every exported file and in the package manifest (#75).
+- The text export refuses non-approved stages unless the PM passes an explicit flag, and the output then says so.
+
+---
+
+## 72. 🟠 No release check runs before a handoff: undefined IDs, broken links, placeholders and missing referenced files go out unchecked
+
+**Severity:** P1. These are APEX findings AL-21 (rule ids R-01 to R-09 cited but defined only outside the PRD and stories) and AL-23 (broken links in the stories README). APEX asked for "a release checklist [that] would catch these".
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:**
+- `STABLE_ID_TYPES` (`lib/artifact_contracts.py:453`) is a fixed list of 11 prefixes, and ids with any other prefix are never checked. The PRISM PRD declares 38 `BR-` ids that PM-OS never tracks.
+- No code checks that relative links in a built package resolve. #34 fixed one known case by hand.
+- No check looks for placeholder or pending markers ("TBD", "still to come", "placeholder copy") or for referenced files that are missing.
+- Coverage gaps reach the export as warnings only (#53).
+- The PRISM sprint-2 package as of 21 Oct, which was built by hand, shows the cost:
+  - 7 broken links;
+  - 4 of 16 stories citing PRD v0.3 while the PRD is v0.5;
+  - 0 of 16 stories with a priority.
+
+**Proposed fix:** A release check that `/pm-handoff` runs before writing, which can also be run on any handoff folder, including one built by hand. It checks that:
+- every story has an epic and a priority;
+- every cited id of any prefix is defined in the package;
+- every relative link resolves;
+- no placeholder markers remain;
+- every referenced file exists or is listed as pending in the readiness record (#74);
+- every story's source version matches the current PRD version.
+
+Errors block, with an explicit override that is logged. This absorbs option (a) of #53.
+
+---
+
+## 73. 🟠 No change note between handoff releases, and outside inputs aren't versioned
+
+**Severity:** P1. APEX asked that every PRD or design update come with a short note saying what changed and which stories it affects, so they can re-plan only those.
+**Status:** 🟠 Open. Verified on 2026-10-21.
+
+**Evidence:**
+- Nothing in `scripts/pm_share.py` or `scripts/pm_handoff.py` compares a package with the previous one. PM-OS records *that* an artifact changed (hash drift, the stale cascade, `.history`), not *what* changed for the reader.
+- PM-OS hashes only its own artifacts. A Figma change made after it was pulled into the design spec, or a replaced test file, is never detected.
+- PRISM sprint 2: the 20 Oct and 21 Oct dev zips differ in almost every file (the crawler checks were moved to sprint 3), and neither carries a change note.
+
+**Proposed fix:** Each package release writes `CHANGES.md`:
+- stable ids added, removed or changed since the last release, using the comparison from #52 (the machinery exists in `scripts/pm_enhance.py` `_build_delta()`);
+- the stories affected;
+- outside inputs whose recorded hash or version changed;
+- a one-line reason from the PM, citing the decision record (#23) where there is one.
+
+---
+
+## 74. 🟠 No record of what the dev team is owed: eval sets per AI step, test inputs and open decisions
+
+**Severity:** P1. APEX asked for:
+- 30+ human-approved golden cases per AI step, with a named strategist reviewing the expected outputs;
+- real input files at sprint kick-off;
+- a list of known unknowns per epic.
+
+PM-OS has nowhere to track any of these as things that are owed, with an owner, a due date and a status.
+
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:**
+- Stage 06 asks for `## Eval Dataset Spec` and `## Golden Set Construction` (`skills/pm-stage-06-qa-plan/SKILL.md:187-191`), but only as prompt guidance. No contract check reads them, whereas stage 08 has `MODEL_SERVING_INCOMPLETE`.
+- The PRISM QA plan specified 8 eval sets of 120–500 items each, but with roles rather than named owners, and no due dates or status.
+- After the sprint re-cut, the sprint-1 package's two AI steps had no eval set at all ("Evals run manually"). The golden sentence list was still pending at sprint 2, carried over from sprint 1.
+- Open decisions are project-level prose (`## Assumptions & Open Decisions`, `00-context/known-unknowns.md`). The PM kept 45 of them in `open-decisions.csv` outside PM-OS.
+
+**Proposed fix:** An ungated `readiness.yaml` with three lists. Status changes often, so it must not live in an approved artifact: every update would force a re-approval and mark later stages stale. The lists are:
+- **eval sets** — one per AI step, citing its requirement id, with a named reviewer, a starter count needed at kick-off, a target count, a due milestone and a status;
+- **test inputs** — what each file is for, who supplies it, the milestone that needs it, and its status;
+- **open decisions** — `OD-###` linked to epics and stories, with owner, decide-by milestone and status; decided items move to the decision record (#23).
+
+`/pm-check` validates the file, the package carries it, and the release check (#72) blocks on missing starter sets or overdue blocking items. In the QA plan's Eval Dataset Spec table, a "starter count" column is the only change to an approved artifact; the PRD doesn't grow. Following the design of `delivery.yaml` in #28, nothing waits on this file.
+
+---
+
+## 75. 🟠 Packages have no machine-readable manifest for a reader like APEX
+
+**Severity:** P2. APEX is an AI build system that reads a fixed set of files. Today it guesses which files are authoritative and which version they are.
+**Status:** 🟠 Open. Verified on 2026-10-21.
+
+**Evidence:**
+- The PRISM design mapping cited `screens.md`, `sample-data.md` and a prototype, none of which APEX reads (APEX finding AL-24).
+- Stories were re-sent as `.docx` and re-zipped by hand, and the re-zip is how the AL-23 links broke.
+- Package READMEs are written for people, and the only marker file (#68) just records that PM-OS made the folder.
+
+**Proposed fix:** `manifest.json` per package, listing for each file:
+- its role (source of truth or reference only);
+- its hash, `version` and status (#71);
+- the reading order.
+
+Agree a read-set profile with APEX so that files outside it are never cited as sources. The same manifest tells `--package` which files it may delete (#68).
+
+---
+
+## 76. 🟠 Stories are long specs, not concise user-experience stories
+
+**Severity:** P2 — decision needed. APEX asked for stories "in a concise way representing a user experience".
+**Status:** 🟠 Open. Verified on 2026-10-21.
+
+**Evidence:**
+- The PRISM dev story dossiers average about 8,400 words (395k words across 47 files).
+- Stage 03 asks for each story to be a "self-contained mini-spec" (`skills/pm-stage-03-prd/SKILL.md:165-175`): happy path, edge cases, data fields, UI steps with system process, acceptance criteria and traceability.
+- EDA-303 (v1.5.1) then embeds the full epic, requirements, NFRs and impact analysis into each dossier, as GH #74 asked.
+
+**Proposed fix (decision needed):** Split the story from its detail. The story file holds the statement, the experience in 3–5 lines, acceptance criteria and links. The detail stays in the requirement files. That pulls against GH #74 (standalone Jira stories, #69), so choose a default per reader, for example concise for an AI build system and standalone for Jira.
+
+---
+
+## 77. 🟠 Stage 03 puts AI architecture sections in the PRD for GenAI projects
+
+**Severity:** P2. APEX: "Technical specifications/architecture decisions should not be … part of the PRD".
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:**
+- For `genai_flag` projects, `skills/pm-stage-03-prd/SKILL.md:218-247` adds Model Selection Rationale, Prompt/Agent Architecture, Tool/Function Inventory, Context Window Strategy, Fallback Behavior and Output Validation Strategy.
+- The guidance says "product behavior perspective", but the PRISM PRD's versions run to orchestration and tooling detail, and they add to the PRD's size (#66).
+- Stage 08 already has the right home for this content (Model Serving & Selection, architecture, interface contracts).
+
+**Proposed fix:**
+- Keep in the PRD only what the user sees: fallback behaviour, and validation the user can observe.
+- Move Prompt/Agent Architecture, Tool/Function Inventory and Context Window Strategy to stage 08.
+- Bump the contract version and keep older PRDs on warnings only.
+
+---
+
+## 78. 🟠 Design returns aren't checked for final copy, brand assets, non-screen outputs or additions beyond the stories
+
+**Severity:** P2. This is APEX finding AL-24, still open:
+- PDF layout frames were never delivered;
+- many frames used placeholder text;
+- no logo SVG came with the frames.
+
+It's also AL-20: the Review screen had a label filter and a progress bar that no story describes.
+
+**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+
+**Evidence:** `lib/design_input.py` already checks that:
+- every story has a screen;
+- every required state exists;
+- no screen serves zero stories (`DESIGN_HANDOFF_SCREEN_ORPHANED`, `:156`);
+- Figma links are present.
+
+It does not check for:
+- placeholder copy in a frame;
+- required brand assets;
+- outputs that aren't screens, such as printed or PDF layouts, which have no `SCR-###`;
+- elements added inside a screen that already serves a story. A screen that serves a story is never orphaned, however much it adds.
+
+**Proposed fix:**
+- The `design-in/` return declares, per state, whether its copy is final or placeholder, and the release check (#72) blocks on placeholder copy for a state a story names.
+- Required assets are listed in the brief and checked on return.
+- Document and print outputs become a declarable surface type.
+- The return lists "additions not in a story", and each one becomes an open decision for the PM (#74).
+- Story-to-frame mapping at the level of each state ships in the dev package.
+
+Pairs with #67.
+
+---
+
+## 79. 🟠 No step asks for representative real inputs, so the PRD and QA plan come from one example
+
+**Severity:** P2. Behaviour on a bot-protected site (Jardiance) and on a site without a known ISI profile (INLYTA) surfaced only during the build. APEX asked for real input files from several brands at kick-off.
+**Status:** 🟠 Open. Verified on 2026-10-21.
+
+**Evidence:**
+- No stage skill asks for representative inputs (a grep of `skills/` finds only stage 01's "real input signals" for Why Now).
+- Edge cases are written by the model from prose.
+- Both PRISM sprints were specified and tested against one page (Aimovig), and the sprint-2 package has a single brand config (`config/brands/aimovig.yaml`).
+
+**Proposed fix:** A `## Representative Inputs` section in stage 02 or 03:
+- the dimensions along which real inputs vary;
+- at least one real example per dimension, with known quirks.
+
+Stage 06 test data and eval sets draw from that section, and missing files are tracked in the readiness record (#74).
+
+---
+
+_**Entries 70-79 recorded 2026-10-21** from APEX's workshop feedback on the PRISM sprint-1 output pack (findings AL-01, AL-06, AL-20, AL-21, AL-23 and AL-24, plus the test-data, decision and change-control asks), each checked against the v1.5.5 code before logging. The pack APEX reviewed (`sprint-1-r2`, 7 Oct) was built by hand outside PM-OS: it has no `.meta.yaml`, no PM-OS frontmatter and no telemetry. So several of its findings, such as missing epics and priorities, are things PM-OS already enforces. The engine gap underneath is #28/#66 (no sprint-sized path), and the entries above are what remains once that is accounted for. The same pass updated these statuses:_
+- _#54–#62 released in v1.5.3 and v1.5.4; #63's script released in v1.5.4; PMOS-001 (#40) released in v1.5.5._
+- _#21 raised to P2, and #66 and #67 raised to P1._
+- _Cross-links added on #23, #28, #52, #53, #68 and #69._
 
 ---
 
