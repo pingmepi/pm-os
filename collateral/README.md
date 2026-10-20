@@ -7,6 +7,7 @@ Share materials for PM-OS. Two audiences, one shared visual identity.
 | `PM-OS-Business-Overview.pptx` | Director of Product · BU head | 11-slide deck for a ~30-min slot with a live demo. Slide `03` ("What works today") is the demo hand-off. Slides `06`/`07` quote figures measured from real project telemetry — re-measure before restating them. Slide `04` (gates) is the safest cut if the slot runs short. |
 | `PM-OS-Technical-Walkthrough.pptx` | Director of Product | 8-slide deck for a live technical walkthrough. |
 | `PM-OS-Technical-Brief.docx` | Director of Product | Reference doc to read/forward async. Source of truth the decks distill from. |
+| `PM-OS-v1.5-Overview.html` / `.pdf` | Leadership · rollout audience | Single-page v1.5 overview (HTML source + printed PDF). Not produced by the `build/` generators. |
 
 All three are grounded in actual repo state: v1 (product-definition pipeline, Phase 1) shipped; Phases 2–6 framed as roadmap.
 
