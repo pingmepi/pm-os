@@ -25,6 +25,10 @@ Usage:
     python3 pm_handoff.py export                # write ./handoff/jira-import.csv
     python3 pm_handoff.py record --input m.json # record {id: ticket-key} back
     echo '{"US-001":"RA-1"}' | python3 pm_handoff.py record   # …or via stdin
+
+`plan` and `export` first scan the artifacts the tickets are built from (PRD +
+TRD) for likely secrets (lib/secret_scan, GH #63 PMOS-001) and refuse — writing
+nothing — unless --allow-secrets is given. Output names file:line + kind only.
 """
 from __future__ import annotations
 
@@ -53,6 +57,7 @@ from frontmatter import read as fm_read  # noqa: E402
 from jira_markup import to_jira_markup  # noqa: E402
 from project import artifact_path, load_meta, resolve_project  # noqa: E402
 from telemetry import log as telemetry_log  # noqa: E402
+import secret_scan  # noqa: E402
 import traceability  # noqa: E402
 
 # Only one tracker in Phase 4b (the roadmap deliberately picks the single tracker
@@ -513,8 +518,19 @@ def _render_plan_md(plan: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def cmd_plan(root: Path, output: str | None) -> None:
+# The artifacts build_plan reads ticket content from. Scanned whenever present: the
+# plan JSON is exactly what the skill sends to Jira, and the CSV is what a PM uploads.
+TICKET_SOURCE_STAGES = ("03", "08")
+
+
+def _guard_secrets(root: Path, allow: bool, export: str) -> None:
+    paths = [artifact_path(root, sid) for sid in TICKET_SOURCE_STAGES]
+    secret_scan.guard_export(root, [p for p in paths if p.exists()], allow=allow, export=export)
+
+
+def cmd_plan(root: Path, output: str | None, allow_secrets: bool = False) -> None:
     plan = build_plan(root)
+    _guard_secrets(root, allow_secrets, "jira_plan")
     out_dir = _resolve_out_dir(root, output)
     json_path = out_dir / f"{PLAN_BASENAME}.json"
     md_path = out_dir / f"{PLAN_BASENAME}.md"
@@ -679,10 +695,11 @@ def _render_import_guide(plan: dict, rows: list[dict], csv_name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def cmd_export(root: Path, output: str | None, fmt: str) -> None:
+def cmd_export(root: Path, output: str | None, fmt: str, allow_secrets: bool = False) -> None:
     if fmt != "csv":
         raise SystemExit(f"Error: unsupported export format '{fmt}'. Only 'csv' is supported.")
     plan = build_plan(root)
+    _guard_secrets(root, allow_secrets, "jira_csv")
     rows = build_csv_rows(plan)
     out_dir = _resolve_out_dir(root, output)
     csv_path = out_dir / f"{CSV_BASENAME}.csv"
@@ -799,9 +816,13 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     p_plan = sub.add_parser("plan", help="Build a dry-run ticket map from the approved PRD (+ TRD).")
     p_plan.add_argument("--output", help="Output directory (default: ./handoff/).")
+    p_plan.add_argument("--allow-secrets", dest="allow_secrets", action="store_true",
+                        help="Write the plan even though the PRD/TRD hold likely secrets (logged).")
     p_export = sub.add_parser("export", help="Render the plan as a Jira CSV-importer file (offline).")
     p_export.add_argument("--output", help="Output directory (default: ./handoff/).")
     p_export.add_argument("--format", default="csv", choices=["csv"], help="Export format (default: csv).")
+    p_export.add_argument("--allow-secrets", dest="allow_secrets", action="store_true",
+                          help="Write the CSV even though the PRD/TRD hold likely secrets (logged).")
     p_record = sub.add_parser("record", help="Write created ticket keys back into .traceability.yaml.")
     p_record.add_argument("--input", help="JSON file of {stable-id: ticket-key} (default: stdin).")
 
@@ -814,9 +835,9 @@ def main() -> None:
         sys.exit(1)
 
     if args.command == "plan":
-        cmd_plan(root, args.output)
+        cmd_plan(root, args.output, args.allow_secrets)
     elif args.command == "export":
-        cmd_export(root, args.output, args.format)
+        cmd_export(root, args.output, args.format, args.allow_secrets)
     elif args.command == "record":
         cmd_record(root, args.input)
 
