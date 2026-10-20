@@ -39,10 +39,11 @@ For **build order**, sequencing now lives inside each plan's own phase table (`.
 - `install.sh` now resolves the interpreter (`python3` → `python` → `py -3`) and uses it throughout, so a Git-Bash install no longer hard-requires a literal `python3`.
 
 **Still open:**
-- **Re-confirmed 2026-10-05 by GH #77-6:** skills failed in about 12 sessions on a machine with only `py`, and bash-style `$HOME` paths in skill commands caused `ModuleNotFoundError: telemetry`. The shell decision below is still pending.
+- **Re-confirmed 2026-10-05 by GH #77-6:** skills failed in about 12 sessions on a machine with only `py`, and bash-style `$HOME` paths in skill commands caused `ModuleNotFoundError: telemetry`. The `$HOME` half is fixed on branch `fix/windows-bundle`: the 35 snippets now use `os.path.expanduser('~/.pm-os/lib')`, and a contract test guards it. The `python3` half, and the 9 `PM_OS_STAGE=<NN> python3` env-prefix calls, wait on the shell decision below.
 - **Skill-inline `python3 …` invocations** in `skills/**/SKILL.md` still assume `python3` resolves *and*, where they set the stage, use bash-only `VAR=val cmd` env-prefix syntax — which is a **parser error under PowerShell** (the shell Claude Code used on the test machine), not a fallback. **Re-counted 2026-08-20: ~130 `python3` invocations across 26 `SKILL.md` files, of which 9 use the `PM_OS_STAGE=<NN> python3 …` env-prefix form.** (The earlier "24" figure predates the skill growth since v1.2.0 and is superseded.)
 - **Shell standardization decision needed:** require Git Bash on Windows (then only `python3` resolution remains — solvable via an installer-created shim) **vs.** make skills shell-portable + ship an `install.ps1`. Recommendation: **standardize on Git Bash + installer shim** (lowest blast radius; CC already prefers Git Bash on Windows).
 - No `install.ps1` exists; `install.sh` is bash-only.
+- **Found 2026-10-06:** `install.sh` places the install under bash `$HOME`, while every Python script resolves `Path.home()` from `USERPROFILE` on Windows. If the two differ (some corporate Git Bash setups set `HOME` to a network drive), the installer and the runtime would use different `~/.pm-os` directories. The installer's own Python steps now get `PM_OS_LIB_PATH`/`PM_OS_DIR` (branch `fix/windows-bundle`), but the runtime split remains part of the shell decision below.
 
 **Note:** Must be tested on a real Windows box — cannot be verified from macOS.
 
@@ -877,7 +878,7 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 ## 54. 🟡 On Windows the edited-upstream gate crashes instead of blocking — the #1 fix never applied there (GH #77-10)
 
 **Severity:** P0. The human-in-the-loop guarantee from entry #1 depends on the gate's non-TTY branch, and on Windows that branch never runs.
-**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. `lib/console.stdin_is_interactive()` is now used by the gate. Regressions: `test_gate_blocks_instead_of_crashing_on_nul_stdin`, `test_windows_nul_stdin_is_not_interactive`. The other prompts (`pm_new`, `pm_feedback`, `pm_os_install`, `pm_context_import`) still use plain `isatty()`; they move to the helper in the Windows bundle (Phase 3a). Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
+**Status:** 🟡 Fixed on branch `fix/approval-state-integrity`, not yet released. `lib/console.stdin_is_interactive()` is now used by the gate. Regressions: `test_gate_blocks_instead_of_crashing_on_nul_stdin`, `test_windows_nul_stdin_is_not_interactive`. The other prompts (`pm_new`, `pm_feedback`, `pm_os_install`, `pm_context_import`) moved to the helper on branch `fix/windows-bundle`, and a contract test forbids `sys.stdin.isatty()` outside `lib/console.py`. Verified against the v1.5.1 code on 2026-10-05 on a real Windows 11 machine.
 
 **Symptom:** An agent runs a stage whose upstream was edited after approval. The gate prints the `[1] Continue / [2] Re-approve / [3] Cancel` menu and then crashes with `EOFError` at `input("Choice [1/2/3]: ")`. It should instead print the BLOCKED message that sends the decision to the PM.
 
@@ -949,10 +950,10 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 59. 🟠 Handoff filenames have no length limit, so the package crashes on the Windows path limit (GH #77-1, #77-2)
+## 59. 🟡 Handoff filenames have no length limit, so the package crashes on the Windows path limit (GH #77-1, #77-2)
 
 **Severity:** P1 on Windows. `/pm-handoff --package` stops partway through. Every link into a folder it never got to create (for example `../wireframes/prototype.html#SCR-###`) is then broken.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. Slugs capped at 60 characters on a word boundary (`SLUG_MAX_CHARS`). Regression: `test_package_filenames_are_capped_and_links_still_resolve`. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:**
 - `scripts/pm_share.py` `_slug()` (`:217`) is `re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")`, with no length cap.
@@ -963,23 +964,23 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 60. 🟠 File I/O and console output assume UTF-8 without asking for it (GH #77-7, #77-8)
+## 60. 🟡 File I/O and console output assume UTF-8 without asking for it (GH #77-7, #77-8)
 
 **Severity:** P1 on Windows, where the default code page is cp1252. Reported failures:
 - `pm_context_import.py` wrote an em dash as byte `0x97` and corrupted `.sources.yaml`.
 - `pm_os_verify.py` crashed printing `✓`.
 - Hook and sync logs show `�`.
 
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `pm_new`, `pm_os_verify`, `pm_context_import` and `pm_share` (among others) read and write files without an explicit `encoding`. Only the installer, `config` and `git_sync` switch stdout to UTF-8.
+**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. All 24 text read/write calls now pass `encoding="utf-8"`, and every entry point calls `lib/console.ensure_utf8_stdio()` (Windows only). Regressions: `test_windows_portability_contracts`, `test_verify_output_survives_a_cp1252_pipe`. Verified against the v1.5.1 code on 2026-10-05: the 24 calls were in `lib/` (config, git_sync, telemetry) and `scripts/` (context_import, feedback, new, os_install, os_update, os_verify, share, status), and nothing reconfigured stdout. (The earlier note that the installer, `config` and `git_sync` already did was wrong.) Reproduced `pm_os_verify.py` dying with `UnicodeEncodeError` on a piped cp1252 stdout.
 
 **Proposed fix:** Pass `encoding="utf-8"` explicitly to every text read and write in `lib/`, `scripts/` and `hooks/`. On Windows, switch stdout and stderr to UTF-8 when each entry point starts. Add a contract test that fails on any `read_text()`, `write_text()` or text-mode `open()` without an explicit encoding.
 
 ---
 
-## 61. 🟠 The approval commit adds every file in the project with `git add -A` (GH #77-14, #72)
+## 61. 🟡 The approval commit adds every file in the project with `git add -A` (GH #77-14, #72)
 
 **Severity:** P2. Approving a stage committed unrelated working files (helper scripts, notes) and nearly committed a screenshot containing a credential.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05.
+**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. `commit_all` stages `git add -u` (files already tracked) plus `owned_paths()` and reports any other new files as `untracked_left_out`. `index.lock` failures get an actionable message. Regressions: four new `test_project_git.py` tests. Verified against the v1.5.1 code on 2026-10-05.
 
 **Evidence:** `lib/project_git.py:87` runs `["add", "-A"]`. A related problem (#72): when `.git/index.lock` exists or can't be written, the warning repeats git's raw `fatal:` text and doesn't tell the PM what to do.
 
@@ -989,16 +990,16 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 ---
 
-## 62. 🟠 Central sync failures show up only in a background log (GH #77-16)
+## 62. 🟡 Central sync failures show up only in a background log (GH #77-16)
 
 **Severity:** P2. In one project, about 30 background pushes in a row failed with `could not read Username for 'https://github.com'`. Telemetry never left the machine, and nothing told the PM.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
+**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. Each sync writes `.pm-os-sync.json` (gitignored). `/pm-status` shows the last outcome, the number of approvals not yet synced, and for credential failures the feedback repo plus the fix. Regressions: three `test_windows_portability.py` tests. Verified against the v1.5.1 code on 2026-10-05: `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
 
 **Proposed fix:** `/pm-status` shows the last sync result and the number of approvals not yet synced. A missing-credentials failure is reported once, together with the fix.
 
 ---
 
-## 63. 🟠 No mechanical way to finalise a stage written outside its skill (GH #77-15)
+## 63. 🟡 No mechanical way to finalise a stage written outside its skill (GH #77-15)
 
 **Severity:** P2. Very large stages sometimes have to be written in parts or by hand (see #66). For those, nothing does the end-of-stage steps in one go:
 - stamp `generated_hash`;
@@ -1007,7 +1008,7 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 - log `stage_generated`.
 
 The reporter had to write their own `finish_stage.py`.
-**Status:** 🟠 Open. The end-of-stage steps exist only as inline bash in each stage's `SKILL.md`.
+**Status:** 🟡 Fixed on branch `fix/windows-bundle`, not yet released. `scripts/pm_finish_stage.py <NN> --model <id>` ships and is documented in the SOP. The nine stage skills still spell the steps out inline; switching them over is a separate change, kept out of this bundle to avoid touching every stage prompt at once. Regressions: two `test_windows_portability.py` tests. The end-of-stage steps used to exist only as inline bash in each stage's `SKILL.md`.
 
 **Proposed fix:** Add `scripts/pm_finish_stage.py <NN>`, which the skills call and which can also be run directly.
 

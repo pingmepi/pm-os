@@ -8,6 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio, stdin_is_interactive  # noqa: E402
+ensure_utf8_stdio()
+
 from config import load_config
 from project import resolve_project, load_meta, STAGE_NAMES
 from telemetry import log
@@ -43,7 +46,7 @@ def main():
     note = args.note
 
     if rating is None and not args.skip_rating:
-        if not sys.stdin.isatty():
+        if not stdin_is_interactive():
             print("Error: rating required in non-interactive mode. Pass --rating 1-5 or --skip-rating.")
             sys.exit(1)
         try:
@@ -55,7 +58,7 @@ def main():
             rating = None
 
     if note is None and not args.skip_note:
-        if not sys.stdin.isatty():
+        if not stdin_is_interactive():
             print("Error: note required in non-interactive mode. Pass --note \"...\" or --skip-note.")
             sys.exit(1)
         try:
@@ -73,7 +76,7 @@ def main():
     }
 
     fpath = root / "feedback.jsonl"
-    with open(fpath, "a") as f:
+    with open(fpath, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     # Join feedback to the hash-chained telemetry stream so it's diagnosable and

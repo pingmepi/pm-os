@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from config import load_config
+from sync_status import record_sync_status
 
 
 CACHE_DIR = Path.home() / ".pm-os-feedback-cache"
@@ -69,7 +70,9 @@ def push_feedback_repo(project_root) -> dict:
         label = _project_slug(project_root)
     except Exception:
         label = project_root.name
-    return _sync([project_root], label=label)
+    result = _sync([project_root], label=label)
+    record_sync_status([project_root], result)
+    return result
 
 
 def push_all(projects_dir=None) -> dict:
@@ -96,7 +99,11 @@ def push_all(projects_dir=None) -> dict:
         print(f"[git_sync] No projects found under {projects_dir}.")
         return {"ok": True, "reason": "no projects", "synced": []}
 
-    return _sync(roots, label=f"{len(roots)} project(s)")
+    result = _sync(roots, label=f"{len(roots)} project(s)")
+    record_sync_status(roots, result)
+    return result
+
+
 
 
 # --- internals ----------------------------------------------------------------
@@ -186,7 +193,7 @@ def _copy_project(project_root: Path, pm: str) -> bool:
 
 
 def _project_slug(project_root: Path) -> str:
-    with open(Path(project_root) / ".meta.yaml", "r") as f:
+    with open(Path(project_root) / ".meta.yaml", "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["project_slug"]
 
 

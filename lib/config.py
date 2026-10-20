@@ -105,4 +105,4 @@ def _write_config_atomic(config: dict) -> None:
 
 def _read_version() -> str:
     vpath = Path.home() / ".pm-os" / "VERSION"
-    return vpath.read_text().strip() if vpath.exists() else "0.1.0"
+    return vpath.read_text(encoding="utf-8").strip() if vpath.exists() else "0.1.0"

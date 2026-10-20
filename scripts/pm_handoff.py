@@ -39,6 +39,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from artifact_contracts import (  # noqa: E402
     _sections,
     split_task_blocks,

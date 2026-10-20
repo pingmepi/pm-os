@@ -17,6 +17,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+if sys.platform == "win32":
+    # Piped output on Windows defaults to cp1252, and printing ✓ then crashes
+    # (backlog #60). Inline rather than lib/console.py: this script must run
+    # even when lib/ is broken.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 PM_OS_DIR = Path(os.environ.get("PM_OS_DIR", str(Path.home() / ".pm-os")))
 LIB_DIR = PM_OS_DIR / "lib"
 HOOKS_DIR = PM_OS_DIR / "hooks"
@@ -61,7 +71,7 @@ def check_install_dir(r: Result):
 def check_version(r: Result):
     vpath = PM_OS_DIR / "VERSION"
     if vpath.exists():
-        r.add(True, f"VERSION readable ({vpath.read_text().strip()})")
+        r.add(True, f"VERSION readable ({vpath.read_text(encoding='utf-8').strip()})")
     else:
         r.add(False, "VERSION readable", f"Missing {vpath}")
 
@@ -195,7 +205,7 @@ def check_gate_selftest(r: Result):
         ).returncode
 
     with tempfile.TemporaryDirectory(prefix="pmos-verify-") as tmp:
-        (Path(tmp) / ".meta.yaml").write_text(meta)
+        (Path(tmp) / ".meta.yaml").write_text(meta, encoding="utf-8")
         try:
             blocked = run_gate("02", tmp)   # upstream 01 pending -> must block
             allowed = run_gate("01", tmp)   # upstream 00 approved -> must pass
@@ -224,7 +234,7 @@ def check_telemetry_selftest(r: Result):
         proj.mkdir()
         (proj / ".meta.yaml").write_text(
             "schema_version: 2\nproject_slug: pmos-verify-telemetry\n"
-            "project_name: PM-OS Verify Telemetry\nstages: []\n"
+            "project_name: PM-OS Verify Telemetry\nstages: []\n", encoding="utf-8"
         )
         try:
             log("stage_started", proj, "01", {"selftest": True})
@@ -234,7 +244,7 @@ def check_telemetry_selftest(r: Result):
             return
 
         tpath = proj / "telemetry.jsonl"
-        n = sum(1 for ln in tpath.read_text().splitlines() if ln.strip()) if tpath.exists() else 0
+        n = sum(1 for ln in tpath.read_text(encoding="utf-8").splitlines() if ln.strip()) if tpath.exists() else 0
         chain = verify_chain(proj)
 
         # push_all against an empty projects dir must report a clear status with

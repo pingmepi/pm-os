@@ -25,6 +25,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 import yaml  # noqa: E402
 from project import resolve_project  # noqa: E402
 from telemetry import log  # noqa: E402

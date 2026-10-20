@@ -8,6 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from design_ingest import ingest_design  # noqa: E402
 from design_input import design_error_count, format_design_findings  # noqa: E402
 from project import resolve_project  # noqa: E402

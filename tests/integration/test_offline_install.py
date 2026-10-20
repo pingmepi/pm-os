@@ -28,6 +28,9 @@ def _run_install(fake_home, source_dir, pm_user, feedback_repo=None):
     import sys
     env = dict(os.environ)
     env["HOME"] = str(fake_home)
+    # Windows Python resolves Path.home() from USERPROFILE, not HOME: without this
+    # the installed scripts read (and could write) the real ~/.pm-os.
+    env["USERPROFILE"] = str(fake_home)
     # Ensure install.sh finds the same Python as the test runner (not a system 3.9)
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
     cmd = [
@@ -72,6 +75,9 @@ def _run_install_no_user(fake_home, source_dir, feedback_repo):
     import sys
     env = dict(os.environ)
     env["HOME"] = str(fake_home)
+    # Windows Python resolves Path.home() from USERPROFILE, not HOME: without this
+    # the installed scripts read (and could write) the real ~/.pm-os.
+    env["USERPROFILE"] = str(fake_home)
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
     env.pop("PM_OS_USER", None)  # ensure no env-var override
     return subprocess.run(

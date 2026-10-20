@@ -18,6 +18,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
+from console import ensure_utf8_stdio  # noqa: E402
+ensure_utf8_stdio()
+
 from pathlib import Path
 
 import yaml

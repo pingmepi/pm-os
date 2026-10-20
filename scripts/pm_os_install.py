@@ -7,6 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PM_OS_LIB_PATH") or str(Path.home() / ".pm-os" / "lib"))
 
+from console import ensure_utf8_stdio, stdin_is_interactive  # noqa: E402
+ensure_utf8_stdio()
+
 import yaml
 # Single source of truth for the model policy — never duplicate the literals here.
 from config import DEFAULT_MODEL_TIER, DEEP_REASONING_STAGES
@@ -25,10 +28,10 @@ def choose_value(label, current, provided, env_name, *, reconfigure=False, defau
     if current:
         print(f"✓ {label} already set: {current} (pass --{label.replace('_', '-')} to change)")
         return current
-    if default and not sys.stdin.isatty():
+    if default and not stdin_is_interactive():
         print(f"✓ {label} using default: {default}")
         return default
-    if not sys.stdin.isatty():
+    if not stdin_is_interactive():
         flag = label.replace("_", "-")
         print(f"✗ {label} required in non-interactive mode. Pass --{flag} or set {env_name}.")
         return ""
@@ -118,7 +121,7 @@ def main():
 
     # Step 5: Build config
     version_path = PM_OS_DIR / "VERSION"
-    pm_os_version = version_path.read_text().strip() if version_path.exists() else "0.1.0"
+    pm_os_version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else "0.1.0"
 
     config = {
         "schema_version": 1,
