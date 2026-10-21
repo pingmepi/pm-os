@@ -140,6 +140,11 @@ for each requested audience:
 - `wireframes/prototype.html` (dev, design, qa) — the approved stage-05
   prototype, copied in, if present.
 - `--html` also emits an `index.html` inside each built audience folder.
+- Every generated file starts with frontmatter naming the approved source it
+  was built from: `status`, `version`, `approved_by`, `approved_at` and
+  `content_hash`, plus a `sources` list when it draws on several artifacts.
+  Each README ends with a Sources table of the same. A reader never has to
+  recompute a hash to know which approved revision it holds.
 
 A lightweight `handoff/README.md` **hub** (not itself audience-scoped) always
 lists whichever audience folders currently exist on disk, plus a pointer to
@@ -183,11 +188,15 @@ re-approval — the script already prints this; relay it, don't paraphrase it aw
 # Raw mode (`--raw [stage_id]`)
 
 ```bash
-python3 ~/.pm-os/scripts/pm_share.py [stage_id] [--output FILE]
+python3 ~/.pm-os/scripts/pm_share.py [stage_id] [--output FILE] [--include-unapproved]
 ```
 
-A single stage or every approved/edited stage, concatenated verbatim — for a
-quick paste into email/Slack/a doc. Pass through only the raw-relevant part
+A single stage or every **approved** stage, concatenated verbatim — for a
+quick paste into email/Slack/a doc. Each stage's header gives its status,
+version, approver, approval time and hash. A stage that is `edited`, `draft` or
+`stale` is not exported: a single such stage is refused, and the all-stages
+export names the ones it left out. `--include-unapproved` exports them anyway,
+each marked NOT APPROVED; pass it only when the PM explicitly asks. Pass through only the raw-relevant part
 of `$ARGUMENTS` (an optional `stage_id` and `--output`) verbatim; do not
 interpret, validate, or reformat them. Report the script's output as-is.
 

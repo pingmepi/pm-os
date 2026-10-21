@@ -214,7 +214,7 @@ package, or Jira tickets.
 ```text
 Claude: /pm-handoff --raw                Codex: $pm-handoff --raw
 ```
-Use this to export the approved chain for stakeholders who don't run PM-OS. Share **approved** artifacts, not raw drafts, so external readers don't mistake a draft for a decision. By default this is a raw text dump of one stage (`/pm-handoff --raw 03`) or every approved stage; write it to a file with `--output <file>`.
+Use this to export the approved chain for stakeholders who don't run PM-OS. Share **approved** artifacts, not raw drafts, so external readers don't mistake a draft for a decision. By default this is a raw text dump of one stage (`/pm-handoff --raw 03`) or every approved stage; write it to a file with `--output <file>`. Each stage shows its status, version, approver and approval date. A stage you edited after approving it, or one still in draft, is left out until you approve it. If you really need it in the export, add `--include-unapproved` and it is marked NOT APPROVED.
 
 **Readable handoff package (`--package`).**
 ```text

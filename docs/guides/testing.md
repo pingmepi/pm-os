@@ -367,6 +367,12 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 - `test_pm_check_flags_downstream_approved_against_changed_upstream` — backlog #31 detector: an `approved` stage whose recorded `upstream_hashes_at_approval[uid]` no longer matches the still-`approved` upstream's current `content_hash` (the invalid state an interrupted stale-cascade leaves) is flagged `DOWNSTREAM_UPSTREAM_STALE`; a correctly-approved chain is clean.
 
+**`test_export_stamps.py`** — approval stamps on exported files and approved-only raw export (backlog #71, APEX AL-01).
+- `test_every_exported_file_carries_its_sources_approval` — story, requirement, epic and `reference/prd.md` frontmatter carry the PRD's status, version, approver, approval time and content hash (matching `.meta.yaml`) and a `sources` record per artifact; the README has a Sources table.
+- `test_unapproved_trd_is_recorded_but_not_tracked` — `reference/trd.md` for a draft TRD lists it under `sources` with an empty `generated_from`, so the release check does not block on it.
+- `test_raw_export_ships_only_approved_stages_by_default` — an `edited` stage is left out of the all-stages export with a note naming it; exported headers show status and version.
+- `test_raw_export_of_an_unapproved_stage_needs_the_flag` — a draft single stage is refused; `--include-unapproved` exports it marked NOT APPROVED.
+
 **`test_stage_version_flow.py`** — the approval version through every approval path (backlog #71).
 - `test_version_increments_for_new_bodies_and_holds_for_the_same_body` — v1 in meta, frontmatter, telemetry and the printed result; an edited `--reapprove` is v2; an unchanged `--reapprove` is a no-op; a regenerated draft keeps v2 until approved as v3.
 - `test_reapproving_a_stale_stage_with_an_unchanged_body_keeps_its_version` — stale then re-approved with the same body keeps its version.

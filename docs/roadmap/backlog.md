@@ -1132,10 +1132,10 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 
 ---
 
-## 71. 🟡 Exported files don't say their approval status, approver or version, and the text export includes unapproved stages
+## 71. 🟢 Exported files don't say their approval status, approver or version, and the text export includes unapproved stages
 
 **Severity:** P1. This is APEX finding AL-01: the build team had to compute its own hash to work out which PRD version it had.
-**Status:** 🟡 Version built on branch `feat/71-stage-version` (2026-10-21), not yet released: `.meta.yaml` schema 6 adds a per-stage `version` (PM decisions 2026-10-21: it increments only when an approval binds a new body, and existing projects backfill it from telemetry). Stamping exports and the text-export refusal follow on `feat/71-export-stamps`.
+**Status:** 🟡 Version built on branch `feat/71-stage-version` (2026-10-21), not yet released: `.meta.yaml` schema 6 adds a per-stage `version` (PM decisions 2026-10-21: it increments only when an approval binds a new body, and existing projects backfill it from telemetry). Stamping exports and the text-export refusal are built on `feat/71-export-stamps` (2026-10-21), not yet released: every package file's frontmatter and each README carry the source's status, version, approver, approval time and content hash, and `--raw` exports approved stages only unless `--include-unapproved`. The package manifest (`manifest.json`) is #75.
 
 **Evidence:**
 - Stage artifacts carry `status`, `approved_by`, `approved_at` and `content_hash` in frontmatter, but nothing a person can read as a version (v1, v2…).

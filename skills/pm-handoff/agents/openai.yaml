@@ -9,4 +9,5 @@ interface:
     dev|design|qa|business] to build or refresh the readable handoff package
     without touching Jira; it runs the release check first and writes nothing
     if that finds errors. Use $pm-handoff --raw [stage_id] for a plain text
-    dump of one or all approved stages.
+    dump of one or all approved stages (unapproved stages only with
+    --include-unapproved, marked as such).
