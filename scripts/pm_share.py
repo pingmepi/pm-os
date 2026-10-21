@@ -28,10 +28,17 @@ Usage:
     python3 pm_share.py --package --output DIR             # write to DIR instead
     python3 pm_share.py --package --html                   # also emit an index.html per audience
     python3 pm_share.py ... --allow-secrets                # export despite likely secrets (logged)
+    python3 pm_share.py --package --allow-release-errors   # publish despite release-check errors (logged)
 
 Every mode first scans the artifacts it would export for likely secrets
 (lib/secret_scan, GH #63 PMOS-001) and refuses — writing nothing — unless
 --allow-secrets is given. Output names file:line + kind, never the value.
+
+Package mode then builds into a temporary folder and runs the release check
+(lib/release_check, backlog #72) on each audience folder exactly as it would
+ship. Release-check errors refuse the export, again writing nothing under
+handoff/, unless --allow-release-errors is given (logged). Only a package that
+passes (or is overridden) is published into handoff/<audience>/.
 """
 from __future__ import annotations
 
@@ -40,6 +47,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,6 +72,7 @@ from delivery_map import build_prd_delivery_map, body_of, normalize_title, title
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
+import release_check  # noqa: E402
 import secret_scan  # noqa: E402
 import traceability  # noqa: E402
 
@@ -148,6 +157,14 @@ def _resolve_handoff_root(out_dir: Path, root: Path) -> Path:
     (project root/ancestor/cwd) and ensure the directory exists — never to
     inspect or clear its contents.
     """
+    out = _validate_handoff_root(out_dir, root)
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _validate_handoff_root(out_dir: Path, root: Path) -> Path:
+    """The refusals of `_resolve_handoff_root`, without creating anything, so a
+    caller can run them before the release check decides whether to publish."""
     out = out_dir.resolve()
     root_r = root.resolve()
     if out == root_r or out in root_r.parents:
@@ -163,7 +180,6 @@ def _resolve_handoff_root(out_dir: Path, root: Path) -> Path:
         )
     if out.exists() and out.is_file():
         raise SystemExit(f"Error: {out} is a file, not a directory.")
-    out.mkdir(parents=True, exist_ok=True)
     return out
 
 
@@ -174,6 +190,15 @@ def _prepare_audience_dir(handoff_root: Path, audience: str) -> Path:
     guard, just scoped one directory deeper: refuses to `rmtree` an existing
     non-empty folder that lacks this tool's marker.
     """
+    out = _check_audience_dir(handoff_root, audience)
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _check_audience_dir(handoff_root: Path, audience: str) -> Path:
+    """The marker refusal of `_prepare_audience_dir`, without deleting anything."""
     out = (handoff_root / audience).resolve()
     if out.exists():
         if out.is_file():
@@ -185,8 +210,6 @@ def _prepare_audience_dir(handoff_root: Path, audience: str) -> Path:
                 f"(no {HANDOFF_MARKER} marker). Refusing to delete it. Remove it "
                 "manually if it is stale, or pick a different --output."
             )
-        shutil.rmtree(out)
-    out.mkdir(parents=True, exist_ok=True)
     return out
 
 
@@ -1401,6 +1424,54 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None,
         print(text)
 
 
+# --- package publish (staged build -> release check -> publish) -----------------
+
+def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
+                    audience: str | None = None, allow_release_errors: bool = False) -> list[Path]:
+    """Build the package into a temporary folder, run the release check on each
+    audience folder as it would ship, and only then replace `handoff/<audience>/`.
+
+    Every refusal that can stop the export (unsafe output path, a non-PM-OS
+    folder in the way, a release-check error) happens before anything under
+    `out_dir` is created or deleted.
+    """
+    handoff_root = _validate_handoff_root(out_dir, root)
+    audiences = [audience] if audience else list(AUDIENCES)
+    for aud in audiences:
+        _check_audience_dir(handoff_root, aud)
+
+    with tempfile.TemporaryDirectory(prefix="pm-os-package-") as tmp:
+        # Resolved: on Windows the temp dir can come back as an 8.3 short path
+        # (MANDAL~1.KAR) while build_package resolves its output to the long one.
+        staged_root = Path(tmp).resolve() / "handoff"
+        staged = build_package(root, staged_root, with_html=with_html, audience=audience)
+        reports = [
+            (f"{_display(handoff_root / aud, root)}/",
+             release_check.check_release(staged_root / aud, project_root=root))
+            for aud in audiences
+        ]
+        release_check.guard_release(root, reports, allow=allow_release_errors,
+                                    surface="handoff_package")
+
+        handoff_root.mkdir(parents=True, exist_ok=True)
+        for aud in audiences:
+            target = _prepare_audience_dir(handoff_root, aud)
+            shutil.copytree(staged_root / aud, target, dirs_exist_ok=True)
+        written = [handoff_root / Path(p).resolve().relative_to(staged_root) for p in staged]
+
+    meta = load_meta(root)
+    project_name = meta.get("project_name") or meta.get("project_slug", "project")
+    _write_hub_readme(handoff_root, project_name, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    return written
+
+
+def _display(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 # --- entrypoint ----------------------------------------------------------------
 
 def main() -> None:
@@ -1419,6 +1490,12 @@ def main() -> None:
         help="Export even though the scan found likely secrets (API keys, tokens, private "
              "keys) in the exported artifacts. Logged as secrets_allowed; rotate the credential.",
     )
+    parser.add_argument(
+        "--allow-release-errors", dest="allow_release_errors", action="store_true",
+        help="With --package, publish even though the release check found errors "
+             "(undefined ids, broken links, missing priorities…). Logged as "
+             "release_check_overridden with the overridden codes.",
+    )
     args = parser.parse_args()
 
     if args.audience and not args.package:
@@ -1435,7 +1512,8 @@ def main() -> None:
         # Before build_package touches handoff/: a blocked export writes nothing.
         secret_scan.guard_export(root, package_source_paths(root),
                                  allow=args.allow_secrets, export="handoff_package")
-        written = build_package(root, out_dir, with_html=args.html, audience=args.audience)
+        written = publish_package(root, out_dir, with_html=args.html, audience=args.audience,
+                                  allow_release_errors=args.allow_release_errors)
         scope = f"handoff/{args.audience}/" if args.audience else "handoff/{dev,design,qa,business}/"
         print(f"Handoff package written to {scope} ({len(written)} files).")
         print("This package is read-only — regenerate with `/pm-handoff --package` after approving PRD/QA/design changes.")

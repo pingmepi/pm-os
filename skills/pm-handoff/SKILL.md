@@ -35,6 +35,35 @@ non-zero having written **nothing**, and prints `Secret scan: …` followed by
   explain the value will leave their machine. The override is logged
   (`secrets_allowed`); a block is logged as `secrets_blocked`.
 
+## Release check (`--package`, and so the Jira flow's package refresh)
+
+`pm_share.py --package` builds the package in a temporary folder and runs the
+release check on each audience folder exactly as it would ship, **before**
+anything under `handoff/` is created or replaced. It looks for stories with no
+epic or priority (or a priority still carrying Markdown), cited ids nothing in
+the folder defines, broken or escaping links, missing referenced files,
+placeholders, sources that changed or lost approval since generation, and
+exported stories/requirements no `TC-###` covers once the QA plan is approved
+(backlog #53).
+
+- **No errors:** the package is published. Warnings print as one line per
+  audience folder with counts per code; mention them to the PM and point at
+  `/pm-check --release handoff/<audience>/` to see each one.
+- **Errors:** the script exits non-zero having written **nothing**, and prints
+  each error with `file:line`, its code, and the fix. Stop. Relay the errors
+  (grouped by code if there are many), and help the PM fix them in the
+  canonical stage artifact (re-approving it), then re-run. Do not fix
+  anything under `handoff/` — it is regenerated.
+- Re-run with `--allow-release-errors` only if the PM explicitly asks for it
+  after you explain what will ship broken. The override is logged
+  (`release_check_overridden`, naming the overridden codes); a block is logged
+  as `release_check_blocked`. Approval for one run does not carry to the next.
+
+The same check runs on any folder, including a sprint package assembled by hand,
+with `/pm-check --release <folder-or-zip>`. Suggest it whenever the PM is about
+to send files that PM-OS did not build. `--raw` and `--no-package-refresh` Jira
+runs do not run the release check.
+
 ## Active E2 enhancement behavior
 
 When `.enhancements/index.yaml` names an active cycle, every package/Jira projection is automatically enhancement-scoped. Export only computed `new | modified | removed` work plus the minimum epic/story parent closure. Never export an unaffected baseline sibling. Removed baseline work becomes an explicit removal item. Include the cycle/baseline reference, affected surfaces, non-touch/regression promises, compatibility/migration, rollout, and rollback in the human package and Jira payload. Refuse export if the boundary is absent, a changed stage is not approved, or the frozen baseline cannot be derived. Part-B `--increment` remains separate.
@@ -51,6 +80,7 @@ neither is present, this is the **Jira flow** (unchanged default).
 | `--package` | Package build, all 4 audiences (`handoff/{dev,design,qa,business}/`) |
 | `--package --audience <dev\|design\|qa\|business>` | Package build, one audience only |
 | `--package [--audience ...] --html` | Package build + an `index.html` per built audience folder |
+| `--package ... --allow-release-errors` | Package build that publishes despite release-check errors (logged; only on the PM's explicit request) |
 | `--raw [stage_id]` | Plain text dump of one stage or all approved stages |
 
 `--package` and `--raw` never touch Jira. The Jira forms never touch the
@@ -69,7 +99,7 @@ tickets are about to be built from — running the Jira flow refreshes both.
   without touching local docs (e.g. re-running ticket creation after a
   network failure, where the docs are already current).
 - **If the implicit refresh fails** (e.g. PRD not approved — the same gate
-  `--package` already enforces), **stop** — do not proceed to the Jira flow
+  `--package` already enforces — or the release check blocks it), **stop** — do not proceed to the Jira flow
   with stale or missing local docs. Report the failure exactly as `pm_share.py`
   reports it.
 - Print a one-line status once it succeeds, e.g. `Local handoff package
@@ -82,7 +112,7 @@ A read-only **projection** of the canonical stage artifacts — never touches
 gate, hash, status, or staleness. Run:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR]
+python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR] [--allow-release-errors]
 ```
 
 Writes into `handoff/<audience>/` at the project root (or `--output <dir>`)

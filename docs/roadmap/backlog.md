@@ -873,10 +873,10 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 
 ---
 
-## 53. 🟠 Traceability coverage gaps are warning-only in the core pipeline, but hard-blocking in enhancement mode
+## 53. 🟡 Traceability coverage gaps are warning-only in the core pipeline, but hard-blocking in enhancement mode
 
 **Severity:** P2 — asymmetric rigor. The same class of gap that refuses to let an enhancement cycle close is a printed line the core pipeline exports straight past. A PRD whose requirements have zero test coverage and zero implementing tasks reaches a Jira export without a single blocking signal.
-**Status:** 🟠 Open (design question, not a defect) — verified against the current code 2026-09-05.
+**Status:** 🟡 Option (a) built on branch `feat/72-release-check` (2026-10-21); option (c) open. Originally logged as a design question, verified against the code 2026-09-05.
 
 **Symptom:** Every core-pipeline traceability gap is `warning` severity: `TRD_TASK_ORPHAN` (task with no `Implements:`), `TRD_TASK_UNKNOWN_REQ` (implements an id the PRD doesn't declare), `TRD_REQ_NOT_IMPLEMENTED`, `SCREEN_ORPHAN`, `SCREEN_UNKNOWN_REQ`, `STORY_HAS_NO_SCREEN`, `SCREEN_IDS_MISSING`, plus the contract's `REQUIREMENT_COVERAGE_GAP`. `post-approve.py` prints uncovered requirements and moves on; `pm_share.py` renders a "Stories with no screen" section in the package; `pm_handoff.py` exports regardless. In enhancement mode the identical questions are `error` severity and genuinely block: `ENHANCEMENT_REGRESSION_TRACE_MISSING` (changed req with no TC), `ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING` (no TSK), `ENHANCEMENT_SURFACE_TRACE_MISSING`, `ENHANCEMENT_INVARIANT_TRACE_MISSING`, `ENHANCEMENT_MIGRATION_TRACE_MISSING`.
 
@@ -888,6 +888,8 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 **Note on what is already sound:** the links themselves are deterministic — one shared set of extractors in `lib/artifact_contracts.py` feeds the validator, `lib/traceability.py:build_index()`, and the handoff assembler (the fix from #11), the index is rebuilt by `post-approve.py` rather than by the agent, and dangling references *are* detected. What no code can check is whether a link is **semantically right**: that `TSK-014` genuinely implements `FR-012` and not `FR-013` is judgment, and stays the agent's (same substrate limit as #27). This entry is only about the gaps the system *can* see and chooses not to enforce.
 
 **Proposed fix (decision needed, not scoped):** the graceful-degradation rationale is real for imported/prose projects but is currently applied to *every* project, including ones generated entirely under the current contracts. Options: (a) leave as-is and instead make the gaps unmissable at the export boundary — `/pm-handoff` refuses (or requires explicit confirmation) when a requirement being exported has no covering `TC-###`, which is where an untraced requirement actually costs something; (b) promote coverage gaps to errors for `origin: generated` artifacts only, keeping warn-mode for imported/backfilled ones (`.meta.yaml` already records `origin`); (c) keep them warnings but surface them in `/pm-status` with locations (composes with #49). Recommendation: **(a) + (c)** — enforce at the boundary where the gap has a consequence, and make it visible before then, without adding a new blocking state to the core gate. Option (a) is now part of the handoff release check (#72).
+
+**Update 2026-10-21:** option (a) is built as the release check's `REQUIREMENT_UNTESTED` error on PM-OS packages (branch `feat/72-release-check`): once the QA plan is approved, `/pm-handoff --package` refuses to publish a story or requirement that no `TC-###` covers (before stage 06 is approved it warns `COVERAGE_NOT_CHECKED`, so a design-brief package is not blocked), unless `--allow-release-errors` is passed (logged). Option (c), surfacing gaps in `/pm-status`, is still open.
 
 ---
 
@@ -1147,10 +1149,10 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 
 ---
 
-## 72. 🟠 No release check runs before a handoff: undefined IDs, broken links, placeholders and missing referenced files go out unchecked
+## 72. 🟢 No release check runs before a handoff: undefined IDs, broken links, placeholders and missing referenced files go out unchecked
 
 **Severity:** P1. These are APEX findings AL-21 (rule ids R-01 to R-09 cited but defined only outside the PRD and stories) and AL-23 (broken links in the stories README). APEX asked for "a release checklist [that] would catch these".
-**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+**Status:** 🟢 Built on branch `feat/72-release-check` (2026-10-21), not yet released. `lib/release_check.py` runs standalone as `/pm-check --release <folder-or-zip>` and as the gate in `/pm-handoff --package`, which builds into a temporary folder and publishes only when the check passes (`--allow-release-errors` overrides, logged with the codes). PM decisions taken 2026-10-21: the command is `/pm-check --release`, and ids use the generic declaration rule in `release_check.ID_RULE` with a `--ignore-ids` escape hatch. The readiness-record exemption for pending files waits for #74. Regressions: `tests/unit/test_release_check.py` and `tests/integration/test_release_gate.py`.
 
 **Evidence:**
 - `STABLE_ID_TYPES` (`lib/artifact_contracts.py:453`) is a fixed list of 11 prefixes, and ids with any other prefix are never checked. The PRISM PRD declares 38 `BR-` ids that PM-OS never tracks.

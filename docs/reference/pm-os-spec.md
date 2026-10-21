@@ -229,7 +229,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | release_check_blocked | release_check_overridden | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -246,6 +246,8 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `secrets_redacted`: `{ surface: "context_import", source_id, source_filename, count, kinds }` — `pm_context_import.py register` found likely secrets (`lib/secret_scan`) in a text source and preserved a redacted `.history/` snapshot instead (GH #63 PMOS-001). Counts and kinds only — never a value.
 - `secrets_blocked`: `{ surface, count, kinds, source_filename?, files? }` — a secret scan refused an operation: `surface` is `context_import` (a non-redactable source, not registered) or `handoff_raw` / `handoff_package` / `jira_plan` / `jira_csv` (export stopped before writing anything).
 - `secrets_allowed`: same shape as `secrets_blocked` (plus `source_id` for `context_import`) — the PM passed `--allow-secrets`, so the source was kept verbatim / the export proceeded despite the findings.
+- `release_check_blocked`: `{ surface: "handoff_package", folders, errors, warnings, codes }` — `pm_share.py --package` ran the release check (`lib/release_check.py`, backlog #72) on the staged package and refused to publish: `folders` are the audience folders checked, `codes` the distinct error codes found. Nothing under `handoff/` was written.
+- `release_check_overridden`: same shape as `release_check_blocked` — the PM passed `--allow-release-errors`, so the package was published despite the errors; `codes` names exactly the error codes overridden.
 - `interview_conducted`: `{ source_id?, mode?, asked, answered, skipped }` — a discovery-interview pass. Emitted at intake by `pm_context_import.py record-interview` (no `mode`; `source_id` of the registered answers), and on a standalone re-run by `pm_interview.py resolve` with `mode: "rerun"`. Skipped questions land in `00-context/known-unknowns.md` (open gaps, never assumptions); a re-run marks resolved gaps in place with provenance rather than deleting them.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.

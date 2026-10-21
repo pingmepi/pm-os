@@ -220,6 +220,12 @@ Claude: /pm-handoff --package      Codex: $pm-handoff --package
 ```
 Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get separate epic, story, and requirement files; every story is self-contained and embeds the text of referenced `FR-###`/`REQ-###` requirements, `AC-###` acceptance criteria, impact analysis, and NFRs instead of relying on hyperlinks for implementation-critical context. Story files also walk the traceability spine through journeys, covering test cases, serving `SCR-###` screens, exact Figma screen/state links when available, and implementing `TSK-###` backend tasks when the optional TRD is approved. Business gets the overview and epic index. Design/QA get `reference/screen-map.md` (the screen → stories reverse view) and the prototype; when stage 04 is a draft design brief (`design_mode: brief`), the design audience also gets `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so external designers can return structured `design-in/` evidence before PM-OS ingests the canonical design spec with `pm_design_ingest.py` / stage-04 `--ingest`. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
 
+**Check a package before you send it (`/pm-check --release`).**
+```text
+Claude: /pm-check --release <folder or zip>      Codex: $pm-check --release <folder or zip>
+```
+`/pm-handoff --package` runs this check for you before it writes anything. If the check finds errors, nothing is written: fix what it lists (usually in the stage artifact, then re-approve) and run it again. Use the check on its own for anything PM-OS didn't build, such as a sprint package you put together by hand or the zip you are about to send. It catches what a build team trips over: stories with no epic or priority, ids such as `R-01` or `BR-12` that are cited but never defined in the package, links that don't open, files that are named but missing, placeholder text like `TBD`, and stories written against an older version of the PRD than the one in the package. Each finding gives the file, the line and the fix. Some ids in your documents may be sample values rather than references, such as sentence ids `S-001` in an example. Put those in `code` formatting and the check skips them. Only if you truly can't change the file, pass `--ignore-ids S`. Publishing a package despite errors (`--allow-release-errors`) is recorded.
+
 **Export to Jira (`/pm-handoff`).**
 ```text
 Claude: /pm-handoff jira         Codex: $pm-handoff jira
@@ -328,6 +334,7 @@ Each stage then covers the **enhancement only** — the current-product gap and 
 | Regenerate HTML prototype | `/pm-prototype-html` | `$pm-prototype-html` |
 | Share approved set (raw text) | `/pm-handoff --raw` | `$pm-handoff --raw` |
 | Handoff package (per-audience files) | `/pm-handoff --package` | `$pm-handoff --package` |
+| Check any handoff folder or zip before sending | `/pm-check --release <path>` | `$pm-check --release <path>` |
 | Handoff to Jira | `/pm-handoff jira` | `$pm-handoff jira` |
 | Verify install | `/pm-os-verify` | `$pm-os-verify` |
 | Update install | `/pm-os-update` | `$pm-os-update` |

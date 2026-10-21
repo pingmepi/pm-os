@@ -37,7 +37,8 @@ def test_spec_event_list_covers_emitted_events():
     for event in ("stage_started", "stage_generated", "stage_approved", "stage_imported",
                   "stage_backfilled", "context_ingested", "stage_edited_via_note",
                   "artifact_validation_warning", "feedback_submitted", "stage_marked_stale",
-                  "secrets_redacted", "secrets_blocked", "secrets_allowed"):
+                  "secrets_redacted", "secrets_blocked", "secrets_allowed",
+                  "release_check_blocked", "release_check_overridden"):
         assert event in spec, f"reference/pm-os-spec.md does not document event '{event}'"
 
 

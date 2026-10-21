@@ -220,8 +220,13 @@ def test_coarse_stage_delta_ships_changed_nonui_design(pmos, new_project):
     assert "Baseline reference — unchanged" not in design_doc
 
 
-_PRD_WITH_SCREEN_STORY = """## User Stories with Acceptance Criteria
+_PRD_WITH_SCREEN_STORY = """## Product Epics
+### EPIC-001 — Data export
+**Outcome:** Users can export data.
+## User Stories with Acceptance Criteria
 ### US-001 — Export data
+Epic: EPIC-001
+Priority: Must
 Implements FR-001.
 ## Functional Requirements
 - **FR-001 (must):** Export the dataset.

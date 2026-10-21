@@ -85,6 +85,7 @@ tests/
 │   ├── test_artifact_contracts.py     test_traceability.py
 │   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
 │   ├── test_secret_scan.py     # lib/secret_scan.py (GH #63 PMOS-001 secret detection)
+│   ├── test_release_check.py   # lib/release_check.py (backlog #72 handoff release check)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -96,6 +97,7 @@ tests/
 │   ├── test_pm_interview.py           test_status_known_unknowns.py
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   ├── test_secret_scanning.py        # import redaction + handoff export gate (GH #63)
+│   ├── test_release_gate.py           # pm_check --release + the --package release gate (#72)
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
@@ -230,6 +232,20 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_redact_text_leaves_clean_text_untouched` — clean text (CRLF included) round-trips byte-for-byte.
 - `test_scan_paths_walks_dirs_skips_git_and_binary` — directory scans recurse, report root-relative `path:line`, and skip `.git/` and NUL-bearing binaries.
 - `test_guard_export_blocks_then_allows` — the export gate raises `SystemExit` on a hit (message names `--allow-secrets`), passes with `allow=True`, is silent on clean input, and never prints the value; a telemetry failure only warns.
+
+**`test_release_check.py`** — the release check for any handoff folder (`lib/release_check.py`, backlog #72). Folders are built in `tmp_path`, never the PRISM data the check was calibrated on.
+- `test_clean_hand_built_package_has_no_findings` — stories with an epic and priority, resolving links and defined ids produce nothing; the folder is classed hand-built.
+- `test_story_without_epic_or_priority_is_an_error` / `test_priority_with_markdown_markup_is_malformed` / `test_epic_and_priority_can_come_from_labeled_body_lines` — story fields, located at the file and line, with the clean value in the fix; labeled `Epic:`/`Priority:` body lines count.
+- `test_cited_series_id_without_definition_is_an_error` — APEX AL-21: `R-01…R-03` cited but defined nowhere are `ID_UNDEFINED`; a table defining them in its first column resolves them.
+- `test_standards_one_offs_and_sample_records_are_not_ids` (parametrized) — `ISO-8601`, `SHA-256`, `UTF-8`, `COVID-19`, a one-off `ASM-01` and 4-digit sample records never fire.
+- `test_ids_inside_code_and_link_targets_are_not_citations` — fenced/inline code, link targets and URLs are skipped.
+- `test_short_form_warns_and_ambiguous_short_form_errors` / `test_example_only_citation_is_a_warning` / `test_ignore_ids_skips_prefixes_and_exact_ids` — the rest of `ID_RULE`.
+- `test_broken_links_links_outside_the_package_and_missing_anchors` — APEX AL-23: broken and escaping links are errors at `file:line`, a missing heading anchor warns, URLs are not checked.
+- `test_missing_file_is_flagged_only_under_a_shipped_folder` / `test_placeholder_markers` — referenced files and placeholder/pending markers (pending warnings are grouped per file).
+- `test_hand_built_story_built_from_an_older_prd_is_stale` / `test_pmos_package_generated_from_an_older_artifact_is_stale` — stale sources for both package kinds, plus a PRD shipped at two versions.
+- `test_coverage_is_not_enforced_before_the_qa_plan_is_approved` — with stage 06 unapproved, #53(a) is one `COVERAGE_NOT_CHECKED` warning, so a design-brief package is not blocked.
+- `test_release_check_never_writes_to_the_project_it_reads` — the check reads `.meta.yaml` with plain YAML (never the migrating `load_meta()`), so checking a package or hand-built folder inside an old-schema project leaves every file byte-for-byte unchanged.
+- `test_zip_is_checked_and_an_escaping_member_is_refused` / `test_format_report_shows_location_code_and_fix` — zip input (with a zip-slip guard) and the text report shape.
 
 **`test_project_git.py`** — per-project local version history (`lib/project_git.py`, backlog #18, local half)
 - `test_init_creates_repo_and_initial_commit` / `test_commit_all_adds_commit` / `test_commit_all_nothing_to_commit` — `init_project_repo` makes one initial commit; a later `commit_all` after a change adds exactly one commit; a clean tree is a successful no-op, not an error.
@@ -409,6 +425,14 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_raw_mode_unchanged_by_the_merge` — the pre-existing single-stage/all-approved raw text export is untouched by folding `--package` in alongside it, and raw mode never creates a `handoff/` package as a side effect.
 
 **`test_handoff_share_interop.py`** — the `pm_handoff.py` ↔ `pm_share.py` collision the audience-folder rework was designed to close (previously untested): `test_jira_plan_then_package_does_not_collide` (Jira `plan` first, then `--package`, must both succeed with `jira-plan.*` untouched — this direction used to hard-fail before the rework); `test_package_then_jira_plan_does_not_collide` (the reverse order, which already worked, still does); `test_audience_scoped_package_survives_either_order` (a scoped `--audience dev` rebuild and a Jira `plan` never disturb each other, in either order, since `jira-plan.*` lives at the `handoff/` root and audience content lives one level down).
+
+**`test_release_gate.py`** — the release check end to end (backlog #72, #53 option a): `pm_check.py --release` and the gate in `pm_share.py --package`.
+- `test_pm_check_release_reports_findings_and_exits_nonzero` — works outside any project, prints `file:line  CODE` plus a fix, exits 1 on errors; `--json` carries the same findings.
+- `test_pm_check_release_reads_a_zip_and_honours_ignore_ids` / `test_pm_check_release_needs_a_path_outside_a_project` — zip input, `--ignore-ids`, and exit 2 instead of guessing a folder.
+- `test_package_with_release_errors_is_blocked_and_writes_nothing` — **acceptance:** a story no TC covers blocks `--package`; no `handoff/` is created and `release_check_blocked` names `REQUIREMENT_UNTESTED`.
+- `test_blocked_package_leaves_the_previous_package_untouched` — the staged build is checked before any audience folder is replaced.
+- `test_allow_release_errors_publishes_and_logs_the_overridden_codes` — the override publishes and logs `release_check_overridden` with exactly the overridden codes.
+- `test_clean_package_publishes_and_passes_a_standalone_recheck` — a fully traced pipeline publishes, priorities read clean (backlog #70), and `--release` with no path checks all four audience folders with no errors.
 
 **`test_secret_scanning.py`** — secrets never persist through context import or leave through a handoff export (GH #63 PMOS-001, backlog #40). Output in every path names `file:line  kind` only; tests assert the fake key never appears on stdout/stderr, in `.sources.yaml`, or in `telemetry.jsonl`.
 - `test_register_redacts_secret_in_text_snapshot` — **acceptance:** registering a text source with a Google API key persists a redacted `.history/` snapshot (`[REDACTED:google_api_key]`), records `secrets_redacted`/`secret_kinds` in `.sources.yaml`, warns with `notes.md:3  google_api_key` + a rotate instruction, and logs `secrets_redacted`.
