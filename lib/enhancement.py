@@ -23,14 +23,27 @@ class EnhancementDeltaError(Exception):
     """An active enhancement cannot be exported safely."""
 
 
-def _blocks(body: str) -> dict[str, str]:
+def stable_id_blocks(body: str) -> dict[str, str]:
     """Stable-id → block map, using the canonical cross-stage splitter.
 
     Delegates to ``artifact_contracts.split_stable_id_blocks`` so the delta accepts
     the same declaration shapes (heading, bullet, ordered-list, bare line, bold-wrap)
     and the same block boundaries as every other PM-OS parser — no bespoke regex.
+    Also used by the handoff release record (``release_record``) to compare ids
+    between releases.
     """
     return {stable_id: block.strip() for stable_id, block in split_stable_id_blocks(body or "").items()}
+
+
+_blocks = stable_id_blocks
+
+
+def classify_change(before: str | None, after: str | None) -> str | None:
+    """``new`` / ``removed`` / ``modified`` for one id's before/after value, or
+    None when unchanged. Values may be blocks or block hashes."""
+    if before == after:
+        return None
+    return "new" if before is None else "removed" if after is None else "modified"
 
 
 def _declared(block: str | None) -> str | None:
@@ -58,9 +71,9 @@ def _stage_change_rows(stage_id: str, before_body: str | None, after_body: str |
     for stable_id in stable_ids:
         before = before_blocks.get(stable_id)
         after = after_blocks.get(stable_id)
-        if before == after:
+        change_type = classify_change(before, after)
+        if change_type is None:
             continue
-        change_type = "new" if before is None else "removed" if after is None else "modified"
         rows.append({
             "stage": str(stage_id), "id": stable_id, "change_type": change_type,
             "declared_change_type": _declared(after), "before": before, "after": after,

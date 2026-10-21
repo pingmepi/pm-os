@@ -88,6 +88,7 @@ tests/
 │   ├── test_release_check.py   # lib/release_check.py (backlog #72 handoff release check)
 │   ├── test_stage_version.py   # lib/stage_version.py (backlog #71 approval version, schema v6)
 │   ├── test_readiness.py       # lib/readiness.py (backlog #74 readiness record)
+│   ├── test_release_record.py  # lib/release_record.py (backlog #73/#75/#68 release record, change note, manifest)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -100,6 +101,7 @@ tests/
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   ├── test_secret_scanning.py        # import redaction + handoff export gate (GH #63)
 │   ├── test_release_gate.py           # pm_check --release + the --package release gate (#72)
+│   ├── test_release_record_flow.py    # CHANGES.md, manifest.json, .releases/ and safe rebuilds (#73/#75/#68)
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
@@ -142,6 +144,16 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_due_milestone_is_only_required_once_milestones_exist` — a freshly seeded record may leave due milestones empty.
 - `test_role_reviewers_and_unknown_ids_are_warnings` — a role as reviewer, or an id the PRD does not declare, warns.
 - `test_overdue_follows_milestone_order` / `test_invalid_yaml_is_reported_not_raised` / `test_summary_and_pending_files` — overdue logic, unreadable files, and the counts `/pm-status` shows.
+
+**`test_release_record.py`** — release record, change note and manifest (`lib/release_record.py`, backlog #73, #75, #68).
+- `test_classify_change_and_stable_id_blocks` — the two `lib/enhancement.py` helpers the release record shares with the enhancement delta.
+- `test_ledger_ids_and_no_overwrite` — `REL-###` counts up, `latest` returns the highest, and a record is never overwritten.
+- `test_diff_classifies_ids_and_outside_inputs` — ids are compared per artifact by block hash; moved outside inputs list before and after.
+- `test_first_release_note_counts_ids_instead_of_listing_them` — a first note counts ids per artifact; a later one lists changed ids and says when a story's own text changed; a draft says so.
+- `test_manifest_roles_order_and_exclusions` — role, hash, reading order and frontmatter version/status per file; the manifest and marker are not listed.
+- `test_clear_generated_uses_previous_manifest` — only files the previous manifest lists are deleted; other files are kept and returned.
+- `test_clear_generated_legacy_folder_uses_layout_rule` — a folder built before manifests loses only files matching the package layout; empty folders are removed.
+- `test_outside_inputs_reads_figma_version_and_test_input_hashes` — the Figma version from `design-in/ia.yaml`, and a hash (or `missing`) per readiness test input.
 
 **`test_project.py`** — stage/state helpers
 - `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group (`00`, `00c`, `00w`, `00u`) leads the order.
@@ -381,6 +393,12 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_init_and_check_and_pm_check_report_the_record` — `init` writes once, `check` exits 1 on an invalid item, and `/pm-check` shows a Readiness section whose errors count toward its exit code.
 - `test_editing_the_record_never_touches_stage_state` — ungated: rewriting it leaves every stage approved and logs nothing.
 - `test_overdue_eval_set_blocks_the_package_until_starter_ready` — an overdue eval set blocks `--package`; once starter-ready, every audience folder carries `readiness.yaml` and links it; `/pm-status` shows the counts.
+
+**`test_release_record_flow.py`** — handoff releases end to end (backlog #73, #75, #68).
+- `test_draft_build_writes_change_note_and_manifest_but_no_release` — a plain build writes a draft `CHANGES.md` and a `manifest.json` (roles, versions, reading order) linked from the README, and records nothing.
+- `test_two_releases_produce_a_change_note_naming_changed_ids_and_stories` — `REL-001` records note, sources and stable-id hashes; after a PRD and QA change, `REL-002`'s note lists exactly the changed and added ids and the two affected stories; `handoff_released` is logged per release.
+- `test_rebuild_keeps_files_pm_os_did_not_write` — a designer's file survives a rebuild and is reported; a generated file that no longer ships is removed.
+- `test_blank_release_note_is_refused_before_writing` — an empty note is refused with nothing written; the flag needs `--package`.
 
 **`test_export_stamps.py`** — approval stamps on exported files and approved-only raw export (backlog #71, APEX AL-01).
 - `test_every_exported_file_carries_its_sources_approval` — story, requirement, epic and `reference/prd.md` frontmatter carry the PRD's status, version, approver, approval time and content hash (matching `.meta.yaml`) and a `sources` record per artifact; the README has a Sources table.

@@ -1087,10 +1087,10 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 
 ---
 
-## 68. 🟠 `/pm-handoff --package` deletes files PM-OS didn't generate from the audience folders (GH #77-24)
+## 68. 🟢 `/pm-handoff --package` deletes files PM-OS didn't generate from the audience folders (GH #77-24)
 
 **Severity:** P2. A designer kit saved under `handoff/design/` was wiped the next time the package was built.
-**Status:** 🟠 Open. Verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
+**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. A rebuild deletes only the files the previous `manifest.json` (#75) lists, through `lib/release_record.clear_generated`. A folder built before manifests loses only files matching the package layout. Anything else is kept and named in the output. Regression: `test_rebuild_keeps_files_pm_os_did_not_write` and two unit tests. *Original finding:* verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
 
 **Proposed fix:** Keep a manifest of the files PM-OS writes, next to the marker, and delete only those. Leave any other file alone and note that it was kept. Build it as the package manifest in #75, so one file serves both purposes. The sprint-scoped package requested in the same report belongs with the delivery-increment design (#28).
 
@@ -1176,10 +1176,17 @@ Errors block, with an explicit override that is logged. This absorbs option (a) 
 
 ---
 
-## 73. 🟠 No change note between handoff releases, and outside inputs aren't versioned
+## 73. 🟢 No change note between handoff releases, and outside inputs aren't versioned
 
 **Severity:** P1. APEX asked that every PRD or design update come with a short note saying what changed and which stories it affects, so they can re-plan only those.
-**Status:** 🟠 Open. Verified on 2026-10-21.
+**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. The design follows the PM decisions of 2026-10-21: a `.releases/` ledger plus the manifest now, and a release is recorded only for a build given `--release-note`.
+- Every `--package` build writes `CHANGES.md` per audience folder. It compares a hash per stable-id block of approved 03/04/06/08 with the last release, and resolves the stories affected through the spine.
+- Outside inputs are versioned: the Figma file version from `design-in/ia.yaml`, and readiness test-input file hashes.
+- `--release-note` writes `.releases/REL-###.yaml` and logs `handoff_released`.
+- Not yet done: citing the decision record (#23), which doesn't exist; the PM's note may name an `OD-##`.
+- Not part of this fix: the approval-time renumber check (#52) uses the same comparison but is still open.
+
+*Original finding:* verified on 2026-10-21.
 
 **Evidence:**
 - Nothing in `scripts/pm_share.py` or `scripts/pm_handoff.py` compares a package with the previous one. PM-OS records *that* an artifact changed (hash drift, the stale cascade, `.history`), not *what* changed for the reader.
@@ -1227,10 +1234,12 @@ Decided open decisions stay in the record with their `decision` text until #23's
 
 ---
 
-## 75. 🟠 Packages have no machine-readable manifest for a reader like APEX
+## 75. 🟢 Packages have no machine-readable manifest for a reader like APEX
 
 **Severity:** P2. APEX is an AI build system that reads a fixed set of files. Today it guesses which files are authoritative and which version they are.
-**Status:** 🟠 Open. Verified on 2026-10-21.
+**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. Each audience folder has `manifest.json` (schema 1). It lists every file with its role, sha256, source artifact, approved version and status (#71), and reading order. The same file is #68's delete list. Still open: agreeing a read-set profile with APEX, so the roles are PM-OS's own until then.
+
+*Original finding:* verified on 2026-10-21.
 
 **Evidence:**
 - The PRISM design mapping cited `screens.md`, `sample-data.md` and a prototype, none of which APEX reads (APEX finding AL-24).

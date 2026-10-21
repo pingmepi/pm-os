@@ -3,7 +3,7 @@ name: pm-handoff
 description: Export the approved PM-OS pipeline — a raw text dump of one or all stages, a readable per-audience handoff package (dev/design/qa/business), or Jira tickets (connector or offline CSV). The single callable skill for all PM-OS export.
 model_tier: utility
 reads: ["01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-mockup.html", "06-qa-plan.md", "08-trd.md", ".traceability.yaml", ".enhancements/**"]
-writes: ["handoff/**"]
+writes: ["handoff/**", ".releases/**"]
 ---
 
 # Role and goal
@@ -66,6 +66,35 @@ with `/pm-check --release <folder-or-zip>`. Suggest it whenever the PM is about
 to send files that PM-OS did not build. `--raw` and `--no-package-refresh` Jira
 runs do not run the release check.
 
+## Releases, change notes and the manifest (`--package`)
+
+Every package build writes two more files into each audience folder:
+- `CHANGES.md`: the stable ids added, removed or changed since the last
+  recorded release, the stories that affects, and any outside input (Figma file
+  version, test-input files) that moved;
+- `manifest.json`: every file with its role, hash, approved version and
+  reading order.
+
+A rebuild deletes only the files the previous build wrote. Anything else the
+PM or a designer saved into an audience folder is kept, and the script names it.
+
+A plain build is a **draft**: its change note says so, and nothing is recorded.
+When the PM is about to **send** the package to a build team, ask for a
+one-line reason and pass it:
+
+```bash
+python3 ~/.pm-os/scripts/pm_share.py --package --release-note "<reason>"
+```
+
+This records `.releases/REL-###.yaml` and logs `handoff_released`. Use the
+PM's own words for the reason. If they name a decision (`OD-##`) that drove
+the change, include it. Don't record a release for a local check or an
+iteration; each recorded release becomes the baseline the next change note
+compares against. After a release, tell the PM:
+- the release id;
+- the number of ids changed and stories affected, from `CHANGES.md`;
+- any kept files the script listed.
+
 ## Active E2 enhancement behavior
 
 When `.enhancements/index.yaml` names an active cycle, every package/Jira projection is automatically enhancement-scoped. Export only computed `new | modified | removed` work plus the minimum epic/story parent closure. Never export an unaffected baseline sibling. Removed baseline work becomes an explicit removal item. Include the cycle/baseline reference, affected surfaces, non-touch/regression promises, compatibility/migration, rollout, and rollback in the human package and Jira payload. Refuse export if the boundary is absent, a changed stage is not approved, or the frozen baseline cannot be derived. Part-B `--increment` remains separate.
@@ -114,7 +143,7 @@ A read-only **projection** of the canonical stage artifacts — never touches
 gate, hash, status, or staleness. Run:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR] [--allow-release-errors]
+python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR] [--allow-release-errors] [--release-note "<reason>"]
 ```
 
 Writes into `handoff/<audience>/` at the project root (or `--output <dir>`)

@@ -231,7 +231,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | release_check_blocked | release_check_overridden | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | release_check_blocked | release_check_overridden | handoff_released | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -250,6 +250,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `secrets_allowed`: same shape as `secrets_blocked` (plus `source_id` for `context_import`) — the PM passed `--allow-secrets`, so the source was kept verbatim / the export proceeded despite the findings.
 - `release_check_blocked`: `{ surface: "handoff_package", folders, errors, warnings, codes }` — `pm_share.py --package` ran the release check (`lib/release_check.py`, backlog #72) on the staged package and refused to publish: `folders` are the audience folders checked, `codes` the distinct error codes found. Nothing under `handoff/` was written.
 - `release_check_overridden`: same shape as `release_check_blocked` — the PM passed `--allow-release-errors`, so the package was published despite the errors; `codes` names exactly the error codes overridden.
+- `handoff_released`: `{ release, previous, audiences, ids_changed, stories_affected, inputs_changed, release_check_overridden }` — `pm_share.py --package --release-note` published a package and recorded it as `.releases/<release>.yaml` (backlog #73). Counts only; the ids themselves are in the release record and `CHANGES.md`.
 - `interview_conducted`: `{ source_id?, mode?, asked, answered, skipped }` — a discovery-interview pass. Emitted at intake by `pm_context_import.py record-interview` (no `mode`; `source_id` of the registered answers), and on a standalone re-run by `pm_interview.py resolve` with `mode: "rerun"`. Skipped questions land in `00-context/known-unknowns.md` (open gaps, never assumptions); a re-run marks resolved gaps in place with provenance rather than deleting them.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
@@ -281,6 +282,31 @@ open_decisions:
 ```
 
 Never hashed or approved; editing it never stales a stage. Validated by `lib/readiness.py` (via `pm_readiness.py check` and `/pm-check`); the release check blocks a package on overdue items.
+
+### 5.3c Release records and package manifests (backlog #73, #75, #68)
+
+`.releases/REL-###.yaml` is written only for a package built with `--release-note`, and is never overwritten:
+
+```yaml
+id: REL-002
+released_at: <ISO 8601>
+released_by: <pm_user>
+note: <one line from the PM>
+previous: REL-001                 # null for the first release
+audiences: [dev, design, qa, business]
+release_check_overridden: []      # error codes published past with --allow-release-errors
+sources: {"03": {artifact, status, version, approved_by, approved_at, content_hash}, ...}
+stable_ids: {03-prd.md: {US-001: <block sha256, 16 hex>, ...}, 06-qa-plan.md: {...}}
+outside_inputs: {"Figma file <key>": "<version> (<last_modified>)", "TI-001 <file>": "<sha256 16 hex> | missing"}
+changes: [{artifact, id, change: new | modified | removed}]
+files: {dev: [{path, sha256}], ...}
+```
+
+Each audience folder also gets two files:
+- `CHANGES.md`, compared with the latest release;
+- `manifest.json` (`schema_version: 1`): `{project, audience, release, draft, generated_at, roles, files: [{path, role, sha256, source, version, status, read_order}]}`.
+
+The manifest is also the delete list for the next rebuild of that folder. Neither file is hashed or approved.
 
 ### 5.4 Feedback entry (JSONL line)
 

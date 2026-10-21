@@ -8,6 +8,11 @@ interface:
     CSV I import myself). Use $pm-handoff --package [--audience
     dev|design|qa|business] to build or refresh the readable handoff package
     without touching Jira; it runs the release check first (including overdue items
-    in readiness.yaml) and writes nothing if that finds errors. Use $pm-handoff --raw [stage_id] for a plain text
+    in readiness.yaml) and writes nothing if that finds errors. Every package
+    folder gets CHANGES.md (what changed since the last release, and the stories
+    affected) and manifest.json; a rebuild keeps files PM-OS did not write. When
+    the package is being sent to the build team, use $pm-handoff --package
+    --release-note "<one-line reason>" to record it as a release in .releases/.
+    Use $pm-handoff --raw [stage_id] for a plain text
     dump of one or all approved stages (unapproved stages only with
     --include-unapproved, marked as such).
