@@ -72,6 +72,7 @@ from delivery_map import build_prd_delivery_map, body_of, normalize_title, title
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
+import readiness  # noqa: E402
 import release_check  # noqa: E402
 import secret_scan  # noqa: E402
 import traceability  # noqa: E402
@@ -124,6 +125,9 @@ AUDIENCE_CATEGORIES: dict[str, set[str]] = {
     "qa_scenarios": {"qa"},
     "screen_map": {"design", "qa"},
     "wireframes": {"dev", "design", "qa"},
+    # The readiness record (backlog #74): eval sets, test inputs and open
+    # decisions still owed. Every audience sees what is outstanding.
+    "readiness": {"dev", "design", "qa", "business"},
 }
 
 
@@ -1119,6 +1123,12 @@ def build_package(
                 path.write_text(content, encoding="utf-8")
                 written.append(path)
 
+        readiness_src = root / readiness.READINESS_FILE
+        if "readiness" in cats and readiness_src.is_file():
+            path = aud_dir / readiness.READINESS_FILE
+            path.write_bytes(readiness_src.read_bytes())
+            written.append(path)
+
         if "wireframes" in cats and emit_proto:
             (aud_dir / "wireframes").mkdir(parents=True, exist_ok=True)
             path = aud_dir / "wireframes" / "prototype.html"
@@ -1129,6 +1139,7 @@ def build_package(
             project_name, now, story_index, epic_index, requirement_index, generated_sources(root),
             emit_proto and "wireframes" in cats, aud, cats,
             provenance=[prov[sid] for sid in ("01", "02", "03", "04", "05", "06", "08") if sid in prov],
+            has_readiness="readiness" in cats and (root / readiness.READINESS_FILE).is_file(),
         )
         if enhancement_delta:
             boundary = enhancement_delta["boundary"]
@@ -1258,6 +1269,7 @@ def generated_sources(root: Path) -> list[str]:
 def _audience_readme(
     project_name: str, when: str, story_index, epic_index, requirement_index, sources, has_proto: bool,
     audience: str, cats: set[str], provenance: list[dict] | None = None,
+    has_readiness: bool = False,
 ) -> str:
     """A reading guide scoped to exactly the files present in this audience folder."""
     lines = [
@@ -1307,6 +1319,9 @@ def _audience_readme(
         lines += ["", "## Reference"] + present_reference
     if "designer_workflow" in cats:
         lines += ["", "## Designer workflow", "- [Designer workflow](DESIGNER-WORKFLOW.md)"]
+    if has_readiness:
+        lines += ["", "## Still owed", "- [Readiness record](readiness.yaml) — eval sets, test inputs "
+                  "and open decisions the build team is waiting on, with owners and due milestones"]
     if has_proto:
         lines += ["", "## Design", "- [Prototype](wireframes/prototype.html)"]
     if provenance:

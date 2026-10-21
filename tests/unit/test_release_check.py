@@ -277,6 +277,44 @@ def test_release_check_never_writes_to_the_project_it_reads(tmp_path):
     assert after == before
 
 
+def test_overdue_readiness_items_block_and_owed_files_only_warn(tmp_path):
+    """Backlog #74: with a readiness record in the folder, an eval set not
+    starter-ready by its due milestone and a blocking decision past decide-by
+    are errors; a referenced file the record lists as owed is a FILE_PENDING
+    warning instead of a FILE_REFERENCE_MISSING error. Ids the record declares
+    (OD-01) resolve for the undefined-id check."""
+    _clean_package(tmp_path)
+    _write(tmp_path, "inputs/aimovig.html", "<p>page</p>\n")
+    _write(tmp_path, "readiness.yaml", """schema_version: 1
+milestones: [M0, M1]
+current_milestone: M1
+eval_sets:
+  - {id: EVAL-001, ai_step: Interpret, requirement: FR-001, reviewer: Anika Kaur,
+     starter_count: 30, target_count: 120, due: M1, status: needed}
+test_inputs:
+  - {id: TI-001, purpose: Bot-protected page, supplier: Karan, needed_by: M1,
+     file: inputs/jardiance.html, status: requested}
+open_decisions:
+  - {id: OD-01, question: 'Emoji-only sentences?', owner: Karan, decide_by: M0,
+     blocking: true, status: open}
+""")
+    _write(tmp_path, "notes.md", "# Notes\n\nTest on `inputs/jardiance.html`; see OD-01.\n")
+    report = rc.check_release(tmp_path)
+    codes = _codes(report)
+    assert codes["READINESS_EVAL_SET_NOT_READY"] == 1
+    assert codes["READINESS_DECISION_OVERDUE"] == 1
+    assert codes["READINESS_INPUT_MISSING"] == 1
+    assert codes["FILE_PENDING"] == 1 and "FILE_REFERENCE_MISSING" not in codes
+    assert "ID_UNDEFINED" not in codes
+
+
+def test_invalid_readiness_record_is_a_release_error(tmp_path):
+    """A readiness record that does not validate blocks the release."""
+    _clean_package(tmp_path)
+    _write(tmp_path, "readiness.yaml", "eval_sets:\n  - {id: EVAL-1, status: maybe}\n")
+    assert any(f.code == "READINESS_INVALID" for f in rc.check_release(tmp_path).errors)
+
+
 def test_zip_is_checked_and_an_escaping_member_is_refused(tmp_path):
     """A `.zip` of a package is checked as its contents (paths relative to the
     archive root); an archive member that would extract outside is refused."""

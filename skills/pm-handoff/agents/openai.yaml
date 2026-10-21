@@ -7,7 +7,7 @@ interface:
     confirmation before creating anything (or $pm-handoff jira --offline for a
     CSV I import myself). Use $pm-handoff --package [--audience
     dev|design|qa|business] to build or refresh the readable handoff package
-    without touching Jira; it runs the release check first and writes nothing
-    if that finds errors. Use $pm-handoff --raw [stage_id] for a plain text
+    without touching Jira; it runs the release check first (including overdue items
+    in readiness.yaml) and writes nothing if that finds errors. Use $pm-handoff --raw [stage_id] for a plain text
     dump of one or all approved stages (unapproved stages only with
     --include-unapproved, marked as such).

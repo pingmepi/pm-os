@@ -186,7 +186,11 @@ If `genai_flag=true`, append these additional sections after `## Acceptance Crit
 ```markdown
 ## Eval Dataset Spec
 
-<Define the evaluation dataset shape, input categories, expected outputs, coverage needs, minimum sample counts where useful, and trace to GenAI user flows or risks.>
+<Define the evaluation dataset shape, input categories, expected outputs, coverage needs, and trace to GenAI user flows or risks. Give one row per AI step in a table with a `Starter count` column, the number of human-reviewed cases the build team needs at kick-off, beside the full target count:>
+
+| Eval set | AI step | Requirement | Starter count | Target count | Reviewer |
+|---|---|---|---|---|---|
+| <EVAL-001> | <the AI step it evaluates> | <FR-### / US-###> | <e.g. 30> | <e.g. 120> | <a named person, not a role> |
 
 ## Golden Set Construction
 
@@ -264,7 +268,7 @@ After generating, do the following in order:
    generated_hash: <computed hash>
    pm_os_version: <from .meta.yaml>
    genai_flag: <from .meta.yaml>
-   artifact_contract_version: 7
+   artifact_contract_version: 8
    generation_notes: <list of --note values used verbatim, or [] if none>
    ---
    ```
@@ -283,9 +287,28 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
    ```
    If validation exits non-zero, repair `06-qa-plan.md`, recompute `generated_hash`, rerun the snapshot helper, and rerun validation. The strict check requires every scenario to carry a stable `TC-###` id and to trace to at least one PRD requirement id. Do not update metadata or log `stage_generated` until validation passes. Coverage-gap and recommended-section warnings are visible but non-blocking.
 
-6. **Update `.meta.yaml`** - for stage 06, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+6. **Seed the readiness record (GenAI projects only).** The eval sets are owed to
+   the build team, and their status changes weekly, so they are tracked in the
+   ungated `readiness.yaml`, not in this artifact (backlog #74). Run:
+   ```bash
+   python3 ~/.pm-os/scripts/pm_readiness.py init
+   ```
+   Then, for each row of the Eval Dataset Spec table whose `EVAL-###` is not
+   already under `eval_sets` in `readiness.yaml`, add one item with `id`,
+   `ai_step`, `requirement`, `reviewer`, `starter_count`, `target_count`,
+   `have_count: 0`, `due` and `status: needed`. For `due`, use the milestone the
+   PM names for the starter set; if `milestones` is still empty, leave
+   `due: null` and tell the PM that setting `milestones` and `current_milestone`
+   lets PM-OS flag overdue items. Never change the status or counts of an item
+   that already exists: those belong to the PM. Also add a `test_inputs` item
+   for each real input file the test data section says is still to be supplied.
+   Then run `python3 ~/.pm-os/scripts/pm_readiness.py check` and fix anything it
+   reports. Editing `readiness.yaml` never needs approval and never makes a stage
+   stale.
 
-7. **Log `stage_generated` event:**
+7. **Update `.meta.yaml`** - for stage 06, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`.
+
+8. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import os, sys; sys.path.insert(0, os.path.expanduser('~/.pm-os/lib'))
@@ -302,7 +325,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
    "
    ```
 
-8. **Print to PM:**
+9. **Print to PM:**
    ```text
    Stage 06 draft written to 06-qa-plan.md
 

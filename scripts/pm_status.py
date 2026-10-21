@@ -243,6 +243,18 @@ def main():
     for q in open_unknowns[:3]:
         print(f"  - {q}")
 
+    # The readiness record (backlog #74): what the build team is still owed.
+    try:
+        import readiness
+        data, _problem = readiness.load(readiness.path_for(root))
+        counts = readiness.summary(data)
+        if counts:
+            print(f"Readiness: {counts['eval_sets_not_ready']} eval set(s) not starter-ready · "
+                  f"{counts['test_inputs_owed']} test input(s) owed · "
+                  f"{counts['open_decisions']} open decision(s) · {counts['overdue']} overdue")
+    except Exception:
+        pass
+
     print()
     try:
         print(summary_line(check_project(root)))

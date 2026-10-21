@@ -18,6 +18,7 @@ from console import ensure_utf8_stdio  # noqa: E402
 ensure_utf8_stdio()
 
 from project import resolve_project
+import readiness
 import release_check
 from consistency import check_project, error_count, format_report, summary_line
 from design_input import (
@@ -74,14 +75,31 @@ def main():
         print("=" * 40)
         print()
         print(format_design_findings(design_findings))
+    # The readiness record (backlog #74) is ungated, so it is checked here
+    # rather than through the stage state machine, and only when it exists.
+    readiness_issues, readiness_overdue, readiness_present = readiness.check_project(project_root)
+    if readiness_present:
+        print()
+        print("Readiness Record (readiness.yaml)")
+        print("=" * 40)
+        print()
+        print(readiness.format_issues(readiness_issues) or "Valid.")
+        if readiness_overdue:
+            print()
+            print("Overdue (a handoff release is blocked until these are done):")
+            print(readiness.format_overdue(readiness_overdue))
     print()
     print(summary_line(issues))
+    readiness_errors = sum(1 for issue in readiness_issues if issue.severity == "error")
+    if readiness_present:
+        print(f"Readiness: {readiness_errors} error(s), "
+              f"{len(readiness_issues) - readiness_errors} warning(s), {len(readiness_overdue)} overdue")
     if args.design:
         design_errors = design_error_count(design_findings)
         design_warnings = sum(1 for finding in design_findings if finding.severity == "warning")
         print(f"Design input: {design_errors} error(s), {design_warnings} warning(s)")
 
-    sys.exit(1 if error_count(issues) or design_error_count(design_findings) else 0)
+    sys.exit(1 if error_count(issues) or design_error_count(design_findings) or readiness_errors else 0)
 
 
 def _release(args) -> int:

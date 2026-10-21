@@ -208,7 +208,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
-artifact_contract_version: 7   # present on contract-validated Stage 03–06 and new Stage 08 generations
+artifact_contract_version: 7   # present on contract-validated Stage 03–06 and new Stage 08 generations; stage 06 writes 8 (v8: Eval Dataset Spec starter-count column, backlog #74)
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---
@@ -261,6 +261,26 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
 - `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data. Logged identically whether the tickets were created through the Atlassian connector or imported from the offline `pm_handoff.py export` CSV
 - `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
+
+### 5.3b `readiness.yaml` (ungated; backlog #74)
+
+```yaml
+schema_version: 1
+milestones: [M0, M1, M2]          # ordered
+current_milestone: M1             # items due at or before it and not done are overdue
+eval_sets:                        # one per AI step
+  - {id: EVAL-001, ai_step: <name>, requirement: FR-###, reviewer: <named person>,
+     starter_count: 30, target_count: 120, have_count: 0, due: M1,
+     status: needed | in_review | starter_ready | complete}
+test_inputs:
+  - {id: TI-001, purpose: <what it tests>, supplier: <person>, needed_by: M0,
+     file: <optional project path>, status: requested | received | not_needed}
+open_decisions:
+  - {id: OD-01, question: <one line>, epics: [EPIC-###], stories: [US-###], owner: <person>,
+     decide_by: M1, blocking: true, status: open | decided | dropped, decision: <outcome>}
+```
+
+Never hashed or approved; editing it never stales a stage. Validated by `lib/readiness.py` (via `pm_readiness.py check` and `/pm-check`); the release check blocks a package on overdue items.
 
 ### 5.4 Feedback entry (JSONL line)
 

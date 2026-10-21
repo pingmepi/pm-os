@@ -25,6 +25,14 @@ triggers are present, generated dev/QA story joins match when a package exists,
 and the screen map agrees with story coverage. Missing stage-05 HTML is
 informational on this path. It never calls Figma and never writes project state.
 
+When `readiness.yaml` exists, the normal run also validates it (backlog #74)
+and lists overdue items: eval sets not starter-ready, test inputs not received
+and blocking open decisions past their milestone. Its errors count toward the
+exit code. The record is ungated: when the PM tells you an item's status
+changed ("the interpretation golden set is starter-ready", "OD-03 is decided:
+…"), edit `readiness.yaml` directly, then re-run
+`python3 ~/.pm-os/scripts/pm_readiness.py check`. Never approve anything for it.
+
 Release check (any handoff folder, including one built by hand):
 
 ```bash
@@ -48,6 +56,9 @@ finding, `file:line`, error or warning, and the exact fix:
   changed or is no longer approved;
 - PM-OS packages only, once the QA plan is approved: an exported story or
   requirement no `TC-###` covers.
+- with a `readiness.yaml` in the folder (or the project): overdue eval sets,
+  test inputs and blocking decisions are errors, and a referenced file the
+  record lists as owed is a warning rather than an error.
 
 It exits non-zero when there are errors. A `.zip` is read in place, never
 unpacked into the project. `--ignore-ids` skips a prefix or an id the PM

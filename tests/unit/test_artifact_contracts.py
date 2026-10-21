@@ -1201,6 +1201,26 @@ def test_trd_section_contract_is_warning_only_for_v6(tmp_path):
     assert "TRD_REQUIRED_SECTION_EMPTY" not in codes
 
 
+def test_eval_dataset_spec_starter_count_warns_for_v8_only(tmp_path):
+    """Contract v8 (backlog #74): a QA plan's Eval Dataset Spec table without a
+    `Starter count` column warns (never errors); a v7 QA plan, a table with the
+    column, and a QA plan without the GenAI section stay quiet."""
+    root = _project(tmp_path)
+    spec_without = ("\n## Eval Dataset Spec\n| Eval set | AI step | Target count |\n|---|---|---|\n"
+                    "| EVAL-001 | Interpret | 120 |\n")
+    spec_with = spec_without.replace("| Target count |", "| Starter count | Target count |")
+    for body, version, expected in (
+        (_valid_qa() + spec_without, 8, True),
+        (_valid_qa() + spec_without, 7, False),
+        (_valid_qa() + spec_with, 8, False),
+        (_valid_qa(), 8, False),
+    ):
+        _write(root, "06-qa-plan.md", body, contract_version=version)
+        findings = contracts.validate_artifact(root, "06")
+        assert any(f.code == "EVAL_STARTER_COUNT_MISSING" for f in findings) is expected, (version, expected)
+        assert contracts.error_count(findings) == 0
+
+
 def test_trd_task_labeled_fields_warn_for_v7(tmp_path):
     """Contract v7 warns when TSK blocks omit build-ready labeled fields."""
     root = _project(tmp_path)

@@ -87,6 +87,7 @@ tests/
 │   ├── test_secret_scan.py     # lib/secret_scan.py (GH #63 PMOS-001 secret detection)
 │   ├── test_release_check.py   # lib/release_check.py (backlog #72 handoff release check)
 │   ├── test_stage_version.py   # lib/stage_version.py (backlog #71 approval version, schema v6)
+│   ├── test_readiness.py       # lib/readiness.py (backlog #74 readiness record)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -134,6 +135,13 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_count_versions_counts_changes_in_sequence` / `test_approval_hashes_reads_every_approval_event_and_skips_bad_lines` — the telemetry backfill counts consecutive distinct approved hashes across approve/import/backfill/implicit re-approval events and tolerates malformed lines.
 - `test_migration_backfills_versions_from_telemetry` — v2 for a stage approved A, A, B; v1 for an approved stage with no events; none for a never-approved stage; idempotent.
 - `test_migration_keeps_last_approved_hash_for_a_regenerated_draft` — a draft regenerated after approval keeps its version and takes `version_hash` from telemetry, so re-approving the identical body mints nothing.
+
+**`test_readiness.py`** — the readiness record (`lib/readiness.py`, backlog #74).
+- `test_scaffold_writes_a_valid_template_once` / `test_a_complete_record_is_valid` — the template is valid and never overwritten; a complete record has no issues.
+- `test_structural_problems_are_errors` — missing fields, id formats, duplicates, unknown statuses/milestones and non-integer counts.
+- `test_due_milestone_is_only_required_once_milestones_exist` — a freshly seeded record may leave due milestones empty.
+- `test_role_reviewers_and_unknown_ids_are_warnings` — a role as reviewer, or an id the PRD does not declare, warns.
+- `test_overdue_follows_milestone_order` / `test_invalid_yaml_is_reported_not_raised` / `test_summary_and_pending_files` — overdue logic, unreadable files, and the counts `/pm-status` shows.
 
 **`test_project.py`** — stage/state helpers
 - `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group (`00`, `00c`, `00w`, `00u`) leads the order.
@@ -252,6 +260,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_hand_built_story_built_from_an_older_prd_is_stale` / `test_pmos_package_generated_from_an_older_artifact_is_stale` — stale sources for both package kinds, plus a PRD shipped at two versions.
 - `test_coverage_is_not_enforced_before_the_qa_plan_is_approved` — with stage 06 unapproved, #53(a) is one `COVERAGE_NOT_CHECKED` warning, so a design-brief package is not blocked.
 - `test_release_check_never_writes_to_the_project_it_reads` — the check reads `.meta.yaml` with plain YAML (never the migrating `load_meta()`), so checking a package or hand-built folder inside an old-schema project leaves every file byte-for-byte unchanged.
+- `test_overdue_readiness_items_block_and_owed_files_only_warn` / `test_invalid_readiness_record_is_a_release_error` — backlog #74: overdue readiness items and an invalid record block; a file the record lists as owed is `FILE_PENDING` (warning); ids the record declares resolve.
 - `test_zip_is_checked_and_an_escaping_member_is_refused` / `test_format_report_shows_location_code_and_fix` — zip input (with a zip-slip guard) and the text report shape.
 
 **`test_project_git.py`** — per-project local version history (`lib/project_git.py`, backlog #18, local half)
@@ -278,6 +287,7 @@ one-line description. The matching docstring in code carries the same intent for
 - **Contract v4 — Product Epics (`EPIC-###`):** `test_prd_product_epics_validate_declared_ownership` (a PRD with multiple declared Product Epics and one valid `Epic:` ref on every `US`/`FR` has no errors); `test_prd_product_epics_reject_missing_unknown_and_multiple_refs` (once Product Epics exist, missing, unknown, or multiple story/requirement epic refs are errors). A legacy PRD with no `## Product Epics` gets a warning only, so existing approved projects remain approvable.
 - **Contract v5 — prioritization method + values:** `test_prd_prioritization_method_and_values_are_warning_only` verifies missing `## Prioritization Method` and missing labeled `Priority:` values on `US/FR/REQ` warn without blocking existing PRDs, while complete labeled values are clean for those checks.
 - **Labeled fields in bold (backlog #70):** `test_labeled_field_reads_both_bold_forms_without_stray_emphasis` (both `**Priority:** Must` and `**Priority**: Must`, list-item forms and emphasis inside the value all read as the clean value, never `'** Must'`); `test_labeled_field_value_on_the_next_line_still_counts_as_present` (a bold label whose value starts on the next line still reads as present, so the fix adds no false `*_MISSING` warnings); `test_bold_priority_reaches_delivery_map_and_traceability_clean` (the clean priority reaches the delivery map and `.traceability.yaml`, which feed story frontmatter).
+- **Contract v8 — eval starter counts (backlog #74):** `test_eval_dataset_spec_starter_count_warns_for_v8_only` — a v8 QA plan's Eval Dataset Spec table without a `Starter count` column warns (never errors); v7 plans, tables with the column and non-GenAI plans stay quiet.
 - **Contract v6 — TRD required-section shape:** `test_trd_section_contract_is_warning_only_for_v6` verifies legacy TRDs without v6 frontmatter stay quiet, incomplete v6 TRDs emit warning-only `TRD_REQUIRED_SECTION_*` findings, and a complete v6 TRD is clean for section shape.
 - **Contract v7 — labeled fields over vocabulary cues:** `test_qa_plan_test_case_labeled_fields_warn`, `test_screen_without_purpose_warns`, and `test_trd_task_labeled_fields_warn_for_v7` verify that TC/SCR/TSK blocks expose structural labels for the meaning downstream tools rely on, warning without blocking when the labels are missing.
 - **Stage-04 PRD/design consistency:** `test_design_warns_when_prd_empty_invalid_behavior_is_missing` verifies PRD empty/invalid-input edge behavior must be reconciled in the design spec; `test_design_warns_on_placeholder_without_discoverability_affordance` verifies placeholder-based inputs name a visible label/helper/hint/description/ARIA affordance when accessibility says inputs are not placeholder-only.
@@ -366,6 +376,11 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 - `test_pm_check_flags_downstream_approved_against_changed_upstream` — backlog #31 detector: an `approved` stage whose recorded `upstream_hashes_at_approval[uid]` no longer matches the still-`approved` upstream's current `content_hash` (the invalid state an interrupted stale-cascade leaves) is flagged `DOWNSTREAM_UPSTREAM_STALE`; a correctly-approved chain is clean.
+
+**`test_readiness_record.py`** — the readiness record end to end (backlog #74).
+- `test_init_and_check_and_pm_check_report_the_record` — `init` writes once, `check` exits 1 on an invalid item, and `/pm-check` shows a Readiness section whose errors count toward its exit code.
+- `test_editing_the_record_never_touches_stage_state` — ungated: rewriting it leaves every stage approved and logs nothing.
+- `test_overdue_eval_set_blocks_the_package_until_starter_ready` — an overdue eval set blocks `--package`; once starter-ready, every audience folder carries `readiness.yaml` and links it; `/pm-status` shows the counts.
 
 **`test_export_stamps.py`** — approval stamps on exported files and approved-only raw export (backlog #71, APEX AL-01).
 - `test_every_exported_file_carries_its_sources_approval` — story, requirement, epic and `reference/prd.md` frontmatter carry the PRD's status, version, approver, approval time and content hash (matching `.meta.yaml`) and a `sources` record per artifact; the README has a Sources table.

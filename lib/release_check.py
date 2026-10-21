@@ -524,7 +524,8 @@ _PATH_TOKEN_RE = re.compile(
 )
 
 
-def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path]) -> list[ReleaseFinding]:
+def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path],
+                            owed: dict[str, str] | None = None) -> list[ReleaseFinding]:
     """Files named in code spans (and YAML values) that the package lacks.
 
     Only paths whose first directory exists in the package are checked (so
@@ -540,6 +541,8 @@ def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path]) -
     findings: list[ReleaseFinding] = []
     seen: set[tuple[str, str]] = set()
     for doc in docs:
+        if doc.path.name == "readiness.yaml":
+            continue  # the record of owed files; its paths are checked as owed, not as references
         if doc.is_markdown:
             candidates = []
             for number, line in enumerate(doc.lines(), 1):
@@ -570,6 +573,14 @@ def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path]) -
                 for c in ((here,) if explicit else (here, from_root))
             )
             if not relevant:
+                continue
+            owed_by = next((item for path, item in (owed or {}).items()
+                            if ref.replace("\\", "/").lstrip("./").endswith(path)), None)
+            if owed_by:
+                findings.append(ReleaseFinding(
+                    WARNING, "FILE_PENDING", doc.rel, number,
+                    f"`{ref}` is not in the package yet; the readiness record lists it as owed ({owed_by}).",
+                    f"Deliver it and mark {owed_by} received, before the milestone that needs it."))
                 continue
             findings.append(ReleaseFinding(
                 ERROR, "FILE_REFERENCE_MISSING", doc.rel, number,
@@ -864,6 +875,53 @@ def _check_coverage(docs: list[_Doc], project_root: Path, artifacts: dict[str, d
     return findings
 
 
+_READINESS_CODES = {
+    "eval_sets": ("READINESS_EVAL_SET_NOT_READY", "is not starter-ready",
+                  "Get the starter set reviewed and mark it `starter_ready`, or move `due` with the PM's agreement."),
+    "test_inputs": ("READINESS_INPUT_MISSING", "has not been received",
+                    "Get the file from its supplier and mark it `received` (or `not_needed`)."),
+    "open_decisions": ("READINESS_DECISION_OVERDUE", "is still open and blocking",
+                       "Decide it and record the outcome in `decision`, or agree a later `decide_by`."),
+}
+
+
+def _check_readiness(folder: Path, project_root: Path | None) -> tuple[dict | None, list[ReleaseFinding], dict[str, str]]:
+    """Backlog #74: block a release on owed items that are overdue.
+
+    Reads `readiness.yaml` from the folder (a package carries its copy; a
+    hand-built folder may have one) or else from the owning project. Returns
+    the data, findings, and the files still owed (path -> TI id), which turn a
+    missing referenced file from an error into a warning.
+    """
+    import readiness
+
+    path = folder / readiness.READINESS_FILE
+    label = readiness.READINESS_FILE
+    if not path.is_file() and project_root is not None:
+        path = Path(project_root) / readiness.READINESS_FILE
+        label = f"{readiness.READINESS_FILE} (project)"
+    data, problem = readiness.load(path)
+    if problem:
+        return None, [ReleaseFinding(ERROR, "READINESS_INVALID", label, None, problem.message, problem.fix)], {}
+    if data is None:
+        return None, [], {}
+    findings = [
+        ReleaseFinding(ERROR, "READINESS_INVALID", label, None, f"{issue.item or 'file'}: {issue.message}", issue.fix)
+        for issue in readiness.validate(data) if issue.severity == "error"
+    ]
+    for item in readiness.overdue(data):
+        code, state, fix = _READINESS_CODES[item["section"]]
+        findings.append(ReleaseFinding(
+            ERROR, code, label, None,
+            f"{item['id']} ({item['summary']}) {state}; it was due by {item['due']}.", fix))
+    owed = {
+        str(row["file"]).replace("\\", "/").lstrip("./"): str(row.get("id"))
+        for row in data.get("test_inputs") or []
+        if isinstance(row, dict) and row.get("file") and row.get("status") not in readiness.INPUT_DONE
+    }
+    return data, findings, owed
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -895,7 +953,9 @@ def check_release(path: Path | str, *, project_root: Path | None = None,
     link_findings, link_count = _check_links(folder, docs)
     id_findings, id_count = _check_ids(folder, docs, files, project_ids, {i.upper() for i in ignore_ids})
     findings = story_findings + link_findings + id_findings
-    findings += _check_referenced_files(folder, docs, files)
+    readiness_data, readiness_findings, owed = _check_readiness(folder, project_root if kind == "pm-os" else None)
+    findings += readiness_findings
+    findings += _check_referenced_files(folder, docs, files, owed)
     findings += _check_placeholders(docs)
     if kind == "pm-os":
         findings += _check_pmos_sources(docs, artifacts)

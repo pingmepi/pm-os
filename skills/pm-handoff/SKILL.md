@@ -44,7 +44,9 @@ epic or priority (or a priority still carrying Markdown), cited ids nothing in
 the folder defines, broken or escaping links, missing referenced files,
 placeholders, sources that changed or lost approval since generation, and
 exported stories/requirements no `TC-###` covers once the QA plan is approved
-(backlog #53).
+(backlog #53), and items in `readiness.yaml` that are overdue (backlog #74).
+Every audience folder carries a copy of `readiness.yaml`, so the build team
+sees what is still owed.
 
 - **No errors:** the package is published. Warnings print as one line per
   audience folder with counts per code; mention them to the PM and point at

@@ -1194,7 +1194,7 @@ Errors block, with an explicit override that is logged. This absorbs option (a) 
 
 ---
 
-## 74. 🟠 No record of what the dev team is owed: eval sets per AI step, test inputs and open decisions
+## 74. 🟢 No record of what the dev team is owed: eval sets per AI step, test inputs and open decisions
 
 **Severity:** P1. APEX asked for:
 - 30+ human-approved golden cases per AI step, with a named strategist reviewing the expected outputs;
@@ -1203,7 +1203,14 @@ Errors block, with an explicit override that is logged. This absorbs option (a) 
 
 PM-OS has nowhere to track any of these as things that are owed, with an owner, a due date and a status.
 
-**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+**Status:** 🟢 Built on branch `feat/74-readiness-record` (2026-10-21), not yet released. The design follows the PM decision of 2026-10-21: milestone-based YAML, edited by the agent, with Python that only scaffolds and validates. The parts:
+- `readiness.yaml`, `lib/readiness.py` and `scripts/pm_readiness.py init|check`;
+- validation in `/pm-check` and a summary in `/pm-status`;
+- a copy shipped in every audience folder, with release-check errors for overdue items;
+- seeding guidance in the stage 03 and 06 skills;
+- contract v8, a warning-only `Starter count` column.
+
+Decided open decisions stay in the record with their `decision` text until #23's decision record exists.
 
 **Evidence:**
 - Stage 06 asks for `## Eval Dataset Spec` and `## Golden Set Construction` (`skills/pm-stage-06-qa-plan/SKILL.md:187-191`), but only as prompt guidance. No contract check reads them, whereas stage 08 has `MODEL_SERVING_INCOMPLETE`.
@@ -1319,6 +1326,17 @@ Pairs with #67.
 - at least one real example per dimension, with known quirks.
 
 Stage 06 test data and eval sets draw from that section, and missing files are tracked in the readiness record (#74).
+
+---
+
+## 80. 🟠 `load_meta()` migrates and saves `.meta.yaml` as a side effect, even under read-only commands
+
+**Severity:** P2. A command documented as read-only can still write to the project.
+**Status:** 🟠 Open. Verified against the code on 2026-10-21, while building the release check (#72).
+
+**Evidence:** `lib/project.py` `load_meta()` calls `migrate_meta()` and, if anything changed, `save_meta()`. Every caller therefore writes `.meta.yaml` the first time it reads a project at an older schema, including `/pm-check` and `/pm-status`, which the SOP and the pm-check skill describe as read-only. After the schema 6 bump (#71) the next command of any kind rewrites every existing project's `.meta.yaml`. The release check avoids this deliberately: it reads `.meta.yaml` with plain YAML, and a test, `test_release_check_never_writes_to_the_project_it_reads`, keeps it that way.
+
+**Proposed fix:** Split read from migrate. `load_meta(..., persist=False)` returns the migrated dict without saving it. Writing commands (approve, generate, import) persist the migration; read-only commands don't. Or document plainly that the first command after an upgrade migrates the project.
 
 ---
 
