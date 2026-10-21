@@ -924,6 +924,61 @@ def test_prd_prioritization_method_and_values_are_warning_only(tmp_path):
     assert "FUNCTIONAL_REQUIREMENT_PRIORITY_MISSING" not in codes
 
 
+@pytest.mark.parametrize("line", [
+    "**Priority:** Must / S2",
+    "**Priority**: Must / S2",
+    "- **Priority:** Must / S2",
+    "1. **Priority**: Must / S2",
+    "Priority: Must / S2",
+    "**Priority:** **Must** / S2",
+    "**Priority:**Must / S2",
+])
+def test_labeled_field_reads_both_bold_forms_without_stray_emphasis(line):
+    """Backlog #70: stage 03 writes `**Priority:** Must`, closing the bold after
+    the colon, and the parser used to keep that closing `**` in the value
+    (`'** Must / S2'`). Both bold forms, list-item forms, and emphasis inside the
+    value must all read as the clean value. The generic `labeled_field` keeps
+    balanced emphasis inside a value but never an unbalanced `**`."""
+    assert contracts.block_priority(line) == "Must / S2"
+    value = contracts.labeled_field(line, "Priority")
+    assert value.count("**") % 2 == 0 and not value.startswith("** ")
+
+
+def test_labeled_field_value_on_the_next_line_still_counts_as_present():
+    """Backlog #70: a bold label whose value starts on the next line
+    (`**Edge cases / alternate paths:**` followed by a list, 43 times in the
+    PRISM PRD) used to read as present only because the stray `**` was the value.
+    After the fix it must still read as present, with the list as its value, so
+    the fix adds no false `USER_STORY_EDGE_CASES_MISSING` warnings."""
+    block = (
+        "### US-001 — Sign in\n"
+        "**Edge cases / alternate paths:**\n"
+        "- Wrong password shows an inline error.\n"
+        "**Happy path:** The user signs in.\n"
+    )
+    assert contracts.labeled_field(block, "Edge cases / alternate paths") == "- Wrong password shows an inline error."
+    assert contracts.labeled_field(block, "Happy path") == "The user signs in."
+    assert contracts.labeled_field("**Priority:**", "Priority") is None
+
+
+def test_bold_priority_reaches_delivery_map_and_traceability_clean(tmp_path):
+    """Backlog #70: the clean priority is what the delivery map (and so the
+    story frontmatter and `.traceability.yaml`) carries for a PRD written in the
+    stage-03 `**Priority:** Must / S2` shape."""
+    from delivery_map import build_prd_delivery_map
+    import traceability
+
+    root = _project(tmp_path)
+    body = _valid_prd().replace("Priority: Must", "**Priority:** Must / S2")
+    _write(root, "03-prd.md", body, contract_version=7)
+    delivery = build_prd_delivery_map(body)
+    assert delivery.priorities
+    assert set(delivery.priorities.values()) == {"Must / S2"}
+    index = traceability.build_index(root)
+    priorities = {req.get("priority") for req in index["requirements"].values() if req.get("priority")}
+    assert priorities == {"Must / S2"}
+
+
 def test_prd_journey_prototype_priority_warns_when_missing(tmp_path):
     """Stage 05 slice selection depends on declared journey validation risk, so
     journeys missing `Prototype priority:` warn without blocking the PRD."""

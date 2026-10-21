@@ -1115,10 +1115,10 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 
 ---
 
-## 70. 🟠 Labeled-field values keep a stray `**`, so every bold `Priority:` is stored as `** Must`
+## 70. 🟢 Labeled-field values keep a stray `**`, so every bold `Priority:` is stored as `** Must`
 
 **Severity:** P1. It's small to fix but shows up in every handoff. Every story's frontmatter and the traceability index carry the malformed value.
-**Status:** 🟠 Open. Verified against the v1.5.5 code on 2026-10-21.
+**Status:** 🟢 Fixed on branch `fix/70-labeled-field-bold` (2026-10-21), not yet released. `_LABELED_FIELD_RE` now consumes the closing `**` on either side of the colon, and `block_priority` drops emphasis inside the value. On the PRISM PRD the fix changes only the priority values; the stage 03/04/06/08 contract findings are identical before and after. Regressions: three tests in `tests/unit/test_artifact_contracts.py`.
 
 **Evidence:**
 - `lib/artifact_contracts.py:225-228` `_LABELED_FIELD_RE` allows `**` around the label only before the colon (`(?:\*\*)?label(?:\*\*)?\s*:`). Stage 03 writes `**Priority:** Must / S2`, where the closing `**` comes after the colon, so it lands in the value.

@@ -222,10 +222,32 @@ TRD_REQUIRED_SECTIONS = [
     "Open Technical Questions",
 ]
 
+# The bold may close before the colon (`**Priority**: Must`) or after it
+# (`**Priority:** Must`, the shape stage 03 writes). Both closing positions are
+# consumed here so the `**` never lands in the value (backlog #70). The `\s*`
+# after the colon may cross a newline, so a bold label whose value starts on the
+# next line (`**Edge cases / alternate paths:**` followed by a list) still reads
+# as present, as it did when the stray `**` used to stand in for the value.
 _LABELED_FIELD_RE = re.compile(
-    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:\s*(?P<value>\S.*)$",
+    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?\s*(?P<value>\S.*)$",
     re.MULTILINE,
 )
+_LABELED_LINE_RE = re.compile(
+    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?[ \t]*(?P<value>.*)$",
+)
+_WRAPPING_EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_)(?P<inner>\S(?:.*\S)?)\1")
+
+
+def _clean_field_value(value: str) -> str:
+    """Drop presentation-only emphasis from a labeled-field value: a wrapper
+    around the whole value (`**Must**`) and an unbalanced leading `**`."""
+    value = value.strip()
+    wrapped = _WRAPPING_EMPHASIS_RE.fullmatch(value)
+    if wrapped and "**" not in wrapped.group("inner"):
+        value = wrapped.group("inner").strip()
+    if value.startswith("**") and value.count("**") % 2 == 1:
+        value = value[2:].strip()
+    return value
 
 
 def labeled_field(block: str, label: str) -> str | None:
@@ -238,7 +260,7 @@ def labeled_field(block: str, label: str) -> str | None:
     wanted = _norm(label)
     for match in _LABELED_FIELD_RE.finditer(block or ""):
         if _norm(match.group("label").strip("*")) == wanted:
-            value = match.group("value").strip()
+            value = _clean_field_value(match.group("value"))
             return value if value else None
     return None
 
@@ -261,8 +283,16 @@ def missing_labeled_fields(block: str, fields: dict[str, Iterable[str] | str]) -
 
 
 def block_priority(block: str) -> str | None:
-    """Priority value declared by a story/requirement block, if present."""
-    return labeled_field(block, "Priority")
+    """Priority value declared by a story/requirement block, if present.
+
+    Priority is a short value that lands in story frontmatter and the
+    traceability index, so emphasis inside it (`**Must** / S2`) is dropped too.
+    """
+    value = labeled_field(block, "Priority")
+    if value is None:
+        return None
+    value = re.sub(r"\*\*|__", "", value).strip()
+    return value or None
 
 
 def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
@@ -270,7 +300,7 @@ def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
     wanted = {_norm(label) for label in labels}
     kept: list[str] = []
     for line in (block or "").splitlines():
-        match = _LABELED_FIELD_RE.match(line)
+        match = _LABELED_LINE_RE.match(line)
         if match and _norm(match.group("label").strip("*")) in wanted:
             continue
         kept.append(line)
