@@ -29,6 +29,7 @@ from project import resolve_project, load_meta, save_meta, get_stage, upstream_s
 from hashing import stage_content_hash, CompositeHashError
 from frontmatter import update_status, read as fm_read
 from telemetry import log
+import stage_version
 from console import stdin_is_interactive
 from cascade import cascade_stale
 
@@ -294,11 +295,13 @@ Options:
                 stage_meta["status"] = "approved"
                 stage_meta["content_hash"] = current_hash
                 stage_meta.pop("edited_hash", None)
-                update_status(str(apath), "approved", content_hash=current_hash)
+                version = stage_version.bump(stage_meta, current_hash)  # backlog #71
+                update_status(str(apath), "approved", content_hash=current_hash, version=version)
                 log("implicit_reapproval", project_root, uid, {
                     "stage": uid,
                     "old_hash": old_hash,
                     "new_hash": current_hash,
+                    "version": version,
                 })
             stale_logged = cascade_stale_for_edited(
                 meta, project_root, {uid for uid, _ in edited})

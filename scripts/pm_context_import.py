@@ -47,6 +47,7 @@ from frontmatter import read as fm_read, write as fm_write, update_status
 from telemetry import log
 from artifact_contracts import format_findings, validate_artifact
 import secret_scan
+import stage_version
 
 
 def _now():
@@ -645,6 +646,8 @@ def cmd_commit(args):
     fm["approved_at"] = ts
     fm["approved_by"] = _pm()
     fm["content_hash"] = content_hash
+    version = stage_version.bump(stage_meta, content_hash)  # backlog #71
+    fm["version"] = version
     # An imported artifact is the PM's own pre-existing document (e.g. a hand-built
     # HTML prototype adopted into stage 05). Approval here means "adopted into the
     # pipeline", NOT "runtime-verified / functionally complete". Record that so an
@@ -666,6 +669,7 @@ def cmd_commit(args):
     payload = {
         "origin": args.kind,
         "approved_hash": content_hash,
+        "version": version,
         "source_format": args.source_format,
         "source_filename": args.source_name,
         "derived_from": args.derived_from,

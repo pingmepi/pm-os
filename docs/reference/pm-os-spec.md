@@ -162,7 +162,7 @@ For single-user MVP, `<pm-identifier>` = `karan`. Folder structure exists from d
 ### 5.1 `.meta.yaml`
 
 ```yaml
-schema_version: 3                     # v2 added stage 00 + origin; v3 added project_type + codebase fields; lib/project.py:migrate_meta upgrades older projects
+schema_version: 6                     # v2 added stage 00 + origin; v3 added project_type + codebase fields; v4 context_pack; v5 entry_route; v6 per-stage version/version_hash (backfilled from telemetry); lib/project.py:migrate_meta upgrades older projects
 project_slug: <kebab-case-slug>
 project_name: <human readable>
 created_at: <ISO 8601>
@@ -184,6 +184,8 @@ stages:
     content_hash: <sha256 or null>
     upstream_hashes_at_approval: {}   # map of stage id -> hash at this stage's approval
     regeneration_count: 0
+    version: <int or null>          # v6 (backlog #71): approval revision; +1 when an approval binds a new body, unchanged when the same body is re-approved; null if never approved
+    version_hash: <sha256 or null>  # v6: the body `version` names (kept because regeneration clears content_hash)
     optional: false
     origin: generated | imported | backfilled   # how the artifact got here
   - id: "01"
@@ -241,7 +243,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 
 - `stage_started`: `{}`
 - `stage_generated`: `{ generated_hash, model, model_tier, prompt_version, notes }` — `model` is the actual model id the agent ran as (it fills in its own id); `model_tier` is derived from `config.deep_reasoning_stages` (not baked per-skill) so policy and telemetry can't drift
-- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
+- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool, version }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
 - `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (original design in `../archive/pm-os-ingest-plan.md`, §0 for the shipped shape). Raw original preserved under `.history/`; registry in `.sources.yaml`.
 - `secrets_redacted`: `{ surface: "context_import", source_id, source_filename, count, kinds }` — `pm_context_import.py register` found likely secrets (`lib/secret_scan`) in a text source and preserved a redacted `.history/` snapshot instead (GH #63 PMOS-001). Counts and kinds only — never a value.
 - `secrets_blocked`: `{ surface, count, kinds, source_filename?, files? }` — a secret scan refused an operation: `surface` is `context_import` (a non-redactable source, not registered) or `handoff_raw` / `handoff_package` / `jira_plan` / `jira_csv` (export stopped before writing anything).
@@ -255,7 +257,7 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `artifact_validation_warning`: `{ contract_version, origin, findings: [{ severity, code, message }] }` — logged when approval or imported/backfilled approval continues despite Stage 03–06 (or the stage-08 GenAI model check) artifact-contract findings
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
-- `implicit_reapproval`: `{ stage, old_hash, new_hash }`
+- `implicit_reapproval`: `{ stage, old_hash, new_hash, version }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
 - `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data. Logged identically whether the tickets were created through the Atlassian connector or imported from the offline `pm_handoff.py export` CSV
 - `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
@@ -428,7 +430,7 @@ Common flow:
    - `normalized_edit_distance` = char_edit_distance / max(len(generated), len(current))
    - `semantic_distance` = 1 - cosine_similarity(embed(generated), embed(current))
    - `time_to_approve_seconds` = now - last `stage_generated` event timestamp
-6. Update artifact frontmatter: status=`approved`, `approved_at`, `approved_by`, `content_hash`.
+6. Update artifact frontmatter: status=`approved`, `approved_at`, `approved_by`, `content_hash`, `version` (the stage's approval revision: +1 when the body differs from the one the current version names, unchanged otherwise).
 7. Update `.meta.yaml` stage entry: status=`approved`, snapshot upstream hashes into `upstream_hashes_at_approval`.
 8. For stages 04 and 05: invoke `lib/html_render.py` to regenerate companion HTML.
 9. Log `stage_approved` event with full distance metrics.

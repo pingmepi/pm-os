@@ -17,6 +17,7 @@ from project import (
     artifact_path, upstream_stage_ids, downstream_stage_ids, STAGE_NAMES,
 )
 from hashing import hash_artifact_body, stage_content_hash, CompositeHashError
+import stage_version  # noqa: E402
 from frontmatter import update_status, read as fm_read
 from telemetry import log, last_event
 from text_metrics import bounded_edit_distance, normalized_edit_distance
@@ -222,13 +223,18 @@ def main():
     except Exception:
         pm = "unknown"
 
+    meta = load_meta(project_root)
+    stage_meta = get_stage(meta, stage_id)
+    # A new approved body earns the next version; re-approving the same body
+    # keeps it (backlog #71). Stamped in meta and frontmatter together.
+    version = stage_version.bump(stage_meta, content_hash)
+
     update_status(str(apath), "approved",
                   approved_at=ts,
                   approved_by=pm,
-                  content_hash=content_hash)
+                  content_hash=content_hash,
+                  version=version)
 
-    meta = load_meta(project_root)
-    stage_meta = get_stage(meta, stage_id)
     upstream = {uid: get_stage(meta, uid)["content_hash"] for uid in upstream_stage_ids(stage_id, meta)}
     stage_meta["status"] = "approved"
     stage_meta["approved_at"] = ts
@@ -297,6 +303,7 @@ def main():
             "regeneration_count": regen_count,
             "implicit_reapproval": False,
             "reapproved_from_approved": reapproved_from_approved,
+            "version": version,
         })
     except Exception as e:
         print(f"Warning: telemetry logging failed: {e}")
@@ -339,7 +346,7 @@ def main():
         except KeyError:
             continue
 
-    print(f"Stage {stage_id} approved.")
+    print(f"Stage {stage_id} approved (version {version}).")
     print(f"Content hash: {content_hash}")
     if downstream_stale:
         print(f"Downstream stages now stale: {', '.join(downstream_stale)}")

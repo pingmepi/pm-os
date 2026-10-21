@@ -86,6 +86,7 @@ tests/
 │   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
 │   ├── test_secret_scan.py     # lib/secret_scan.py (GH #63 PMOS-001 secret detection)
 │   ├── test_release_check.py   # lib/release_check.py (backlog #72 handoff release check)
+│   ├── test_stage_version.py   # lib/stage_version.py (backlog #71 approval version, schema v6)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -127,6 +128,12 @@ one-line description. The matching docstring in code carries the same intent for
 **Purpose:** cover each shared helper's normal paths, branches, and edge cases in-process.
 **Pass:** documented behavior holds for normal + edge inputs; invariants (body-only hash, chain integrity, no-op overlay) are upheld.
 **Fail:** an invariant breaks, or a regression reappears in a guarded area.
+
+**`test_stage_version.py`** — the per-stage approval version (`lib/stage_version.py`, backlog #71) and the schema 5 → 6 migration.
+- `test_bump_increments_only_for_a_new_body` — v1, then v2 for a different body, and v2 again for the same body (rebind / unchanged stale stage).
+- `test_count_versions_counts_changes_in_sequence` / `test_approval_hashes_reads_every_approval_event_and_skips_bad_lines` — the telemetry backfill counts consecutive distinct approved hashes across approve/import/backfill/implicit re-approval events and tolerates malformed lines.
+- `test_migration_backfills_versions_from_telemetry` — v2 for a stage approved A, A, B; v1 for an approved stage with no events; none for a never-approved stage; idempotent.
+- `test_migration_keeps_last_approved_hash_for_a_regenerated_draft` — a draft regenerated after approval keeps its version and takes `version_hash` from telemetry, so re-approving the identical body mints nothing.
 
 **`test_project.py`** — stage/state helpers
 - `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group (`00`, `00c`, `00w`, `00u`) leads the order.
@@ -359,6 +366,12 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_stage_04_approval_renders_html` — approving 04 renders `04-design-spec.html` with escaped content.
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 - `test_pm_check_flags_downstream_approved_against_changed_upstream` — backlog #31 detector: an `approved` stage whose recorded `upstream_hashes_at_approval[uid]` no longer matches the still-`approved` upstream's current `content_hash` (the invalid state an interrupted stale-cascade leaves) is flagged `DOWNSTREAM_UPSTREAM_STALE`; a correctly-approved chain is clean.
+
+**`test_stage_version_flow.py`** — the approval version through every approval path (backlog #71).
+- `test_version_increments_for_new_bodies_and_holds_for_the_same_body` — v1 in meta, frontmatter, telemetry and the printed result; an edited `--reapprove` is v2; an unchanged `--reapprove` is a no-op; a regenerated draft keeps v2 until approved as v3.
+- `test_reapproving_a_stale_stage_with_an_unchanged_body_keeps_its_version` — stale then re-approved with the same body keeps its version.
+- `test_gate_implicit_reapproval_mints_a_new_version` — the gate's implicit re-approval moves the edited upstream to v2 and records it on `implicit_reapproval`.
+- `test_pm_status_shows_the_version` — `/pm-status` prints `v1  approved …`.
 
 **`test_approval_integrity.py`** — approval state integrity (backlog #54–#58)
 - `test_gate_blocks_instead_of_crashing_on_nul_stdin` — #54: the gate run with stdin from the null device (Windows `NUL` reports `isatty()` True) takes the BLOCKED path to `/pm-approve`, with no `EOFError`.

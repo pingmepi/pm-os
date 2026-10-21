@@ -40,7 +40,7 @@ def save_meta(meta_dict: dict, project_root=None) -> None:
 
 # Current .meta.yaml shape. Bump (and extend migrate_meta) when the shape
 # changes. Independent of config.yaml's own schema_version.
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 STAGE_NAMES = {
     "00": "business-statement",
@@ -209,6 +209,15 @@ def migrate_meta(meta: dict, project_root: Optional[Path] = None) -> bool:
             "enhancement" if meta.get("project_type") == "enhancement" else "new",
         )
         changed = True
+
+    # v6: a human-readable approval version per stage (backlog #71). Counted from
+    # telemetry's approval events, 1 for an approved stage with no usable events,
+    # none for a stage never approved. Meta only: artifact frontmatter gains
+    # `version` at the stage's next approval, and exports read it from meta.
+    if any(isinstance(s, dict) and "version" not in s for s in stages):
+        from stage_version import backfill
+        if backfill(meta, Path(project_root) if project_root is not None else None):
+            changed = True
 
     if meta.get("schema_version", 1) < SCHEMA_VERSION:
         meta["schema_version"] = SCHEMA_VERSION

@@ -180,6 +180,10 @@ def main():
             detail = "  upstream changed"
         elif status == "draft":
             detail = "  awaiting approval"
+        if s.get("version"):
+            # The last approved revision (backlog #71); a draft or edited stage
+            # shows which approved version it is changing.
+            detail = f"  v{s['version']}{detail}"
 
         notes_str = ""
         contract_str = ""
