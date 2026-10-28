@@ -226,14 +226,8 @@ TRD_REQUIRED_SECTIONS = [
 
 # The bold may close before the colon (`**Priority**: Must`) or after it
 # (`**Priority:** Must`, the shape stage 03 writes). Both closing positions are
-# consumed here so the `**` never lands in the value (backlog #70). The `\s*`
-# after the colon may cross a newline, so a bold label whose value starts on the
-# next line (`**Edge cases / alternate paths:**` followed by a list) still reads
-# as present, as it did when the stray `**` used to stand in for the value.
-_LABELED_FIELD_RE = re.compile(
-    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?\s*(?P<value>\S.*)$",
-    re.MULTILINE,
-)
+# consumed here so the `**` never lands in the value (backlog #70). Fields are
+# matched one line at a time; see `labeled_field` for a value on the next line.
 _LABELED_LINE_RE = re.compile(
     r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?[ \t]*(?P<value>.*)$",
 )
@@ -258,12 +252,23 @@ def labeled_field(block: str, label: str) -> str | None:
     This intentionally stays structural: a line such as ``Priority: Must`` or
     ``- **Priority:** RICE 42`` is machine-readable, while prose that merely uses
     the word "priority" is not.
+
+    A label with nothing after it (`**Edge cases / alternate paths:**` followed
+    by a list) takes the next non-blank line as its value, so it still reads as
+    present. Every line is still tried as a field of its own, so that next line
+    can be another label (`**Priority:** Must`) without being swallowed.
     """
     wanted = _norm(label)
-    for match in _LABELED_FIELD_RE.finditer(block or ""):
-        if _norm(match.group("label").strip("*")) == wanted:
-            value = _clean_field_value(match.group("value"))
-            return value if value else None
+    lines = (block or "").splitlines()
+    for index, line in enumerate(lines):
+        match = _LABELED_LINE_RE.match(line)
+        if not match or _norm(match.group("label").strip("*")) != wanted:
+            continue
+        raw = match.group("value").strip()
+        if not raw:
+            raw = next((rest.strip() for rest in lines[index + 1:] if rest.strip()), "")
+        value = _clean_field_value(raw)
+        return value if value else None
     return None
 
 

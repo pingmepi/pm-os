@@ -1581,17 +1581,23 @@ def _add_release_files(root: Path, staged_root: Path, audiences: list[str], meta
     """
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     prov = _provenance(root, meta)
-    stable_ids = release_record.stable_id_hashes(root, prov)
+    try:
+        previous = release_record.latest(root)
+    except release_record.ReleaseRecordError as exc:
+        raise SystemExit(f"Error: {exc}") from exc
+    stable_ids = release_record.stable_id_hashes(root, prov, previous)
+    held = release_record.not_compared(prov)
     inputs = release_record.outside_inputs(root)
-    previous = release_record.latest(root)
     delta = release_record.diff(previous, stable_ids, inputs)
-    stories = (release_record.affected_stories(root, [c["id"] for c in delta["ids"]])
+    story_refs = release_record.story_refs(root)
+    stories = (release_record.affected_stories([c["id"] for c in delta["ids"]], story_refs,
+                                               previous.get("story_refs"))
                if previous else {})
     release_id = release_record.next_id(root) if release_note else None
     generated_at = release_record.now_iso()
     changes = release_record.render_changes(
         project_name=project_name, delta=delta, stories=stories, note=release_note,
-        release_id=release_id, generated_at=generated_at)
+        release_id=release_id, generated_at=generated_at, held=held)
     manifests: dict[str, dict] = {}
     for aud in audiences:
         aud_dir = staged_root / aud
@@ -1611,7 +1617,7 @@ def _add_release_files(root: Path, staged_root: Path, audiences: list[str], meta
     return {
         "release_id": release_id, "generated_at": generated_at, "provenance": prov,
         "stable_ids": stable_ids, "inputs": inputs, "delta": delta, "stories": stories,
-        "manifests": manifests,
+        "story_refs": story_refs, "manifests": manifests,
     }
 
 
@@ -1635,6 +1641,7 @@ def _record_release(root: Path, snapshot: dict, note: str, audiences: list[str],
         "sources": {sid: {k: rec.get(k) for k in ("artifact",) + APPROVAL_KEYS}
                     for sid, rec in sorted(snapshot["provenance"].items())},
         "stable_ids": snapshot["stable_ids"],
+        "story_refs": snapshot["story_refs"],
         "outside_inputs": snapshot["inputs"],
         "changes": delta["ids"],
         "files": {aud: [{"path": f["path"], "sha256": f["sha256"]} for f in m["files"]]
@@ -1673,6 +1680,7 @@ def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
         raise SystemExit("Error: --release-note needs a one-line reason for this release.")
 
     kept: dict[str, list[str]] = {}
+    moved: dict[str, dict[str, str]] = {}
     with tempfile.TemporaryDirectory(prefix="pm-os-package-") as tmp:
         # Resolved: on Windows the temp dir can come back as an 8.3 short path
         # (MANDAL~1.KAR) while build_package resolves its output to the long one.
@@ -1694,7 +1702,9 @@ def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
         handoff_root.mkdir(parents=True, exist_ok=True)
         for aud in audiences:
             target = handoff_root / aud
-            kept[aud] = release_record.clear_generated(target)
+            incoming = {p.relative_to(staged_root / aud).as_posix()
+                        for p in (staged_root / aud).rglob("*") if p.is_file()}
+            kept[aud], moved[aud] = release_record.clear_generated(target, incoming)
             target.mkdir(parents=True, exist_ok=True)
             shutil.copytree(staged_root / aud, target, dirs_exist_ok=True)
         written = [handoff_root / Path(p).resolve().relative_to(staged_root) for p in staged]
@@ -1705,6 +1715,9 @@ def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
         if files:
             print(f"Kept {len(files)} file(s) in handoff/{aud}/ that PM-OS did not write: "
                   + ", ".join(files[:10]) + (" …" if len(files) > 10 else ""))
+    for aud, renames in moved.items():
+        for old, new in renames.items():
+            print(f"Moved your handoff/{aud}/{old} to handoff/{aud}/{new}: this build writes that path.")
     if release_note:
         path = _record_release(root, snapshot, release_note.strip(), audiences, overridden)
         print(f"Recorded release {snapshot['release_id']} in {_display(path, root)}.")

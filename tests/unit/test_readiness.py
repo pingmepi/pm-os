@@ -117,3 +117,11 @@ def test_summary_and_pending_files():
         "eval_sets_not_ready": 1, "test_inputs_owed": 1, "open_decisions": 1, "overdue": 2,
     }
     assert readiness.pending_files(_record()) == {"inputs/jardiance.html"}
+
+
+def test_normalize_rel_strips_only_a_leading_dot_slash():
+    """Stack #93 review: `lstrip("./")` stripped every leading dot and slash,
+    turning `.fixtures/a.csv` into `fixtures/a.csv` and `../x` into `x`."""
+    assert readiness.normalize_rel("./inputs/a.csv") == "inputs/a.csv"
+    assert readiness.normalize_rel(".\\.fixtures\\a.csv") == ".fixtures/a.csv"
+    assert readiness.normalize_rel("../x/b.csv") == "../x/b.csv"

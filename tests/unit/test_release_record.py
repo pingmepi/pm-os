@@ -83,22 +83,99 @@ def test_clear_generated_uses_previous_manifest(tmp_path):
         (tmp_path / rel).write_text("x", encoding="utf-8")
     (tmp_path / "manifest.json").write_text(json.dumps(
         {"files": [{"path": "README.md"}, {"path": "stories/US-001.md"}]}), encoding="utf-8")
-    kept = rr.clear_generated(tmp_path)
-    assert kept == ["kit/logo.svg", "stories/notes.md"]
+    kept, moved = rr.clear_generated(tmp_path)
+    assert kept == ["kit/logo.svg", "stories/notes.md"] and moved == {}
     assert not (tmp_path / "README.md").exists() and not (tmp_path / "manifest.json").exists()
 
 
-def test_clear_generated_legacy_folder_uses_layout_rule(tmp_path):
-    """A folder built before manifests loses only files matching the package
-    layout (known top-level names, Markdown/HTML under the package folders);
-    everything else is kept and empty folders are removed."""
-    for rel in ("README.md", "stories/US-001.md", "reference/prd.md", "wireframes/prototype.html",
-                "design-kit/tokens.json", "my-notes.md", "stories/sketch.png", ".pm-os-handoff"):
+def test_clear_generated_legacy_folder_keeps_unmarked_files(tmp_path):
+    """A folder built before manifests loses the known top-level files, files
+    the new build writes again, and Markdown that says PM-OS generated it.
+    A designer's own Markdown/HTML in the package folders is kept (stack #93
+    review: the old layout rule deleted it), and empty folders are removed."""
+    files = {
+        "README.md": "x", ".pm-os-handoff": "m",
+        "stories/US-001.md": "---\ngenerated_from: [03-prd.md@abc]\n---\nBody\n",
+        "stories/US-009-dropped.md": "---\ngenerated_from: [03-prd.md@abc]\n---\nOld\n",
+        "reference/prd.md": "<!-- GENERATED — DO NOT EDIT HERE. Read-only projection -->\n",
+        "wireframes/prototype.html": "<p>",
+        "wireframes/kit-v2.html": "<p>mine",
+        "reference/designer-notes.md": "notes",
+        "my-notes.md": "x", "stories/sketch.png": "x",
+    }
+    for rel, text in files.items():
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / rel).write_text("x", encoding="utf-8")
-    kept = rr.clear_generated(tmp_path)
-    assert kept == ["design-kit/tokens.json", "my-notes.md", "stories/sketch.png"]
-    assert not (tmp_path / "reference").exists() and not (tmp_path / "wireframes").exists()
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    kept, moved = rr.clear_generated(tmp_path, {"README.md", "wireframes/prototype.html"})
+    assert kept == ["my-notes.md", "reference/designer-notes.md", "stories/sketch.png",
+                    "wireframes/kit-v2.html"]
+    assert moved == {} and not (tmp_path / "stories" / "US-009-dropped.md").exists()
+
+
+def test_clear_generated_moves_a_kept_file_the_build_would_overwrite(tmp_path):
+    """Stack #93 review: a file the previous manifest does not list, at a path
+    the new build writes, is renamed to `.mine` instead of silently replaced."""
+    (tmp_path / "stories").mkdir()
+    (tmp_path / "stories" / "US-009-foo.md").write_text("mine", encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+    kept, moved = rr.clear_generated(tmp_path, {"stories/US-009-foo.md"})
+    assert moved == {"stories/US-009-foo.md": "stories/US-009-foo.mine.md"}
+    assert kept == ["stories/US-009-foo.mine.md"]
+    assert (tmp_path / "stories" / "US-009-foo.mine.md").read_text(encoding="utf-8") == "mine"
+
+
+def test_malformed_manifest_falls_back_instead_of_crashing(tmp_path):
+    """Stack #93 review: `files` holding strings raised AttributeError part way
+    through publishing; an unusable manifest now falls back to the legacy rule."""
+    (tmp_path / "README.md").write_text("x", encoding="utf-8")
+    (tmp_path / "kit.svg").write_text("x", encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"files": ["README.md"]}), encoding="utf-8")
+    kept, _moved = rr.clear_generated(tmp_path)
+    assert kept == ["kit.svg"]
+
+
+def test_unreadable_latest_release_raises(tmp_path):
+    """Stack #93 review: a broken newest REL file used to read as "no release",
+    silently resetting the history; it now raises with the file named."""
+    rr.write_record(tmp_path, {"id": "REL-001", "note": "a"})
+    (tmp_path / ".releases" / "REL-002.yaml").write_text("- not\n- a mapping\n", encoding="utf-8")
+    with pytest.raises(rr.ReleaseRecordError, match="REL-002"):
+        rr.latest(tmp_path)
+    (tmp_path / ".releases" / "REL-002.yaml").write_text("id: [unclosed\n", encoding="utf-8")
+    with pytest.raises(rr.ReleaseRecordError):
+        rr.latest(tmp_path)
+
+
+def test_unapproved_source_keeps_previous_ids_and_is_named(tmp_path):
+    """Stack #93 review: a stale/edited source used to drop out of the snapshot,
+    listing all its ids as removed. Its previous ids are carried and the change
+    note names it under "Not compared"."""
+    previous = {"id": "REL-001", "stable_ids": {"06-qa-plan.md": {"TC-001": "h1"}}}
+    prov = {"06": {"artifact": "06-qa-plan.md", "status": "stale"}}
+    ids = rr.stable_id_hashes(tmp_path, prov, previous)
+    assert ids == {"06-qa-plan.md": {"TC-001": "h1"}}
+    held = rr.not_compared(prov)
+    assert held == {"06-qa-plan.md": "stale"}
+    delta = rr.diff(previous, ids, {})
+    assert delta["ids"] == []
+    text = rr.render_changes(project_name="P", delta=delta, stories={}, note=None,
+                             release_id=None, generated_at="t", held=held)
+    assert "06-qa-plan.md is stale" in text and "`REL-001`" in text
+
+
+def test_removed_id_traces_through_the_previous_release():
+    """Stack #93 review: a removed TC is in no current record, so it used to map
+    to no story. The previous release's story_refs still trace it; an id no
+    spine traces is listed for a manual check instead of "no story affected"."""
+    current = {"US-002": ["FR-003", "US-002"]}
+    previous = {"US-002": ["FR-003", "TC-007", "US-002"]}
+    assert rr.affected_stories(["TC-007"], current, previous) == {"US-002": ["TC-007"]}
+    assert rr.affected_stories(["TC-007"], current, None) == {}
+    delta = {"previous": "REL-001", "inputs": [],
+             "ids": [{"artifact": "06-qa-plan.md", "id": "TC-099", "change": "removed"}]}
+    text = rr.render_changes(project_name="P", delta=delta, stories={}, note=None,
+                             release_id=None, generated_at="t")
+    assert "Not traced to any story: `TC-099`" in text and "No story is affected" not in text
 
 
 def test_outside_inputs_reads_figma_version_and_test_input_hashes(tmp_path):
