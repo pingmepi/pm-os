@@ -510,6 +510,12 @@ Open decisions belong in the readiness record (#74). Once a decision is made, it
 
 Neither package has `.meta.yaml`, PM-OS frontmatter or telemetry. So the frontmatter, epic, priority and link checks PM-OS already has never ran on them, and most of APEX's findings (#70–#79) trace back to that.
 
+**Also verified on 2026-10-21:**
+- Neither sprint folder cites a single product PRD id.
+- Sprint 2's scope (page health checks, technical items, crawler checks) appears nowhere in the approved 03, 06 or 08.
+
+So the sprint path must also bring sprint-found scope back into stage 03. **Sprint-path design:** plan Part B §8.7 (awaiting PM approval).
+
 **Symptom:** Two connected gaps remain:
 1. **"MVP" is prose; "the whole product" cannot produce stories.** Stage 02 writes one `## MVP Boundary` paragraph that every downstream stage treats as binding via LLM judgment — no structured field, id, or flag. Stage 09's `V1`/`V2`/`Expansion` horizons carry **no `US-###`/`FR-###`** (stage 09 is forbidden from generating requirements), so there is no path from a roadmap horizon to a user story. The pipeline can only ever elaborate the single tier stage 02 named MVP, and what separates MVP from the full product is nowhere defined structurally.
 2. **Handoff is single-shot.** No delivery-increment / cycle object exists anywhere (`grep sprint` across `skills/`/`lib/`/`scripts/` returns nothing), so approved work cannot be sliced across multiple development cycles.
@@ -1069,6 +1075,16 @@ The reporter had to write their own `finish_stage.py`.
 **Status:** 🟠 Open (needs design). The handoff package already splits out epics, stories and requirements (EDA-302/303), but the stage artifacts themselves are still single files.
 
 **Direction:** Per-epic views of the PRD and QA plan that agents read instead of the whole artifact. Generating a very large stage in parts depends on #63.
+
+**Designed:** plan Part B §8.7.6, a derived `by-epic/` folder written on approval, awaiting PM approval. Measured read-only on PRISM:
+
+| View | Size |
+|---|---|
+| PRD view, per epic | 11–46 KB |
+| QA view, per epic | 15–64 KB |
+| PRD content outside any epic | 168 KB |
+
+The 168 KB outside any epic still needs splitting by heading.
 
 ---
 
