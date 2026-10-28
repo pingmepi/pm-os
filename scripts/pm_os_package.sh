@@ -29,6 +29,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Absolute, with its folder created: the archive is written after `cd "$REPO_ROOT"`.
+mkdir -p "$(dirname "$OUTPUT")"
+OUTPUT="$(cd "$(dirname "$OUTPUT")" && pwd)/$(basename "$OUTPUT")"
+
 cd "$REPO_ROOT"
 
 if [[ "$WITH_WHEELS" == "true" ]]; then

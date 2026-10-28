@@ -225,6 +225,16 @@ def main():
 
     meta = load_meta(project_root)
     stage_meta = get_stage(meta, stage_id)
+    # Generation is gated by pre-stage.py, but an artifact written by hand,
+    # pm_finish_stage.py or design ingest can reach approval with unapproved
+    # upstreams. Warn rather than block: import/backfill flows approve out of order.
+    not_ready = [(uid, get_stage(meta, uid).get("status"))
+                 for uid in upstream_stage_ids(stage_id, meta)
+                 if get_stage(meta, uid).get("status") != "approved"]
+    if not_ready:
+        print(f"Warning: approving stage {stage_id} while upstream stages are not approved: "
+              + ", ".join(f"{uid} ({status})" for uid, status in not_ready)
+              + ". /pm-check will report it until they are approved.")
     # A new approved body earns the next version; re-approving the same body
     # keeps it (backlog #71). Stamped in meta and frontmatter together.
     version = stage_version.bump(stage_meta, content_hash)

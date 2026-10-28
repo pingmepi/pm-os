@@ -272,6 +272,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_hand_built_story_built_from_an_older_prd_is_stale` / `test_pmos_package_generated_from_an_older_artifact_is_stale` — stale sources for both package kinds, plus a PRD shipped at two versions.
 - `test_coverage_is_not_enforced_before_the_qa_plan_is_approved` — with stage 06 unapproved, #53(a) is one `COVERAGE_NOT_CHECKED` warning, so a design-brief package is not blocked.
 - `test_release_check_never_writes_to_the_project_it_reads` — the check reads `.meta.yaml` with plain YAML (never the migrating `load_meta()`), so checking a package or hand-built folder inside an old-schema project leaves every file byte-for-byte unchanged.
+- `test_version_key_tolerates_non_numeric_versions` — `version: draft` or `1.0-rc` orders by its numeric parts instead of crashing the check.
 - `test_overdue_readiness_items_block_and_owed_files_only_warn` / `test_invalid_readiness_record_is_a_release_error` — backlog #74: overdue readiness items and an invalid record block; a file the record lists as owed is `FILE_PENDING` (warning); ids the record declares resolve.
 - `test_zip_is_checked_and_an_escaping_member_is_refused` / `test_format_report_shows_location_code_and_fix` — zip input (with a zip-slip guard) and the text report shape.
 
@@ -405,6 +406,8 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_unapproved_trd_is_recorded_but_not_tracked` — `reference/trd.md` for a draft TRD lists it under `sources` with an empty `generated_from`, so the release check does not block on it.
 - `test_raw_export_ships_only_approved_stages_by_default` — an `edited` stage is left out of the all-stages export with a note naming it; exported headers show status and version.
 - `test_raw_export_of_an_unapproved_stage_needs_the_flag` — a draft single stage is refused; `--include-unapproved` exports it marked NOT APPROVED.
+- `test_stage_edited_after_approval_is_not_exported_as_approved` — a PRD edited after approval with no gate run since is treated as `edited`: the raw export refuses it, the package refuses it with the `--reapprove` hint and writes nothing, and `/pm-status` shows "edited since approval".
+- `test_package_blocks_a_qa_plan_edited_after_approval` — an approved QA plan edited after approval fails the package's release check with `SOURCE_NOT_APPROVED`.
 
 **`test_stage_version_flow.py`** — the approval version through every approval path (backlog #71).
 - `test_version_increments_for_new_bodies_and_holds_for_the_same_body` — v1 in meta, frontmatter, telemetry and the printed result; an edited `--reapprove` is v2; an unchanged `--reapprove` is a no-op; a regenerated draft keeps v2 until approved as v3.
@@ -420,6 +423,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_reapprove_rebinds_a_stage_to_its_reapproved_upstream` — #58: `--reapprove` on an unchanged stage whose recorded upstream hash moved rebinds it (`stage_rebound`), leaves its own hash and downstream stages alone, and clears `DOWNSTREAM_UPSTREAM_STALE`; a second run is a no-op.
 - `test_reapprove_refuses_to_rebind_onto_an_unapproved_upstream` — #58: rebinding is refused while any upstream is not approved, naming it.
 - `test_approving_a_large_edited_artifact_does_not_hang` — #56: a ~400 KB generated stage with PM edits approves inside the runner timeout and records `edit_distance_method: line_approx`.
+- `test_approving_over_unapproved_upstreams_warns` — a draft that skipped the gate is still approved, but approval names the upstream stages that are not approved.
 
 **`test_windows_portability.py`** — Windows bundle (backlog #59–#63)
 - `test_verify_output_survives_a_cp1252_pipe` — #60: with output piped and no UTF-8 override, `pm_os_verify.py` prints its ✓ marks instead of dying with `UnicodeEncodeError` (the Windows cp1252 default).
@@ -429,6 +433,7 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_status_shows_a_successful_sync` — #62: a successful sync is recorded in `.pm-os-sync.json` and `/pm-status` reports it.
 - `test_status_explains_a_credential_failure_and_counts_unsynced_approvals` — #62: a credential failure is reported with the feedback repo and the fix, plus the number of approvals not yet synced.
 - `test_sync_status_file_is_never_committed` — #61/#62: `.pm-os-sync.json` is gitignored (added to older projects) and never committed.
+- `test_status_reports_an_unconfigured_feedback_repo_as_optional` — with no feedback repo, `/pm-status` says "not configured (optional)", not FAILED, and counts no unsynced approvals.
 
 **`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
 - `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.
@@ -463,6 +468,9 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_package_projects_prd_trd_into_dev_and_design_spec_into_design` — dev gets the full PRD + TRD; design gets PRD, stories, NFRs, and the full approved design spec as read-only `reference/` projections (source-hash stamped), each scoped to its audience and wired into the README with a valid link (PMOS-002). Once the approved design spec exists, the draft-brief workflow file is not emitted.
 - `test_package_design_audience_includes_draft_brief_and_workflow` — when stage 04 is a draft with `design_mode: brief`, the design package includes the approved PRD, story files, NFRs, `reference/design-brief.md`, and `DESIGNER-WORKFLOW.md`, clearly marking the brief as unapproved design input rather than a canonical spec.
 - `test_design_ingest_preserves_brief_sections_and_package_emits_figma_state_links` — a returned `design-in/` package is ingested into stage 04 as `design_mode: ingested`, preserves PM-owned brief sections, emits stable `SCR-###` screens keyed to Figma node ids, and projects exact screen/state Figma links into matching dev/QA story dossiers without leaking unrelated screens.
+- `test_design_ingest_help_prints_usage_without_ingesting` — `pm_design_ingest.py --help` prints usage and leaves stage 04 untouched.
+- `test_design_ingest_over_approved_spec_marks_downstream_stale` — ingesting over an approved stage-04 brief resets 04 to draft and marks approved 05/06 stale, naming them.
+- `test_design_reingest_keeps_screen_ids` — a designer revision ingests over an earlier ingest, keeps each screen's `SCR-###` id, and keeps PM-owned brief sections.
 - `test_package_projects_absent_optional_sources_as_notes` — when the TRD/design spec are not approved, their projections are still emitted (so README links never dangle) but carry an explicit "not approved" note instead of a body.
 - `test_package_is_read_only_and_does_not_touch_state_machine` — generating the package leaves `.meta.yaml` and `03-prd.md` byte-identical (read-only projection, never gated/hashed).
 - `test_package_requires_a_prd` — with no approved PRD the generator exits non-zero instead of emitting an empty package.
@@ -512,7 +520,7 @@ The v2 PRD-contract enrichments that feed this package are covered in T1 (`test_
 **Purpose:** the install lifecycle + runtime parity. **Pass:** install writes config & seeds context; verify passes on a healthy install and fails on tampering; update validates args and syncs per runtime.
 - install: writes config + model policy; missing pm_user fails non-interactively; missing feedback_repo succeeds and leaves remote sync optional (`test_install_without_feedback_repo_succeeds_non_interactive`); seeds the overlay.
 - verify: passes on a complete install and on configs without feedback_repo (`test_verify_passes_without_feedback_repo`); fails on a missing hook, missing required config key, missing `projects_dir` on disk, `git` not on PATH, missing templates, or a lib module that won't import.
-- update: requires `--runtime`; rejects invalid runtime; **Claude gets skills+hooks, Codex skills only.**
+- update: requires `--runtime`; rejects invalid runtime; **Claude gets skills+hooks, Codex skills only.** Retired skills (`pm-share`) are removed from the runtime folder; shipped and user-owned skills are kept (`test_update_removes_retired_skills_only`).
 
 ### T5 — Context-import, feedback, local sync (`test_context_import.py`, `test_feedback.py`, `test_git_sync_local.py`)
 **Purpose:** the intake path, feedback capture, and the real central-sync git path.

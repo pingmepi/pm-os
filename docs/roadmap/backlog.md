@@ -1349,6 +1349,49 @@ Stage 06 test data and eval sets draw from that section, and missing files are t
 
 ---
 
+## 81. 🟠 Removed Figma links stay in the traceability index and story files
+
+**Severity:** P2. A developer can follow a link to a frame the design no longer has.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `lib/traceability.py` `_merge_reserved` copies a screen's prior `design_refs` into the rebuilt entry whenever the new entry has none (`_SCREEN_REF_SLOTS`). Since 1.5.1, `build_index` also derives `design_refs` from the ingested design spec, so a link removed from the spec is carried forward and keeps appearing in handoff story files. `tests/unit/test_traceability.py::test_rebuild_preserves_screen_design_refs` pins the carry-forward, from when the slot was only filled by hand.
+
+**Proposed fix:** Decide who owns the slot. If the spec owns it, stop carrying it forward once a screen's refs are derived from an ingested spec; if hand-set refs must survive, store them in a separate slot.
+
+---
+
+## 82. 🟠 Files a PM or designer saves in `handoff/` or `design-in/` are auto-committed
+
+**Severity:** P3. Someone else's files land in the project's git history.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `lib/project_git.py` lists `handoff` and `design-in` in `OWNED_DIRS`, so the post-approve commit stages everything in them. #68 deliberately keeps files PM-OS didn't write (a designer kit) in `handoff/<audience>/`, and `design-in/` is the designer's return. Both then get committed, against #61's rule that PM-OS leaves files it doesn't own alone.
+
+**Proposed fix:** Commit only the files the package manifest lists under `handoff/`, and treat `design-in/` as designer-owned (or commit it deliberately and document that).
+
+---
+
+## 83. 🟠 The package secret scan reads stage files that won't ship
+
+**Severity:** P3. A false block on content that isn't exported.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `scripts/pm_share.py` `package_source_paths` scans stages 01, 02, 03, 04, 06 and 08 whatever their status. A draft TRD or design spec is not projected into the package, but a likely secret in it still blocks the export.
+
+**Proposed fix:** Scan the same set the package projects: approved stages, plus the stage-04 brief when it is used as one.
+
+---
+
+## 84. 🟢 Small 1.5.6 review leftovers
+
+**Severity:** P4.
+**Status:** 🟢 Open, cosmetic. Verified on 2026-10-28.
+
+- `lib/design_ingest.py` writes `# Design Specification` where every other stage-04 spec starts `# Design Spec: <project>`.
+- `pm_share.py --package --html` followed by a plain `--package` removes the `index.html` files. That fits the "rebuild removes what it no longer writes" rule (#68) but isn't documented in the SOP.
+
+---
+
 _**Entries 70-79 recorded 2026-10-21** from APEX's workshop feedback on the PRISM sprint-1 output pack (findings AL-01, AL-06, AL-20, AL-21, AL-23 and AL-24, plus the test-data, decision and change-control asks), each checked against the v1.5.5 code before logging. The pack APEX reviewed (`sprint-1-r2`, 7 Oct) was built by hand outside PM-OS: it has no `.meta.yaml`, no PM-OS frontmatter and no telemetry. So several of its findings, such as missing epics and priorities, are things PM-OS already enforces. The engine gap underneath is #28/#66 (no sprint-sized path), and the entries above are what remains once that is accounted for. The same pass updated these statuses:_
 - _#54–#62 released in v1.5.3 and v1.5.4; #63's script released in v1.5.4; PMOS-001 (#40) released in v1.5.5._
 - _#21 raised to P2, and #66 and #67 raised to P1._

@@ -758,14 +758,7 @@ The list remains table-shaped because audit position matters.
     )
 
 
-def test_design_ingest_preserves_brief_sections_and_package_emits_figma_state_links(pmos, new_project):
-    proj = new_project("handoff-figma-links", "A problem")
-    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
-    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", _QA)):
-        make_draft(proj, stage, body=body)
-        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-
-    design_brief = """## Input Behavior Reconciliation
+_DESIGN_BRIEF = """## Input Behavior Reconciliation
 ### Required state inventory
 | # | Serves | State | Trigger |
 |---|---|---|---|
@@ -799,6 +792,16 @@ Use approved agency vocabulary.
 ## Accessibility Notes
 Keyboard order follows visual order.
 """
+
+
+def test_design_ingest_preserves_brief_sections_and_package_emits_figma_state_links(pmos, new_project):
+    proj = new_project("handoff-figma-links", "A problem")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", _QA)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+
+    design_brief = _DESIGN_BRIEF
     make_draft(proj, "04", body=design_brief)
     import frontmatter
     import project
@@ -1128,3 +1131,70 @@ def test_global_ia_prose_does_not_leak_into_story_screen_body(pmos, new_project)
     assert "SCR-002 · Add agency form" in story        # the screen is present...
     assert "capture a new agency" in story             # ...with its own body kept...
     assert "All screens share the global header" not in story  # ...but not the global prose
+
+
+def _brief_project(pmos, new_project, slug, *, approve_brief=False):
+    """An approved 00-03/06 project with a stage-04 design brief and a design-in/
+    return ready to ingest; optionally the brief and 05/07 approved on top."""
+    import frontmatter
+    import project
+    proj = new_project(slug, "A problem")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD)):
+        make_draft(proj, stage, body=body)
+        assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    make_draft(proj, "04", body=_DESIGN_BRIEF)
+    path = project.artifact_path(proj, "04")
+    fm, body = frontmatter.read(str(path))
+    frontmatter.write(str(path), {**fm, "design_mode": "brief"}, body)
+    if approve_brief:
+        assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
+        for stage, body in (("05", "## Overview\nPrototype for UJ-001.\n"), ("06", _QA)):
+            make_draft(proj, stage, body=body)
+            assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
+    _write_design_in_return(proj)
+    return proj
+
+
+def test_design_ingest_help_prints_usage_without_ingesting(pmos, new_project):
+    """`pm_design_ingest.py --help` prints usage and leaves stage 04, meta and
+    history untouched (it used to ignore its arguments and run the ingest)."""
+    proj = _brief_project(pmos, new_project, "ingest-help")
+    before = (proj / "04-design-spec.md").read_text(encoding="utf-8")
+    res = run_script(pmos, "pm_design_ingest.py", "--help", cwd=proj)
+    assert res.returncode == 0
+    assert "usage:" in res.stdout
+    assert (proj / "04-design-spec.md").read_text(encoding="utf-8") == before
+
+
+def test_design_ingest_over_approved_spec_marks_downstream_stale(pmos, new_project):
+    """Ingesting over an approved stage-04 brief resets 04 to draft and marks the
+    approved stages built on it (05, 06) stale, and says so."""
+    from helpers import stage_status
+    proj = _brief_project(pmos, new_project, "ingest-cascade", approve_brief=True)
+    res = run_script(pmos, "pm_design_ingest.py", cwd=proj)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert stage_status(proj, "04") == "draft"
+    assert stage_status(proj, "05") == "stale"
+    assert stage_status(proj, "06") == "stale"
+    assert "now stale" in res.stdout and "05" in res.stdout
+
+
+def test_design_reingest_keeps_screen_ids(pmos, new_project):
+    """A designer revision can be ingested over an earlier ingest, and screens
+    keep their SCR-### ids by Figma node id."""
+    import re
+    proj = _brief_project(pmos, new_project, "ingest-twice")
+    assert run_script(pmos, "pm_design_ingest.py", cwd=proj).returncode == 0
+    first = (proj / "04-design-spec.md").read_text(encoding="utf-8")
+    ia = proj / "design-in" / "ia.yaml"
+    ia.write_text(ia.read_text(encoding="utf-8").replace(
+        "List every agency with loading and empty states.",
+        "List every agency, with loading and empty states."), encoding="utf-8")
+    res = run_script(pmos, "pm_design_ingest.py", cwd=proj)
+    assert res.returncode == 0, res.stdout + res.stderr
+    second = (proj / "04-design-spec.md").read_text(encoding="utf-8")
+    assert "List every agency, with loading" in second
+    ids = lambda text: re.findall(r"\*\*(SCR-\d{3}) — ([^*]+)\*\*", text)
+    assert ids(first) and ids(first) == ids(second)
+    assert "Bulk delete is prohibited" in second  # PM-owned brief sections survive

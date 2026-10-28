@@ -72,6 +72,7 @@ from artifact_contracts import (  # noqa: E402
 from delivery_map import build_prd_delivery_map, body_of, normalize_title, title_of  # noqa: E402
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
+from hashing import mark_edited_in_memory  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
 import readiness  # noqa: E402
 import release_check  # noqa: E402
@@ -135,6 +136,14 @@ AUDIENCE_CATEGORIES: dict[str, set[str]] = {
 
 def _categories_for_audience(audience: str) -> set[str]:
     return {cat for cat, audiences in AUDIENCE_CATEGORIES.items() if audience in audiences}
+
+
+def _load_live_meta(root: Path) -> dict:
+    """.meta.yaml with stages edited since approval shown as `edited` (not saved), so
+    an edited body is never exported or stamped as `approved`."""
+    meta = load_meta(root)
+    mark_edited_in_memory(root, meta)
+    return meta
 
 
 def _stage_status(meta: dict, stage_id: str) -> str | None:
@@ -550,7 +559,7 @@ def build_package(
     if audience is not None and audience not in AUDIENCES:
         raise SystemExit(f"Error: --audience must be one of {', '.join(AUDIENCES)}.")
 
-    meta = load_meta(root)
+    meta = _load_live_meta(root)
     try:
         enhancement_delta = active_enhancement_delta(root)
     except EnhancementDeltaError as exc:
@@ -576,7 +585,9 @@ def build_package(
         raise SystemExit(
             f"Error: stage 03 (PRD) is '{prd_status or 'not present'}', not "
             "approved — the handoff package projects approved decisions only. "
-            "Approve the PRD (/pm-approve 03) before packaging."
+            + ("It changed after approval: review it, then /pm-approve 03 --reapprove "
+               "before packaging." if prd_status == "edited"
+               else "Approve the PRD (/pm-approve 03) before packaging.")
         )
 
     prd_fm, prd_body = _read_artifact(root, "03")
@@ -1489,6 +1500,7 @@ PROTOTYPE_FILENAME = "05-prototype-mockup.html"
 def package_source_paths(root: Path) -> list[Path]:
     paths = [artifact_path(root, sid) for sid in PACKAGE_SOURCE_STAGES]
     paths.append(root / PROTOTYPE_FILENAME)
+    paths.append(root / readiness.READINESS_FILE)  # copied into every audience folder
     return [p for p in paths if p.exists()]
 
 
@@ -1500,7 +1512,7 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None,
     changed after approval, and a draft was never approved (backlog #71). The PM
     can include them with --include-unapproved, and the output then says so on
     each such stage."""
-    meta = load_meta(root)
+    meta = _load_live_meta(root)
     statuses = {s["id"]: s.get("status") for s in meta["stages"]}
 
     if stage_id:
@@ -1510,10 +1522,11 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None,
             sys.exit(1)
         status = statuses.get(stage_id)
         if status != "approved" and not include_unapproved:
+            fix = (f"It changed after approval: review it, then /pm-approve {stage_id} --reapprove"
+                   if status == "edited" else f"Approve it first (/pm-approve {stage_id})")
             print(f"Error: stage {stage_id} is '{status or 'not present'}', not approved, so it "
-                  "is not exported. Approve it first (/pm-approve "
-                  f"{stage_id}), or re-run with --include-unapproved to export it marked as "
-                  "unapproved.")
+                  f"is not exported. {fix}, or re-run with --include-unapproved to export it "
+                  "marked as unapproved.")
             sys.exit(1)
         stages_to_share = [stage_id]
     else:
@@ -1678,7 +1691,7 @@ def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
         # (MANDAL~1.KAR) while build_package resolves its output to the long one.
         staged_root = Path(tmp).resolve() / "handoff"
         staged = build_package(root, staged_root, with_html=with_html, audience=audience)
-        meta = load_meta(root)
+        meta = _load_live_meta(root)
         snapshot = _add_release_files(root, staged_root, audiences, meta, release_note)
         staged += [staged_root / aud / name for aud in audiences
                    for name in (release_record.CHANGES_FILE, release_record.MANIFEST_FILE)]
@@ -1774,7 +1787,8 @@ def main() -> None:
         written = publish_package(root, out_dir, with_html=args.html, audience=args.audience,
                                   allow_release_errors=args.allow_release_errors,
                                   release_note=args.release_note)
-        scope = f"handoff/{args.audience}/" if args.audience else "handoff/{dev,design,qa,business}/"
+        base = _display(out_dir, root)
+        scope = f"{base}/{args.audience}/" if args.audience else f"{base}/{{dev,design,qa,business}}/"
         print(f"Handoff package written to {scope} ({len(written)} files).")
         print("This package is read-only — regenerate with `/pm-handoff --package` after approving PRD/QA/design changes.")
         return

@@ -147,3 +147,21 @@ def test_sync_parity_claude_gets_hooks_codex_does_not(pmos):
     up.sync_to_codex()
     assert (pmos.codex / "pm-new").is_dir(), "Codex should receive skills"
     assert not (pmos.codex / "hooks").exists(), "Codex must not receive hooks"
+
+
+def test_update_removes_retired_skills_only(pmos, tmp_path, monkeypatch):
+    """Updating the skill dir removes a skill PM-OS retired (pm-share) and keeps
+    the shipped skills and a user's own skill."""
+    spec = importlib.util.spec_from_file_location(
+        "pm_os_update_under_test", pmos.install / "scripts" / "pm_os_update.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "PM_OS_DIR", pmos.install)
+    dest = tmp_path / "skills"
+    for name in ("pm-share", "my-own-skill"):
+        (dest / name).mkdir(parents=True)
+        (dest / name / "SKILL.md").write_text("x", encoding="utf-8")
+    mod.sync_skills(dest)
+    assert not (dest / "pm-share").exists()
+    assert (dest / "my-own-skill").exists()
+    assert (dest / "pm-handoff" / "SKILL.md").exists()

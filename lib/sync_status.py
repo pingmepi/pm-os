@@ -44,7 +44,9 @@ def record_sync_status(roots, result: dict) -> None:
             continue
         ok = bool(result.get("ok")) and root.name not in failed
         status = read_sync_status(root) or {}
-        status.update({"last_attempt_at": now, "ok": ok, "reason": result.get("reason")})
+        # No feedback repo is an optional setup, not a failed sync.
+        status.update({"last_attempt_at": now, "ok": ok, "reason": result.get("reason"),
+                       "not_configured": bool(result.get("not_configured"))})
         if ok:
             status["last_success_at"] = now
         try:

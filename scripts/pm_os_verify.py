@@ -88,7 +88,10 @@ def check_lib(r: Result):
         return
     sys.path.insert(0, str(LIB_DIR))
     missing = []
-    for mod in REQUIRED_LIB_MODULES:
+    # The required core plus every module that ships in lib/, so a new module with
+    # a broken import fails verify instead of the first command that uses it.
+    shipped = sorted(p.stem for p in LIB_DIR.glob("*.py") if not p.stem.startswith("_"))
+    for mod in dict.fromkeys(REQUIRED_LIB_MODULES + shipped):
         try:
             __import__(mod)
         except Exception as e:  # noqa: BLE001 — surface any import failure

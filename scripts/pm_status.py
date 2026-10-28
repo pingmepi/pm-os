@@ -13,6 +13,7 @@ from console import ensure_utf8_stdio  # noqa: E402
 ensure_utf8_stdio()
 
 from project import resolve_project, load_meta, artifact_path
+from hashing import mark_edited_in_memory
 from frontmatter import read as read_frontmatter
 from artifact_contracts import validate_artifact
 from consistency import check_project, summary_line
@@ -88,6 +89,9 @@ def _print_sync_status(root, tpath):
             if e.get("event_type") == "stage_approved" and (
                     not last_success or str(e.get("timestamp", "")) > last_success):
                 unsynced += 1
+    if status.get("not_configured"):
+        print("Central sync:      not configured (optional; set feedback_repo to share telemetry)")
+        return
     if not status:
         print("Central sync:      no attempt recorded yet")
     elif status.get("ok"):
@@ -118,6 +122,7 @@ def main():
         sys.exit(1)
 
     meta = load_meta(root)
+    mark_edited_in_memory(root, meta)  # show a stage edited since approval as edited
 
     print(f"Project: {meta['project_slug']}")
     genai = "yes" if meta.get("genai_flag") else "no"

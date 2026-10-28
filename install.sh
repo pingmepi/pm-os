@@ -191,6 +191,13 @@ fi
 
 # --- Sync skills ---
 echo "Installing skills..."
+# Remove skills PM-OS has retired (keep in sync with RETIRED_SKILLS in pm_os_update.py).
+for retired in pm-share; do
+  if [ -d "$SKILLS_DIR/$retired" ] && [ ! -d "$INSTALL_DIR/skills/$retired" ]; then
+    rm -rf "${SKILLS_DIR:?}/$retired"
+    echo "  Removed retired skill: $retired"
+  fi
+done
 for skill_dir in "$INSTALL_DIR"/skills/*/; do
   skill_name=$(basename "$skill_dir")
   dest="$SKILLS_DIR/$skill_name"

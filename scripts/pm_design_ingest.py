@@ -2,6 +2,7 @@
 """Ingest external design-authority output into stage 04 as a draft spec."""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -17,6 +18,10 @@ from project import resolve_project  # noqa: E402
 
 
 def main() -> None:
+    argparse.ArgumentParser(
+        description="Ingest design-in/ia.yaml and design-in/design-notes.md into stage 04 "
+                    "as a draft design spec. Run from inside a PM-OS project.",
+    ).parse_args()
     try:
         root = resolve_project()
     except FileNotFoundError as exc:
@@ -34,6 +39,9 @@ def main() -> None:
         print("Screen IDs:")
         for node_id, scr_id in result.screen_ids.items():
             print(f"- {scr_id}: {node_id}")
+    if result.stale:
+        print(f"Stage 04 was approved, so these stages are now stale and need re-approval: "
+              f"{', '.join(result.stale)}.")
     print("Review and approve stage 04 explicitly before downstream handoff.")
 
 
