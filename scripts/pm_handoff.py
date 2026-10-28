@@ -55,6 +55,7 @@ from delivery_map import build_prd_delivery_map, body_of, normalize_title, title
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from jira_markup import to_jira_markup  # noqa: E402
+from hashing import mark_edited_in_memory  # noqa: E402
 from project import artifact_path, load_meta, resolve_project  # noqa: E402
 from telemetry import log as telemetry_log  # noqa: E402
 import secret_scan  # noqa: E402
@@ -174,6 +175,7 @@ def build_plan(root: Path) -> dict:
     and are counted for PM review.
     """
     meta = load_meta(root)
+    mark_edited_in_memory(root, meta)  # an edited PRD must not export as approved
     project_name = meta.get("project_name") or meta.get("project_slug", "project")
     project_slug = meta.get("project_slug", "project")
 
@@ -184,8 +186,10 @@ def build_plan(root: Path) -> dict:
     if prd_status != "approved":
         raise SystemExit(
             f"Error: stage 03 (PRD) is '{prd_status or 'not present'}', not approved "
-            "— the handoff exports approved decisions only. Approve the PRD "
-            "(/pm-approve 03) before exporting."
+            "— the handoff exports approved decisions only. "
+            + ("It changed after approval: review it, then /pm-approve 03 --reapprove "
+               "before exporting." if prd_status == "edited"
+               else "Approve the PRD (/pm-approve 03) before exporting.")
         )
 
     _prd_fm, prd_body = _read_artifact(root, "03")
@@ -414,7 +418,6 @@ def _scope_plan_to_enhancement(
             "children": [], "change_type": "removed", "enhancement": context_payload,
         })
 
-    refs = {item["ref"] for item in scoped}
     counts = {
         "epics": sum(item["type"] == "Epic" for item in scoped),
         "stories": sum(item["type"] == "Story" for item in scoped),
@@ -537,7 +540,7 @@ def cmd_plan(root: Path, output: str | None, allow_secrets: bool = False) -> Non
     json_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
     md_path.write_text(_render_plan_md(plan), encoding="utf-8")
     c = plan["counts"]
-    print(f"Handoff plan written (DRY RUN — nothing created):")
+    print("Handoff plan written (DRY RUN — nothing created):")
     print(f"  {md_path}   (review this)")
     print(f"  {json_path}   (machine map)")
     print(f"  {c['epics']} epic(s), {c['stories']} story(ies), "

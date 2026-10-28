@@ -1,4 +1,4 @@
-# Stage 07 — Metrics Plan format (Indegene)
+# Stage 07 — Metrics Plan format (your company)
 
 > apply: augment — the skill keeps its default Metrics Plan sections and folds
 > these requirements in. List the sections/fields your real metrics plan uses,

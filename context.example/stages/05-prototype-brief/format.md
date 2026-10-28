@@ -1,4 +1,4 @@
-# Stage 05 — Prototype Brief format (Indegene)
+# Stage 05 — Prototype Brief format (your company)
 
 > apply: augment — the skill keeps its default Prototype Brief sections and folds
 > these requirements in. List the sections/fields your real prototype brief uses,

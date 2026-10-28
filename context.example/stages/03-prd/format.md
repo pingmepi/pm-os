@@ -1,4 +1,4 @@
-# Stage 03 — PRD format (Indegene)
+# Stage 03 — PRD format (your company)
 
 > apply: augment — the skill keeps its default PRD sections and folds these
 > requirements in. Fill in the placeholders below with your team's real

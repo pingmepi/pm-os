@@ -342,3 +342,11 @@ def test_format_report_shows_location_code_and_fix(tmp_path):
     assert "ERROR   stories/US-01-a.md:1  STORY_EPIC_MISSING" in text
     assert "Fix: Add `epic:" in text
     assert text.rstrip().endswith("1 error(s), 0 warning(s).")
+
+
+def test_version_key_tolerates_non_numeric_versions():
+    """A hand-built package's `version: draft` or `1.0-rc` orders instead of crashing
+    the release check (it used to raise ValueError from int())."""
+    assert rc._version_key("1.2") == (1, 2)
+    assert rc._version_key("1.0-rc") == (1, 0)
+    assert rc._version_key("draft") == (0,)

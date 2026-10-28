@@ -163,3 +163,17 @@ def test_sync_status_file_is_never_committed(pmos, new_project):
                              text=True).stdout.split()
     assert ".pm-os-sync.json" not in tracked
     assert ".pm-os-sync.json" in (proj / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_status_reports_an_unconfigured_feedback_repo_as_optional(pmos, new_project):
+    """No feedback repo is an optional setup, not a failed sync: /pm-status says
+    so and does not tell the PM to retry or count unsynced approvals."""
+    import sync_status
+    proj = new_project("sync-unconfigured", "A problem")
+    assert run_script(pmos, "pm_approve.py", "00", cwd=proj).returncode == 0
+    sync_status.record_sync_status([proj], {
+        "ok": False, "reason": "feedback_repo not configured", "synced": [],
+        "not_configured": True})
+    res = run_script(pmos, "pm_status.py", cwd=proj)
+    assert "Central sync:      not configured (optional" in res.stdout, res.stdout
+    assert "FAILED" not in res.stdout and "not yet synced" not in res.stdout

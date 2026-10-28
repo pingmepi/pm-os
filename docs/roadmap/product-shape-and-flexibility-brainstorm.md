@@ -46,7 +46,7 @@ Bonus insight: a handoff packet + traceability spine extended through tickets/te
 
 > **Naming caution (2026-08-02):** the "Path 1/2/3" below are *PM working styles* from one conversation
 > and are **NOT** the canonical entry taxonomy. The authoritative entry model is
-> `../plans/pm-os-entry-pathways-plan.md` — **Pathway 1 = Idea, 2 = Prototype, 3 = Live product/codebase** —
+> `../archive/pm-os-entry-pathways-plan.md` — **Pathway 1 = Idea, 2 = Prototype, 3 = Live product/codebase** —
 > and its numbering differs from this table (here Path 2 = existing product, Path 3 = skip-to-prototype;
 > there Pathway 2 = prototype, Pathway 3 = codebase). When a "pathway N" is referenced anywhere
 > load-bearing, it means the entry-pathways plan's numbering, not this brainstorm's.
@@ -151,7 +151,7 @@ PM-OS models requirements as **flat nodes** with exactly one edge type in the wh
 ## 5. The graduation / promotion problem
 
 > **Superseded (2026-08-02).** The committed design for prototype → full product is now the
-> **interview-forward** model in `../plans/pm-os-entry-pathways-plan.md` §§4–5 (Pathway 2): adopt the
+> **interview-forward** model in `../archive/pm-os-entry-pathways-plan.md` §§4–5 (Pathway 2): adopt the
 > prototype, then an interview recovers the WHY/scope and the pipeline is *formalized forward* — the same
 > "author forward, don't reverse-engineer pixels" insight this section reached. The specific machinery
 > sketched below (an `explore/` sidecar lane + `/pm-graduate` + a decision log) is **not** the chosen

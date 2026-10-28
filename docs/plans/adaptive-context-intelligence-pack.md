@@ -1,6 +1,6 @@
 # Adaptive Context Intelligence Pack
 
-> **Status (corrected 2026-08-03):** 🟡 **Partially implemented.** Phase 0 (spec lock), Phase 1 (format registration — images/PPTX/XLSX added to `pm_context_import.py`'s `DOC_EXTS`), and Phase 2 (modular `00-context/` pack, composite hashing, schema v4, dual-mode downstream reading, `--upgrade-pack`) are shipped — see `current-state-review.md`'s "Adaptive context pack | Implemented (v1.0.6)" entry. **Phase 3 (evidence ledger + claim relationships) and Phase 4 (type-specific extraction + adaptive views) are not shipped. Phase 5 is superseded by the canonical interview design in `pm-os-entry-pathways-plan.md`; pathway-2 intake shipped in E1 and standalone re-run/known-unknown surfacing is built in E3 pending PM review, while E2 adds enhancement tuning.** `backlog.md` entry #9 (IMP-006) still confirms the separate adaptive-view gap: manifest `stage_affinities` is empty and `views/` is unpopulated in practice. Do not read the original "approved for implementation" line below as current status.
+> **Status (corrected 2026-08-03):** 🟡 **Partially implemented.** Phase 0 (spec lock), Phase 1 (format registration — images/PPTX/XLSX added to `pm_context_import.py`'s `DOC_EXTS`), and Phase 2 (modular `00-context/` pack, composite hashing, schema v4, dual-mode downstream reading, `--upgrade-pack`) are shipped — see `current-state-review.md`'s "Adaptive context pack | Implemented (v1.0.6)" entry. **Phase 3 (evidence ledger + claim relationships) and Phase 4 (type-specific extraction + adaptive views) are not shipped. Phase 5 is superseded by the canonical interview design in `../archive/pm-os-entry-pathways-plan.md`; pathway-2 intake shipped in E1 and standalone re-run/known-unknown surfacing is built in E3 pending PM review, while E2 adds enhancement tuning.** `backlog.md` entry #9 (IMP-006) still confirms the separate adaptive-view gap: manifest `stage_affinities` is empty and `views/` is unpopulated in practice. Do not read the original "approved for implementation" line below as current status.
 
 ## Summary
 
@@ -187,7 +187,7 @@ pack is not a single PR.
   opportunity map, traceability). Views activate only when evidence supports
   them.
 - **Phase 5 — Thin-context discovery interview. ⛔ SUPERSEDED (2026-08-02) — do not build from this
-  description.** The canonical interview design is now `pm-os-entry-pathways-plan.md` §4 (the interview
+  description.** The canonical interview design is now `../archive/pm-os-entry-pathways-plan.md` §4 (the interview
   primitive), which realizes and **replaces** this Phase 5: it is **coverage-driven — soft ~5 per topic
   round, no hard total** — not the fixed **≤5** cap sketched here, and it is pathway-aware and
   feasibility-map-driven. The pathway-2 build (E0–E1) shipped in v1.4.3. The invariants below still hold

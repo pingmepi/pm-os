@@ -122,7 +122,8 @@ def _sync(roots, label: str) -> dict:
 
     if not feedback_repo_url:
         print("[git_sync] SKIPPED — feedback_repo not configured.")
-        return {"ok": False, "reason": "feedback_repo not configured", "synced": []}
+        return {"ok": False, "reason": "feedback_repo not configured", "synced": [],
+                "not_configured": True}
 
     with _cache_lock() as acquired:
         if not acquired:

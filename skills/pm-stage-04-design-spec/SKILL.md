@@ -184,7 +184,8 @@ python3 ~/.pm-os/scripts/pm_design_ingest.py
 
 In ingest mode:
 
-- require an existing stage-04 draft whose frontmatter or body marks it as `design_mode: brief`;
+- require an existing stage-04 artifact marked `design_mode: brief` (the first ingest) or `design_mode: ingested` (a designer revision of an earlier ingest);
+- if stage 04 was already approved, the ingest resets it to draft and marks the approved stages built on it `stale`; relay the list the script prints so the PM knows which stages need re-approval;
 - preserve PM-owned brief sections verbatim;
 - replace only designer-owned pending sections with the returned IA, flows, components, design-system references, and Figma state links;
 - assign sequential `SCR-###` screen IDs in flow order, keyed to Figma `node_id`;

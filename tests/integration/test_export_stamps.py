@@ -126,3 +126,35 @@ def test_raw_export_of_an_unapproved_stage_needs_the_flag(pmos, new_project):
     assert res.returncode == 0, res.stderr
     assert "**NOT APPROVED (draft)" in res.stdout
     assert "Draft." in res.stdout
+
+
+def test_stage_edited_after_approval_is_not_exported_as_approved(pmos, new_project):
+    """A body edited after approval (no gate has run since) is treated as `edited`:
+    the raw export refuses it, the package refuses an edited PRD with the
+    --reapprove hint, and /pm-status shows it as edited."""
+    proj = _approved(pmos, new_project, "edited-export")
+    prd = proj / "03-prd.md"
+    prd.write_text(prd.read_text(encoding="utf-8") + "\nUnreviewed change.\n", encoding="utf-8")
+
+    raw = run_script(pmos, "pm_share.py", "03", cwd=proj)
+    assert raw.returncode == 1
+    assert "'edited'" in raw.stdout and "Unreviewed change" not in raw.stdout
+
+    pkg = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert pkg.returncode != 0
+    assert "--reapprove" in pkg.stderr + pkg.stdout
+    assert not (proj / "handoff" / "dev").exists()
+
+    status = run_script(pmos, "pm_status.py", cwd=proj)
+    assert "edited since approval" in status.stdout
+
+
+def test_package_blocks_a_qa_plan_edited_after_approval(pmos, new_project):
+    """An approved QA plan edited after approval makes the release check fail with
+    SOURCE_NOT_APPROVED, so its unreviewed text does not ship stamped approved."""
+    proj = _approved(pmos, new_project, "edited-qa")
+    qa = proj / "06-qa-plan.md"
+    qa.write_text(qa.read_text(encoding="utf-8") + "\nUnreviewed QA change.\n", encoding="utf-8")
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode != 0
+    assert "SOURCE_NOT_APPROVED" in res.stderr + res.stdout

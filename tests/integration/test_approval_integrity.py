@@ -194,3 +194,16 @@ def test_approving_a_large_edited_artifact_does_not_hang(pmos, new_project):
     payload = approved[-1]["payload"]
     assert payload["edit_distance_method"] == "line_approx"
     assert 0 < payload["char_edit_distance"] < 200
+
+
+def test_approving_over_unapproved_upstreams_warns(pmos, new_project):
+    """An artifact that skipped the pre-stage gate (written by hand or by
+    pm_finish_stage.py) can still be approved, but approval names the upstream
+    stages that are not approved."""
+    proj = new_project("approve-out-of-order", "A problem")
+    make_draft(proj, "03", body="## Overview\nPRD.\n")
+    res = run_script(pmos, "pm_approve.py", "03", cwd=proj)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "Warning: approving stage 03 while upstream stages are not approved" in res.stdout
+    assert "01 (pending)" in res.stdout
+    assert stage_status(proj, "03") == "approved"

@@ -84,12 +84,14 @@ def _brief() -> str:
 
 
 def test_valid_design_input_has_warning_only_open_question():
+    """A complete design-in return validates with no errors; its open question is the only finding, as a warning."""
     findings = validate_design_data(_fixture_data(), prd_body=_prd(), brief_body=_brief())
     assert design_error_count(findings) == 0
     assert [finding.code for finding in findings] == ["DESIGN_OPEN_QUESTION"]
 
 
 def test_rejects_unsupported_version():
+    """An `ia_format_version` PM-OS doesn't support is an error."""
     data = _fixture_data()
     data["ia_format_version"] = 2
     codes = {finding.code for finding in validate_design_data(data, prd_body=_prd(), brief_body=_brief())}
@@ -97,6 +99,7 @@ def test_rejects_unsupported_version():
 
 
 def test_rejects_unknown_flow_state():
+    """A flow step naming a state its screen doesn't declare is an error."""
     data = _fixture_data()
     data["flows"][0]["sequence"].append({"screen": "Review queue", "state": "empty"})
     codes = {finding.code for finding in validate_design_data(data, prd_body=_prd(), brief_body=_brief())}
@@ -104,12 +107,14 @@ def test_rejects_unknown_flow_state():
 
 
 def test_rejects_missing_required_field_coverage():
+    """A data field the brief requires for a story, missing from every screen serving it, is an error."""
     brief = _brief().replace("| status | enum | yes |\n", "| owner | string | yes |\n")
     codes = {finding.code for finding in validate_design_data(_fixture_data(), prd_body=_prd(), brief_body=brief)}
     assert "DESIGN_FIELD_COVERAGE_MISSING" in codes
 
 
 def test_default_state_can_share_screen_node_id_but_other_duplicates_fail():
+    """A screen's default state may reuse the screen's node id; any other duplicate node id is an error."""
     data = _fixture_data()
     findings = validate_design_data(data, prd_body=_prd(), brief_body=_brief())
     assert "DESIGN_NODE_ID_DUPLICATE" not in {finding.code for finding in findings}
@@ -120,6 +125,7 @@ def test_default_state_can_share_screen_node_id_but_other_duplicates_fail():
 
 
 def test_state_node_url_builds_canonical_figma_deep_link():
+    """A Figma file URL plus a `12:340` node id becomes the canonical `?node-id=12-340` deep link."""
     assert state_node_url("https://www.figma.com/design/abc123/File", "12:340") == (
         "https://www.figma.com/design/abc123/File?node-id=12-340"
     )

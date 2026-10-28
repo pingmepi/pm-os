@@ -11,6 +11,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_pm_snapshot_stamps_hash_and_copies_exact_artifact(pmos, new_project):
+    """`pm_snapshot.py` stamps the artifact's real body hash as `generated_hash` and writes one `.history` copy with the same hash."""
     proj = new_project("snapshot-helper", "A problem")
     apath = make_draft(proj, "01", body="Generated body.\n")
     fm, body = frontmatter.read(str(apath))
@@ -29,6 +30,7 @@ def test_pm_snapshot_stamps_hash_and_copies_exact_artifact(pmos, new_project):
 
 
 def test_pm_check_warns_when_generated_snapshot_missing_or_mismatched(pmos, new_project):
+    """`/pm-check` warns when a declared `generated_hash` has no snapshot, and when the snapshot's body differs."""
     proj = new_project("snapshot-check", "A problem")
     apath = make_draft(proj, "01", body="Generated body.\n")
     fm, body = frontmatter.read(str(apath))

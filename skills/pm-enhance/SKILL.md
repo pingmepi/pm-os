@@ -10,7 +10,7 @@ prompt_version: 0.2.0
 
 Use this skill for a new enhancement to a product that already has a PM-OS project, or immediately after first-intake scaffolding for an external product. Every later enhancement stays in the **same project**. Never create a child project, sibling enhancement project, program-level gate, or parallel approval state machine.
 
-`project_type` and `entry_route` record how the product first entered PM-OS. Do not change them to start enhancement work. `/pm-promote` is unrelated: it changes a requirement's Part-B release tier and is never an enhancement entrypoint.
+`project_type` and `entry_route` record how the product first entered PM-OS. Do not change them to start enhancement work. `/pm-promote` (planned with the Part-B delivery model, backlog #28; not built) is unrelated: it would change a requirement's release tier and is never an enhancement entrypoint.
 
 ## Hard safety boundary
 

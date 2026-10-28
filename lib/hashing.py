@@ -187,6 +187,33 @@ def stage_content_hash(project_root, stage_id: str, artifact_path) -> str:
     return hash_artifact_body(str(artifact_path))
 
 
+def mark_edited_in_memory(project_root, meta: dict) -> list[str]:
+    """Demote approved stages whose content changed since approval to ``edited``
+    in the given (in-memory) meta, and return their ids. Nothing is saved.
+
+    Read-only commands (export, status, handoff) otherwise trust the recorded
+    status, and only the pre-stage gate re-hashes — so a stage edited after
+    approval was exported stamped ``approved`` until the next stage ran."""
+    from project import artifact_path  # lazy: project must not import hashing
+
+    edited = []
+    for stage in meta.get("stages") or []:
+        sid = str(stage.get("id"))
+        if stage.get("status") != "approved" or not stage.get("content_hash"):
+            continue
+        try:
+            apath = artifact_path(project_root, sid)
+            if not Path(apath).exists():
+                continue
+            current = stage_content_hash(project_root, sid, apath)
+        except Exception:
+            continue
+        if current != stage["content_hash"]:
+            stage["status"] = "edited"
+            edited.append(sid)
+    return edited
+
+
 def validate_manifest_hashes(project_root) -> list:
     """Return the list of members whose recorded hash disagrees with the computed one.
 

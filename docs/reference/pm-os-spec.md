@@ -60,6 +60,8 @@ These constraints shape every design decision. Do not deviate without explicit c
 
 ## 3. Repos and structure
 
+> **The tree below is the original kernel layout, not the current file list.** It predates `scripts/`, the `pm-check`, `pm-sync`, `pm-os-verify`, `pm-prototype-html`, `pm-stage-09-roadmap`, `pm-enhance` and `pm-update-roadmap-tracking` skills, about fifteen `lib/` modules (cascade, consistency, design_input, design_ingest, readiness, release_check, release_record, secret_scan, stage_version, sync_status and more) and the `handoff-*.md.j2` templates. For what exists today, use the component table in [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) §3.
+
 Two GitHub repos. Both private.
 
 ### `pm-os` — the system itself

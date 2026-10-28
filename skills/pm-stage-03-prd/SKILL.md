@@ -264,7 +264,7 @@ Every affected `US-###` and `FR-###`/`REQ-###` block must carry:
 - `Affected surfaces:` using the approved surface vocabulary
 - the owning Epic/Priority and existing traceability fields
 
-Include **backward compatibility**, migration/backfill, permissions, **mixed-version** behavior, rollout/feature-flag, observability, and rollback requirements whenever the boundary declares them. Preserve Part-B tier fields if present; E2 does not run `/pm-promote` or invent tiers.
+Include **backward compatibility**, migration/backfill, permissions, **mixed-version** behavior, rollout/feature-flag, observability, and rollback requirements whenever the boundary declares them. Preserve Part-B tier fields if present; E2 does not invent tiers or promote requirements (the planned `/pm-promote`, backlog #28, is not built).
 
 # Writing guidance
 

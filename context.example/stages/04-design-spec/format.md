@@ -1,4 +1,4 @@
-# Stage 04 — Design Spec format (Indegene)
+# Stage 04 — Design Spec format (your company)
 
 > apply: augment — the skill keeps its default Design Spec sections and folds
 > these requirements in. List the sections/fields your real design-md uses, plus

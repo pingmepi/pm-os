@@ -48,8 +48,14 @@ generated_hash: <sha of the originally generated body>
 pm_os_version: <e.g. 1.0.8>
 genai_flag: true | false
 generation_notes: <optional free text>
+version: <approval version, e.g. 3>                 # set on approval (schema 6)
+artifact_contract_version: <N>                       # stages 03–06, 08: contract the body was written to
+design_mode: brief | ingested                        # stage 04 only, external-design modes
+figma_file_key / figma_file_url / figma_version / ingested_at   # stage 04 after an ingest
 ---
 ```
+
+Only the gate writes `status: edited`. Read-only commands (`/pm-status`, `/pm-handoff`, the release check) re-hash an approved artifact and treat a changed body as `edited` without writing it, so an edit is never shown or exported as approved.
 
 The body under the frontmatter follows the per-stage structure below.
 
@@ -404,7 +410,7 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 
 | File | Written by | Purpose |
 |------|-----------|---------|
-| `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 5`; v5 added `entry_route`); mirrors each artifact's frontmatter. |
+| `.meta.yaml` | `pm-new`, `pm_approve.py`, hooks | Project + per-stage state (`schema_version: 6`; v5 added `entry_route`, v6 added a per-stage approval `version` and `version_hash`, backfilled from telemetry); mirrors each artifact's frontmatter. |
 | `telemetry.jsonl` | `lib/telemetry.py` | Append-only, hash-chained event log (`prev_event_hash` → `event_hash`). |
 | `.traceability.yaml` | rebuilt on approval (03/04/06/08) | Machine-readable spine (schema v5): Product Epics (`EPIC-###`) with story/requirement membership and ticket slots, PRD-declared priority values on `US/FR/REQ`, requirement ↔ test (`US/FR/REQ` ↔ `TC`), requirement ↔ TRD task (`TSK`, approved stage 08 only), and requirement ↔ design screen (`SCR`, approved stage 04 only). Screen entries include exact Figma screen/state `design_refs` when the approved design spec carries them. Legacy synthetic `EPIC-01` ticket refs are preserved as legacy metadata only. |
 | `.history/*.generated.md` | `pm_snapshot.py` after stage generation | Deterministic generated snapshot copied from the just-written artifact, with `generated_hash` stamped and warning-only verification available through `/pm-check`. |
@@ -414,6 +420,12 @@ Beyond the Markdown artifacts above, PM-OS writes several machine-managed files 
 | `00-context/known-unknowns.md` | `pm_context_import.py record-interview` (writes skips); `pm_interview.py resolve` (marks resolved) | Open discovery-interview gaps as `- <question> (source: <id>)` bullets. A resolved gap gains a trailing `[resolved: <source> <YYYY-MM-DD>]` marker in place (never deleted). `/pm-status` reports the open count; `/pm-interview` re-runs against the open ones. |
 | `.enhancements/index.yaml` + `.enhancements/EH-NNN/` | `pm_enhance.py` | Same-project enhancement lineage: one active-cycle pointer, immutable PM ask and approved artifact baseline snapshots, repository identity/fingerprints, approved boundary, refresh history, and completion timestamp. This is provenance, not a parallel stage/approval status model. |
 | `handoff/{dev,design,qa,business}/` | `pm_share.py --package` (via `/pm-handoff --package [--audience ...]`) | Read-only projection of the approved pipeline, split per audience folder: each gets its own `README.md`; `00-overview.md` (business only); one `epics/EPIC-###-*.md` per declared Product Epic (dev, business); one `requirements/FR-###-*.md` or `requirements/REQ-###-*.md` per PRD requirement (dev, QA); one self-contained `stories/US-###-*.md` per story (dev, QA, design) with the story's epic context plus the full text of referenced requirements, acceptance criteria, impact analysis, NFRs, screens/tests/tasks, and exact Figma screen/state links when present; audience-specific `reference/`; and optional prototype. If stage 04 is a draft with `design_mode: brief`, the design audience also receives `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so designers can work before an approved design spec exists. During an active E2 cycle it automatically contains only changed stories/requirements plus minimum ancestor closure, and the README records removals, affected surfaces, invariants, compatibility, rollout, rollback, and baseline provenance. `--audience` rebuilds one folder, leaving siblings untouched; `handoff/README.md` is the hub. Regenerated wholesale — never hand-edited. |
+| `handoff/<audience>/CHANGES.md` + `manifest.json` | `pm_share.py --package` via `lib/release_record.py` | `CHANGES.md`: stable ids added, removed or changed since the last recorded release, the stories they affect, and moved outside inputs (Figma version, test-input files). `manifest.json` (schema 1): every file with role, sha256, source artifact, approved version and status, plus reading order. Neither carries approval frontmatter. |
+| `handoff/<audience>/readiness.yaml` | `pm_share.py --package` | A copy of the project's readiness record, so the build team sees what it is owed. |
+| `.releases/REL-###.yaml` | `pm_share.py --package --release-note "<why>"` | The record of one package actually sent: the note, each source's approved version and hash, a hash per stable id, outside inputs and every file shipped. Plain rebuilds are drafts and are not recorded. |
+| `readiness.yaml` | `pm_readiness.py init`, then edited by the agent | Ungated record of what the build team is owed: eval sets per AI step (`EVAL-###`), test inputs (`TI-###`) and open decisions (`OD-##`), each with owner, due milestone and status. Never hashed, approved or staled. |
+| `design-in/ia.yaml` + `design-in/design-notes.md` | the external designer | The designer's return for stage 04: screens, states and Figma node ids, flows per journey, components and tokens, plus rationale. Validated by `/pm-check --design`, ingested by `pm_design_ingest.py`. |
+| `.pm-os-sync.json` | `lib/git_sync.py` via `lib/sync_status.py` | Last central-sync attempt: time, ok, reason, last success, and `not_configured` when no feedback repo is set. Gitignored; read by `/pm-status`. |
 | `handoff/jira-plan.{md,json}` | `pm_handoff.py plan` | Dry-run ticket map (`EPIC-###`→Epic, `US-###`→Story, `FR/REQ-###`→Task, `TSK-###`→Subtask when it implements exactly one exported item; same-epic multi-ref TSK→Task; cross-epic/unresolved TSK→unparented Task) reviewed before anything is created in Jira. |
 | `handoff/jira-import.csv` | `pm_handoff.py export` | The same plan as a Jira CSV-importer file for the offline route, with descriptions in Jira wiki markup and `Issue Id`/`Parent Id` parent linking. Shipped alongside `jira-import-README.md` (import + field-mapping guide). |
 

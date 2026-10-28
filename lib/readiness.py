@@ -275,7 +275,7 @@ def pending_files(data: dict | None) -> set[str]:
     if not data:
         return set()
     return {
-        str(row["file"]).replace("\\", "/").lstrip("./")
+        str(row["file"]).replace("\\", "/").removeprefix("./")
         for row in data.get("test_inputs") or []
         if isinstance(row, dict) and row.get("file") and row.get("status") not in INPUT_DONE
     }

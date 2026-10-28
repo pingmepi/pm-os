@@ -1,4 +1,4 @@
-# Stage 02 — Product Scope format (Indegene)
+# Stage 02 — Product Scope format (your company)
 
 > apply: augment — the skill keeps its default Product Scope sections and folds
 > these requirements in. List the sections/fields your real scope doc uses, plus

@@ -16,7 +16,7 @@ folder the way the build team will and reports what they would trip over:
   option a).
 
 It is pure and read-only: it never writes, never logs, never prompts. The
-callers (`scripts/pm_release_check.py`, `pm_share.py --package`) decide what an
+callers (`pm_check.py --release`, `pm_share.py --package`) decide what an
 error means for them.
 
 Id detection is generic because a package carries id families PM-OS has never
@@ -331,6 +331,11 @@ def _project_artifacts(project_root: Path) -> dict[str, dict]:
         meta = yaml.safe_load((project_root / ".meta.yaml").read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         meta = {}
+    try:  # an approved stage edited since approval counts as `edited`, not approved
+        from hashing import mark_edited_in_memory
+        mark_edited_in_memory(project_root, meta)
+    except Exception:
+        pass
     statuses = {str(s.get("id")): s.get("status") for s in meta.get("stages") or [] if isinstance(s, dict)}
     for path in sorted(project_root.glob("0[0-9]*.md")):
         try:
@@ -575,7 +580,7 @@ def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path],
             if not relevant:
                 continue
             owed_by = next((item for path, item in (owed or {}).items()
-                            if ref.replace("\\", "/").lstrip("./").endswith(path)), None)
+                            if ref.replace("\\", "/").removeprefix("./").endswith(path)), None)
             if owed_by:
                 findings.append(ReleaseFinding(
                     WARNING, "FILE_PENDING", doc.rel, number,
@@ -666,7 +671,8 @@ def _doc_version(doc: _Doc) -> str | None:
 
 
 def _version_key(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
+    """Numeric parts of a version for ordering; `draft` or `1.0-rc` must not crash."""
+    return tuple(int(part) for part in re.findall(r"\d+", str(version))) or (0,)
 
 
 def _check_hand_built_sources(docs: list[_Doc]) -> list[ReleaseFinding]:
@@ -915,7 +921,7 @@ def _check_readiness(folder: Path, project_root: Path | None) -> tuple[dict | No
             ERROR, code, label, None,
             f"{item['id']} ({item['summary']}) {state}; it was due by {item['due']}.", fix))
     owed = {
-        str(row["file"]).replace("\\", "/").lstrip("./"): str(row.get("id"))
+        str(row["file"]).replace("\\", "/").removeprefix("./"): str(row.get("id"))
         for row in data.get("test_inputs") or []
         if isinstance(row, dict) and row.get("file") and row.get("status") not in readiness.INPUT_DONE
     }

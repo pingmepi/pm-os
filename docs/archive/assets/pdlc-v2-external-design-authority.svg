@@ -17,7 +17,7 @@
   <text x="1121" y="55" font-size="14" fill="#56636D">Built today in PM-OS</text>
   <rect x="1100" y="69" width="11" height="11" fill="#A8321F"/>
   <text x="1121" y="79" font-size="14" fill="#56636D">New in PDLC v2 — not built</text>
-  <text x="1100" y="103" font-size="12.5" font-family="'IBM Plex Mono', Consolas, monospace" fill="#8B959D">docs/plans/pm-os-external-design-authority-plan.md</text>
+  <text x="1100" y="103" font-size="12.5" font-family="'IBM Plex Mono', Consolas, monospace" fill="#8B959D">docs/archive/pm-os-external-design-authority-plan.md</text>
 </g>
 <line x1="64" y1="120" x2="1536" y2="120" stroke="#C3CBD2" stroke-width="1"/>
 

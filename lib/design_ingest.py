@@ -38,13 +38,16 @@ class IngestResult:
     path: Path
     findings: list[DesignFinding]
     screen_ids: dict[str, str]
+    stale: tuple[str, ...] = ()
 
 
 def ingest_design(project_root: Path) -> IngestResult:
     """Validate `design-in/` and rewrite stage 04 as an ingested draft.
 
     The operation is all-or-nothing for the stage artifact: validation errors
-    return without touching `04-design-spec.md`.
+    return without touching `04-design-spec.md`. Stage 04 may be a brief or an
+    earlier ingest (a designer revision), which keeps its SCR-### ids. If stage 04
+    was approved, the approved stages built on it are marked stale.
     """
     project_root = Path(project_root)
     apath = artifact_path(project_root, "04")
@@ -55,11 +58,12 @@ def ingest_design(project_root: Path) -> IngestResult:
         return IngestResult(False, apath, [_finding("error", "DESIGN_BRIEF_MISSING", "04-design-spec.md does not exist.")], {})
 
     fm, brief_body = fm_read(str(apath))
-    if _design_mode(fm, brief_body) != "brief":
+    if _design_mode(fm, brief_body) not in ("brief", "ingested"):
         return IngestResult(False, apath, [_finding(
             "error",
             "DESIGN_BRIEF_MODE_INVALID",
-            "Stage 04 must be a draft design brief (`design_mode: brief`) before ingest.",
+            "Stage 04 must be a design brief (`design_mode: brief`) or an earlier ingest "
+            "(`design_mode: ingested`) before ingest.",
         )], {})
 
     loaded = load_design_input(project_root / "design-in" / "ia.yaml")
@@ -91,9 +95,12 @@ def ingest_design(project_root: Path) -> IngestResult:
     new_fm["generated_hash"] = generated_hash
     fm_write(str(apath), new_fm, body)
     _write_snapshot(project_root, apath)
-    _update_meta(project_root, generated_hash)
-    _log_ingest(project_root, data, generated_hash, len(findings), len(screen_ids))
-    return IngestResult(True, apath, findings, screen_ids)
+    stale = _update_meta(project_root, generated_hash)
+    try:  # telemetry must never fail an ingest that already wrote the artifact
+        _log_ingest(project_root, data, generated_hash, len(findings), len(screen_ids))
+    except Exception as e:
+        print(f"Warning: design ingest telemetry failed: {e}")
+    return IngestResult(True, apath, findings, screen_ids, tuple(stale))
 
 
 def assign_screen_ids(data: dict[str, Any], prior_body: str) -> dict[str, str]:
@@ -360,17 +367,24 @@ def _write_snapshot(project_root: Path, apath: Path) -> Path:
     return dest
 
 
-def _update_meta(project_root: Path, generated_hash: str) -> None:
+def _update_meta(project_root: Path, generated_hash: str) -> list[str]:
+    """Reset stage 04 to draft; mark approved downstream stages stale. Returns them."""
+    from cascade import cascade_stale
+
     meta = load_meta(project_root)
     stage = get_stage(meta, "04")
+    stale = cascade_stale(meta, project_root, ["04"],
+                          {"reason": "design_ingested", "triggering_upstream_stage": "04"})
     stage["status"] = "draft"
     stage["content_hash"] = None
     stage["approved_at"] = None
+    stage.pop("edited_hash", None)
     stage["upstream_hashes_at_approval"] = {}
     stage["generated_hash"] = generated_hash
     stage["origin"] = "generated"
     stage["regeneration_count"] = int(stage.get("regeneration_count") or 0) + 1
     save_meta(meta, project_root)
+    return stale
 
 
 def _log_ingest(project_root: Path, data: dict[str, Any], generated_hash: str, finding_count: int, screen_count: int) -> None:

@@ -1,6 +1,6 @@
 # PM-OS External Design Authority Plan (PDLC v2)
 
-**Status:** 🔵 **Design only — nothing built.** Recorded 2026-08-13 against v1.5.0. A **zero-engine-change route** (context overlay + `--note` steering + three prompts) is specified in §6 and can be piloted today; the engine work in §8 is unstarted and unscheduled.
+**Status:** 🟢 **Shipped in v1.5.1** (PR #75), after the zero-engine-change pilot in §6. The engine work in §8 was built per `pm-os-external-design-authority-execution-plan.md`: stage-04 `--brief`/`--ingest`, the `design-in/` return, `/pm-check --design`, and Figma links in story dossiers. The 1.5.6 release review added re-ingest (screens keep their `SCR-###` ids) and the downstream stale cascade when ingesting over an approved stage 04. Recorded 2026-08-13 against v1.5.0; kept as the design record.
 **Author:** Karan (with Claude Code)
 **Trigger:** the Adcept engineering run (§2) — a coding agent could not reliably reproduce UI or reach intermediate states from PM-authored design prose.
 **Relationship to `pm-os-modes-delivery-and-handoff-plan.md` Part C:** that plan reserves `/pm-handoff figma` for **outbound** work (PM *pulls* tokens to ground stage 04; later *pushes* frames from the prototype brief). This plan is **inbound and different in kind**: a designer-authored artifact entering the pipeline as a gated upstream input, carrying decision authority. Do not conflate them, and do not spend the `figma` name on this without reading that section — §9 covers the collision.
@@ -182,7 +182,7 @@ Per the CLAUDE.md convention (grep `docs/plans/` before minting a name — the `
 ## 11. Companion artifacts
 
 - **Management-facing note (PDLC v2):** published as a private artifact; local copy `pdlc-v2-proposal.html`. Covers the flow as a three-participant sequence diagram, the ownership table, what verification checks, what does not change, and three risks with mitigations. Aimed at approval, not implementation.
-- **Flow diagram:** `assets/pdlc-v2-external-design-authority.svg` (PNG export alongside). Stage 04 split in time: PM brief out, designer builds in Figma, `design-in/` ingested back into the same artifact for one approval.
+- **Flow diagram:** `assets/pdlc-v2-external-design-authority.svg`. Stage 04 split in time: PM brief out, designer builds in Figma, `design-in/` ingested back into the same artifact for one approval.
 - **Adcept run findings:** §2 above is the canonical write-up.
 
 ---

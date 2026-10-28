@@ -3,7 +3,7 @@
 Tracked issues and fixes, surfaced during testing/rollout prep. Newest concerns first.
 Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · 🟡 partially fixed · 🟢 fixed & released (release version noted).
 
-For **build order**, sequencing now lives inside each plan's own phase table (`../plans/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`) and the phase plan in `current-state-review.md` §7. The earlier one-time consolidation is archived at `../archive/development-order.md`.
+For **build order**, sequencing now lives inside each plan's own phase table (`../archive/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`) and the phase plan in `current-state-review.md` §7. The earlier one-time consolidation is archived at `../archive/development-order.md`.
 
 ---
 
@@ -876,7 +876,7 @@ _Entries 37-40 recorded 2026-08-04 during a GitHub-issue triage pass (#59–#63)
 ## 53. 🟡 Traceability coverage gaps are warning-only in the core pipeline, but hard-blocking in enhancement mode
 
 **Severity:** P2 — asymmetric rigor. The same class of gap that refuses to let an enhancement cycle close is a printed line the core pipeline exports straight past. A PRD whose requirements have zero test coverage and zero implementing tasks reaches a Jira export without a single blocking signal.
-**Status:** 🟡 Option (a) built on branch `feat/72-release-check` (2026-10-21); option (c) open. Originally logged as a design question, verified against the code 2026-09-05.
+**Status:** 🟡 Option (a) released in v1.5.6 (PR #91, as part of the release check, #72); option (c) open. Originally logged as a design question, verified against the code 2026-09-05.
 
 **Symptom:** Every core-pipeline traceability gap is `warning` severity: `TRD_TASK_ORPHAN` (task with no `Implements:`), `TRD_TASK_UNKNOWN_REQ` (implements an id the PRD doesn't declare), `TRD_REQ_NOT_IMPLEMENTED`, `SCREEN_ORPHAN`, `SCREEN_UNKNOWN_REQ`, `STORY_HAS_NO_SCREEN`, `SCREEN_IDS_MISSING`, plus the contract's `REQUIREMENT_COVERAGE_GAP`. `post-approve.py` prints uncovered requirements and moves on; `pm_share.py` renders a "Stories with no screen" section in the package; `pm_handoff.py` exports regardless. In enhancement mode the identical questions are `error` severity and genuinely block: `ENHANCEMENT_REGRESSION_TRACE_MISSING` (changed req with no TC), `ENHANCEMENT_IMPLEMENTATION_TRACE_MISSING` (no TSK), `ENHANCEMENT_SURFACE_TRACE_MISSING`, `ENHANCEMENT_INVARIANT_TRACE_MISSING`, `ENHANCEMENT_MIGRATION_TRACE_MISSING`.
 
@@ -1012,6 +1012,7 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 **Severity:** P2. In one project, about 30 background pushes in a row failed with `could not read Username for 'https://github.com'`. Telemetry never left the machine, and nothing told the PM.
 **Status:** 🟢 Fixed — released in v1.5.4 (PR #83). Each sync writes `.pm-os-sync.json` (gitignored). `/pm-status` shows the last outcome, the number of approvals not yet synced, and for credential failures the feedback repo plus the fix. Regressions: three `test_windows_portability.py` tests. Verified against the v1.5.1 code on 2026-10-05: `hooks/post-approve.py` `_spawn_background_sync` writes only to `.pm-os-sync.log`, and `/pm-status` never reads that file.
+**Follow-up (2026-10-28, release review):** a project with no `feedback_repo` showed `Central sync: FAILED` forever. A skipped sync is now recorded as `not_configured` and `/pm-status` says "not configured (optional)" (`test_status_reports_an_unconfigured_feedback_repo_as_optional`).
 
 **Proposed fix:** `/pm-status` shows the last sync result and the number of approvals not yet synced. A missing-credentials failure is reported once, together with the fix.
 
@@ -1027,6 +1028,7 @@ The frontmatter still holds the approved hash, so meta and frontmatter now disag
 
 The reporter had to write their own `finish_stage.py`.
 **Status:** 🟡 Script released in v1.5.4 (PR #83); switching the stage skills over to it is still open. `scripts/pm_finish_stage.py <NN> --model <id>` ships and is documented in the SOP. It is also the quickest way to bring a hand-written sprint PRD back under PM-OS state until #28 lands. The nine stage skills still spell the steps out inline; switching them over is a separate change, kept out of this bundle to avoid touching every stage prompt at once. Regressions: two `test_windows_portability.py` tests. The end-of-stage steps used to exist only as inline bash in each stage's `SKILL.md`.
+**Follow-up (2026-10-28, release review):** `pm_finish_stage.py` doesn't run the pre-stage gate, so a stage could be approved over unapproved upstreams with no notice. `pm_approve.py` now warns, naming them (`test_approving_over_unapproved_upstreams_warns`); it still doesn't block, because import and backfill flows approve out of order.
 
 **Proposed fix:** Add `scripts/pm_finish_stage.py <NN>`, which the skills call and which can also be run directly.
 
@@ -1090,7 +1092,7 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 ## 68. 🟢 `/pm-handoff --package` deletes files PM-OS didn't generate from the audience folders (GH #77-24)
 
 **Severity:** P2. A designer kit saved under `handoff/design/` was wiped the next time the package was built.
-**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. A rebuild deletes only the files the previous `manifest.json` (#75) lists, through `lib/release_record.clear_generated`. A folder built before manifests loses only files matching the package layout. Anything else is kept and named in the output. Regression: `test_rebuild_keeps_files_pm_os_did_not_write` and two unit tests. *Original finding:* verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
+**Status:** 🟢 Released in v1.5.6 (PR #91). A rebuild deletes only the files the previous `manifest.json` (#75) lists, through `lib/release_record.clear_generated`. A folder built before manifests loses only files matching the package layout. Anything else is kept and named in the output. Regression: `test_rebuild_keeps_files_pm_os_did_not_write` and two unit tests. *Original finding:* verified against the v1.5.1 code on 2026-10-05. `scripts/pm_share.py` `_prepare_audience_dir` (`:161-181`) runs `shutil.rmtree` on the audience folder whenever PM-OS's marker file is present. The marker check protects folders PM-OS didn't create, but not the user's own files inside a folder it did create.
 
 **Proposed fix:** Keep a manifest of the files PM-OS writes, next to the marker, and delete only those. Leave any other file alone and note that it was kept. Build it as the package manifest in #75, so one file serves both purposes. The sprint-scoped package requested in the same report belongs with the delivery-increment design (#28).
 
@@ -1120,7 +1122,7 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 ## 70. 🟢 Labeled-field values keep a stray `**`, so every bold `Priority:` is stored as `** Must`
 
 **Severity:** P1. It's small to fix but shows up in every handoff. Every story's frontmatter and the traceability index carry the malformed value.
-**Status:** 🟢 Fixed on branch `fix/70-labeled-field-bold` (2026-10-21), not yet released. `_LABELED_FIELD_RE` now consumes the closing `**` on either side of the colon, and `block_priority` drops emphasis inside the value. On the PRISM PRD the fix changes only the priority values; the stage 03/04/06/08 contract findings are identical before and after. Regressions: three tests in `tests/unit/test_artifact_contracts.py`.
+**Status:** 🟢 Fixed, released in v1.5.6 (PR #91). `_LABELED_FIELD_RE` now consumes the closing `**` on either side of the colon, and `block_priority` drops emphasis inside the value. On the PRISM PRD the fix changes only the priority values; the stage 03/04/06/08 contract findings are identical before and after. Regressions: three tests in `tests/unit/test_artifact_contracts.py`.
 
 **Evidence:**
 - `lib/artifact_contracts.py:225-228` `_LABELED_FIELD_RE` allows `**` around the label only before the colon (`(?:\*\*)?label(?:\*\*)?\s*:`). Stage 03 writes `**Priority:** Must / S2`, where the closing `**` comes after the colon, so it lands in the value.
@@ -1135,7 +1137,8 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 ## 71. 🟢 Exported files don't say their approval status, approver or version, and the text export includes unapproved stages
 
 **Severity:** P1. This is APEX finding AL-01: the build team had to compute its own hash to work out which PRD version it had.
-**Status:** 🟡 Version built on branch `feat/71-stage-version` (2026-10-21), not yet released: `.meta.yaml` schema 6 adds a per-stage `version` (PM decisions 2026-10-21: it increments only when an approval binds a new body, and existing projects backfill it from telemetry). Stamping exports and the text-export refusal are built on `feat/71-export-stamps` (2026-10-21), not yet released: every package file's frontmatter and each README carry the source's status, version, approver, approval time and content hash, and `--raw` exports approved stages only unless `--include-unapproved`. The package manifest (`manifest.json`) is #75.
+**Status:** 🟢 Released in v1.5.6 (PR #91): `.meta.yaml` schema 6 adds a per-stage `version` (PM decisions 2026-10-21: it increments only when an approval binds a new body, and existing projects backfill it from telemetry). Stamping exports and the text-export refusal shipped in the same release: every package file's frontmatter and each README carry the source's status, version, approver, approval time and content hash, and `--raw` exports approved stages only unless `--include-unapproved`. The package manifest (`manifest.json`) is #75.
+**Follow-up (2026-10-28, release review):** the stamps trusted the recorded status, and only the pre-stage gate re-hashed a body, so a stage edited after approval was exported (and shown by `/pm-status`) as `approved` with its old hash until a gate ran. Export, status, the Jira handoff and the release check now re-hash approved stages (`hashing.mark_edited_in_memory`) and treat a changed one as `edited` (`test_stage_edited_after_approval_is_not_exported_as_approved`, `test_package_blocks_a_qa_plan_edited_after_approval`).
 
 **Evidence:**
 - Stage artifacts carry `status`, `approved_by`, `approved_at` and `content_hash` in frontmatter, but nothing a person can read as a version (v1, v2…).
@@ -1152,7 +1155,8 @@ So a project whose 04 was approved in the normal single-pass mode (here SCR-001 
 ## 72. 🟢 No release check runs before a handoff: undefined IDs, broken links, placeholders and missing referenced files go out unchecked
 
 **Severity:** P1. These are APEX findings AL-21 (rule ids R-01 to R-09 cited but defined only outside the PRD and stories) and AL-23 (broken links in the stories README). APEX asked for "a release checklist [that] would catch these".
-**Status:** 🟢 Built on branch `feat/72-release-check` (2026-10-21), not yet released. `lib/release_check.py` runs standalone as `/pm-check --release <folder-or-zip>` and as the gate in `/pm-handoff --package`, which builds into a temporary folder and publishes only when the check passes (`--allow-release-errors` overrides, logged with the codes). PM decisions taken 2026-10-21: the command is `/pm-check --release`, and ids use the generic declaration rule in `release_check.ID_RULE` with a `--ignore-ids` escape hatch. The readiness-record exemption for pending files waits for #74. Regressions: `tests/unit/test_release_check.py` and `tests/integration/test_release_gate.py`.
+**Status:** 🟢 Released in v1.5.6 (PR #91). `lib/release_check.py` runs standalone as `/pm-check --release <folder-or-zip>` and as the gate in `/pm-handoff --package`, which builds into a temporary folder and publishes only when the check passes (`--allow-release-errors` overrides, logged with the codes). PM decisions taken 2026-10-21: the command is `/pm-check --release`, and ids use the generic declaration rule in `release_check.ID_RULE` with a `--ignore-ids` escape hatch. The readiness-record exemption for pending files waits for #74. Regressions: `tests/unit/test_release_check.py` and `tests/integration/test_release_gate.py`.
+**Follow-up (2026-10-28, release review):** a non-numeric `version:` (`draft`, `1.0-rc`) in a hand-built package crashed the check; versions now order by their numeric parts (`test_version_key_tolerates_non_numeric_versions`).
 
 **Evidence:**
 - `STABLE_ID_TYPES` (`lib/artifact_contracts.py:453`) is a fixed list of 11 prefixes, and ids with any other prefix are never checked. The PRISM PRD declares 38 `BR-` ids that PM-OS never tracks.
@@ -1179,7 +1183,7 @@ Errors block, with an explicit override that is logged. This absorbs option (a) 
 ## 73. 🟢 No change note between handoff releases, and outside inputs aren't versioned
 
 **Severity:** P1. APEX asked that every PRD or design update come with a short note saying what changed and which stories it affects, so they can re-plan only those.
-**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. The design follows the PM decisions of 2026-10-21: a `.releases/` ledger plus the manifest now, and a release is recorded only for a build given `--release-note`.
+**Status:** 🟢 Released in v1.5.6 (PR #91). The design follows the PM decisions of 2026-10-21: a `.releases/` ledger plus the manifest now, and a release is recorded only for a build given `--release-note`.
 - Every `--package` build writes `CHANGES.md` per audience folder. It compares a hash per stable-id block of approved 03/04/06/08 with the last release, and resolves the stories affected through the spine.
 - Outside inputs are versioned: the Figma file version from `design-in/ia.yaml`, and readiness test-input file hashes.
 - `--release-note` writes `.releases/REL-###.yaml` and logs `handoff_released`.
@@ -1210,7 +1214,7 @@ Errors block, with an explicit override that is logged. This absorbs option (a) 
 
 PM-OS has nowhere to track any of these as things that are owed, with an owner, a due date and a status.
 
-**Status:** 🟢 Built on branch `feat/74-readiness-record` (2026-10-21), not yet released. The design follows the PM decision of 2026-10-21: milestone-based YAML, edited by the agent, with Python that only scaffolds and validates. The parts:
+**Status:** 🟢 Released in v1.5.6 (PR #91). The design follows the PM decision of 2026-10-21: milestone-based YAML, edited by the agent, with Python that only scaffolds and validates. The parts:
 - `readiness.yaml`, `lib/readiness.py` and `scripts/pm_readiness.py init|check`;
 - validation in `/pm-check` and a summary in `/pm-status`;
 - a copy shipped in every audience folder, with release-check errors for overdue items;
@@ -1237,7 +1241,7 @@ Decided open decisions stay in the record with their `decision` text until #23's
 ## 75. 🟢 Packages have no machine-readable manifest for a reader like APEX
 
 **Severity:** P2. APEX is an AI build system that reads a fixed set of files. Today it guesses which files are authoritative and which version they are.
-**Status:** 🟢 Built on branch `feat/73-release-record` (2026-10-21), not yet released. Each audience folder has `manifest.json` (schema 1). It lists every file with its role, sha256, source artifact, approved version and status (#71), and reading order. The same file is #68's delete list. Still open: agreeing a read-set profile with APEX, so the roles are PM-OS's own until then.
+**Status:** 🟢 Released in v1.5.6 (PR #91). Each audience folder has `manifest.json` (schema 1). It lists every file with its role, sha256, source artifact, approved version and status (#71), and reading order. The same file is #68's delete list. Still open: agreeing a read-set profile with APEX, so the roles are PM-OS's own until then.
 
 *Original finding:* verified on 2026-10-21.
 
@@ -1347,6 +1351,52 @@ Stage 06 test data and eval sets draw from that section, and missing files are t
 
 **Proposed fix:** Split read from migrate. `load_meta(..., persist=False)` returns the migrated dict without saving it. Writing commands (approve, generate, import) persist the migration; read-only commands don't. Or document plainly that the first command after an upgrade migrates the project.
 
+---
+
+## 81. 🟠 Removed Figma links stay in the traceability index and story files
+
+**Severity:** P2. A developer can follow a link to a frame the design no longer has.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `lib/traceability.py` `_merge_reserved` copies a screen's prior `design_refs` into the rebuilt entry whenever the new entry has none (`_SCREEN_REF_SLOTS`). Since 1.5.1, `build_index` also derives `design_refs` from the ingested design spec, so a link removed from the spec is carried forward and keeps appearing in handoff story files. `tests/unit/test_traceability.py::test_rebuild_preserves_screen_design_refs` pins the carry-forward, from when the slot was only filled by hand.
+
+**Proposed fix:** Decide who owns the slot. If the spec owns it, stop carrying it forward once a screen's refs are derived from an ingested spec; if hand-set refs must survive, store them in a separate slot.
+
+---
+
+## 82. 🟠 Files a PM or designer saves in `handoff/` or `design-in/` are auto-committed
+
+**Severity:** P3. Someone else's files land in the project's git history.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `lib/project_git.py` lists `handoff` and `design-in` in `OWNED_DIRS`, so the post-approve commit stages everything in them. #68 deliberately keeps files PM-OS didn't write (a designer kit) in `handoff/<audience>/`, and `design-in/` is the designer's return. Both then get committed, against #61's rule that PM-OS leaves files it doesn't own alone.
+
+**Proposed fix:** Commit only the files the package manifest lists under `handoff/`, and treat `design-in/` as designer-owned (or commit it deliberately and document that).
+
+---
+
+## 83. 🟠 The package secret scan reads stage files that won't ship
+
+**Severity:** P3. A false block on content that isn't exported.
+**Status:** 🟠 Open. Verified against the code on 2026-10-28, during the 1.5.6 release review.
+
+**Evidence:** `scripts/pm_share.py` `package_source_paths` scans stages 01, 02, 03, 04, 06 and 08 whatever their status. A draft TRD or design spec is not projected into the package, but a likely secret in it still blocks the export.
+
+**Proposed fix:** Scan the same set the package projects: approved stages, plus the stage-04 brief when it is used as one.
+
+---
+
+## 84. 🟢 Small 1.5.6 review leftovers
+
+**Severity:** P4.
+**Status:** 🟢 Open, cosmetic. Verified on 2026-10-28.
+
+- `lib/design_ingest.py` writes `# Design Specification` where every other stage-04 spec starts `# Design Spec: <project>`.
+- `pm_share.py --package --html` followed by a plain `--package` removes the `index.html` files. That fits the "rebuild removes what it no longer writes" rule (#68) but isn't documented in the SOP.
+
+---
+
+_**Entries 81-84 recorded 2026-10-28** during the 1.5.6 release review (an isolated install driven end to end plus a diff review), each verified against the code. The same review fixed, on `fix/1.5.6-release-review`: export and status trusting a stale approval (#71 follow-up), `pm_design_ingest.py --help` running the ingest, design ingest leaving downstream stages approved and refusing a re-ingest, the FAILED sync status with no feedback repo (#62 follow-up), the silent out-of-order approval (#63 follow-up), the release-check version crash (#72 follow-up), and several smaller issues listed in the CHANGELOG. #53, #68 and #70–#75 were marked released in v1.5.6._
 ---
 
 _**Entries 70-79 recorded 2026-10-21** from APEX's workshop feedback on the PRISM sprint-1 output pack (findings AL-01, AL-06, AL-20, AL-21, AL-23 and AL-24, plus the test-data, decision and change-control asks), each checked against the v1.5.5 code before logging. The pack APEX reviewed (`sprint-1-r2`, 7 Oct) was built by hand outside PM-OS: it has no `.meta.yaml`, no PM-OS frontmatter and no telemetry. So several of its findings, such as missing epics and priorities, are things PM-OS already enforces. The engine gap underneath is #28/#66 (no sprint-sized path), and the entries above are what remains once that is accounted for. The same pass updated these statuses:_

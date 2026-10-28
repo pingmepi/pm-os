@@ -9,11 +9,6 @@ tests/                       export-ignore
 pyproject.toml               export-ignore
 scripts/pm_os_package.sh     export-ignore
 
-# demo/dev assets — not PM-facing deliverables, kept out of the offline zip
-docs/PM-OS-demo.pptx         export-ignore
-docs/build_deck.js           export-ignore
-docs/run-of-show.md          export-ignore
-
 # developer docs
 ARCHITECTURE.md              export-ignore
 CHANGELOG.md                 export-ignore
@@ -24,11 +19,7 @@ docs/roadmap/                export-ignore
 docs/guides/testing.md       export-ignore
 docs/README.md               export-ignore
 
-# collateral (binary, internal-branded)
+# collateral and the demo (binary, internal-branded; collateral/demo/ holds the demo deck)
 collateral/                  export-ignore
 
-# demo deck artifacts (presentation-only, not needed to run PM-OS)
-docs/PM-OS-demo.pptx         export-ignore
-docs/build_deck.js           export-ignore
-docs/run-of-show.md          export-ignore
 .gitignore                   export-ignore

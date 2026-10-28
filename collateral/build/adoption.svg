@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <style>
+      .h  { font-family: Georgia, 'Times New Roman', serif; }
+      .b  { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+      .navy { fill:#1F3A5F; } .mint { fill:#17A2A2; } .teal { fill:#0E7C7B; }
+      .ink { fill:#1A2230; } .slate { fill:#5A6B7B; } .white { fill:#FFFFFF; }
+      .good { fill:#1E7A46; } .plan { fill:#B5742A; }
+      .lbl { font-weight:700; letter-spacing:1.5px; }
+    </style>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1F3A5F" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#FAFBFC"/>
+
+  <!-- Header -->
+  <text x="110" y="86" class="b mint lbl" font-size="20" letter-spacing="4">ADOPTION &amp; ROLLOUT</text>
+  <text x="110" y="138" class="h navy" font-size="46" font-weight="700">How PM-OS rolls out</text>
+  <text x="110" y="176" class="b slate" font-size="21">Prove the full lifecycle — PM, dev and QA — with my team first; then widen carefully. Earn trust before scale.</text>
+  <line x1="110" y1="202" x2="1810" y2="202" stroke="#C9D4E0" stroke-width="1.5"/>
+
+  <!-- ============ WAVE 1 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="110" y="226" width="535" height="600" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="110" y="226" width="9" height="600" fill="#17A2A2"/>
+  </g>
+  <text x="146" y="274" class="b mint lbl" font-size="15" letter-spacing="3">WAVE 1</text>
+  <rect x="528" y="252" width="90" height="32" rx="16" fill="#E2F0E8"/>
+  <text x="573" y="274" class="b good" font-size="14" font-weight="700" text-anchor="middle">NOW</text>
+  <text x="146" y="316" class="h navy" font-size="29" font-weight="700">Pilot — my team</text>
+  <text x="146" y="346" class="b teal" font-size="17" font-weight="700">Me + 1 teammate</text>
+
+  <text x="146" y="392" class="b slate lbl" font-size="13">SET UP</text>
+  <text x="146" y="416" class="b ink" font-size="16.5">Install + verify on both machines;</text>
+  <text x="146" y="438" class="b ink" font-size="16.5">one shared feedback repo.</text>
+
+  <text x="146" y="478" class="b slate lbl" font-size="13">PM RUN</text>
+  <text x="146" y="502" class="b ink" font-size="16.5">Each takes a live product through</text>
+  <text x="146" y="524" class="b ink" font-size="16.5">definition (stages 01→07), real deadlines.</text>
+
+  <text x="146" y="564" class="b teal lbl" font-size="13">DEV + QA IN THE LOOP</text>
+  <text x="146" y="588" class="b ink" font-size="16.5">A dev builds from a real handoff packet;</text>
+  <text x="146" y="610" class="b ink" font-size="16.5">a QA partner triages a real bug; we run</text>
+  <text x="146" y="632" class="b ink" font-size="16.5">one release-readiness pass together.</text>
+
+  <text x="146" y="672" class="b slate lbl" font-size="13">LEARN</text>
+  <text x="146" y="696" class="b ink" font-size="16.5">Weekly retro — friction, time saved,</text>
+  <text x="146" y="718" class="b ink" font-size="16.5">breakage; tune prompts + SOP.</text>
+
+  <rect x="128" y="742" width="499" height="66" rx="9" fill="#EEF3F8"/>
+  <rect x="128" y="742" width="6" height="66" fill="#17A2A2"/>
+  <text x="150" y="767" class="b teal lbl" font-size="13">GATE → WAVE 2</text>
+  <text x="150" y="791" class="b ink" font-size="15">1 product idea→ship via PM-OS · dev &amp; QA find it useful · Phases 2–6 usable.</text>
+
+  <!-- arrow -->
+  <text x="672" y="540" class="b mint" font-size="42" font-weight="700" text-anchor="middle">→</text>
+
+  <!-- ============ WAVE 2 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="700" y="226" width="535" height="600" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="700" y="226" width="9" height="600" fill="#0E7C7B"/>
+  </g>
+  <text x="736" y="274" class="b mint lbl" font-size="15" letter-spacing="3">WAVE 2</text>
+  <rect x="1118" y="252" width="92" height="32" rx="16" fill="#E2F0E8"/>
+  <text x="1164" y="274" class="b good" font-size="14" font-weight="700" text-anchor="middle">NEXT</text>
+  <text x="736" y="316" class="h navy" font-size="29" font-weight="700">Multiple PMs</text>
+  <text x="736" y="346" class="b teal" font-size="17" font-weight="700">Several PMs, at once</text>
+
+  <text x="736" y="392" class="b slate lbl" font-size="13">PREP</text>
+  <text x="736" y="416" class="b ink" font-size="16.5">Pick the cohort; standardize install</text>
+  <text x="736" y="438" class="b ink" font-size="16.5">+ config; 1-page cheat-sheet + SOP.</text>
+
+  <text x="736" y="478" class="b slate lbl" font-size="13">ONBOARD</text>
+  <text x="736" y="502" class="b ink" font-size="16.5">One group session; shadow each PM's</text>
+  <text x="736" y="524" class="b ink" font-size="16.5">first project; office hours ~2–3 weeks.</text>
+
+  <text x="736" y="564" class="b teal lbl" font-size="13">RUN (with real dev/QA handoffs)</text>
+  <text x="736" y="588" class="b ink" font-size="16.5">Every PM runs a real product; opt-in</text>
+  <text x="736" y="610" class="b ink" font-size="16.5">connect the one tracker the team uses</text>
+  <text x="736" y="632" class="b ink" font-size="16.5">(Linear or Jira) so handoffs land for real.</text>
+
+  <text x="736" y="672" class="b slate lbl" font-size="13">LEARN</text>
+  <text x="736" y="696" class="b ink" font-size="16.5">Friction log feeds prompt/doc fixes;</text>
+  <text x="736" y="718" class="b ink" font-size="16.5">watch telemetry for drop-off.</text>
+
+  <rect x="718" y="742" width="499" height="66" rx="9" fill="#EEF3F8"/>
+  <rect x="718" y="742" width="6" height="66" fill="#0E7C7B"/>
+  <text x="740" y="767" class="b teal lbl" font-size="13">GATE → RECONSIDER WAVE 3</text>
+  <text x="740" y="791" class="b ink" font-size="15">Non-builders finish unaided · full PDLC in regular use · backlog stable.</text>
+
+  <!-- arrow -->
+  <text x="1262" y="540" class="b mint" font-size="42" font-weight="700" text-anchor="middle">→</text>
+
+  <!-- ============ WAVE 3 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="1290" y="226" width="520" height="600" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="1290" y="226" width="9" height="600" fill="#B5742A"/>
+  </g>
+  <text x="1326" y="274" class="b plan lbl" font-size="15" letter-spacing="3">WAVE 3</text>
+  <rect x="1638" y="252" width="148" height="32" rx="16" fill="#F7EEDF"/>
+  <text x="1712" y="274" class="b plan" font-size="14" font-weight="700" text-anchor="middle">LATER · GATED</text>
+  <text x="1326" y="316" class="h navy" font-size="29" font-weight="700">PM org-wide</text>
+  <text x="1326" y="346" class="b plan" font-size="17" font-weight="700">A destination, not yet a step</text>
+
+  <text x="1326" y="392" class="b slate lbl" font-size="13">DECISION REVIEW</text>
+  <text x="1326" y="416" class="b ink" font-size="16.5">Check Wave 1–2 evidence: is the full</text>
+  <text x="1326" y="438" class="b ink" font-size="16.5">PDLC proven? is adoption stable? do</text>
+  <text x="1326" y="460" class="b ink" font-size="16.5">the time-saved metrics hold?</text>
+
+  <text x="1326" y="500" class="b slate lbl" font-size="13">IF YES</text>
+  <text x="1326" y="524" class="b ink" font-size="16.5">Packaged onboarding, template library,</text>
+  <text x="1326" y="546" class="b ink" font-size="16.5">light governance, broader runtimes</text>
+  <text x="1326" y="568" class="b ink" font-size="16.5">(Claude / Codex / Gemini).</text>
+
+  <text x="1326" y="608" class="b slate lbl" font-size="13">UNTIL THEN</text>
+  <text x="1326" y="632" class="b ink" font-size="16.5">No org-wide rollout — by design.</text>
+  <text x="1326" y="654" class="b ink" font-size="16.5">There's no provision to share it widely</text>
+  <text x="1326" y="676" class="b ink" font-size="16.5">before the team has proven it.</text>
+
+  <rect x="1308" y="742" width="484" height="66" rx="9" fill="#F7EEDF"/>
+  <rect x="1308" y="742" width="6" height="66" fill="#B5742A"/>
+  <text x="1330" y="767" class="b plan lbl" font-size="13">THE GATE IS THE POINT</text>
+  <text x="1330" y="791" class="b ink" font-size="15">Org rollout is earned by Waves 1–2, not scheduled ahead of them.</text>
+
+  <!-- ============ Enablement band ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="110" y="850" width="1700" height="138" rx="14" fill="#1F3A5F"/>
+    <rect x="110" y="850" width="9" height="138" fill="#17A2A2"/>
+  </g>
+  <text x="146" y="888" class="h white" font-size="21" font-weight="700">What makes each wave safe to take</text>
+  <g class="b" fill="#D8E4F0" font-size="16.5">
+    <text x="146" y="924">•  Local-first &amp; private — state on the PM's own machine, no server</text>
+    <text x="146" y="956">•  Human-gated — the PM approves every stage; nothing moves on its own</text>
+    <text x="980" y="924">•  Dev &amp; QA join where the lifecycle reaches them — they execute, the PM decides</text>
+    <text x="980" y="956">•  Opt-in integrations — read-before-write, dry-run → confirm; never forced</text>
+  </g>
+
+  <text x="110" y="1042" class="b slate" font-size="16">Guiding principle: prove value with my team before adding users or external systems — trust and traceability scale with the rollout, not ahead of it.</text>
+</svg>

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed
+- **A stage edited after approval was still exported and shown as approved.** Export, `/pm-status`, the Jira handoff and the release check trusted the recorded status, and only the pre-stage gate re-hashed a body. Now each re-hashes approved stages and treats a changed one as `edited`: the raw export leaves it out, the package refuses an edited PRD (with the `--reapprove` hint) and the release check blocks any other edited source with `SOURCE_NOT_APPROVED`. `/pm-status` shows "edited since approval". Nothing is written to `.meta.yaml`.
+- **`pm_design_ingest.py --help` ran the ingest.** The script ignored its arguments. It now has an argument parser, so `--help` prints usage and unknown flags are refused.
+- **Design ingest left stage 04's downstream approved, and refused a designer's revision.** Ingesting over an approved stage 04 reset it to draft but left 05–08 approved against it; they are now marked stale, and the command names them. A second ingest over an earlier one (`design_mode: ingested`) is accepted and keeps each screen's `SCR-###` id by Figma node id. The ingest also clears a leftover `edited_hash`, and a telemetry failure no longer raises after the artifact is written.
+- **`/pm-status` reported sync as FAILED when no feedback repo is set up.** A missing `feedback_repo` is optional; status now says "not configured (optional)" and doesn't count unsynced approvals.
+- **Approving over unapproved upstream stages was silent.** An artifact that skipped the gate (written by hand, by `pm_finish_stage.py` or by design ingest) could be approved with no notice. Approval still succeeds but now names the upstream stages that aren't approved.
+- **`/pm-check --release` crashed on a non-numeric `version:`** such as `draft` or `1.0-rc` in a hand-built package. Versions now order by their numeric parts.
+- **Readiness and release-check paths lost a leading dot.** `.lstrip("./")` stripped characters, so `.fixtures/x.csv` became `fixtures/x.csv`. Only a leading `./` is removed now.
+- **The package secret scan skipped `readiness.yaml`,** which is copied into every audience folder. It is scanned now.
+- **`pm_os_verify.py` didn't import-check new lib modules.** It now imports every module that ships in `lib/`, not a fixed list.
+- **Updates kept retired skills.** `pm_os_update.py` and `install.sh` now remove `pm-share` (folded into `pm-handoff`) from the runtime skill folder; other skills, including a user's own, are left alone.
+- **`pm_os_package.sh --output` failed for a new folder or a relative path.** The output folder is created and the path made absolute before archiving.
+- **The package's success message ignored `--output`.** It now names the folder actually written.
+
+## 1.5.6 — 2026-10-28
+
 ### Added
 - **Change notes and a release record for handoff packages (backlog #73, APEX).** Every `/pm-handoff --package` build now writes `CHANGES.md` in each audience folder. It compares with the last recorded release and lists:
   - the stable ids added, removed or changed, compared block by block in the approved PRD, design spec, QA plan and TRD;
@@ -23,17 +39,27 @@
   - for PM-OS packages, exported stories or requirements that no `TC-###` covers, once the QA plan is approved (before that, one warning says coverage was not checked, so a design package built from a stage-04 brief is not blocked).
 
   `/pm-handoff --package` (and so the Jira flow's package refresh) now builds into a temporary folder and runs the check on each audience folder before publishing. Errors stop the export with nothing written, and the package already on disk stays as it was. `--allow-release-errors` publishes anyway and logs `release_check_overridden` with the overridden codes; a block logs `release_check_blocked`. On the PRISM folders it reports the 3 broken links and undefined `R-01`–`R-09` in the sprint-1 stories zip, the 7 broken links and 4 stories built from PRD v0.3 in sprint 2, and the 47 malformed priorities in the 5 Oct dev package.
-- **`scripts/pm_finish_stage.py <NN> --model <id>` (backlog #63, GH #77-15).** Records a stage artifact written outside its skill (in parts, by hand, by another tool) as a generated draft in one call: `.history` snapshot and `generated_hash`, meta + frontmatter to `draft`, `stage_generated` telemetry. Previously there was no supported way to make such an artifact approvable.
-- **`/pm-status` shows central-sync health (backlog #62, GH #77-16).** Each sync now records its outcome in `.pm-os-sync.json` (gitignored, `lib/sync_status.py`). `/pm-status` shows the last result and how many approvals have not reached the central repo yet. If the failure is missing git credentials, it names the feedback repo and the one-time fix, because a background push that failed every time used to be visible only in `.pm-os-sync.log`.
-- **Secret scanning on context import and handoff export (GH #63 PMOS-001, backlog #40).** A source holding a live API key used to be copied verbatim into `.history/`, which the project's git repo commits. New `lib/secret_scan.py` detects common credential formats (Google, AWS, GitHub, Slack, OpenAI, Anthropic and Stripe keys, JWTs, PEM private keys) plus a conservative `password = "…"` rule that ignores placeholders and ordinary prose.
-  - **Import:** `/pm-context-import` now saves a redacted snapshot (`[REDACTED:<kind>]`) and records the redaction in `.sources.yaml`. A PDF/Word/PowerPoint/Excel file holding a secret can't be redacted in place, so it is refused unless the PM passes `--allow-secrets`.
-  - **Export:** `/pm-handoff` (raw, `--package`, and the Jira plan/CSV) stops before writing anything when an exported artifact holds a secret. `--allow-secrets` overrides, and the override is logged.
-  - Messages and telemetry (`secrets_redacted`, `secrets_blocked`, `secrets_allowed`) give only the file, line and kind of secret, never the value, and tell the PM to rotate it.
 
 ### Fixed
 - **Rebuilding the package no longer deletes files PM-OS didn't write (backlog #68, GH #77-24).** A rebuild removes only the files the previous `manifest.json` lists. For a folder built before manifests, it removes only files matching the package layout. Anything else, such as a designer kit saved under `handoff/design/`, is kept and reported.
 - **The raw text export included unapproved stages (backlog #71).** `/pm-handoff --raw` exported `edited` stages, whose body changed after approval, and a single-stage export did no status check, so a draft could go out. It now exports approved stages only. A single unapproved stage is refused, and the all-stages export names what it left out. `--include-unapproved` exports them marked NOT APPROVED. Each stage's header now shows its version, approver and approval time.
 - **Bold labeled fields kept a stray `**` in their value (backlog #70).** Stage 03 writes `**Priority:** Must / S2`, with the bold closed after the colon, and the parser kept that `**`. Every story's `priority` in the handoff package and in `.traceability.yaml` read `'** Must / S2'` (all 47 PRISM dev stories). Both `**Label:** value` and `**Label**: value` now parse to the clean value. A bold label whose value starts on the next line still counts as present, so no new contract warnings appear. Existing projects pick up the fix on their next package build, and on the next stage-03 approval for `.traceability.yaml`.
+
+## 1.5.5 — 2026-10-21
+
+### Added
+- **Secret scanning on context import and handoff export (GH #63 PMOS-001, backlog #40).** A source holding a live API key used to be copied verbatim into `.history/`, which the project's git repo commits. New `lib/secret_scan.py` detects common credential formats (Google, AWS, GitHub, Slack, OpenAI, Anthropic and Stripe keys, JWTs, PEM private keys) plus a conservative `password = "…"` rule that ignores placeholders and ordinary prose.
+  - **Import:** `/pm-context-import` now saves a redacted snapshot (`[REDACTED:<kind>]`) and records the redaction in `.sources.yaml`. A PDF/Word/PowerPoint/Excel file holding a secret can't be redacted in place, so it is refused unless the PM passes `--allow-secrets`.
+  - **Export:** `/pm-handoff` (raw, `--package`, and the Jira plan/CSV) stops before writing anything when an exported artifact holds a secret. `--allow-secrets` overrides, and the override is logged.
+  - Messages and telemetry (`secrets_redacted`, `secrets_blocked`, `secrets_allowed`) give only the file, line and kind of secret, never the value, and tell the PM to rotate it.
+
+## 1.5.4 — 2026-10-21
+
+### Added
+- **`scripts/pm_finish_stage.py <NN> --model <id>` (backlog #63, GH #77-15).** Records a stage artifact written outside its skill (in parts, by hand, by another tool) as a generated draft in one call: `.history` snapshot and `generated_hash`, meta + frontmatter to `draft`, `stage_generated` telemetry. Previously there was no supported way to make such an artifact approvable.
+- **`/pm-status` shows central-sync health (backlog #62, GH #77-16).** Each sync now records its outcome in `.pm-os-sync.json` (gitignored, `lib/sync_status.py`). `/pm-status` shows the last result and how many approvals have not reached the central repo yet. If the failure is missing git credentials, it names the feedback repo and the one-time fix, because a background push that failed every time used to be visible only in `.pm-os-sync.log`.
+
+### Fixed
 - **Windows: scripts crashed printing ✓ when their output was piped (backlog #60, GH #77-8).** Piped stdout on Windows defaults to cp1252. Every script and hook now switches stdout/stderr to UTF-8 at startup on Windows only (`lib/console.ensure_utf8_stdio`); other platforms are untouched.
 - **Windows: text files were read and written in cp1252 (backlog #60, GH #77-7).** 24 `read_text`/`write_text`/`open()` calls had no `encoding`; `pm_context_import.py` wrote an em dash as byte `0x97` and corrupted `.sources.yaml`. All now pass `encoding="utf-8"` (already the default elsewhere, so no behaviour change off Windows), and a contract test keeps it that way.
 - **Windows / Git Bash: skill snippets could not import PM-OS (GH #77-6).** 35 inline snippets in the stage skills added `'$HOME/.pm-os/lib'` to `sys.path`. Git Bash expands that to `/c/Users/...`, which Windows Python cannot resolve, so every snippet failed with `ModuleNotFoundError: telemetry`. They now use `os.path.expanduser('~/.pm-os/lib')`, which resolves the same way on macOS/Linux.
@@ -41,6 +67,10 @@
 - **Handoff filenames are capped (backlog #59, GH #77-1/#77-2).** A sentence-length title became a ~500-character filename, which crashed the package build on Windows (260-character paths) and exceeds the 255-byte filename limit elsewhere. Slugs are capped at 60 characters on a word boundary; filenames stay id-first, so they remain unique and every link still resolves.
 - **`install.sh` runs its Python steps against the lib it just installed.** `pm_os_install.py` and the auto-verify now get `PM_OS_LIB_PATH`/`PM_OS_DIR` pointing at the fresh `~/.pm-os`, instead of whatever `Path.home()` resolves to. On Windows that comes from `USERPROFILE`, which can differ from Git Bash's `$HOME`. The offline-install tests now isolate `USERPROFILE` as well as `HOME`; before, they could read the developer's real `~/.pm-os`.
 - **The approval commit no longer sweeps in a PM's own files (backlog #61, GH #77-14, #72).** `git add -A` committed helper scripts, notes and nearly a screenshot containing a credential. The project commit now adds PM-OS's own files plus changes to files already tracked, and lists any other new files as "not committed". A held `.git/index.lock` now gets a message naming the cause and the fix instead of git's raw `fatal:` line.
+
+## 1.5.3 — 2026-10-21
+
+### Fixed
 - **On Windows the edited-upstream gate crashed instead of blocking (backlog #54, GH #77-10).** Windows reports the `NUL` device, which agent shells hand to child processes as stdin, as `isatty() == True`. So `hooks/pre-stage.py` skipped its non-interactive branch and crashed in `input()` with `EOFError`. The block-and-ask-the-PM fix from backlog #1 had therefore never applied on Windows. A new `lib/console.stdin_is_interactive()` additionally requires a real console handle on Windows (`GetConsoleMode`); other platforms are unchanged. An `EOFError` at the prompt now also blocks.
 - **The gate overwrote the approved hash when it detected an edit (backlog #55, GH #77-10/#77-11).** When it marked an upstream `edited`, the gate also replaced `.meta.yaml`'s `content_hash` with the edited body's hash. That one write caused three problems:
   - the warning showed the same value for "Approved hash" and "Current hash";
@@ -52,6 +82,11 @@
 - **A hung post-approve hook could leave downstream stages approved against changed content (backlog #57 / #31 Part 1, GH #77-4).** `pm_approve.py` now writes the downstream stale cascade together with the approval, in the same `.meta.yaml` write and before the hook runs. The cascade is shared in `lib/cascade.py`, and the hook and the gate use the same code. The hook now runs with stdin closed and a timeout (`PM_OS_POST_APPROVE_TIMEOUT`, default 300 s). On timeout, approval reports what may be incomplete and how to catch up.
 - **`--reapprove` could not repair `DOWNSTREAM_UPSTREAM_STALE` (backlog #58, GH #77-12).** If a stage's body is unchanged but an upstream was re-approved after it, `/pm-approve <NN> --reapprove` now rebinds the stage to the current upstream hashes and logs `stage_rebound`. It refuses while any upstream is not approved. `/pm-check` now points at this command.
 - **Test harness:** `generate_stage()` named its history snapshot with an ISO offset (`+00:00`). Windows treats `:` as a stream separator, so tests that depend on the snapshot silently computed no edit distance. It now uses the same `…Z` form as `pm_snapshot.py`.
+
+## 1.5.2 — 2026-10-21
+
+### Docs
+- Release notes for 1.5.1, the v1.5 overview in `collateral/`, the external-design-authority PDLC diagram, and backlog entries #54–#69 (PR #81). No code changes.
 
 ## 1.5.1 — 2026-09-17
 

@@ -101,10 +101,20 @@ def print_version() -> None:
         print(f"✓ PM-OS version: {version_path.read_text(encoding='utf-8').strip()}")
 
 
+# Skills PM-OS once shipped and has since removed. Pruned from the runtime dir on
+# update so a retired command stops being offered (pm-share folded into pm-handoff).
+RETIRED_SKILLS = ("pm-share",)
+
+
 def sync_skills(skills_dest: Path) -> None:
     skills_src = PM_OS_DIR / "skills"
     if skills_src.is_dir():
         skills_dest.mkdir(parents=True, exist_ok=True)
+        for name in RETIRED_SKILLS:
+            retired = skills_dest / name
+            if retired.is_dir() and not (skills_src / name).exists():
+                shutil.rmtree(retired)
+                print(f"✓ Removed retired skill: {name}")
         for skill_dir in sorted(p for p in skills_src.iterdir() if p.is_dir()):
             target = skills_dest / skill_dir.name
             if target.exists():

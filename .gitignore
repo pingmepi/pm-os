@@ -32,6 +32,8 @@ htmlcov/
 
 # Packaging and build artifacts
 build/
+# ...but collateral/build/ holds the deck generators (source, see collateral/README.md).
+!collateral/build/
 dist/
 .eggs/
 *.egg-info/
@@ -53,4 +55,4 @@ docs-alignment-report.md
 
 
 # Offline install bundles (build artifacts, regenerated on release)
-pm-os-*-offline.zip
+pm-os-*.zip
