@@ -16,7 +16,7 @@ folder the way the build team will and reports what they would trip over:
   option a).
 
 It is pure and read-only: it never writes, never logs, never prompts. The
-callers (`scripts/pm_release_check.py`, `pm_share.py --package`) decide what an
+callers (`pm_check.py --release`, `pm_share.py --package`) decide what an
 error means for them.
 
 Id detection is generic because a package carries id families PM-OS has never

@@ -1,6 +1,6 @@
 # PM-OS Collateral
 
-Share materials for PM-OS. Two audiences, one shared visual identity.
+Share materials for PM-OS, for leadership and product audiences, with one shared visual identity.
 
 | File | Audience | Use |
 |---|---|---|
@@ -9,7 +9,7 @@ Share materials for PM-OS. Two audiences, one shared visual identity.
 | `PM-OS-Technical-Brief.docx` | Director of Product | Reference doc to read/forward async. Source of truth the decks distill from. |
 | `PM-OS-v1.5-Overview.html` / `.pdf` | Leadership · rollout audience | Single-page v1.5 overview (HTML source + printed PDF). Not produced by the `build/` generators. |
 
-All three are grounded in actual repo state: v1 (product-definition pipeline, Phase 1) shipped; Phases 2–6 framed as roadmap.
+**How current each one is.** The two decks and the Technical Brief date from June 2026 (around v0.5): they list context intake, enhancement mode, traceability and dev handoff as planned, and all of those have since shipped. Regenerate them from current repo state before reusing them. The v1.5 overview is stamped v1.5.0; it predates the external designer path (v1.5.1) and the handoff release record (v1.5.6).
 
 ## Regenerating
 

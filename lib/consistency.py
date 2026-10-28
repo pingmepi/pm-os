@@ -4,7 +4,7 @@ Reuses the same invariants already enforced piecemeal by pm_approve.py,
 pre-stage.py, and post-approve.py, and already asserted (on throwaway
 fixtures) by the T0-T9 test suite, so the runtime check and the test
 apparatus share one implementation instead of drifting apart. See
-docs/plans/pm-os-test-implementation-plan.md §19 for the design.
+docs/archive/pm-os-test-implementation-plan.md §19 for the design.
 
 check_project() never mutates project state — it only reads .meta.yaml,
 artifact frontmatter, telemetry.jsonl, and optional context/sources YAML.

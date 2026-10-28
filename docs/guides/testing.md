@@ -91,6 +91,9 @@ tests/
 │   ├── test_release_record.py  # lib/release_record.py (backlog #73/#75/#68 release record, change note, manifest)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
+│   ├── test_console.py         # lib/console.py (Windows stdin/stdout, backlog #54/#60)
+│   ├── test_delivery_map.py    # lib/delivery_map.py (shared PRD decomposition)
+│   ├── test_design_input.py    # lib/design_input.py (external design return, v1.5.1)
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
 │   ├── test_project_lifecycle.py      test_entry_routing.py   test_stage_gates.py
 │   ├── test_traceability_spine.py     test_project_versioning.py
@@ -102,10 +105,22 @@ tests/
 │   ├── test_secret_scanning.py        # import redaction + handoff export gate (GH #63)
 │   ├── test_release_gate.py           # pm_check --release + the --package release gate (#72)
 │   ├── test_release_record_flow.py    # CHANGES.md, manifest.json, .releases/ and safe rebuilds (#73/#75/#68)
+│   ├── test_readiness_record.py       # readiness.yaml through status, check and the package (#74)
+│   ├── test_export_stamps.py          # approval stamps, approved-only and edited-since-approval export (#71)
+│   ├── test_stage_version_flow.py     # the approval version through every approval path (#71)
+│   ├── test_approval_and_staleness.py test_approval_integrity.py   # approval, cascade, gate drift (#54–#58)
+│   ├── test_windows_portability.py    # Windows bundle, sync health, pm_finish_stage (#59–#63)
+│   ├── test_history_snapshots.py      # pm_snapshot + lineage check
+│   ├── test_share_package.py          test_handoff.py   test_handoff_share_interop.py   # package, Jira, design ingest
+│   ├── test_enhancement_lifecycle.py  test_enhancement_boundary.py   test_enhancement_delta.py
+│   ├── test_enhancement_handoff.py    test_enhancement_consistency.py   test_enhancement_readonly.py
+│   ├── test_enhancement_refresh_complete.py   test_enhancement_root_cause_fixes.py
+│   ├── test_codebase_inventory.py     test_prepare_codebase_zip.py   # E2 codebase scan + .zip sources
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
-    └── test_local_first_boundaries.py    test_ci.py
+    ├── test_local_first_boundaries.py    test_ci.py
+    └── test_windows_portability_contracts.py   # encoding=, UTF-8 stdio, no $HOME lib path
 ```
 
 ---
@@ -308,6 +323,12 @@ one-line description. The matching docstring in code carries the same intent for
 - **Generated history lineage:** `test_pm_snapshot_stamps_hash_and_copies_exact_artifact` verifies `pm_snapshot.py` stamps/verifies `generated_hash` and copies the exact artifact into `.history/`; `test_pm_check_warns_when_generated_snapshot_missing_or_mismatched` verifies `/pm-check` reports warning-only lineage degradation for missing or mismatched generated snapshots; `test_pm_check_accepts_matching_generated_snapshot` verifies a snapshot whose body hash *matches* its `generated_hash` yields **no** lineage warning — backlog #30, where `hash_artifact_body` was called unimported in `lib/consistency.py`, so every snapshot was falsely reported unreadable.
 - **IMP-007 fix — one TC extractor, not two:** `test_qa_plan_bold_wrapped_bullet_ids_are_declared` (a bold-wrapped bullet id `- **TC-001:** ...` is recognized by both `TEST_CASE_IDS_MISSING`'s check and the strict `split_test_case_blocks` splitter that feeds `traceability.build_index` — previously the loose validator regex accepted it while the strict splitter returned nothing, so a QA plan could pass validation while contributing nothing to `.traceability.yaml`); `test_split_test_case_blocks_stops_at_any_heading_level` (a non-TC `###` subsection interleaved between two test cases ends the preceding TC's block instead of being silently absorbed into it — previously the section-break regex only matched literal `##`); `test_split_test_case_blocks_preserves_nested_subheadings` (Codex PR #33 follow-up: a heading-style TC keeps its own nested `#### Coverage`/`#### Steps` detail — the level-aware splitter breaks only at a heading at or above the TC's own level, so requirement ids cited under a nested subsection are no longer dropped).
 
+**`test_design_input.py`** — external design-authority return validation (`lib/design_input.py`, v1.5.1)
+- `test_valid_design_input_has_warning_only_open_question` — a complete return validates with no errors; its open question is a warning only.
+- `test_rejects_unsupported_version` / `test_rejects_unknown_flow_state` / `test_rejects_missing_required_field_coverage` — an unsupported `ia_format_version`, a flow step naming an undeclared state, and a required data field no serving screen shows are errors.
+- `test_default_state_can_share_screen_node_id_but_other_duplicates_fail` — a default state may reuse its screen's node id; any other duplicate is an error.
+- `test_state_node_url_builds_canonical_figma_deep_link` — file URL + `12:340` → `?node-id=12-340`.
+
 **`test_traceability.py`** — Phase 3.5 traceability spine (`lib/traceability.py`)
 - `test_build_index_links_requirements_and_test_cases` — index extracts PRD requirement ids + QA TC-### ids and links each scenario to the requirement ids in its block.
 - `test_build_index_parses_ordered_list_test_cases` — ordered-list scenarios (`1. TC-001 — covers FR-001`) are parsed, so a valid plan in that format is not reported all-uncovered.
@@ -434,6 +455,11 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_status_explains_a_credential_failure_and_counts_unsynced_approvals` — #62: a credential failure is reported with the feedback repo and the fix, plus the number of approvals not yet synced.
 - `test_sync_status_file_is_never_committed` — #61/#62: `.pm-os-sync.json` is gitignored (added to older projects) and never committed.
 - `test_status_reports_an_unconfigured_feedback_repo_as_optional` — with no feedback repo, `/pm-status` says "not configured (optional)", not FAILED, and counts no unsynced approvals.
+
+**`test_history_snapshots.py`** — generated-history snapshots and their lineage check (`scripts/pm_snapshot.py`, `lib/consistency.py`)
+- `test_pm_snapshot_stamps_hash_and_copies_exact_artifact` — the helper stamps the real body hash as `generated_hash` and writes one matching `.history` copy.
+- `test_pm_check_warns_when_generated_snapshot_missing_or_mismatched` — `/pm-check` warns on a missing snapshot and on one whose body differs.
+- `test_pm_check_accepts_matching_generated_snapshot` — backlog #30: a matching snapshot produces no warning.
 
 **`test_traceability_spine.py`** — Phase 3.5 traceability spine end to end (`post-approve.py` + `pm_trace.py`)
 - `test_approval_builds_traceability_dotfile` — approving 03 then 06 writes a flat `.traceability.yaml` at the project root linking PRD requirement ids to QA TC-### scenarios.

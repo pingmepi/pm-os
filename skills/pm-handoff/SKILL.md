@@ -171,8 +171,9 @@ for each requested audience:
 - `wireframes/prototype.html` (dev, design, qa) — the approved stage-05
   prototype, copied in, if present.
 - `--html` also emits an `index.html` inside each built audience folder.
-- Every generated file starts with frontmatter naming the approved source it
-  was built from: `status`, `version`, `approved_by`, `approved_at` and
+- Every generated Markdown file starts with frontmatter naming the approved
+  source it was built from (`CHANGES.md`, `manifest.json` and the copied
+  `readiness.yaml` are the exceptions: they describe the package itself): `status`, `version`, `approved_by`, `approved_at` and
   `content_hash`, plus a `sources` list when it draws on several artifacts.
   Each README ends with a Sources table of the same. A reader never has to
   recompute a hash to know which approved revision it holds.
@@ -200,6 +201,10 @@ if unsure.
   prominent; do not fabricate.
 - Requires at least an approved PRD (`03-prd.md`). If it is missing, the
   script exits with an error — stop and tell the PM to approve the PRD first.
+  A stage whose body changed after approval counts as `edited` even if no
+  gate has run since: an edited PRD is refused with the
+  `/pm-approve 03 --reapprove` fix, and any other edited source fails the
+  release check. Relay the fix; never re-approve on the PM's behalf.
 - Screens come from the **approved** design spec's `SCR-###` inventory. If
   stage 04 is not approved, or predates screen ids, every story shows
   `— not captured in source —` for screens and the screen map says so;
@@ -224,8 +229,9 @@ python3 ~/.pm-os/scripts/pm_share.py [stage_id] [--output FILE] [--include-unapp
 
 A single stage or every **approved** stage, concatenated verbatim — for a
 quick paste into email/Slack/a doc. Each stage's header gives its status,
-version, approver, approval time and hash. A stage that is `edited`, `draft` or
-`stale` is not exported: a single such stage is refused, and the all-stages
+version, approver, approval time and hash. A stage that is `edited` (including
+one changed after approval that no gate has seen yet), `draft` or `stale` is
+not exported: a single such stage is refused, and the all-stages
 export names the ones it left out. `--include-unapproved` exports them anyway,
 each marked NOT APPROVED; pass it only when the PM explicitly asks. Pass through only the raw-relevant part
 of `$ARGUMENTS` (an optional `stage_id` and `--output`) verbatim; do not

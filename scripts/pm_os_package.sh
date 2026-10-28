@@ -7,9 +7,10 @@
 #   ./scripts/pm_os_package.sh --output /path/to/out.zip
 #
 # The resulting zip contains install.sh, lib/, scripts/, hooks/, skills/, templates/,
-# context.example/, VERSION, README.md, and docs/. CLAUDE.md, AGENTS.md, tests/, and
-# .github/ are excluded via .gitattributes export-ignore so the folder is safe to unzip
-# and hand to teammates — no developer-facing agent instructions will be present.
+# context.example/, VERSION, README.md, and the PM-facing docs (docs/guides/ minus
+# testing.md, and docs/examples/). Everything else — CLAUDE.md, AGENTS.md, ARCHITECTURE.md,
+# CHANGELOG.md, tests/, .github/, collateral/ and the rest of docs/ — is excluded via
+# .gitattributes export-ignore, so the folder is safe to unzip and hand to teammates.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

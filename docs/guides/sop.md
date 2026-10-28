@@ -46,7 +46,8 @@ No stage progresses autonomously. Every gate requires explicit PM approval.
 - Giving every stage a named human owner and an explicit approval gate.
 - Producing artifacts that are reproducible, diffable, and easy to edit in Markdown.
 - Handing that definition to the people who build it — a per-audience handoff package and Jira tickets (§4.5).
-- *(Planned)* QA bug triage, release readiness, feedback ingestion, and the design half of external handoff (Figma pull/push) — coming in later phases.
+- Checking a package before it ships and recording what was sent and what the build team is still owed (release check, release record, `readiness.yaml`; §4.4–4.5).
+- *(Planned)* QA bug triage, feedback ingestion, and the design half of external handoff (Figma pull/push) — coming in later phases.
 
 ### What PM-OS is not
 - Not a replacement for product judgment. It drafts and recommends; the PM decides.
@@ -184,8 +185,19 @@ Then 02, 03, … 07. (If you seeded the project with `/pm-context-import`, you a
 1. **Never generate a downstream stage from an unapproved upstream stage.** The gate exists to stop drift. If a pre-stage gate exits non-zero, stop and read the error; do not write the artifact anyway.
 2. **Approval is explicit and follows review.** A draft is not a decision until someone runs `pm-approve` for that stage. Don't approve to "unblock" yourself.
 3. **Surface conflicts; don't silently override.** If a new note contradicts an approved upstream artifact, raise it and decide deliberately — re-open the upstream stage if the decision actually changed.
-4. **Edit drafts freely before approval.** The Markdown is yours to refine. Generated drafts are snapshotted under `.history/` by `pm_snapshot.py`, so you can regenerate without fear. If a stage had to be written outside its skill (for example in parts, because it was too large for one pass), run `python3 ~/.pm-os/scripts/pm_finish_stage.py <NN> --model <model id>` once it is complete: it records the artifact as a generated draft exactly as the skill would, and then `/pm-approve <NN>` works as usual.
+4. **Edit drafts freely before approval.** The Markdown is yours to refine. Generated drafts are snapshotted under `.history/` by `pm_snapshot.py`, so you can regenerate without fear. If a stage had to be written outside its skill (for example in parts, because it was too large for one pass), run `python3 ~/.pm-os/scripts/pm_finish_stage.py <NN> --model <model id>` once it is complete: it records the artifact as a generated draft exactly as the skill would, and then `/pm-approve <NN>` works as usual. It does not run the pre-stage gate, so if an upstream stage isn't approved yet, approval says so in a warning: approve the upstream stages first.
 5. **Read the validation findings before you approve.** You don't run the validator yourself — PM-OS runs it for you. Generating stages 03, 04, 05, 06, 08 (and the HTML prototype) runs the artifact contract in **strict** mode, so a missing required section is caught and repaired before you ever see the draft. Approval re-runs it in **warning** mode: findings are printed, recorded as `artifact_validation_warning` telemetry, and surfaced by `/pm-status` as `⚠ contract warnings: N` on the stage. Warnings do not block approval — that is precisely the point at which *you* decide — so read each one with the same attention as a reviewer comment. For a whole-project consistency check at any time, run `/pm-check` (§4.4).
+
+**Stage 04 with an external designer.** When a separate designer owns Figma, run stage 04 as a *brief* instead of a full design spec, send the designer the design package, and ingest what they return:
+```text
+Claude: /pm-stage-04-design-spec --brief       Codex: $pm-stage-04-design-spec --brief
+Claude: /pm-handoff --package --audience design
+   (the designer works in Figma and returns design-in/ia.yaml + design-in/design-notes.md)
+Claude: /pm-check --design                     Codex: $pm-check --design
+Claude: /pm-stage-04-design-spec --ingest      Codex: $pm-stage-04-design-spec --ingest
+Claude: /pm-approve 04                         Codex: $pm-approve 04
+```
+The brief holds what you own: guardrails, principles, content rules, accessibility, and the inventory of states and data fields each story needs. The designer's sections stay marked as pending, and the brief is never approved as a design spec. The design package includes `DESIGNER-WORKFLOW.md`, which tells the designer what to return. `/pm-check --design` checks the return against the approved PRD and the brief: every screen serves real stories, every required state exists, every data field appears. Ingest then rewrites `04-design-spec.md` as a draft: it keeps your brief sections word for word, gives each screen a stable `SCR-###` id tied to its Figma frame, and links every screen and state to Figma. When the designer sends a revision, ingest it again; screens keep their ids. If stage 04 was already approved, the ingest sets it back to draft and marks the approved stages built on it stale, and it tells you which ones to re-approve.
 
 ### 4.4 Check state and capture feedback any time
 ```text
@@ -206,9 +218,9 @@ Claude: /pm-interview            Codex: $pm-interview
 
 **Known unknowns.** When you seed a project via `/pm-context-import`, any interview question you skip is recorded in `00-context/known-unknowns.md` as an open gap — never a silent assumption. `/pm-status` shows the count (`Known unknowns: N open`). Run `/pm-interview` any time to re-run the interview against just those still-open gaps: answers are registered as PM-authored context and the resolved gaps are marked in place (never deleted), so the audit trail stays intact.
 - `pm-feedback` prompts for a rating and note interactively; run non-interactively, pass `--rating 1-5` (or `--skip-rating`) and `--note "<text>"` (or `--skip-note`).
-- Run `pm-status` before resuming work to see which stages are drafted vs. approved.
+- Run `pm-status` before resuming work to see which stages are drafted vs. approved. A stage you edited after approving it shows as `edited since approval`, even before any other command has noticed; re-approve it (`/pm-approve <NN> --reapprove`) once the edit is reviewed.
 - Capture feedback while it's fresh — it's recorded locally in `feedback.jsonl` and feeds future improvement.
-- `pm-sync` pushes all projects' telemetry and feedback to the team repo. Each approval triggers this automatically **in the background** (so approval never waits on the network push); run `pm-sync` manually to verify or retry a backgrounded sync, backfill a machine that was offline, or pass `--verify` to validate every project's hash chain.
+- `pm-sync` pushes all projects' telemetry and feedback to the team repo. Each approval triggers this automatically **in the background** (so approval never waits on the network push); run `pm-sync` manually to verify or retry a backgrounded sync, backfill a machine that was offline, or pass `--verify` to validate every project's hash chain. If no team repo is configured, `/pm-status` shows central sync as "not configured (optional)"; nothing is failing.
 
 ### 4.5 Share approved artifacts
 
@@ -224,7 +236,7 @@ Use this to export the approved chain for stakeholders who don't run PM-OS. Shar
 ```text
 Claude: /pm-handoff --package      Codex: $pm-handoff --package
 ```
-Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get separate epic, story, and requirement files; every story is self-contained and embeds the text of referenced `FR-###`/`REQ-###` requirements, `AC-###` acceptance criteria, impact analysis, and NFRs instead of relying on hyperlinks for implementation-critical context. Story files also walk the traceability spine through journeys, covering test cases, serving `SCR-###` screens, exact Figma screen/state links when available, and implementing `TSK-###` backend tasks when the optional TRD is approved. Business gets the overview and epic index. Design/QA get `reference/screen-map.md` (the screen → stories reverse view) and the prototype; when stage 04 is a draft design brief (`design_mode: brief`), the design audience also gets `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so external designers can return structured `design-in/` evidence before PM-OS ingests the canonical design spec with `pm_design_ingest.py` / stage-04 `--ingest`. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03) and is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
+Instead of one dense text dump, this assembles a decomposed, human-readable package under `handoff/{dev,design,qa,business}/` — one audience folder per consumer. Each folder gets whatever's relevant to it: dev/qa get separate epic, story, and requirement files; every story is self-contained and embeds the text of referenced `FR-###`/`REQ-###` requirements, `AC-###` acceptance criteria, impact analysis, and NFRs instead of relying on hyperlinks for implementation-critical context. Story files also walk the traceability spine through journeys, covering test cases, serving `SCR-###` screens, exact Figma screen/state links when available, and implementing `TSK-###` backend tasks when the optional TRD is approved. Business gets the overview and epic index. Design/QA get `reference/screen-map.md` (the screen → stories reverse view) and the prototype; when stage 04 is a draft design brief (`design_mode: brief`), the design audience also gets `reference/design-brief.md` and `DESIGNER-WORKFLOW.md` so external designers can return structured `design-in/` evidence before PM-OS ingests the canonical design spec with `pm_design_ingest.py` / stage-04 `--ingest`. Add `--audience dev|design|qa|business` to rebuild just one folder (others are left untouched), `--html` for a cross-linked `index.html` per folder, or `--output <dir>` to write elsewhere. It requires an **approved** PRD (stage 03); a PRD you edited after approving it counts as unapproved until you re-approve it (`/pm-approve 03 --reapprove`), and an edited QA plan, design spec or TRD stops the release check below. It is a read-only projection — never edit files under `handoff/`; they're regenerated wholesale, so edit the canonical stage artifact and re-run. Re-run it after any PRD/QA/design re-approval to refresh the package.
 
 **Check a package before you send it (`/pm-check --release`).**
 ```text
@@ -338,6 +350,8 @@ Each stage then covers the **enhancement only** — the current-product gap and 
 | Capture feedback | `/pm-feedback 0N` | `$pm-feedback 0N` |
 | Sync telemetry/feedback | `/pm-sync` | `$pm-sync` |
 | Regenerate HTML prototype | `/pm-prototype-html` | `$pm-prototype-html` |
+| Stage 04 as a brief for an external designer | `/pm-stage-04-design-spec --brief` | `$pm-stage-04-design-spec --brief` |
+| Check / ingest the designer's return | `/pm-check --design`, then `/pm-stage-04-design-spec --ingest` | `$pm-check --design`, then `$pm-stage-04-design-spec --ingest` |
 | Share approved set (raw text) | `/pm-handoff --raw` | `$pm-handoff --raw` |
 | Handoff package (per-audience files) | `/pm-handoff --package` | `$pm-handoff --package` |
 | Check any handoff folder or zip before sending | `/pm-check --release <path>` | `$pm-check --release <path>` |

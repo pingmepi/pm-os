@@ -9,6 +9,7 @@ generated_hash: 8f3c1a9e2b7d4506
 pm_os_version: 1.5.0
 genai_flag: false
 artifact_contract_version: 7
+design_mode: brief
 generation_notes:
   - "BRIEF-ONLY run: design authority is external. Do not declare SCR-### screens, components or tokens."
 ---

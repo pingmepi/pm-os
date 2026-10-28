@@ -1,7 +1,7 @@
 {# Reference template for .meta.yaml — NOT rendered by code. scripts/pm_new.py
    builds the meta dict inline and is the authoritative source; migrations live
    in lib/project.py:migrate_meta. Keep this in sync for documentation only. #}
-schema_version: 5
+schema_version: 6
 project_slug: {{ project_slug }}
 project_name: {{ project_name }}
 created_at: {{ created_at }}
@@ -24,4 +24,5 @@ stages:
     regeneration_count: 0
     optional: {{ stage.optional }}
     origin: generated
+    # set on approval (schema 6): version: <N>, version_hash: <approved content_hash>
 {% endfor %}

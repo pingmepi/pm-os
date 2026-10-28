@@ -1,6 +1,6 @@
 # PM-OS External Design Authority — Post-Pilot Execution Plan
 
-**Status:** Implementation complete except full-suite verification. Prepared 2026-09-01.
+**Status:** 🟢 Done — shipped in v1.5.1 (PR #75) with the full suite green; re-ingest and the downstream stale cascade followed in the 1.5.6 release-review fixes. Prepared 2026-09-01.
 **Assumption:** the zero-engine-change pilot in
 `pm-os-external-design-authority-plan.md` completed successfully. The material shared
 with pilot participants proves a four-prompt operating model: PM brief, designer

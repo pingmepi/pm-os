@@ -70,7 +70,8 @@ When relaying `--release` output, keep each finding's location and fix. If there
 are many, group them by code and show the first few of each, then say how many
 more there are and offer `--json` for the full list.
 
-Report the script's output as-is. Do not summarize, restructure, or add
+Otherwise (the project check, and `--release` output short enough to show in
+full) report the script's output as-is. Do not summarize, restructure, or add
 commentary beyond a one-line confirmation that the script ran. This command
 never modifies project state — if it reports issues, point the PM at the
 remediation command it prints for each one (for example `/pm-approve <NN>`);

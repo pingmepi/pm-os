@@ -40,11 +40,11 @@ No stage progresses without explicit PM approval.
 8. TRD *(optional technical capstone)*
 9. Roadmap *(optional product capstone)*
 
-Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit PM approval. Later stages use the approved upstream artifacts as their source of truth. Approving the design spec and prototype brief also creates HTML companions: a design-spec preview for stage 04 and a lo-fi static prototype for stage 05.
+Each stage writes a Markdown artifact, waits for review, and only proceeds after explicit PM approval. Later stages use the approved upstream artifacts as their source of truth. Approving the design spec also renders an HTML design-spec preview. Stage 05 produces an interactive HTML prototype (`pm-prototype-html`); if none exists when the prototype brief is approved, a lo-fi static mockup is rendered as a fallback.
 
 The optional roadmap scopes the path from MVP to a deliverable product and future horizons. It can run after stages 01-07 are approved; if an approved TRD exists, the roadmap uses it as technical delivery context.
 
-**Planned phases:** dev-phase support and dev handoff, QA bug triage, release readiness, and feedback ingestion will be added in later phases without replacing the product-definition pipeline.
+Dev handoff is built: `/pm-handoff` produces a per-audience handoff package, a Jira export, a release check on every package, and readiness and release records. **Planned phases:** QA bug triage, feedback ingestion and Figma pull/push will be added later without replacing the product-definition pipeline.
 
 ## Design Goals
 
@@ -133,18 +133,41 @@ PM-OS builds a context wiki and an understanding doc for you to review and
 approve, then adopts the artifacts you authored and faithfully backfills the
 upstream stages below them before handing back to the normal pipeline.
 
+Working with an external designer who owns Figma? Run stage 04 as a brief
+instead of a full design spec, hand the designer the design package, and
+ingest what they return:
+
+```text
+Claude: /pm-stage-04-design-spec --brief      then  /pm-handoff --package --audience design
+Claude: /pm-check --design                    after the designer returns design-in/
+Claude: /pm-stage-04-design-spec --ingest     then review and /pm-approve 04
+```
+
+The designer returns `design-in/ia.yaml` (screens, states and Figma node ids)
+and `design-in/design-notes.md` (rationale); the package's
+`DESIGNER-WORKFLOW.md` explains the format. Ingest keeps your brief's
+PM-owned sections, assigns stable `SCR-###` screen ids, and links each screen
+and state to its Figma frame. A later revision can be ingested again and keeps
+the same ids. If stage 04 was already approved, the ingest sets it back to
+draft and marks the approved stages built on it stale.
+
 Day to day you'll also use `/pm-enhance` (same-project enhancement cycles), `/pm-status` (project state, including any open
 known-unknowns), `/pm-check` (read-only consistency check for a project),
 `/pm-interview` (re-run the discovery interview against still-open gaps),
 `/pm-feedback <NN>` (rate a
-stage), and `/pm-handoff` — the single export skill: `--raw` for approved
+stage), `readiness.yaml` (the record of eval sets, test inputs and open
+decisions the build team is owed — ask the agent to update it, or run
+`python3 ~/.pm-os/scripts/pm_readiness.py init|check`), and `/pm-handoff` — the single export skill: `--raw` for approved
 artifacts as plain text, `--package [--audience dev|design|qa|business]` to
 build a readable, decomposed handoff package of per-story files + reference
 docs under `handoff/<audience>/`, or bare/`jira` to export the approved
 pipeline to Jira as epics/stories/tasks via the Atlassian connector — dry-run
 → confirm → create, with ticket keys recorded back into the traceability
 spine; add `--offline` to get a `handoff/jira-import.csv` for Jira's own CSV
-importer instead, no connector needed. There's also `/pm-sync` (push every
+importer instead, no connector needed. Every package is checked before it is
+written (`/pm-check --release <folder-or-zip>` runs the same check on any
+handoff folder, even a hand-built one), and only approved stages are exported:
+a stage edited after approval is left out until you re-approve it. There's also `/pm-sync` (push every
 project's telemetry/feedback to the team repo; `--verify` checks each hash chain).
 
 Approve the business statement, then generate and approve stages. The business

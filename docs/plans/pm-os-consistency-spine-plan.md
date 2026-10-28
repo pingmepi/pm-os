@@ -1,6 +1,6 @@
 # PM-OS Consistency Spine & v1.4.1 Fixes Plan
 
-**Status:** 🟡 In progress (2026-08-01). **The seven v1.4.1 defect fixes (A.0, backlog #30–#36) are implemented and green** on branch `fix/v1.4.1-consistency-defects` — full suite **341 passing**; #31 shipped the *detector* (`DOWNSTREAM_UPSTREAM_STALE`), its atomicity refactor half deferred. A.1–A.4 (the general consistency spine) are designed here, not yet built.
+**Status:** 🟡 Partly shipped. **A.0, the seven v1.4.1 defect fixes (backlog #30–#36), released in v1.4.1–v1.4.3**; #31's detector (`DOWNSTREAM_UPSTREAM_STALE`) shipped then, and its atomicity half shipped in v1.5.3 as `lib/cascade.py` (approval writes the downstream stale cascade in the same meta write, backlog #57). A.1–A.4 (the general consistency spine) are designed here, not yet built. Originally recorded 2026-08-01.
 **Author:** Karan (with Claude Code)
 **Entry-pathways work** (formerly bundled here as "Thrust B") now lives in its own plan: `pm-os-entry-pathways-plan.md`. This doc is the consistency-spine + fixes half only.
 **Supersedes / ignores:** the `feat/whole-product-foundation` branch (scope-tier / increment / promote work) — abandoned as buggy per PM decision. Its Part B *design* still lives in `pm-os-modes-delivery-and-handoff-plan.md`; this plan does **not** depend on that branch's code.
