@@ -201,7 +201,7 @@ These `US-###` ids are the **stable traceability handles** for the whole pipelin
 
 ## Assumptions & Open Decisions
 
-<Recommended. Record unresolved decisions or assumptions that materially affect journeys, requirements, compliance, or validation. Name the owner and consequence of each unresolved item. If none remain, say so explicitly.>
+<Recommended. Record unresolved decisions or assumptions that materially affect journeys, requirements, compliance, or validation. Give each unresolved decision a stable `OD-##` id and one line: the question and the epics/stories it blocks. Owner, decide-by milestone and status live in `readiness.yaml` (see the end-of-stage steps), not here, because they change weekly and the PRD must not grow or go stale over them. If none remain, say so explicitly.>
 
 ## Edge Cases
 
@@ -328,9 +328,19 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
    ```
    If validation exits non-zero, repair `03-prd.md`, recompute `generated_hash`, rerun the snapshot helper, and rerun validation. Do not update metadata or log `stage_generated` until validation passes. Recommended-section warnings are visible but non-blocking.
 
-6. **Update `.meta.yaml`** — for stage 03, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+6. **Seed the readiness record.** Run `python3 ~/.pm-os/scripts/pm_readiness.py init`,
+   then, for each `OD-##` in `## Assumptions & Open Decisions` that is not already
+   under `open_decisions` in `readiness.yaml`, add one item with `id`, `question`,
+   the `epics` and `stories` it blocks, `owner` (from the PM or the source
+   material; ask if unknown rather than writing a role), `decide_by` (the
+   milestone the PM names, or `null` while `milestones` is empty), `blocking`
+   and `status: open`. Never change an existing item: its status belongs to the
+   PM. Run `python3 ~/.pm-os/scripts/pm_readiness.py check` and fix what it
+   reports. The file is ungated (backlog #74).
 
-7. **Log `stage_generated` event:**
+7. **Update `.meta.yaml`** — for stage 03, set `status: draft`, `approved_at: null`, `content_hash: null`, and `upstream_hashes_at_approval: {}`, and increment `regeneration_count`. (The meta status must match the artifact's `draft` status so `pm-status` and the gate report it correctly.)
+
+8. **Log `stage_generated` event:**
    ```bash
    python3 -c "
    import os, sys; sys.path.insert(0, os.path.expanduser('~/.pm-os/lib'))
@@ -347,7 +357,7 @@ This helper stamps/verifies `generated_hash` and copies the exact artifact into 
    "
    ```
 
-8. **Print to PM:**
+9. **Print to PM:**
    ```
    Stage 03 draft written to 03-prd.md
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Check Consistency"
-  short_description: "Check PM-OS consistency and design handoff readiness"
-  default_prompt: "Use $pm-check to check this PM-OS project's internal consistency. Add --design when validating a returned design-in package or approved design handoff readiness."
+  short_description: "Check PM-OS consistency, design readiness, or a handoff release"
+  default_prompt: "Use $pm-check to check this PM-OS project's internal consistency. Add --design when validating a returned design-in package or approved design handoff readiness. It also validates readiness.yaml when present. Use $pm-check --release <folder-or-zip> to release-check any handoff folder, PM-OS-built or hand-built, before it goes to the build team."

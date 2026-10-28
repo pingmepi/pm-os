@@ -180,6 +180,10 @@ def main():
             detail = "  upstream changed"
         elif status == "draft":
             detail = "  awaiting approval"
+        if s.get("version"):
+            # The last approved revision (backlog #71); a draft or edited stage
+            # shows which approved version it is changing.
+            detail = f"  v{s['version']}{detail}"
 
         notes_str = ""
         contract_str = ""
@@ -238,6 +242,18 @@ def main():
     print(f"Known unknowns: {len(open_unknowns)} open")
     for q in open_unknowns[:3]:
         print(f"  - {q}")
+
+    # The readiness record (backlog #74): what the build team is still owed.
+    try:
+        import readiness
+        data, _problem = readiness.load(readiness.path_for(root))
+        counts = readiness.summary(data)
+        if counts:
+            print(f"Readiness: {counts['eval_sets_not_ready']} eval set(s) not starter-ready · "
+                  f"{counts['test_inputs_owed']} test input(s) owed · "
+                  f"{counts['open_decisions']} open decision(s) · {counts['overdue']} overdue")
+    except Exception:
+        pass
 
     print()
     try:

@@ -1,4 +1,4 @@
 interface:
   display_name: "Stage 03 PRD"
   short_description: "Draft the stage-03 PRD artifact"
-  default_prompt: "Use $pm-stage-03-prd to draft a detailed PRD from my approved brief and scope."
+  default_prompt: "Use $pm-stage-03-prd to draft a detailed PRD from my approved brief and scope, and seed its open decisions into readiness.yaml."

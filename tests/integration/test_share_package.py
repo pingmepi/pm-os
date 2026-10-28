@@ -73,6 +73,8 @@ _QA = """## Functional Test Cases
 Given valid fields, the agency is saved.
 ### TC-002 — Duplicate code (covers US-001)
 Given a duplicate code, an error is returned.
+### TC-003 — List agencies (covers US-002)
+Given agencies exist, the list shows them.
 """
 
 
@@ -150,7 +152,8 @@ def test_package_generates_per_story_files_with_traceability(pmos, new_project):
 def test_package_flags_unsourced_sections_instead_of_fabricating(pmos, new_project):
     proj = new_project("handoff-gaps", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     # US-002 has no covering test case and no FR — those must be flagged, not invented.
     story = (proj / "handoff" / "dev" / "stories" / "US-002-list-agencies.md").read_text(encoding="utf-8")
@@ -167,7 +170,8 @@ def test_package_story_inlines_ac_blocks_and_unknown_refs(pmos, new_project):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Referenced acceptance criteria" in story
     assert "Agency save is persisted with status Sent for approval" in story
@@ -180,11 +184,16 @@ def test_package_resolves_reverse_declared_fr_and_uj_links(pmos, new_project):
     names the story, the other direction) must still resolve them and pull in
     the test cases that trace only to that FR — the fix for backlog #12 (IMP-008,
     Bug B): forward-only regex scanning of the story's own block used to miss this."""
-    prd = """## User Journeys
+    prd = """## Product Epics
+### EPIC-001 — Agency onboarding
+**Outcome:** Agencies can be added.
+## User Journeys
 ### UJ-001 — Manage agencies
 Primary user: Collections user. Traceability: US-001.
 ## User Stories with Acceptance Criteria
 ### US-001 — Add external agency
+Priority: Must
+Epic: EPIC-001
 As a Collections user, I want to add agencies, so that cases can be allocated.
 ## Functional Requirements
 - FR-001 (Agency storage) — The system stores agencies. *(US-001)*
@@ -198,7 +207,8 @@ Given valid fields, the agency is saved.
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "FR-001" in story
     assert "UJ-001" in story
@@ -219,13 +229,15 @@ def test_package_keeps_full_body_for_single_line_test_cases(pmos, new_project):
     qa = """## Functional Test Cases
 - TC-001: Verify the agency saves with a valid code. Covers US-001, FR-001.
 - TC-002: Verify a duplicate code is rejected. Covers US-001.
+- TC-003: Verify the agency list loads. Covers US-002.
 """
     proj = new_project("handoff-singleline", "A problem")
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", qa)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
 
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "Verify the agency saves with a valid code" in story
     assert "Verify a duplicate code is rejected" in story
@@ -234,7 +246,8 @@ def test_package_keeps_full_body_for_single_line_test_cases(pmos, new_project):
 def test_package_overview_and_reference_docs(pmos, new_project):
     proj = new_project("handoff-ref", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
 
     assert "Collections users at mid-size banks" in (pkg / "business" / "00-overview.md").read_text(encoding="utf-8")
@@ -276,7 +289,8 @@ def test_package_projects_prd_trd_into_dev_and_design_spec_into_design(pmos, new
                         ("04", _PROJ_DESIGN), ("06", _QA), ("08", _PROJ_TRD)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0, stage
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
 
     dev_prd = (pkg / "dev" / "reference" / "prd.md").read_text(encoding="utf-8")
@@ -358,7 +372,8 @@ def test_package_projects_absent_optional_sources_as_notes(pmos, new_project):
     instead of a body."""
     proj = new_project("handoff-absent-opt", "A problem")
     _approve_pipeline(pmos, proj)  # no 04/08 approved
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
     assert "Stage 08 (TRD) is not approved" in (pkg / "dev" / "reference" / "trd.md").read_text(encoding="utf-8")
     assert "Stage 04 (design spec) is not approved" in (pkg / "design" / "reference" / "design-spec.md").read_text(encoding="utf-8")
@@ -373,7 +388,8 @@ def test_package_is_read_only_and_does_not_touch_state_machine(pmos, new_project
     meta_before = (proj / ".meta.yaml").read_text(encoding="utf-8")
     prd_before = (proj / "03-prd.md").read_text(encoding="utf-8")
 
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     assert (proj / ".meta.yaml").read_text(encoding="utf-8") == meta_before
     assert (proj / "03-prd.md").read_text(encoding="utf-8") == prd_before
@@ -490,7 +506,8 @@ def test_package_audience_scoped_rebuild_leaves_others_untouched(pmos, new_proje
     PRD changes and dev/ picks up the change."""
     proj = new_project("handoff-audience-scope", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     other_before = {
         p: p.read_text(encoding="utf-8") for p in (proj / "handoff").rglob("*")
@@ -502,6 +519,9 @@ def test_package_audience_scoped_rebuild_leaves_others_untouched(pmos, new_proje
     changed_prd = _PRD.replace("Add external agency", "Add external agency FAST")
     make_draft(proj, "03", body=changed_prd)
     assert run_script(pmos, "pm_approve.py", "03", cwd=proj).returncode == 0
+    # The PRD re-approval marks the QA plan stale; the release check (backlog #72)
+    # refuses to ship test cases from a stale source, so re-approve it as a PM would.
+    assert run_script(pmos, "pm_approve.py", "06", cwd=proj).returncode == 0
 
     assert run_script(pmos, "pm_share.py", "--package", "--audience", "dev", cwd=proj).returncode == 0
 
@@ -606,7 +626,8 @@ def test_package_maps_screens_to_each_story(pmos, new_project):
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", _DESIGN), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Screens this story touches" in story
@@ -628,7 +649,8 @@ def test_package_screen_map_reference_lists_coverage_both_ways(pmos, new_project
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", design), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     screen_map = (proj / "handoff" / "design" / "reference" / "screen-map.md").read_text(encoding="utf-8")
     assert "| SCR-001 | Agency list | US-001, UJ-001 |" in screen_map
@@ -656,7 +678,8 @@ def test_screen_map_counts_journey_only_coverage_as_covered(pmos, new_project):
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", design), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     # The story file resolves SCR-001 through the journey.
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
@@ -794,7 +817,12 @@ Keyboard order follows visual order.
     assert "https://www.figma.com/design/abc123/Agency?node-id=1-2" in design_text
 
     assert run_script(pmos, "pm_approve.py", "04", cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    # Approving 04 marks this fixture's QA plan stale (it was approved before
+    # 04/05 existed). The release check (backlog #72) blocks shipping a stale
+    # source; this test is about Figma links, so publish with the logged override.
+    res = run_script(pmos, "pm_share.py", "--package", "--allow-release-errors", cwd=proj)
+    assert res.returncode == 0, res.stderr
+    assert "SOURCE_NOT_APPROVED" in res.stderr
     check = run_script(pmos, "pm_check.py", "--design", cwd=proj)
     assert check.returncode == 0, check.stdout + check.stderr
 
@@ -820,7 +848,8 @@ def test_package_without_screen_ids_degrades_gracefully(pmos, new_project):
     explains what to add — no crash, no fabrication."""
     proj = new_project("handoff-noscreens", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "**Screens:** — not captured in source —" in story
@@ -900,7 +929,8 @@ def test_screen_link_emitted_when_anchor_present(pmos, new_project):
         "</body></html>",
         encoding="utf-8",
     )
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "../wireframes/prototype.html#SCR-001" in story
@@ -923,7 +953,8 @@ def test_screen_link_falls_back_when_anchor_absent(pmos, new_project):
         "<!doctype html><html><body><div>No anchors here.</div></body></html>",
         encoding="utf-8",
     )
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "#SCR-001" not in story
@@ -934,7 +965,8 @@ def test_screen_link_omitted_without_a_prototype(pmos, new_project):
     """No 05-prototype-mockup.html at all: screens still resolve and render, they
     just carry no prototype link and no wireframes/ folder is created."""
     proj = _project_with_screens(pmos, new_project, "handoff-screen-link-noproto")
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "SCR-001" in story
@@ -963,7 +995,8 @@ def test_package_maps_backend_tasks_to_each_story(pmos, new_project):
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("06", _QA), ("08", _TRD)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Backend work (TRD tasks)" in story
@@ -984,7 +1017,8 @@ def test_package_without_trd_degrades_backend_to_not_captured(pmos, new_project)
     fabricated — the same graceful degradation as screens without a design spec."""
     proj = new_project("handoff-no-trd", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "## Backend work (TRD tasks)" in story
@@ -1005,7 +1039,8 @@ def test_story_frontmatter_is_valid_yaml_when_title_has_colon(pmos, new_project)
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     stories_dir = proj / "handoff" / "dev" / "stories"
     matches = list(stories_dir.glob("US-001-*.md"))
@@ -1022,7 +1057,8 @@ def test_business_epic_has_no_dangling_story_links(pmos, new_project):
     working links that resolve."""
     proj = new_project("epic-links", "A problem")
     _approve_pipeline(pmos, proj)
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
     pkg = proj / "handoff"
 
     biz_epic = (pkg / "business" / "epics" / "EPIC-001-agency-onboarding.md").read_text(encoding="utf-8")
@@ -1058,7 +1094,8 @@ def test_journey_shared_screen_not_attributed_to_every_story(pmos, new_project):
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", prd), ("04", design), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     us1 = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "**Screens:** SCR-001, SCR-002" in us1  # US-001 keeps both — direct
@@ -1084,7 +1121,8 @@ def test_global_ia_prose_does_not_leak_into_story_screen_body(pmos, new_project)
     for stage, body in (("01", _BRIEF), ("02", _SCOPE), ("03", _PRD), ("04", design), ("06", _QA)):
         make_draft(proj, stage, body=body)
         assert run_script(pmos, "pm_approve.py", stage, cwd=proj).returncode == 0
-    assert run_script(pmos, "pm_share.py", "--package", cwd=proj).returncode == 0
+    res = run_script(pmos, "pm_share.py", "--package", cwd=proj)
+    assert res.returncode == 0, res.stderr
 
     story = (proj / "handoff" / "dev" / "stories" / "US-001-add-external-agency.md").read_text(encoding="utf-8")
     assert "SCR-002 · Add agency form" in story        # the screen is present...

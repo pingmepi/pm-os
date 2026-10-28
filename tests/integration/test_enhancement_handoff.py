@@ -19,9 +19,11 @@ Outcome: Improve search.
 ## User Stories with Acceptance Criteria
 ### US-001 — Use core
 Epic: EPIC-001
+Priority: Must
 Implements FR-001.
 ### US-002 — Search records
 Epic: EPIC-002
+Priority: Must
 Implements FR-002.
 ## Functional Requirements
 - **FR-001 (must):** Keep core behavior.
@@ -40,10 +42,12 @@ Outcome: Improve search.
 ## User Stories with Acceptance Criteria
 ### US-001 — Use core
 Epic: EPIC-001
+Priority: Must
 Implements FR-001.
 ### US-002 — Search records faster
 Change type: modified
 Epic: EPIC-002
+Priority: Must
 Implements FR-002 and FR-004.
 ## Functional Requirements
 - **FR-001 (must):** Keep core behavior.

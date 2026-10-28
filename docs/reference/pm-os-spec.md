@@ -162,7 +162,7 @@ For single-user MVP, `<pm-identifier>` = `karan`. Folder structure exists from d
 ### 5.1 `.meta.yaml`
 
 ```yaml
-schema_version: 3                     # v2 added stage 00 + origin; v3 added project_type + codebase fields; lib/project.py:migrate_meta upgrades older projects
+schema_version: 6                     # v2 added stage 00 + origin; v3 added project_type + codebase fields; v4 context_pack; v5 entry_route; v6 per-stage version/version_hash (backfilled from telemetry); lib/project.py:migrate_meta upgrades older projects
 project_slug: <kebab-case-slug>
 project_name: <human readable>
 created_at: <ISO 8601>
@@ -184,6 +184,8 @@ stages:
     content_hash: <sha256 or null>
     upstream_hashes_at_approval: {}   # map of stage id -> hash at this stage's approval
     regeneration_count: 0
+    version: <int or null>          # v6 (backlog #71): approval revision; +1 when an approval binds a new body, unchanged when the same body is re-approved; null if never approved
+    version_hash: <sha256 or null>  # v6: the body `version` names (kept because regeneration clears content_hash)
     optional: false
     origin: generated | imported | backfilled   # how the artifact got here
   - id: "01"
@@ -206,7 +208,7 @@ content_hash: <sha256 of body, computed at approval>
 generated_hash: <sha256 of initial generation>
 pm_os_version: <semver>
 genai_flag: true | false
-artifact_contract_version: 7   # present on contract-validated Stage 03–06 and new Stage 08 generations
+artifact_contract_version: 7   # present on contract-validated Stage 03–06 and new Stage 08 generations; stage 06 writes 8 (v8: Eval Dataset Spec starter-count column, backlog #74)
 origin: generated | imported | backfilled
 generation_notes: [<verbatim --note values, or empty>]
 ---
@@ -229,7 +231,7 @@ generation_notes: [<verbatim --note values, or empty>]
   "pm": "<pm identifier>",
   "project": "<project-slug>",
   "pm_os_version": "<semver>",
-  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
+  "event_type": "stage_started | stage_generated | stage_approved | stage_imported | stage_backfilled | context_ingested | secrets_redacted | secrets_blocked | secrets_allowed | release_check_blocked | release_check_overridden | handoff_released | interview_conducted | stage_edited_post_approval | stage_edited_via_note | artifact_validation_warning | stage_marked_stale | implicit_reapproval | feedback_submitted | handoff_exported | session_end",
   "stage": "<NN or null>",
   "payload": { ... event-specific fields }
 }
@@ -241,11 +243,14 @@ Hash chain provides tamper-evidence. Append-only by convention.
 
 - `stage_started`: `{}`
 - `stage_generated`: `{ generated_hash, model, model_tier, prompt_version, notes }` — `model` is the actual model id the agent ran as (it fills in its own id); `model_tier` is derived from `config.deep_reasoning_stages` (not baked per-skill) so policy and telemetry can't drift
-- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
+- `stage_approved`: `{ generated_hash, approved_hash, char_edit_distance, normalized_edit_distance, semantic_distance, time_to_approve_seconds, regeneration_count, implicit_reapproval: bool, version }` — `char_edit_distance`/`normalized_edit_distance` diff the retained `.history/<stage>.*.generated.md` snapshot against the approved body; `time_to_approve_seconds` is the approval timestamp minus the matching `stage_generated` timestamp; `semantic_distance` is an optional 0..1 agent judgment via `--semantic-distance`. All stay `null` when no generation snapshot/event exists (stage-00 group, imported/backfilled).
 - `context_ingested`: `{ source_id, source_type, source_filename, snapshot }` — a PM-provided source registered via `/pm-context-import` (original design in `../archive/pm-os-ingest-plan.md`, §0 for the shipped shape). Raw original preserved under `.history/`; registry in `.sources.yaml`.
 - `secrets_redacted`: `{ surface: "context_import", source_id, source_filename, count, kinds }` — `pm_context_import.py register` found likely secrets (`lib/secret_scan`) in a text source and preserved a redacted `.history/` snapshot instead (GH #63 PMOS-001). Counts and kinds only — never a value.
 - `secrets_blocked`: `{ surface, count, kinds, source_filename?, files? }` — a secret scan refused an operation: `surface` is `context_import` (a non-redactable source, not registered) or `handoff_raw` / `handoff_package` / `jira_plan` / `jira_csv` (export stopped before writing anything).
 - `secrets_allowed`: same shape as `secrets_blocked` (plus `source_id` for `context_import`) — the PM passed `--allow-secrets`, so the source was kept verbatim / the export proceeded despite the findings.
+- `release_check_blocked`: `{ surface: "handoff_package", folders, errors, warnings, codes }` — `pm_share.py --package` ran the release check (`lib/release_check.py`, backlog #72) on the staged package and refused to publish: `folders` are the audience folders checked, `codes` the distinct error codes found. Nothing under `handoff/` was written.
+- `release_check_overridden`: same shape as `release_check_blocked` — the PM passed `--allow-release-errors`, so the package was published despite the errors; `codes` names exactly the error codes overridden.
+- `handoff_released`: `{ release, previous, audiences, ids_changed, stories_affected, inputs_changed, release_check_overridden }` — `pm_share.py --package --release-note` published a package and recorded it as `.releases/<release>.yaml` (backlog #73). Counts only; the ids themselves are in the release record and `CHANGES.md`.
 - `interview_conducted`: `{ source_id?, mode?, asked, answered, skipped }` — a discovery-interview pass. Emitted at intake by `pm_context_import.py record-interview` (no `mode`; `source_id` of the registered answers), and on a standalone re-run by `pm_interview.py resolve` with `mode: "rerun"`. Skipped questions land in `00-context/known-unknowns.md` (open gaps, never assumptions); a re-run marks resolved gaps in place with provenance rather than deleting them.
 - `stage_imported`: `{ origin: "imported", approved_hash, source_format, source_filename, derived_from }` — a PM-authored artifact adopted as this stage's artifact (not generated). Kept distinct from `stage_approved` so edit-distance/time-to-approve signals are not polluted.
 - `stage_backfilled`: `{ origin: "backfilled", approved_hash, derived_from, model, model_tier }` — an upstream gap reverse-generated to keep the chain intact below an adopted artifact (feasibility per `lib/project.resolve_backfill`). Model-produced, so it carries `model`/`model_tier` like `stage_generated`.
@@ -253,10 +258,55 @@ Hash chain provides tamper-evidence. Append-only by convention.
 - `stage_edited_via_note`: `{ note, edited_sections }` — logged on an upstream stage when a later stage's `--note` is reconciled into that upstream artifact (see §7 Steering notes)
 - `artifact_validation_warning`: `{ contract_version, origin, findings: [{ severity, code, message }] }` — logged when approval or imported/backfilled approval continues despite Stage 03–06 (or the stage-08 GenAI model check) artifact-contract findings
 - `stage_marked_stale`: `{ reason, triggering_upstream_stage }`
-- `implicit_reapproval`: `{ stage, old_hash, new_hash }`
+- `implicit_reapproval`: `{ stage, old_hash, new_hash, version }`
 - `feedback_submitted`: `{ stage, scope: "stage" | "cross_stage", rating: 1-5, tags: [], free_text }`
 - `handoff_exported`: `{ tracker, created_count, tickets: { <stable-id>: <ticket-key> } }` — logged by `scripts/pm_handoff.py record` (Phase 4b) after tickets are created in the external tracker and their keys written back into `.traceability.yaml`. Stores only refs/ids/keys, never bulk copies of external data. Logged identically whether the tickets were created through the Atlassian connector or imported from the offline `pm_handoff.py export` CSV
 - `session_end`: `{ session_duration_seconds, events_in_session }` — **aspirational; not emitted** (no session boundary in the skill model; `telemetry.flush_pending()` is a no-op)
+
+### 5.3b `readiness.yaml` (ungated; backlog #74)
+
+```yaml
+schema_version: 1
+milestones: [M0, M1, M2]          # ordered
+current_milestone: M1             # items due at or before it and not done are overdue
+eval_sets:                        # one per AI step
+  - {id: EVAL-001, ai_step: <name>, requirement: FR-###, reviewer: <named person>,
+     starter_count: 30, target_count: 120, have_count: 0, due: M1,
+     status: needed | in_review | starter_ready | complete}
+test_inputs:
+  - {id: TI-001, purpose: <what it tests>, supplier: <person>, needed_by: M0,
+     file: <optional project path>, status: requested | received | not_needed}
+open_decisions:
+  - {id: OD-01, question: <one line>, epics: [EPIC-###], stories: [US-###], owner: <person>,
+     decide_by: M1, blocking: true, status: open | decided | dropped, decision: <outcome>}
+```
+
+Never hashed or approved; editing it never stales a stage. Validated by `lib/readiness.py` (via `pm_readiness.py check` and `/pm-check`); the release check blocks a package on overdue items.
+
+### 5.3c Release records and package manifests (backlog #73, #75, #68)
+
+`.releases/REL-###.yaml` is written only for a package built with `--release-note`, and is never overwritten:
+
+```yaml
+id: REL-002
+released_at: <ISO 8601>
+released_by: <pm_user>
+note: <one line from the PM>
+previous: REL-001                 # null for the first release
+audiences: [dev, design, qa, business]
+release_check_overridden: []      # error codes published past with --allow-release-errors
+sources: {"03": {artifact, status, version, approved_by, approved_at, content_hash}, ...}
+stable_ids: {03-prd.md: {US-001: <block sha256, 16 hex>, ...}, 06-qa-plan.md: {...}}
+outside_inputs: {"Figma file <key>": "<version> (<last_modified>)", "TI-001 <file>": "<sha256 16 hex> | missing"}
+changes: [{artifact, id, change: new | modified | removed}]
+files: {dev: [{path, sha256}], ...}
+```
+
+Each audience folder also gets two files:
+- `CHANGES.md`, compared with the latest release;
+- `manifest.json` (`schema_version: 1`): `{project, audience, release, draft, generated_at, roles, files: [{path, role, sha256, source, version, status, read_order}]}`.
+
+The manifest is also the delete list for the next rebuild of that folder. Neither file is hashed or approved.
 
 ### 5.4 Feedback entry (JSONL line)
 
@@ -426,7 +476,7 @@ Common flow:
    - `normalized_edit_distance` = char_edit_distance / max(len(generated), len(current))
    - `semantic_distance` = 1 - cosine_similarity(embed(generated), embed(current))
    - `time_to_approve_seconds` = now - last `stage_generated` event timestamp
-6. Update artifact frontmatter: status=`approved`, `approved_at`, `approved_by`, `content_hash`.
+6. Update artifact frontmatter: status=`approved`, `approved_at`, `approved_by`, `content_hash`, `version` (the stage's approval revision: +1 when the body differs from the one the current version names, unchanged otherwise).
 7. Update `.meta.yaml` stage entry: status=`approved`, snapshot upstream hashes into `upstream_hashes_at_approval`.
 8. For stages 04 and 05: invoke `lib/html_render.py` to regenerate companion HTML.
 9. Log `stage_approved` event with full distance metrics.

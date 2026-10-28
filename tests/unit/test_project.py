@@ -184,7 +184,7 @@ def test_migrate_backfills_entry_route_for_new_product():
     }
     changed = project.migrate_meta(meta)
     assert changed is True
-    assert meta["schema_version"] == 5
+    assert meta["schema_version"] == project.SCHEMA_VERSION
     assert meta["entry_route"] == "new"
 
 
@@ -204,7 +204,7 @@ def test_migrate_backfills_entry_route_for_enhancement():
     }
     changed = project.migrate_meta(meta)
     assert changed is True
-    assert meta["schema_version"] == 5
+    assert meta["schema_version"] == project.SCHEMA_VERSION
     assert meta["entry_route"] == "enhancement"
 
 

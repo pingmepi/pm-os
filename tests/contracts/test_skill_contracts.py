@@ -104,7 +104,8 @@ def test_product_artifact_skills_enforce_current_contracts():
         "03": ("## Product Epics", "## Journey–Requirement Traceability", "artifact_contract_version: 7"),
         "04": ("## Journey-to-Flow Traceability", "## Product UX Guardrails", "Interaction model:", "artifact_contract_version: 7"),
         "05": ("## Prototype Audience & Modes", "## Validation Plan", "## Known Limitations"),
-        "06": ("## Functional Test Cases", "## Requirement-Test Traceability", "artifact_contract_version: 7"),
+        "06": ("## Functional Test Cases", "## Requirement-Test Traceability", "artifact_contract_version: 8",
+               "Starter count", "pm_readiness.py init"),
         "08": ("## Work Breakdown", "## Open Technical Questions", "artifact_contract_version: 7"),
     }
     for stage_id, markers in expected.items():

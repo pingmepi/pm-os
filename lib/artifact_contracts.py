@@ -15,18 +15,20 @@ from frontmatter import read as fm_read
 from project import artifact_path, load_meta
 
 
-CONTRACT_VERSION = 7
+CONTRACT_VERSION = 8
 
 # Contract versions this validator still accepts without a drift warning. v2 added
 # recommended PRD enrichments (Impact Analysis, per-story acceptance shape) that
 # feed the readable handoff package; v3 added the GenAI model-availability/fallback
 # checks (stages 03/08); v4 adds explicit Product Epics; v5 adds explicit
 # prioritization method/value checks; v6 adds a warning-only TRD section shape;
-# v7 converts meaning checks into labeled-field checks across ID blocks. v2+
+# v7 converts meaning checks into labeled-field checks across ID blocks; v8 adds
+# a warning-only starter-count column to the GenAI QA plan's Eval Dataset Spec
+# (backlog #74). v2+
 # checks are either WARNING-only or only become hard errors once the new section
 # is present, so older artifacts on disk keep passing untouched (CLAUDE.md:
 # existing projects must keep working).
-SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
+SUPPORTED_CONTRACT_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
 
 # --- Stable requirement / test-case identifiers (Phase 3.5 traceability spine) ---
 # Requirement IDs are the stable handles the traceability spine links against. The
@@ -222,10 +224,32 @@ TRD_REQUIRED_SECTIONS = [
     "Open Technical Questions",
 ]
 
+# The bold may close before the colon (`**Priority**: Must`) or after it
+# (`**Priority:** Must`, the shape stage 03 writes). Both closing positions are
+# consumed here so the `**` never lands in the value (backlog #70). The `\s*`
+# after the colon may cross a newline, so a bold label whose value starts on the
+# next line (`**Edge cases / alternate paths:**` followed by a list) still reads
+# as present, as it did when the stray `**` used to stand in for the value.
 _LABELED_FIELD_RE = re.compile(
-    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:\s*(?P<value>\S.*)$",
+    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?\s*(?P<value>\S.*)$",
     re.MULTILINE,
 )
+_LABELED_LINE_RE = re.compile(
+    r"^\s*(?:[-*+]\s+|\d+\.\s+)?(?:\*\*)?(?P<label>[A-Za-z][A-Za-z0-9 /&()_-]{1,60})(?:\*\*)?\s*:(?:\*\*)?[ \t]*(?P<value>.*)$",
+)
+_WRAPPING_EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_)(?P<inner>\S(?:.*\S)?)\1")
+
+
+def _clean_field_value(value: str) -> str:
+    """Drop presentation-only emphasis from a labeled-field value: a wrapper
+    around the whole value (`**Must**`) and an unbalanced leading `**`."""
+    value = value.strip()
+    wrapped = _WRAPPING_EMPHASIS_RE.fullmatch(value)
+    if wrapped and "**" not in wrapped.group("inner"):
+        value = wrapped.group("inner").strip()
+    if value.startswith("**") and value.count("**") % 2 == 1:
+        value = value[2:].strip()
+    return value
 
 
 def labeled_field(block: str, label: str) -> str | None:
@@ -238,7 +262,7 @@ def labeled_field(block: str, label: str) -> str | None:
     wanted = _norm(label)
     for match in _LABELED_FIELD_RE.finditer(block or ""):
         if _norm(match.group("label").strip("*")) == wanted:
-            value = match.group("value").strip()
+            value = _clean_field_value(match.group("value"))
             return value if value else None
     return None
 
@@ -261,8 +285,16 @@ def missing_labeled_fields(block: str, fields: dict[str, Iterable[str] | str]) -
 
 
 def block_priority(block: str) -> str | None:
-    """Priority value declared by a story/requirement block, if present."""
-    return labeled_field(block, "Priority")
+    """Priority value declared by a story/requirement block, if present.
+
+    Priority is a short value that lands in story frontmatter and the
+    traceability index, so emphasis inside it (`**Must** / S2`) is dropped too.
+    """
+    value = labeled_field(block, "Priority")
+    if value is None:
+        return None
+    value = re.sub(r"\*\*|__", "", value).strip()
+    return value or None
 
 
 def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
@@ -270,7 +302,7 @@ def _strip_labeled_fields(block: str, labels: Iterable[str]) -> str:
     wanted = {_norm(label) for label in labels}
     kept: list[str] = []
     for line in (block or "").splitlines():
-        match = _LABELED_FIELD_RE.match(line)
+        match = _LABELED_LINE_RE.match(line)
         if match and _norm(match.group("label").strip("*")) in wanted:
             continue
         kept.append(line)
@@ -989,6 +1021,25 @@ def _validate_stage_08(
     return findings
 
 
+def _eval_starter_counts(sections: dict[str, str]) -> list[Finding]:
+    """Contract v8 (backlog #74, WARNING-only): a GenAI QA plan's Eval Dataset
+    Spec table carries a starter-count column, the number of reviewed cases each
+    eval set needs at build kick-off, so the readiness record can track it. The
+    section itself is appended only for GenAI projects, so its absence is not a
+    finding here."""
+    spec = _section(sections, "Eval Dataset Spec")
+    if spec is None:
+        return []
+    header = next((line for line in spec.splitlines() if line.strip().startswith("|")), "")
+    if re.search(r"(?i)starter", header):
+        return []
+    return [Finding(
+        "WARNING", "EVAL_STARTER_COUNT_MISSING",
+        "Eval Dataset Spec has no `Starter count` column: give each eval set the number of "
+        "reviewed cases needed at kick-off, and seed it into readiness.yaml.",
+    )]
+
+
 def _validate_stage_06(project_root: Path, sections: dict[str, str], body: str) -> list[Finding]:
     """Stage 06 (QA Plan) must give each scenario a stable TC-### id and tie the
     test cases back to the requirement ids the PRD established, so the traceability
@@ -1310,6 +1361,8 @@ def validate_artifact(project_root: Path | str, stage_id: str, path: Path | str 
         findings.extend(_validate_stage_05(project_root, sections, body))
     elif stage_id == "06":
         findings.extend(_validate_stage_06(project_root, sections, body))
+        if (_contract_version_number(fm.get("artifact_contract_version")) or 0) >= 8:
+            findings.extend(_eval_starter_counts(sections))
     elif stage_id == "08":
         findings.extend(_validate_stage_08(
             project_root, sections, body, _contract_version_number(fm.get("artifact_contract_version"))

@@ -85,6 +85,10 @@ tests/
 │   ├── test_artifact_contracts.py     test_traceability.py
 │   ├── test_jira_markup.py     # lib/jira_markup.py (offline Jira CSV export)
 │   ├── test_secret_scan.py     # lib/secret_scan.py (GH #63 PMOS-001 secret detection)
+│   ├── test_release_check.py   # lib/release_check.py (backlog #72 handoff release check)
+│   ├── test_stage_version.py   # lib/stage_version.py (backlog #71 approval version, schema v6)
+│   ├── test_readiness.py       # lib/readiness.py (backlog #74 readiness record)
+│   ├── test_release_record.py  # lib/release_record.py (backlog #73/#75/#68 release record, change note, manifest)
 │   ├── test_project_git.py     # lib/project_git.py (local version history, backlog #18)
 │   ├── test_consistency.py     # T10 — lib/consistency.py
 ├── integration/           # T2,T4,T5,T6,T7 — script + hook flows (subprocess, isolated)
@@ -96,6 +100,8 @@ tests/
 │   ├── test_pm_interview.py           test_status_known_unknowns.py
 │   ├── test_failure_recovery.py       test_idempotency.py
 │   ├── test_secret_scanning.py        # import redaction + handoff export gate (GH #63)
+│   ├── test_release_gate.py           # pm_check --release + the --package release gate (#72)
+│   ├── test_release_record_flow.py    # CHANGES.md, manifest.json, .releases/ and safe rebuilds (#73/#75/#68)
 │   └── test_offline_install.py
 └── contracts/             # T3,T8,T9 — skill/doc/spec drift, local-first, CI
     ├── test_skill_contracts.py    test_documentation_drift.py
@@ -125,6 +131,29 @@ one-line description. The matching docstring in code carries the same intent for
 **Purpose:** cover each shared helper's normal paths, branches, and edge cases in-process.
 **Pass:** documented behavior holds for normal + edge inputs; invariants (body-only hash, chain integrity, no-op overlay) are upheld.
 **Fail:** an invariant breaks, or a regression reappears in a guarded area.
+
+**`test_stage_version.py`** — the per-stage approval version (`lib/stage_version.py`, backlog #71) and the schema 5 → 6 migration.
+- `test_bump_increments_only_for_a_new_body` — v1, then v2 for a different body, and v2 again for the same body (rebind / unchanged stale stage).
+- `test_count_versions_counts_changes_in_sequence` / `test_approval_hashes_reads_every_approval_event_and_skips_bad_lines` — the telemetry backfill counts consecutive distinct approved hashes across approve/import/backfill/implicit re-approval events and tolerates malformed lines.
+- `test_migration_backfills_versions_from_telemetry` — v2 for a stage approved A, A, B; v1 for an approved stage with no events; none for a never-approved stage; idempotent.
+- `test_migration_keeps_last_approved_hash_for_a_regenerated_draft` — a draft regenerated after approval keeps its version and takes `version_hash` from telemetry, so re-approving the identical body mints nothing.
+
+**`test_readiness.py`** — the readiness record (`lib/readiness.py`, backlog #74).
+- `test_scaffold_writes_a_valid_template_once` / `test_a_complete_record_is_valid` — the template is valid and never overwritten; a complete record has no issues.
+- `test_structural_problems_are_errors` — missing fields, id formats, duplicates, unknown statuses/milestones and non-integer counts.
+- `test_due_milestone_is_only_required_once_milestones_exist` — a freshly seeded record may leave due milestones empty.
+- `test_role_reviewers_and_unknown_ids_are_warnings` — a role as reviewer, or an id the PRD does not declare, warns.
+- `test_overdue_follows_milestone_order` / `test_invalid_yaml_is_reported_not_raised` / `test_summary_and_pending_files` — overdue logic, unreadable files, and the counts `/pm-status` shows.
+
+**`test_release_record.py`** — release record, change note and manifest (`lib/release_record.py`, backlog #73, #75, #68).
+- `test_classify_change_and_stable_id_blocks` — the two `lib/enhancement.py` helpers the release record shares with the enhancement delta.
+- `test_ledger_ids_and_no_overwrite` — `REL-###` counts up, `latest` returns the highest, and a record is never overwritten.
+- `test_diff_classifies_ids_and_outside_inputs` — ids are compared per artifact by block hash; moved outside inputs list before and after.
+- `test_first_release_note_counts_ids_instead_of_listing_them` — a first note counts ids per artifact; a later one lists changed ids and says when a story's own text changed; a draft says so.
+- `test_manifest_roles_order_and_exclusions` — role, hash, reading order and frontmatter version/status per file; the manifest and marker are not listed.
+- `test_clear_generated_uses_previous_manifest` — only files the previous manifest lists are deleted; other files are kept and returned.
+- `test_clear_generated_legacy_folder_uses_layout_rule` — a folder built before manifests loses only files matching the package layout; empty folders are removed.
+- `test_outside_inputs_reads_figma_version_and_test_input_hashes` — the Figma version from `design-in/ia.yaml`, and a hash (or `missing`) per readiness test input.
 
 **`test_project.py`** — stage/state helpers
 - `test_stage_tables_consistent` — STAGE_ORDER/NAMES/CORE align; stage-00 group (`00`, `00c`, `00w`, `00u`) leads the order.
@@ -231,6 +260,21 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_scan_paths_walks_dirs_skips_git_and_binary` — directory scans recurse, report root-relative `path:line`, and skip `.git/` and NUL-bearing binaries.
 - `test_guard_export_blocks_then_allows` — the export gate raises `SystemExit` on a hit (message names `--allow-secrets`), passes with `allow=True`, is silent on clean input, and never prints the value; a telemetry failure only warns.
 
+**`test_release_check.py`** — the release check for any handoff folder (`lib/release_check.py`, backlog #72). Folders are built in `tmp_path`, never the PRISM data the check was calibrated on.
+- `test_clean_hand_built_package_has_no_findings` — stories with an epic and priority, resolving links and defined ids produce nothing; the folder is classed hand-built.
+- `test_story_without_epic_or_priority_is_an_error` / `test_priority_with_markdown_markup_is_malformed` / `test_epic_and_priority_can_come_from_labeled_body_lines` — story fields, located at the file and line, with the clean value in the fix; labeled `Epic:`/`Priority:` body lines count.
+- `test_cited_series_id_without_definition_is_an_error` — APEX AL-21: `R-01…R-03` cited but defined nowhere are `ID_UNDEFINED`; a table defining them in its first column resolves them.
+- `test_standards_one_offs_and_sample_records_are_not_ids` (parametrized) — `ISO-8601`, `SHA-256`, `UTF-8`, `COVID-19`, a one-off `ASM-01` and 4-digit sample records never fire.
+- `test_ids_inside_code_and_link_targets_are_not_citations` — fenced/inline code, link targets and URLs are skipped.
+- `test_short_form_warns_and_ambiguous_short_form_errors` / `test_example_only_citation_is_a_warning` / `test_ignore_ids_skips_prefixes_and_exact_ids` — the rest of `ID_RULE`.
+- `test_broken_links_links_outside_the_package_and_missing_anchors` — APEX AL-23: broken and escaping links are errors at `file:line`, a missing heading anchor warns, URLs are not checked.
+- `test_missing_file_is_flagged_only_under_a_shipped_folder` / `test_placeholder_markers` — referenced files and placeholder/pending markers (pending warnings are grouped per file).
+- `test_hand_built_story_built_from_an_older_prd_is_stale` / `test_pmos_package_generated_from_an_older_artifact_is_stale` — stale sources for both package kinds, plus a PRD shipped at two versions.
+- `test_coverage_is_not_enforced_before_the_qa_plan_is_approved` — with stage 06 unapproved, #53(a) is one `COVERAGE_NOT_CHECKED` warning, so a design-brief package is not blocked.
+- `test_release_check_never_writes_to_the_project_it_reads` — the check reads `.meta.yaml` with plain YAML (never the migrating `load_meta()`), so checking a package or hand-built folder inside an old-schema project leaves every file byte-for-byte unchanged.
+- `test_overdue_readiness_items_block_and_owed_files_only_warn` / `test_invalid_readiness_record_is_a_release_error` — backlog #74: overdue readiness items and an invalid record block; a file the record lists as owed is `FILE_PENDING` (warning); ids the record declares resolve.
+- `test_zip_is_checked_and_an_escaping_member_is_refused` / `test_format_report_shows_location_code_and_fix` — zip input (with a zip-slip guard) and the text report shape.
+
 **`test_project_git.py`** — per-project local version history (`lib/project_git.py`, backlog #18, local half)
 - `test_init_creates_repo_and_initial_commit` / `test_commit_all_adds_commit` / `test_commit_all_nothing_to_commit` — `init_project_repo` makes one initial commit; a later `commit_all` after a change adds exactly one commit; a clean tree is a successful no-op, not an error.
 - `test_gitignore_written_with_codebase` / `test_gitignore_preserves_existing_and_adds_codebase` / `test_codebase_dir_is_not_tracked` — a fresh `.gitignore` excludes `.codebase/`/`.pm-os-sync.log`; an existing one is preserved with `.codebase/` appended; files under `.codebase/` are never committed.
@@ -254,6 +298,8 @@ one-line description. The matching docstring in code carries the same intent for
 - **Contract v3 — GenAI model availability/fallback (stages 03/08):** `test_genai_prd_model_rationale_without_availability_or_fallback_warns` (a GenAI PRD whose `Model Selection Rationale` names neither a deployment/availability path nor a fallback model gets `MODEL_SELECTION_INCOMPLETE` — WARNING, never blocking); `test_genai_prd_model_rationale_with_availability_and_fallback_is_clean` (naming the deployment path, region/quota and a named fallback with its switch trigger satisfies it); `test_non_genai_project_skips_the_model_selection_check` (`genai_flag: false` projects never see the check); `test_trd_model_serving_check_is_warning_only_and_version_exempt` (legacy TRDs without contract frontmatter stay exempt from `CONTRACT_VERSION_MISSING`, while current Stage 08 generations also run the v6/v7 section-shape contract below); `test_missing_genai_sections_are_not_flagged` (an absent section is not a finding — the GenAI sections are appended conditionally).
 - **Contract v4 — Product Epics (`EPIC-###`):** `test_prd_product_epics_validate_declared_ownership` (a PRD with multiple declared Product Epics and one valid `Epic:` ref on every `US`/`FR` has no errors); `test_prd_product_epics_reject_missing_unknown_and_multiple_refs` (once Product Epics exist, missing, unknown, or multiple story/requirement epic refs are errors). A legacy PRD with no `## Product Epics` gets a warning only, so existing approved projects remain approvable.
 - **Contract v5 — prioritization method + values:** `test_prd_prioritization_method_and_values_are_warning_only` verifies missing `## Prioritization Method` and missing labeled `Priority:` values on `US/FR/REQ` warn without blocking existing PRDs, while complete labeled values are clean for those checks.
+- **Labeled fields in bold (backlog #70):** `test_labeled_field_reads_both_bold_forms_without_stray_emphasis` (both `**Priority:** Must` and `**Priority**: Must`, list-item forms and emphasis inside the value all read as the clean value, never `'** Must'`); `test_labeled_field_value_on_the_next_line_still_counts_as_present` (a bold label whose value starts on the next line still reads as present, so the fix adds no false `*_MISSING` warnings); `test_bold_priority_reaches_delivery_map_and_traceability_clean` (the clean priority reaches the delivery map and `.traceability.yaml`, which feed story frontmatter).
+- **Contract v8 — eval starter counts (backlog #74):** `test_eval_dataset_spec_starter_count_warns_for_v8_only` — a v8 QA plan's Eval Dataset Spec table without a `Starter count` column warns (never errors); v7 plans, tables with the column and non-GenAI plans stay quiet.
 - **Contract v6 — TRD required-section shape:** `test_trd_section_contract_is_warning_only_for_v6` verifies legacy TRDs without v6 frontmatter stay quiet, incomplete v6 TRDs emit warning-only `TRD_REQUIRED_SECTION_*` findings, and a complete v6 TRD is clean for section shape.
 - **Contract v7 — labeled fields over vocabulary cues:** `test_qa_plan_test_case_labeled_fields_warn`, `test_screen_without_purpose_warns`, and `test_trd_task_labeled_fields_warn_for_v7` verify that TC/SCR/TSK blocks expose structural labels for the meaning downstream tools rely on, warning without blocking when the labels are missing.
 - **Stage-04 PRD/design consistency:** `test_design_warns_when_prd_empty_invalid_behavior_is_missing` verifies PRD empty/invalid-input edge behavior must be reconciled in the design spec; `test_design_warns_on_placeholder_without_discoverability_affordance` verifies placeholder-based inputs name a visible label/helper/hint/description/ARIA affordance when accessibility says inputs are not placeholder-only.
@@ -343,6 +389,29 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_stage_05_approval_renders_prototype_html` — approving 05 renders `05-prototype-mockup.html`.
 - `test_pm_check_flags_downstream_approved_against_changed_upstream` — backlog #31 detector: an `approved` stage whose recorded `upstream_hashes_at_approval[uid]` no longer matches the still-`approved` upstream's current `content_hash` (the invalid state an interrupted stale-cascade leaves) is flagged `DOWNSTREAM_UPSTREAM_STALE`; a correctly-approved chain is clean.
 
+**`test_readiness_record.py`** — the readiness record end to end (backlog #74).
+- `test_init_and_check_and_pm_check_report_the_record` — `init` writes once, `check` exits 1 on an invalid item, and `/pm-check` shows a Readiness section whose errors count toward its exit code.
+- `test_editing_the_record_never_touches_stage_state` — ungated: rewriting it leaves every stage approved and logs nothing.
+- `test_overdue_eval_set_blocks_the_package_until_starter_ready` — an overdue eval set blocks `--package`; once starter-ready, every audience folder carries `readiness.yaml` and links it; `/pm-status` shows the counts.
+
+**`test_release_record_flow.py`** — handoff releases end to end (backlog #73, #75, #68).
+- `test_draft_build_writes_change_note_and_manifest_but_no_release` — a plain build writes a draft `CHANGES.md` and a `manifest.json` (roles, versions, reading order) linked from the README, and records nothing.
+- `test_two_releases_produce_a_change_note_naming_changed_ids_and_stories` — `REL-001` records note, sources and stable-id hashes; after a PRD and QA change, `REL-002`'s note lists exactly the changed and added ids and the two affected stories; `handoff_released` is logged per release.
+- `test_rebuild_keeps_files_pm_os_did_not_write` — a designer's file survives a rebuild and is reported; a generated file that no longer ships is removed.
+- `test_blank_release_note_is_refused_before_writing` — an empty note is refused with nothing written; the flag needs `--package`.
+
+**`test_export_stamps.py`** — approval stamps on exported files and approved-only raw export (backlog #71, APEX AL-01).
+- `test_every_exported_file_carries_its_sources_approval` — story, requirement, epic and `reference/prd.md` frontmatter carry the PRD's status, version, approver, approval time and content hash (matching `.meta.yaml`) and a `sources` record per artifact; the README has a Sources table.
+- `test_unapproved_trd_is_recorded_but_not_tracked` — `reference/trd.md` for a draft TRD lists it under `sources` with an empty `generated_from`, so the release check does not block on it.
+- `test_raw_export_ships_only_approved_stages_by_default` — an `edited` stage is left out of the all-stages export with a note naming it; exported headers show status and version.
+- `test_raw_export_of_an_unapproved_stage_needs_the_flag` — a draft single stage is refused; `--include-unapproved` exports it marked NOT APPROVED.
+
+**`test_stage_version_flow.py`** — the approval version through every approval path (backlog #71).
+- `test_version_increments_for_new_bodies_and_holds_for_the_same_body` — v1 in meta, frontmatter, telemetry and the printed result; an edited `--reapprove` is v2; an unchanged `--reapprove` is a no-op; a regenerated draft keeps v2 until approved as v3.
+- `test_reapproving_a_stale_stage_with_an_unchanged_body_keeps_its_version` — stale then re-approved with the same body keeps its version.
+- `test_gate_implicit_reapproval_mints_a_new_version` — the gate's implicit re-approval moves the edited upstream to v2 and records it on `implicit_reapproval`.
+- `test_pm_status_shows_the_version` — `/pm-status` prints `v1  approved …`.
+
 **`test_approval_integrity.py`** — approval state integrity (backlog #54–#58)
 - `test_gate_blocks_instead_of_crashing_on_nul_stdin` — #54: the gate run with stdin from the null device (Windows `NUL` reports `isatty()` True) takes the BLOCKED path to `/pm-approve`, with no `EOFError`.
 - `test_gate_keeps_approved_hash_when_it_detects_drift` — #55: on drift, meta keeps the approved `content_hash` (in lockstep with frontmatter) and records `edited_hash`; the warning shows two different hashes; no `META_FRONTMATTER_HASH_MISMATCH`.
@@ -408,6 +477,14 @@ one-line description. The matching docstring in code carries the same intent for
 - `test_raw_mode_unchanged_by_the_merge` — the pre-existing single-stage/all-approved raw text export is untouched by folding `--package` in alongside it, and raw mode never creates a `handoff/` package as a side effect.
 
 **`test_handoff_share_interop.py`** — the `pm_handoff.py` ↔ `pm_share.py` collision the audience-folder rework was designed to close (previously untested): `test_jira_plan_then_package_does_not_collide` (Jira `plan` first, then `--package`, must both succeed with `jira-plan.*` untouched — this direction used to hard-fail before the rework); `test_package_then_jira_plan_does_not_collide` (the reverse order, which already worked, still does); `test_audience_scoped_package_survives_either_order` (a scoped `--audience dev` rebuild and a Jira `plan` never disturb each other, in either order, since `jira-plan.*` lives at the `handoff/` root and audience content lives one level down).
+
+**`test_release_gate.py`** — the release check end to end (backlog #72, #53 option a): `pm_check.py --release` and the gate in `pm_share.py --package`.
+- `test_pm_check_release_reports_findings_and_exits_nonzero` — works outside any project, prints `file:line  CODE` plus a fix, exits 1 on errors; `--json` carries the same findings.
+- `test_pm_check_release_reads_a_zip_and_honours_ignore_ids` / `test_pm_check_release_needs_a_path_outside_a_project` — zip input, `--ignore-ids`, and exit 2 instead of guessing a folder.
+- `test_package_with_release_errors_is_blocked_and_writes_nothing` — **acceptance:** a story no TC covers blocks `--package`; no `handoff/` is created and `release_check_blocked` names `REQUIREMENT_UNTESTED`.
+- `test_blocked_package_leaves_the_previous_package_untouched` — the staged build is checked before any audience folder is replaced.
+- `test_allow_release_errors_publishes_and_logs_the_overridden_codes` — the override publishes and logs `release_check_overridden` with exactly the overridden codes.
+- `test_clean_package_publishes_and_passes_a_standalone_recheck` — a fully traced pipeline publishes, priorities read clean (backlog #70), and `--release` with no path checks all four audience folders with no errors.
 
 **`test_secret_scanning.py`** — secrets never persist through context import or leave through a handoff export (GH #63 PMOS-001, backlog #40). Output in every path names `file:line  kind` only; tests assert the fake key never appears on stdout/stderr, in `.sources.yaml`, or in `telemetry.jsonl`.
 - `test_register_redacts_secret_in_text_snapshot` — **acceptance:** registering a text source with a Google API key persists a redacted `.history/` snapshot (`[REDACTED:google_api_key]`), records `secrets_redacted`/`secret_kinds` in `.sources.yaml`, warns with `notes.md:3  google_api_key` + a rotate instruction, and logs `secrets_redacted`.

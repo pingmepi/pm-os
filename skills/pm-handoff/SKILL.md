@@ -3,7 +3,7 @@ name: pm-handoff
 description: Export the approved PM-OS pipeline — a raw text dump of one or all stages, a readable per-audience handoff package (dev/design/qa/business), or Jira tickets (connector or offline CSV). The single callable skill for all PM-OS export.
 model_tier: utility
 reads: ["01-brief.md", "02-scope.md", "03-prd.md", "04-design-spec.md", "05-prototype-mockup.html", "06-qa-plan.md", "08-trd.md", ".traceability.yaml", ".enhancements/**"]
-writes: ["handoff/**"]
+writes: ["handoff/**", ".releases/**"]
 ---
 
 # Role and goal
@@ -35,6 +35,66 @@ non-zero having written **nothing**, and prints `Secret scan: …` followed by
   explain the value will leave their machine. The override is logged
   (`secrets_allowed`); a block is logged as `secrets_blocked`.
 
+## Release check (`--package`, and so the Jira flow's package refresh)
+
+`pm_share.py --package` builds the package in a temporary folder and runs the
+release check on each audience folder exactly as it would ship, **before**
+anything under `handoff/` is created or replaced. It looks for stories with no
+epic or priority (or a priority still carrying Markdown), cited ids nothing in
+the folder defines, broken or escaping links, missing referenced files,
+placeholders, sources that changed or lost approval since generation, and
+exported stories/requirements no `TC-###` covers once the QA plan is approved
+(backlog #53), and items in `readiness.yaml` that are overdue (backlog #74).
+Every audience folder carries a copy of `readiness.yaml`, so the build team
+sees what is still owed.
+
+- **No errors:** the package is published. Warnings print as one line per
+  audience folder with counts per code; mention them to the PM and point at
+  `/pm-check --release handoff/<audience>/` to see each one.
+- **Errors:** the script exits non-zero having written **nothing**, and prints
+  each error with `file:line`, its code, and the fix. Stop. Relay the errors
+  (grouped by code if there are many), and help the PM fix them in the
+  canonical stage artifact (re-approving it), then re-run. Do not fix
+  anything under `handoff/` — it is regenerated.
+- Re-run with `--allow-release-errors` only if the PM explicitly asks for it
+  after you explain what will ship broken. The override is logged
+  (`release_check_overridden`, naming the overridden codes); a block is logged
+  as `release_check_blocked`. Approval for one run does not carry to the next.
+
+The same check runs on any folder, including a sprint package assembled by hand,
+with `/pm-check --release <folder-or-zip>`. Suggest it whenever the PM is about
+to send files that PM-OS did not build. `--raw` and `--no-package-refresh` Jira
+runs do not run the release check.
+
+## Releases, change notes and the manifest (`--package`)
+
+Every package build writes two more files into each audience folder:
+- `CHANGES.md`: the stable ids added, removed or changed since the last
+  recorded release, the stories that affects, and any outside input (Figma file
+  version, test-input files) that moved;
+- `manifest.json`: every file with its role, hash, approved version and
+  reading order.
+
+A rebuild deletes only the files the previous build wrote. Anything else the
+PM or a designer saved into an audience folder is kept, and the script names it.
+
+A plain build is a **draft**: its change note says so, and nothing is recorded.
+When the PM is about to **send** the package to a build team, ask for a
+one-line reason and pass it:
+
+```bash
+python3 ~/.pm-os/scripts/pm_share.py --package --release-note "<reason>"
+```
+
+This records `.releases/REL-###.yaml` and logs `handoff_released`. Use the
+PM's own words for the reason. If they name a decision (`OD-##`) that drove
+the change, include it. Don't record a release for a local check or an
+iteration; each recorded release becomes the baseline the next change note
+compares against. After a release, tell the PM:
+- the release id;
+- the number of ids changed and stories affected, from `CHANGES.md`;
+- any kept files the script listed.
+
 ## Active E2 enhancement behavior
 
 When `.enhancements/index.yaml` names an active cycle, every package/Jira projection is automatically enhancement-scoped. Export only computed `new | modified | removed` work plus the minimum epic/story parent closure. Never export an unaffected baseline sibling. Removed baseline work becomes an explicit removal item. Include the cycle/baseline reference, affected surfaces, non-touch/regression promises, compatibility/migration, rollout, and rollback in the human package and Jira payload. Refuse export if the boundary is absent, a changed stage is not approved, or the frozen baseline cannot be derived. Part-B `--increment` remains separate.
@@ -51,6 +111,7 @@ neither is present, this is the **Jira flow** (unchanged default).
 | `--package` | Package build, all 4 audiences (`handoff/{dev,design,qa,business}/`) |
 | `--package --audience <dev\|design\|qa\|business>` | Package build, one audience only |
 | `--package [--audience ...] --html` | Package build + an `index.html` per built audience folder |
+| `--package ... --allow-release-errors` | Package build that publishes despite release-check errors (logged; only on the PM's explicit request) |
 | `--raw [stage_id]` | Plain text dump of one stage or all approved stages |
 
 `--package` and `--raw` never touch Jira. The Jira forms never touch the
@@ -69,7 +130,7 @@ tickets are about to be built from — running the Jira flow refreshes both.
   without touching local docs (e.g. re-running ticket creation after a
   network failure, where the docs are already current).
 - **If the implicit refresh fails** (e.g. PRD not approved — the same gate
-  `--package` already enforces), **stop** — do not proceed to the Jira flow
+  `--package` already enforces — or the release check blocks it), **stop** — do not proceed to the Jira flow
   with stale or missing local docs. Report the failure exactly as `pm_share.py`
   reports it.
 - Print a one-line status once it succeeds, e.g. `Local handoff package
@@ -82,7 +143,7 @@ A read-only **projection** of the canonical stage artifacts — never touches
 gate, hash, status, or staleness. Run:
 
 ```bash
-python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR]
+python3 ~/.pm-os/scripts/pm_share.py --package [--audience dev|design|qa|business] [--html] [--output DIR] [--allow-release-errors] [--release-note "<reason>"]
 ```
 
 Writes into `handoff/<audience>/` at the project root (or `--output <dir>`)
@@ -110,6 +171,11 @@ for each requested audience:
 - `wireframes/prototype.html` (dev, design, qa) — the approved stage-05
   prototype, copied in, if present.
 - `--html` also emits an `index.html` inside each built audience folder.
+- Every generated file starts with frontmatter naming the approved source it
+  was built from: `status`, `version`, `approved_by`, `approved_at` and
+  `content_hash`, plus a `sources` list when it draws on several artifacts.
+  Each README ends with a Sources table of the same. A reader never has to
+  recompute a hash to know which approved revision it holds.
 
 A lightweight `handoff/README.md` **hub** (not itself audience-scoped) always
 lists whichever audience folders currently exist on disk, plus a pointer to
@@ -153,11 +219,15 @@ re-approval — the script already prints this; relay it, don't paraphrase it aw
 # Raw mode (`--raw [stage_id]`)
 
 ```bash
-python3 ~/.pm-os/scripts/pm_share.py [stage_id] [--output FILE]
+python3 ~/.pm-os/scripts/pm_share.py [stage_id] [--output FILE] [--include-unapproved]
 ```
 
-A single stage or every approved/edited stage, concatenated verbatim — for a
-quick paste into email/Slack/a doc. Pass through only the raw-relevant part
+A single stage or every **approved** stage, concatenated verbatim — for a
+quick paste into email/Slack/a doc. Each stage's header gives its status,
+version, approver, approval time and hash. A stage that is `edited`, `draft` or
+`stale` is not exported: a single such stage is refused, and the all-stages
+export names the ones it left out. `--include-unapproved` exports them anyway,
+each marked NOT APPROVED; pass it only when the PM explicitly asks. Pass through only the raw-relevant part
 of `$ARGUMENTS` (an optional `stage_id` and `--output`) verbatim; do not
 interpret, validate, or reformat them. Report the script's output as-is.
 

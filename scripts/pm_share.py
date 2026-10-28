@@ -28,18 +28,27 @@ Usage:
     python3 pm_share.py --package --output DIR             # write to DIR instead
     python3 pm_share.py --package --html                   # also emit an index.html per audience
     python3 pm_share.py ... --allow-secrets                # export despite likely secrets (logged)
+    python3 pm_share.py --package --allow-release-errors   # publish despite release-check errors (logged)
 
 Every mode first scans the artifacts it would export for likely secrets
 (lib/secret_scan, GH #63 PMOS-001) and refuses — writing nothing — unless
 --allow-secrets is given. Output names file:line + kind, never the value.
+
+Package mode then builds into a temporary folder and runs the release check
+(lib/release_check, backlog #72) on each audience folder exactly as it would
+ship. Release-check errors refuse the export, again writing nothing under
+handoff/, unless --allow-release-errors is given (logged). Only a package that
+passes (or is overridden) is published into handoff/<audience>/.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,6 +73,9 @@ from delivery_map import build_prd_delivery_map, body_of, normalize_title, title
 from enhancement import EnhancementDeltaError, active_enhancement_delta  # noqa: E402
 from frontmatter import read as fm_read  # noqa: E402
 from project import artifact_path, load_meta, resolve_project, STAGE_NAMES  # noqa: E402
+import readiness  # noqa: E402
+import release_check  # noqa: E402
+import release_record  # noqa: E402
 import secret_scan  # noqa: E402
 import traceability  # noqa: E402
 
@@ -115,6 +127,9 @@ AUDIENCE_CATEGORIES: dict[str, set[str]] = {
     "qa_scenarios": {"qa"},
     "screen_map": {"design", "qa"},
     "wireframes": {"dev", "design", "qa"},
+    # The readiness record (backlog #74): eval sets, test inputs and open
+    # decisions still owed. Every audience sees what is outstanding.
+    "readiness": {"dev", "design", "qa", "business"},
 }
 
 
@@ -148,6 +163,14 @@ def _resolve_handoff_root(out_dir: Path, root: Path) -> Path:
     (project root/ancestor/cwd) and ensure the directory exists — never to
     inspect or clear its contents.
     """
+    out = _validate_handoff_root(out_dir, root)
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _validate_handoff_root(out_dir: Path, root: Path) -> Path:
+    """The refusals of `_resolve_handoff_root`, without creating anything, so a
+    caller can run them before the release check decides whether to publish."""
     out = out_dir.resolve()
     root_r = root.resolve()
     if out == root_r or out in root_r.parents:
@@ -163,7 +186,6 @@ def _resolve_handoff_root(out_dir: Path, root: Path) -> Path:
         )
     if out.exists() and out.is_file():
         raise SystemExit(f"Error: {out} is a file, not a directory.")
-    out.mkdir(parents=True, exist_ok=True)
     return out
 
 
@@ -174,6 +196,15 @@ def _prepare_audience_dir(handoff_root: Path, audience: str) -> Path:
     guard, just scoped one directory deeper: refuses to `rmtree` an existing
     non-empty folder that lacks this tool's marker.
     """
+    out = _check_audience_dir(handoff_root, audience)
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def _check_audience_dir(handoff_root: Path, audience: str) -> Path:
+    """The marker refusal of `_prepare_audience_dir`, without deleting anything."""
     out = (handoff_root / audience).resolve()
     if out.exists():
         if out.is_file():
@@ -185,8 +216,6 @@ def _prepare_audience_dir(handoff_root: Path, audience: str) -> Path:
                 f"(no {HANDOFF_MARKER} marker). Refusing to delete it. Remove it "
                 "manually if it is stale, or pick a different --output."
             )
-        shutil.rmtree(out)
-    out.mkdir(parents=True, exist_ok=True)
     return out
 
 
@@ -260,6 +289,47 @@ def _stamp(root: Path, stage_id: str) -> str | None:
     name = artifact_path(root, stage_id).name
     h = fm.get("content_hash") or fm.get("generated_hash")
     return f"{name}@{h[:12]}" if h else name
+
+
+# Approval fields stamped on every exported file (backlog #71): a reader such as
+# APEX can tell which approved revision of which artifact it holds without
+# recomputing a hash.
+APPROVAL_KEYS = ("status", "version", "approved_by", "approved_at", "content_hash")
+
+
+def _provenance(root: Path, meta: dict) -> dict[str, dict]:
+    """Per-stage approval record for every stage artifact on disk, from meta
+    (status, version, approval time, approved hash) and frontmatter (approver)."""
+    records: dict[str, dict] = {}
+    for stage in meta.get("stages", []):
+        sid = str(stage.get("id"))
+        try:
+            apath = artifact_path(root, sid)
+        except KeyError:
+            continue
+        if not apath.exists():
+            continue
+        fm, _ = _read_artifact(root, sid)
+        fm = fm or {}
+        approved_at = stage.get("approved_at") or fm.get("approved_at")
+        records[sid] = {
+            "artifact": apath.name,
+            "status": stage.get("status") or fm.get("status"),
+            "version": stage.get("version"),
+            "approved_by": fm.get("approved_by"),
+            "approved_at": str(approved_at) if approved_at else None,
+            "content_hash": stage.get("content_hash") or fm.get("content_hash"),
+        }
+    return records
+
+
+def _approval_fields(prov: dict[str, dict], stage_ids) -> dict:
+    """Frontmatter fields for an exported file: the first (canonical) source's
+    approval record at top level, and every source's record under `sources`."""
+    records = [prov[sid] for sid in stage_ids if sid in prov]
+    fields = {key: records[0][key] for key in APPROVAL_KEYS} if records else {}
+    fields["sources"] = records
+    return fields
 
 
 def _section_of(body: str | None, title: str) -> str:
@@ -360,6 +430,7 @@ def _render_story(ctx: dict) -> str:
         "title": ctx.get("title"),
         "epic": ctx.get("epic"),
         "priority": ctx.get("priority"),
+        **(ctx.get("approval") or {}),
         "generated_from": list(ctx.get("generated_from") or []),
         "canonical_source": ctx.get("canonical_source"),
         "generated_at": ctx.get("generated_at"),
@@ -386,6 +457,7 @@ def _render_requirement(ctx: dict) -> str:
         "epic": ctx.get("epic"),
         "priority": ctx.get("priority"),
         "owning_stories": list(ctx.get("owning_stories") or []),
+        **(ctx.get("approval") or {}),
         "generated_from": list(ctx.get("generated_from") or []),
         "canonical_source": ctx.get("canonical_source"),
         "generated_at": ctx.get("generated_at"),
@@ -573,6 +645,7 @@ def build_package(
     prd_stamp = _stamp(root, "03")
     design_stamp = _stamp(root, "04")
     trd_stamp = _stamp(root, "08")
+    prov = _provenance(root, meta)
 
     # --- compute all content ONCE in memory, keyed by output-fragment path ---
     # (render once, write into every audience folder a category belongs to —
@@ -645,6 +718,7 @@ def build_package(
             "priority": delivery.priorities.get(req_id) or NOT_CAPTURED,
             "owning_stories": owning_stories,
             "requirement_body": req_block.strip() or NOT_CAPTURED,
+            "approval": _approval_fields(prov, ["03"]),
             "generated_from": [prd_stamp] if prd_stamp else [],
             "canonical_source": "03-prd.md",
             "generated_at": now,
@@ -750,10 +824,13 @@ def build_package(
         ]
 
         generated_from = [s for s in (prd_stamp, _stamp(root, "06")) if s]
+        source_ids = ["03", "06"]
         if screens and design_stamp:
             generated_from.append(design_stamp)
+            source_ids.append("04")
         if tasks and trd_stamp:
             generated_from.append(trd_stamp)
+            source_ids.append("08")
         rendered = _render_story({
             "story_id": story_id,
             "title": title,
@@ -774,6 +851,7 @@ def build_package(
             "screen_ids": screen_ids,
             "tasks": tasks,
             "task_ids": tsk_ids,
+            "approval": _approval_fields(prov, source_ids),
             "generated_from": generated_from,
             "canonical_source": "03-prd.md",
             "generated_at": now,
@@ -810,11 +888,14 @@ def build_package(
     # it ships only if either of those stages is part of the delta.
     if scope is not None and not ({"01", "02"} & scope["changed_stages"]):
         overview_body = _DELTA_BASELINE_NOTE + "\n"
+    overview_stamps = [s for s in (_stamp(root, "01"), _stamp(root, "02")) if s]
     overview_content = _stamped_doc(
         f"{project_name} — Handoff Overview",
-        [s for s in (_stamp(root, "01"), _stamp(root, "02")) if s],
+        overview_stamps,
         now,
         overview_body,
+        approval=_approval_fields(prov, ["01", "02"]),
+        tracked=overview_stamps,
     )
 
     # --- epic indexes (one file per Product Epic declared in the PRD) ---
@@ -885,6 +966,8 @@ def build_package(
                 [prd_stamp] if prd_stamp else [],
                 now,
                 "\n".join(header + story_lines + footer + req_lines) + "\n",
+                approval=_approval_fields(prov, ["03"]),
+                tracked=[prd_stamp] if prd_stamp else [],
             )
 
         filename = f"{epic_ref}-{_slug(epic_rec.title, epic_ref.lower())}.md"
@@ -913,7 +996,9 @@ def build_package(
     for category, (filename, heading, content, stamp) in plain_references.items():
         content = _delta_body(content, _REF_STAGE.get(category), scope)
         doc = _stamped_doc(
-            heading, [stamp] if stamp else [], now, ((content or "").strip() or NOT_CAPTURED) + "\n"
+            heading, [stamp] if stamp else [], now, ((content or "").strip() or NOT_CAPTURED) + "\n",
+            approval=_approval_fields(prov, [_REF_STAGE[category]]),
+            tracked=[stamp] if stamp else [],
         )
         reference_docs[category] = (filename, doc)
 
@@ -924,20 +1009,25 @@ def build_package(
     prd_projection = _delta_body(prd_body, "03", scope)
     reference_docs["prd_full"] = ("prd.md", _stamped_doc(
         "Product Requirements (PRD)", [prd_stamp] if prd_stamp else [], now,
-        ((prd_projection or "").strip() or NOT_CAPTURED) + "\n"))
+        ((prd_projection or "").strip() or NOT_CAPTURED) + "\n",
+        approval=_approval_fields(prov, ["03"]), tracked=[prd_stamp] if prd_stamp else []))
     trd_projection = (_delta_body(trd_body, "08", scope) or "").strip() if trd_body else (
         NOT_CAPTURED + "\n\n_Stage 08 (TRD) is not approved for this project, so no "
         "technical requirements are projected here. Approve the TRD (/pm-approve 08) and "
         "regenerate to include it._")
     reference_docs["trd_full"] = ("trd.md", _stamped_doc(
         "Technical Requirements (TRD)", [trd_stamp] if trd_stamp else [], now,
-        trd_projection + "\n"))
+        trd_projection + "\n",
+        approval=_approval_fields(prov, ["08"]),
+        tracked=[trd_stamp] if trd_stamp and trd_body else []))
     design_projection = (_delta_body(design_body, "04", scope) or "").strip() if design_body else (
         NOT_CAPTURED + "\n\n_Stage 04 (design spec) is not approved, so no design spec is "
         "projected here. Approve the design spec (/pm-approve 04) and regenerate to include it._")
     reference_docs["design_spec_full"] = ("design-spec.md", _stamped_doc(
         "Design Spec", [design_stamp] if design_stamp else [], now,
-        design_projection + "\n"))
+        design_projection + "\n",
+        approval=_approval_fields(prov, ["04"]),
+        tracked=[design_stamp] if design_stamp and design_body else []))
     if design_brief_body:
         reference_docs["design_brief"] = ("design-brief.md", _stamped_doc(
             "Draft Design Brief",
@@ -946,6 +1036,10 @@ def build_package(
             "> This is an unapproved design brief for external design work, not a canonical design spec.\n\n"
             + design_brief_body.strip()
             + "\n",
+            # Deliberately a draft: recorded under `sources`, never tracked as a
+            # source the release check would require to be approved.
+            approval=_approval_fields(prov, ["04"]),
+            tracked=[],
         ))
 
     # --- screen map (the reverse view: screen → the stories it serves) ---
@@ -957,7 +1051,9 @@ def build_package(
         screen_map_table = _screen_map_table(
             root, spine, screen_blocks, story_index, covered_story_ids, emit_proto, anchored_ids)
     screen_map_content = _stamped_doc(
-        "Screen Map", [design_stamp] if design_stamp else [], now, screen_map_table)
+        "Screen Map", [design_stamp] if design_stamp else [], now, screen_map_table,
+        approval=_approval_fields(prov, ["04"]),
+        tracked=[design_stamp] if design_stamp and design_body else [])
     reference_docs["screen_map"] = ("screen-map.md", screen_map_content)
 
     # --- resolve which audiences to (re)build ---
@@ -982,7 +1078,7 @@ def build_package(
             cats.discard("designer_workflow")
         (aud_dir / HANDOFF_MARKER).write_text(
             "PM-OS handoff package — generated by /pm-handoff --package. "
-            "Safe to delete; this audience folder is regenerated wholesale on each run.\n",
+            "A rebuild replaces only the files listed in manifest.json; files you add here are kept.\n",
             encoding="utf-8",
         )
 
@@ -1029,6 +1125,12 @@ def build_package(
                 path.write_text(content, encoding="utf-8")
                 written.append(path)
 
+        readiness_src = root / readiness.READINESS_FILE
+        if "readiness" in cats and readiness_src.is_file():
+            path = aud_dir / readiness.READINESS_FILE
+            path.write_bytes(readiness_src.read_bytes())
+            written.append(path)
+
         if "wireframes" in cats and emit_proto:
             (aud_dir / "wireframes").mkdir(parents=True, exist_ok=True)
             path = aud_dir / "wireframes" / "prototype.html"
@@ -1038,6 +1140,8 @@ def build_package(
         readme = _audience_readme(
             project_name, now, story_index, epic_index, requirement_index, generated_sources(root),
             emit_proto and "wireframes" in cats, aud, cats,
+            provenance=[prov[sid] for sid in ("01", "02", "03", "04", "05", "06", "08") if sid in prov],
+            has_readiness="readiness" in cats and (root / readiness.READINESS_FILE).is_file(),
         )
         if enhancement_delta:
             boundary = enhancement_delta["boundary"]
@@ -1137,9 +1241,21 @@ def _first_para(text: str) -> str:
     return " ".join(para).strip()
 
 
-def _stamped_doc(heading: str, sources: list[str], when: str, body: str) -> str:
+def _stamped_doc(heading: str, sources: list[str], when: str, body: str,
+                 approval: dict | None = None, tracked: list[str] | None = None) -> str:
+    """A generated reference doc. With ``approval`` (backlog #71) it starts with
+    frontmatter carrying the source's approval record; ``tracked`` lists the
+    `artifact@hash` stamps whose content the doc actually projects, which the
+    release check compares against the current artifacts. A source shown only
+    as a note (an unapproved TRD) or deliberately unapproved (a draft design
+    brief) is listed under `sources` but not tracked."""
     src = ", ".join(sources) if sources else "the approved pipeline"
-    return (
+    head = ""
+    if approval is not None:
+        fields = {**approval, "generated_from": list(tracked or []), "generated_at": when}
+        head = "---\n" + yaml.safe_dump(fields, default_flow_style=False, sort_keys=False,
+                                        allow_unicode=True) + "---\n\n"
+    return head + (
         f"<!-- GENERATED — DO NOT EDIT HERE. Read-only projection of {src}. "
         f"Edit the canonical artifact and regenerate with `/pm-handoff --package`. -->\n\n"
         f"# {heading}\n\n"
@@ -1154,7 +1270,8 @@ def generated_sources(root: Path) -> list[str]:
 
 def _audience_readme(
     project_name: str, when: str, story_index, epic_index, requirement_index, sources, has_proto: bool,
-    audience: str, cats: set[str],
+    audience: str, cats: set[str], provenance: list[dict] | None = None,
+    has_readiness: bool = False,
 ) -> str:
     """A reading guide scoped to exactly the files present in this audience folder."""
     lines = [
@@ -1204,10 +1321,35 @@ def _audience_readme(
         lines += ["", "## Reference"] + present_reference
     if "designer_workflow" in cats:
         lines += ["", "## Designer workflow", "- [Designer workflow](DESIGNER-WORKFLOW.md)"]
+    if has_readiness:
+        lines += ["", "## Still owed", "- [Readiness record](readiness.yaml) — eval sets, test inputs "
+                  "and open decisions the build team is waiting on, with owners and due milestones"]
     if has_proto:
         lines += ["", "## Design", "- [Prototype](wireframes/prototype.html)"]
+    if provenance:
+        lines += _sources_table(provenance)
     lines.append("")
     return "\n".join(lines)
+
+
+def _sources_table(provenance: list[dict]) -> list[str]:
+    """Which approved revision of each source artifact this package was built
+    from (backlog #71), so a reader never has to recompute a hash to know."""
+    lines = [
+        "",
+        "## Sources",
+        "",
+        "| Artifact | Status | Version | Approved by | Approved at | Content hash |",
+        "|---|---|---|---|---|---|",
+    ]
+    for rec in provenance:
+        version = f"v{rec['version']}" if rec.get("version") else "—"
+        digest = (rec.get("content_hash") or "")[:12] or "—"
+        lines.append(
+            f"| {rec['artifact']} | {rec.get('status') or '—'} | {version} | "
+            f"{rec.get('approved_by') or '—'} | {rec.get('approved_at') or '—'} | {digest} |"
+        )
+    return lines
 
 
 def _designer_workflow_doc(project_name: str, when: str) -> str:
@@ -1353,17 +1495,35 @@ def package_source_paths(root: Path) -> list[Path]:
 # --- raw mode (original pm-share behavior, plus the secret gate) -----------------
 
 def _raw_export(root: Path, stage_id: str | None, output: str | None,
-                allow_secrets: bool = False) -> None:
+                allow_secrets: bool = False, include_unapproved: bool = False) -> None:
+    """Plain-text export. Only `approved` stages go out: an `edited` stage's body
+    changed after approval, and a draft was never approved (backlog #71). The PM
+    can include them with --include-unapproved, and the output then says so on
+    each such stage."""
     meta = load_meta(root)
+    statuses = {s["id"]: s.get("status") for s in meta["stages"]}
 
     if stage_id:
         stage_id = stage_id.zfill(2)
         if stage_id not in STAGE_NAMES:
             print(f"Error: unknown stage '{stage_id}'")
             sys.exit(1)
+        status = statuses.get(stage_id)
+        if status != "approved" and not include_unapproved:
+            print(f"Error: stage {stage_id} is '{status or 'not present'}', not approved, so it "
+                  "is not exported. Approve it first (/pm-approve "
+                  f"{stage_id}), or re-run with --include-unapproved to export it marked as "
+                  "unapproved.")
+            sys.exit(1)
         stages_to_share = [stage_id]
     else:
-        stages_to_share = [s["id"] for s in meta["stages"] if s["status"] in ("approved", "edited")]
+        wanted = ("approved", "edited", "draft", "stale") if include_unapproved else ("approved",)
+        stages_to_share = [s["id"] for s in meta["stages"] if s["status"] in wanted]
+        skipped = [f"{s['id']} ({s['status']})" for s in meta["stages"]
+                   if s["status"] in ("edited", "draft", "stale") and s["id"] not in stages_to_share]
+        if skipped:
+            print(f"Note: not exported because not approved: {', '.join(skipped)}. "
+                  "Approve them, or re-run with --include-unapproved.", file=sys.stderr)
 
     if not stages_to_share:
         print("No approved stages to share.")
@@ -1381,16 +1541,23 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None,
         if not apath.exists():
             continue
         fm, body = fm_read(str(apath))
-        h = fm.get("content_hash")
+        stage = next((s for s in meta["stages"] if s["id"] == sid), {})
+        status = stage.get("status") or fm.get("status", "?")
+        h = stage.get("content_hash") or fm.get("content_hash")
         hash_short = h[:12] if h else "N/A"
+        version = f"v{stage['version']}" if stage.get("version") else "none"
+        header = (f"Status: {status} | Version: {version} | Approved by: "
+                  f"{fm.get('approved_by') or 'n/a'} | Approved at: {stage.get('approved_at') or 'n/a'} "
+                  f"| Hash: {hash_short}")
         lines += [
             "---",
             f"## Stage {sid}: {STAGE_NAMES[sid].replace('-', ' ').title()}",
-            f"Status: {fm.get('status', '?')} | Hash: {hash_short}",
-            "",
-            body.strip(),
-            "",
+            header,
         ]
+        if status != "approved":
+            lines.append(f"**NOT APPROVED ({status}): exported with --include-unapproved. "
+                         "Do not treat this stage as a decision.**")
+        lines += ["", body.strip(), ""]
 
     text = "\n".join(lines)
 
@@ -1399,6 +1566,156 @@ def _raw_export(root: Path, stage_id: str | None, output: str | None,
         print(f"Exported to {output}")
     else:
         print(text)
+
+
+# --- package publish (staged build -> release check -> publish) -----------------
+
+def _add_release_files(root: Path, staged_root: Path, audiences: list[str], meta: dict,
+                       release_note: str | None) -> dict:
+    """Write CHANGES.md and manifest.json into each staged audience folder
+    (backlog #73, #75) and return the snapshot a release record is made from.
+
+    The change note compares the approved sources' stable ids and the outside
+    inputs with the last recorded release. Plain rebuilds are drafts: they get
+    a note but no release id.
+    """
+    project_name = meta.get("project_name") or meta.get("project_slug", "project")
+    prov = _provenance(root, meta)
+    stable_ids = release_record.stable_id_hashes(root, prov)
+    inputs = release_record.outside_inputs(root)
+    previous = release_record.latest(root)
+    delta = release_record.diff(previous, stable_ids, inputs)
+    stories = (release_record.affected_stories(root, [c["id"] for c in delta["ids"]])
+               if previous else {})
+    release_id = release_record.next_id(root) if release_note else None
+    generated_at = release_record.now_iso()
+    changes = release_record.render_changes(
+        project_name=project_name, delta=delta, stories=stories, note=release_note,
+        release_id=release_id, generated_at=generated_at)
+    manifests: dict[str, dict] = {}
+    for aud in audiences:
+        aud_dir = staged_root / aud
+        (aud_dir / release_record.CHANGES_FILE).write_text(changes, encoding="utf-8")
+        readme = aud_dir / "README.md"
+        if readme.is_file():
+            text = readme.read_text(encoding="utf-8")
+            link = ("- [What changed](CHANGES.md): ids added, removed or changed since the last "
+                    "release, and the stories they affect. Files, roles and hashes: "
+                    "[manifest.json](manifest.json)")
+            text = text.replace("## Start here\n", f"## Start here\n{link}\n", 1)
+            readme.write_text(text, encoding="utf-8")
+        manifest = release_record.build_manifest(project_name, aud, aud_dir, release_id, generated_at)
+        (aud_dir / release_record.MANIFEST_FILE).write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        manifests[aud] = manifest
+    return {
+        "release_id": release_id, "generated_at": generated_at, "provenance": prov,
+        "stable_ids": stable_ids, "inputs": inputs, "delta": delta, "stories": stories,
+        "manifests": manifests,
+    }
+
+
+def _record_release(root: Path, snapshot: dict, note: str, audiences: list[str],
+                    overridden: list[str]) -> Path:
+    """Write `.releases/REL-###.yaml` and log `handoff_released` (backlog #73)."""
+    try:
+        from config import load_config
+        released_by = load_config().get("pm_user")
+    except Exception:
+        released_by = None
+    delta = snapshot["delta"]
+    record = {
+        "id": snapshot["release_id"],
+        "released_at": snapshot["generated_at"],
+        "released_by": released_by,
+        "note": note,
+        "previous": delta.get("previous"),
+        "audiences": audiences,
+        "release_check_overridden": overridden,
+        "sources": {sid: {k: rec.get(k) for k in ("artifact",) + APPROVAL_KEYS}
+                    for sid, rec in sorted(snapshot["provenance"].items())},
+        "stable_ids": snapshot["stable_ids"],
+        "outside_inputs": snapshot["inputs"],
+        "changes": delta["ids"],
+        "files": {aud: [{"path": f["path"], "sha256": f["sha256"]} for f in m["files"]]
+                  for aud, m in snapshot["manifests"].items()},
+    }
+    path = release_record.write_record(root, record)
+    try:
+        from telemetry import log
+        log("handoff_released", root, None, {
+            "release": record["id"], "previous": record["previous"], "audiences": audiences,
+            "ids_changed": len(delta["ids"]), "stories_affected": len(snapshot["stories"]),
+            "inputs_changed": len(delta["inputs"]), "release_check_overridden": overridden,
+        })
+    except Exception as e:  # telemetry must never break the workflow
+        print(f"Warning: telemetry logging failed: {e}", file=sys.stderr)
+    return path
+
+
+def publish_package(root: Path, out_dir: Path, *, with_html: bool = False,
+                    audience: str | None = None, allow_release_errors: bool = False,
+                    release_note: str | None = None) -> list[Path]:
+    """Build the package into a temporary folder, run the release check on each
+    audience folder as it would ship, and only then replace `handoff/<audience>/`.
+
+    Every refusal that can stop the export (unsafe output path, a non-PM-OS
+    folder in the way, a release-check error) happens before anything under
+    `out_dir` is created or deleted. Publishing removes only the files the
+    previous build wrote (#68). With ``release_note`` the build is recorded as
+    a release in `.releases/` (#73).
+    """
+    handoff_root = _validate_handoff_root(out_dir, root)
+    audiences = [audience] if audience else list(AUDIENCES)
+    for aud in audiences:
+        _check_audience_dir(handoff_root, aud)
+    if release_note is not None and not release_note.strip():
+        raise SystemExit("Error: --release-note needs a one-line reason for this release.")
+
+    kept: dict[str, list[str]] = {}
+    with tempfile.TemporaryDirectory(prefix="pm-os-package-") as tmp:
+        # Resolved: on Windows the temp dir can come back as an 8.3 short path
+        # (MANDAL~1.KAR) while build_package resolves its output to the long one.
+        staged_root = Path(tmp).resolve() / "handoff"
+        staged = build_package(root, staged_root, with_html=with_html, audience=audience)
+        meta = load_meta(root)
+        snapshot = _add_release_files(root, staged_root, audiences, meta, release_note)
+        staged += [staged_root / aud / name for aud in audiences
+                   for name in (release_record.CHANGES_FILE, release_record.MANIFEST_FILE)]
+        reports = [
+            (f"{_display(handoff_root / aud, root)}/",
+             release_check.check_release(staged_root / aud, project_root=root))
+            for aud in audiences
+        ]
+        release_check.guard_release(root, reports, allow=allow_release_errors,
+                                    surface="handoff_package")
+        overridden = sorted({f.code for _, r in reports for f in r.errors})
+
+        handoff_root.mkdir(parents=True, exist_ok=True)
+        for aud in audiences:
+            target = handoff_root / aud
+            kept[aud] = release_record.clear_generated(target)
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(staged_root / aud, target, dirs_exist_ok=True)
+        written = [handoff_root / Path(p).resolve().relative_to(staged_root) for p in staged]
+
+    project_name = meta.get("project_name") or meta.get("project_slug", "project")
+    _write_hub_readme(handoff_root, project_name, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    for aud, files in kept.items():
+        if files:
+            print(f"Kept {len(files)} file(s) in handoff/{aud}/ that PM-OS did not write: "
+                  + ", ".join(files[:10]) + (" …" if len(files) > 10 else ""))
+    if release_note:
+        path = _record_release(root, snapshot, release_note.strip(), audiences, overridden)
+        print(f"Recorded release {snapshot['release_id']} in {_display(path, root)}.")
+    return written
+
+
+def _display(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 # --- entrypoint ----------------------------------------------------------------
@@ -1419,10 +1736,29 @@ def main() -> None:
         help="Export even though the scan found likely secrets (API keys, tokens, private "
              "keys) in the exported artifacts. Logged as secrets_allowed; rotate the credential.",
     )
+    parser.add_argument(
+        "--allow-release-errors", dest="allow_release_errors", action="store_true",
+        help="With --package, publish even though the release check found errors "
+             "(undefined ids, broken links, missing priorities…). Logged as "
+             "release_check_overridden with the overridden codes.",
+    )
+    parser.add_argument(
+        "--include-unapproved", dest="include_unapproved", action="store_true",
+        help="Raw mode: also export stages that are edited, draft or stale. Each is "
+             "marked NOT APPROVED in the output.",
+    )
+    parser.add_argument(
+        "--release-note", dest="release_note", metavar="REASON",
+        help="With --package, record this build as a release (.releases/REL-###.yaml) with a "
+             "one-line reason. Every build writes CHANGES.md against the last release; only "
+             "builds given a note are recorded.",
+    )
     args = parser.parse_args()
 
     if args.audience and not args.package:
         raise SystemExit("Error: --audience only applies with --package.")
+    if args.release_note is not None and not args.package:
+        raise SystemExit("Error: --release-note only applies with --package.")
 
     try:
         root = resolve_project()
@@ -1435,13 +1771,15 @@ def main() -> None:
         # Before build_package touches handoff/: a blocked export writes nothing.
         secret_scan.guard_export(root, package_source_paths(root),
                                  allow=args.allow_secrets, export="handoff_package")
-        written = build_package(root, out_dir, with_html=args.html, audience=args.audience)
+        written = publish_package(root, out_dir, with_html=args.html, audience=args.audience,
+                                  allow_release_errors=args.allow_release_errors,
+                                  release_note=args.release_note)
         scope = f"handoff/{args.audience}/" if args.audience else "handoff/{dev,design,qa,business}/"
         print(f"Handoff package written to {scope} ({len(written)} files).")
         print("This package is read-only — regenerate with `/pm-handoff --package` after approving PRD/QA/design changes.")
         return
 
-    _raw_export(root, args.stage_id, args.output, args.allow_secrets)
+    _raw_export(root, args.stage_id, args.output, args.allow_secrets, args.include_unapproved)
 
 
 if __name__ == "__main__":

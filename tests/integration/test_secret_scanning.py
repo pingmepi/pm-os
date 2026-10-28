@@ -30,6 +30,7 @@ _PRD_BODY = """## Product Epics
 ## User Stories with Acceptance Criteria
 ### US-001 — Rep sees only approved content
 Epic: EPIC-001
+Priority: Must
 Implements FR-001.
 ## Functional Requirements
 - **FR-001 (must):** Surface only MLR-approved assets.

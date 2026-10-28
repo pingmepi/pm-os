@@ -89,8 +89,9 @@ def ensure_gitignore(project_root: Path) -> None:
 OWNED_FILES = (
     ".meta.yaml", ".gitignore", ".traceability.yaml", "telemetry.jsonl",
     "feedback.jsonl", ".sources.yaml", ".codebase-source", "05-prototype-mockup.html",
+    "readiness.yaml",  # backlog #74: ungated, but versioned with the project
 )
-OWNED_DIRS = (".history", "00-context", "handoff", ".enhancements", "design-in")
+OWNED_DIRS = (".history", "00-context", "handoff", ".enhancements", "design-in", ".releases")
 
 
 def owned_paths(project_root) -> list[str]:
