@@ -3,7 +3,7 @@
 Tracked issues and fixes, surfaced during testing/rollout prep. Newest concerns first.
 Status legend: 🔴 open (blocking/critical) · 🟠 open (lower urgency) · 🟡 partially fixed · 🟢 fixed & released (release version noted).
 
-For **build order**, sequencing now lives inside each plan's own phase table (`../plans/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`) and the phase plan in `current-state-review.md` §7. The earlier one-time consolidation is archived at `../archive/development-order.md`.
+For **build order**, sequencing now lives inside each plan's own phase table (`../archive/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`) and the phase plan in `current-state-review.md` §7. The earlier one-time consolidation is archived at `../archive/development-order.md`.
 
 ---
 

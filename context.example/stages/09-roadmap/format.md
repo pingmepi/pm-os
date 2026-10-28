@@ -1,4 +1,4 @@
-# Stage 09 — Product Roadmap format (Indegene)
+# Stage 09 — Product Roadmap format (your company)
 
 > apply: augment — the skill keeps its default Product Roadmap sections and folds
 > these requirements in. List the sections/fields your real roadmap uses, plus

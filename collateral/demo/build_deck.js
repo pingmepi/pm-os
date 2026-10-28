@@ -307,4 +307,4 @@ function title(slide, text) {
   });
 })();
 
-pres.writeFile({ fileName: "/Users/Karans/pm-projects/repassist/PM-OS-demo.pptx" }).then(f => console.log("wrote", f));
+pres.writeFile({ fileName: require("path").join(__dirname, "PM-OS-demo.pptx") }).then(f => console.log("wrote", f));

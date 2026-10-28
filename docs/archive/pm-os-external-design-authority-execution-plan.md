@@ -597,7 +597,7 @@ QA story copy is byte-identical; and unrelated FR text does not leak into the st
 - `docs/reference/generated-doc-formats.md`
 - `docs/guides/sop.md`
 - `docs/guides/testing.md`
-- `docs/plans/pm-os-external-design-authority-plan.md`
+- `docs/archive/pm-os-external-design-authority-plan.md`
 - `docs/roadmap/current-state-review.md`
 - `CHANGELOG.md` only after implementation and tests are complete
 

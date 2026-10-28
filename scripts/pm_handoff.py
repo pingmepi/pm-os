@@ -418,7 +418,6 @@ def _scope_plan_to_enhancement(
             "children": [], "change_type": "removed", "enhancement": context_payload,
         })
 
-    refs = {item["ref"] for item in scoped}
     counts = {
         "epics": sum(item["type"] == "Epic" for item in scoped),
         "stories": sum(item["type"] == "Story" for item in scoped),
@@ -541,7 +540,7 @@ def cmd_plan(root: Path, output: str | None, allow_secrets: bool = False) -> Non
     json_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
     md_path.write_text(_render_plan_md(plan), encoding="utf-8")
     c = plan["counts"]
-    print(f"Handoff plan written (DRY RUN — nothing created):")
+    print("Handoff plan written (DRY RUN — nothing created):")
     print(f"  {md_path}   (review this)")
     print(f"  {json_path}   (machine map)")
     print(f"  {c['epics']} epic(s), {c['stories']} story(ies), "

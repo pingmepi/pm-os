@@ -5,7 +5,7 @@
 > **Archived — do not treat as live.** This was a point-in-time consolidation of build order as of
 > 2026-07-28. It predates the 2026-08-01 entry-pathways / interview / consistency-spine work and no
 > longer reflects the active sequence. Forward sequencing now lives inside each plan's own phase table
-> (`../plans/pm-os-entry-pathways-plan.md` E0–E3, `../plans/pm-os-consistency-spine-plan.md` A.0–A.4,
+> (`pm-os-entry-pathways-plan.md` E0–E3, `../plans/pm-os-consistency-spine-plan.md` A.0–A.4,
 > `../plans/pm-os-modes-delivery-and-handoff-plan.md` A/B/C); caught defects/gaps live in
 > `../roadmap/backlog.md`; the implemented-state snapshot lives in `../roadmap/current-state-review.md`.
 

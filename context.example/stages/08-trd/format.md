@@ -1,4 +1,4 @@
-# Stage 08 — TRD / Dev Plan format (Indegene)
+# Stage 08 — TRD / Dev Plan format (your company)
 
 > apply: augment — the skill keeps its default TRD sections and folds these
 > requirements in. Your dev-plan format maps to this stage (TRD ≈ dev plan).

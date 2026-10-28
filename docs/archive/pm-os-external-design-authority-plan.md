@@ -182,7 +182,7 @@ Per the CLAUDE.md convention (grep `docs/plans/` before minting a name — the `
 ## 11. Companion artifacts
 
 - **Management-facing note (PDLC v2):** published as a private artifact; local copy `pdlc-v2-proposal.html`. Covers the flow as a three-participant sequence diagram, the ownership table, what verification checks, what does not change, and three risks with mitigations. Aimed at approval, not implementation.
-- **Flow diagram:** `assets/pdlc-v2-external-design-authority.svg` (PNG export alongside). Stage 04 split in time: PM brief out, designer builds in Figma, `design-in/` ingested back into the same artifact for one approval.
+- **Flow diagram:** `assets/pdlc-v2-external-design-authority.svg`. Stage 04 split in time: PM brief out, designer builds in Figma, `design-in/` ingested back into the same artifact for one approval.
 - **Adcept run findings:** §2 above is the canonical write-up.
 
 ---

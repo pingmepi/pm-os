@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <style>
+      .h  { font-family: Georgia, 'Times New Roman', serif; }
+      .b  { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+      .navy { fill:#1F3A5F; } .mint { fill:#17A2A2; } .teal { fill:#0E7C7B; }
+      .ink { fill:#1A2230; } .slate { fill:#5A6B7B; } .white { fill:#FFFFFF; }
+      .good { fill:#1E7A46; } .plan { fill:#B5742A; }
+    </style>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1F3A5F" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#FAFBFC"/>
+
+  <!-- Header -->
+  <text x="120" y="118" class="b mint" font-size="20" font-weight="700" letter-spacing="4">ROADMAP</text>
+  <text x="120" y="172" class="h navy" font-size="50" font-weight="700">Where PM-OS is going</text>
+  <text x="120" y="212" class="b slate" font-size="23">v1 is the product-definition kernel. The full lifecycle is built as additive phases around it — not a rewrite.</text>
+  <line x1="120" y1="242" x2="1800" y2="242" stroke="#C9D4E0" stroke-width="1.5"/>
+
+  <!-- Shipped strip -->
+  <g filter="url(#cardShadow)">
+    <rect x="120" y="272" width="1680" height="74" rx="12" fill="#1F3A5F"/>
+    <rect x="120" y="272" width="9" height="74" rx="0" fill="#17A2A2"/>
+  </g>
+  <text x="156" y="305" class="h white" font-size="22" font-weight="700">Shipped — Phases 0 &amp; 1</text>
+  <text x="156" y="332" class="b" fill="#D8E4F0" font-size="18">Product-definition pipeline (brief → metrics), human-gated approvals, drift detection · runtime-agnostic (Claude + Codex), install verifier.</text>
+  <g>
+    <rect x="1640" y="290" width="120" height="38" rx="19" fill="#E2F0E8"/>
+    <text x="1700" y="315" class="b good" font-size="17" font-weight="700" text-anchor="middle">LIVE</text>
+  </g>
+
+  <!-- Phase cards: 2 rows x 3 cols -->
+  <!-- col x: 120, 680, 1240 ; width 560 ; gap 20 -->
+  <!-- row y: 386 (h300), 706 (h300) -->
+
+  <!-- Card template repeated -->
+  <!-- PHASE 2 -->
+  <g filter="url(#cardShadow)">
+    <rect x="120" y="386" width="540" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="120" y="386" width="9" height="300" fill="#17A2A2"/>
+  </g>
+  <text x="156" y="436" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 2</text>
+  <rect x="540" y="414" width="96" height="34" rx="17" fill="#E2F0E8"/>
+  <text x="588" y="437" class="b good" font-size="15" font-weight="700" text-anchor="middle">NEXT</text>
+  <text x="156" y="478" class="h navy" font-size="27" font-weight="700">Flexible Intake</text>
+  <text x="156" y="528" class="b ink" font-size="18">Start from an existing scope or PRD via</text>
+  <text x="156" y="554" class="b ink" font-size="18"><tspan class="teal" font-weight="700">/pm-import</tspan> — not just a one-line</text>
+  <text x="156" y="580" class="b ink" font-size="18">statement. Raw sources preserved with</text>
+  <text x="156" y="606" class="b ink" font-size="18">provenance; gates stay intact.</text>
+  <text x="156" y="654" class="b slate" font-size="15" font-style="italic">No dependencies — ships standalone value.</text>
+
+  <!-- PHASE 3 -->
+  <g filter="url(#cardShadow)">
+    <rect x="680" y="386" width="540" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="680" y="386" width="9" height="300" fill="#0E7C7B"/>
+  </g>
+  <text x="716" y="436" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 3</text>
+  <rect x="1088" y="414" width="116" height="34" rx="17" fill="#F7EEDF"/>
+  <text x="1146" y="437" class="b plan" font-size="15" font-weight="700" text-anchor="middle">PLANNED</text>
+  <text x="716" y="478" class="h navy" font-size="27" font-weight="700">Brownfield Mode</text>
+  <text x="716" y="528" class="b ink" font-size="18">Support existing-product changes, not</text>
+  <text x="716" y="554" class="b ink" font-size="18">only greenfield. Adds a codebase</text>
+  <text x="716" y="580" class="b ink" font-size="18">understanding stage; downstream</text>
+  <text x="716" y="606" class="b ink" font-size="18">artifacts written as deltas.</text>
+  <text x="716" y="654" class="b slate" font-size="15" font-style="italic">New-product flow stays unchanged.</text>
+
+  <!-- PHASE 3.5 -->
+  <g filter="url(#cardShadow)">
+    <rect x="1240" y="386" width="560" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="1240" y="386" width="9" height="300" fill="#17A2A2"/>
+  </g>
+  <text x="1276" y="436" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 3.5</text>
+  <rect x="1604" y="414" width="160" height="34" rx="17" fill="#E2F0E8"/>
+  <text x="1684" y="437" class="b good" font-size="15" font-weight="700" text-anchor="middle">FOUNDATIONAL</text>
+  <text x="1276" y="478" class="h navy" font-size="27" font-weight="700">Traceability Spine</text>
+  <text x="1276" y="528" class="b ink" font-size="18">Stable IDs for requirements (REQ-…)</text>
+  <text x="1276" y="554" class="b ink" font-size="18">and QA scenarios (TC-…), linked</text>
+  <text x="1276" y="580" class="b ink" font-size="18">locally. The backbone everything</text>
+  <text x="1276" y="606" class="b ink" font-size="18">downstream references.</text>
+  <text x="1276" y="654" class="b slate" font-size="15" font-style="italic">Comes before Phases 4–6.</text>
+
+  <!-- PHASE 4 -->
+  <g filter="url(#cardShadow)">
+    <rect x="120" y="706" width="540" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="120" y="706" width="9" height="300" fill="#0E7C7B"/>
+  </g>
+  <text x="156" y="756" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 4</text>
+  <rect x="540" y="734" width="116" height="34" rx="17" fill="#F7EEDF"/>
+  <text x="598" y="757" class="b plan" font-size="15" font-weight="700" text-anchor="middle">PLANNED</text>
+  <text x="156" y="798" class="h navy" font-size="27" font-weight="700">Handoff &amp; Trackers</text>
+  <text x="156" y="848" class="b ink" font-size="18">A local, dev-ready handoff packet from</text>
+  <text x="156" y="874" class="b ink" font-size="18">approved artifacts — fully offline. Then</text>
+  <text x="156" y="900" class="b ink" font-size="18">one opt-in tracker export (Linear or</text>
+  <text x="156" y="926" class="b ink" font-size="18">Jira): dry-run → confirm → create.</text>
+  <text x="156" y="974" class="b slate" font-size="15" font-style="italic">Value first; connectors second.</text>
+
+  <!-- PHASE 5 -->
+  <g filter="url(#cardShadow)">
+    <rect x="680" y="706" width="540" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="680" y="706" width="9" height="300" fill="#0E7C7B"/>
+  </g>
+  <text x="716" y="756" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 5</text>
+  <rect x="1088" y="734" width="116" height="34" rx="17" fill="#F7EEDF"/>
+  <text x="1146" y="757" class="b plan" font-size="15" font-weight="700" text-anchor="middle">PLANNED</text>
+  <text x="716" y="798" class="h navy" font-size="27" font-weight="700">QA Triage &amp; Fixes</text>
+  <text x="716" y="848" class="b ink" font-size="18">Classify bugs against requirements and</text>
+  <text x="716" y="874" class="b ink" font-size="18">QA scenarios; flag product decisions vs</text>
+  <text x="716" y="900" class="b ink" font-size="18">dev fixes. Code-area suggestions stay</text>
+  <text x="716" y="926" class="b ink" font-size="18">quarantined and evidence-cited.</text>
+  <text x="716" y="974" class="b slate" font-size="15" font-style="italic">Reliable triage, separate from guesses.</text>
+
+  <!-- PHASE 6 -->
+  <g filter="url(#cardShadow)">
+    <rect x="1240" y="706" width="560" height="300" rx="14" fill="#FFFFFF" stroke="#C9D4E0"/>
+    <rect x="1240" y="706" width="9" height="300" fill="#0E7C7B"/>
+  </g>
+  <text x="1276" y="756" class="b mint" font-size="16" font-weight="700" letter-spacing="3">PHASE 6</text>
+  <rect x="1648" y="734" width="116" height="34" rx="17" fill="#F7EEDF"/>
+  <text x="1706" y="757" class="b plan" font-size="15" font-weight="700" text-anchor="middle">PLANNED</text>
+  <text x="1276" y="798" class="h navy" font-size="27" font-weight="700">Release &amp; Feedback</text>
+  <text x="1276" y="848" class="b ink" font-size="18">A release-readiness rollup from local</text>
+  <text x="1276" y="874" class="b ink" font-size="18">state — QA, open bugs, coverage,</text>
+  <text x="1276" y="900" class="b ink" font-size="18">blockers — then feedback intake and</text>
+  <text x="1276" y="926" class="b ink" font-size="18">iteration recommendations.</text>
+  <text x="1276" y="974" class="b slate" font-size="15" font-style="italic">Closes the lifecycle loop.</text>
+
+  <!-- footer principle -->
+  <text x="120" y="1044" class="b slate" font-size="16">Sequencing principle: every phase ships a connector-free, local-first version first; each external integration is a separate, opt-in, read-before-write unit.</text>
+</svg>

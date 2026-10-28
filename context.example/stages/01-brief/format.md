@@ -1,4 +1,4 @@
-# Stage 01 — Product Brief format (Indegene)
+# Stage 01 — Product Brief format (your company)
 
 > apply: augment — the skill keeps its default Product Brief sections and folds
 > these requirements in. List the sections/fields your real brief uses, plus any

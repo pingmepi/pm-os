@@ -157,17 +157,13 @@ known-unknowns), `/pm-check` (read-only consistency check for a project),
 `/pm-feedback <NN>` (rate a
 stage), `readiness.yaml` (the record of eval sets, test inputs and open
 decisions the build team is owed — ask the agent to update it, or run
-`python3 ~/.pm-os/scripts/pm_readiness.py init|check`), and `/pm-handoff` — the single export skill: `--raw` for approved
-artifacts as plain text, `--package [--audience dev|design|qa|business]` to
-build a readable, decomposed handoff package of per-story files + reference
-docs under `handoff/<audience>/`, or bare/`jira` to export the approved
-pipeline to Jira as epics/stories/tasks via the Atlassian connector — dry-run
-→ confirm → create, with ticket keys recorded back into the traceability
-spine; add `--offline` to get a `handoff/jira-import.csv` for Jira's own CSV
-importer instead, no connector needed. Every package is checked before it is
-written (`/pm-check --release <folder-or-zip>` runs the same check on any
-handoff folder, even a hand-built one), and only approved stages are exported:
-a stage edited after approval is left out until you re-approve it. There's also `/pm-sync` (push every
+`python3 ~/.pm-os/scripts/pm_readiness.py init|check`), and `/pm-handoff` — the single export skill: `--raw` for approved artifacts
+as plain text, `--package` for a per-audience handoff package under
+`handoff/<audience>/`, or `jira` (add `--offline` for a CSV) to create Jira
+epics, stories and tasks. Only approved stages are exported, and every package
+is checked before it is written. See
+[`docs/guides/sop.md` §4.5](docs/guides/sop.md#45-share-approved-artifacts) for
+the details. There's also `/pm-sync` (push every
 project's telemetry/feedback to the team repo; `--verify` checks each hash chain).
 
 Approve the business statement, then generate and approve stages. The business

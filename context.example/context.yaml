@@ -12,8 +12,8 @@
 #   reference-only  -> examples shown for tone/depth only, not structure
 
 schema_version: 1
-active_pack: indegene
-description: Indegene life-sciences PM context
+active_pack: example
+description: Your company's PM context (replace with your own)
 
 # Applied to every project, every stage.
 global:

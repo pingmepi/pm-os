@@ -2,7 +2,7 @@
 
 **Status:** 🟡 Partly shipped. **A.0, the seven v1.4.1 defect fixes (backlog #30–#36), released in v1.4.1–v1.4.3**; #31's detector (`DOWNSTREAM_UPSTREAM_STALE`) shipped then, and its atomicity half shipped in v1.5.3 as `lib/cascade.py` (approval writes the downstream stale cascade in the same meta write, backlog #57). A.1–A.4 (the general consistency spine) are designed here, not yet built. Originally recorded 2026-08-01.
 **Author:** Karan (with Claude Code)
-**Entry-pathways work** (formerly bundled here as "Thrust B") now lives in its own plan: `pm-os-entry-pathways-plan.md`. This doc is the consistency-spine + fixes half only.
+**Entry-pathways work** (formerly bundled here as "Thrust B") now lives in its own plan: `../archive/pm-os-entry-pathways-plan.md`. This doc is the consistency-spine + fixes half only.
 **Supersedes / ignores:** the `feat/whole-product-foundation` branch (scope-tier / increment / promote work) — abandoned as buggy per PM decision. Its Part B *design* still lives in `pm-os-modes-delivery-and-handoff-plan.md`; this plan does **not** depend on that branch's code.
 
 **Why this exists:** cross-cutting requirements introduced in skill prose (e.g. "add TRD tasks to each story file") were enforced only by LLM diligence, not a hard check — so they silently missed stages. This plan makes the checks structural, and fixes the v1.4.1 defect cluster that pain produced.
@@ -45,7 +45,7 @@ A suite test that scans skill prose for declared cross-cutting requirements and 
 
 ## Entry pathways (separate plan)
 
-The three entry pathways (idea / prototype / live-product) and the interview primitive are a distinct thread. Full, buildable design: **`pm-os-entry-pathways-plan.md`** (pathway 2 first, per PM decision 2026-08-01). Sequencing note: the consistency spine (A.1–A.4) is the guardrail that makes the entry work's interview-driven backfill trustworthy — three of the v1.4.1 defects (#30/#32/#31) are the "no hard cross-artifact check" problem in miniature — so A before B where they overlap, but the pathway-2 interview does not hard-depend on A.1–A.4 and can proceed in parallel.
+The three entry pathways (idea / prototype / live-product) and the interview primitive are a distinct thread. Full, buildable design: **`../archive/pm-os-entry-pathways-plan.md`** (pathway 2 first, per PM decision 2026-08-01). Sequencing note: the consistency spine (A.1–A.4) is the guardrail that makes the entry work's interview-driven backfill trustworthy — three of the v1.4.1 defects (#30/#32/#31) are the "no hard cross-artifact check" problem in miniature — so A before B where they overlap, but the pathway-2 interview does not hard-depend on A.1–A.4 and can proceed in parallel.
 
 ## Sequencing (this plan)
 

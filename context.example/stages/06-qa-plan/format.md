@@ -1,4 +1,4 @@
-# Stage 06 — QA Plan format (Indegene)
+# Stage 06 — QA Plan format (your company)
 
 > apply: augment — the skill keeps its default QA Plan sections and folds these
 > requirements in. List the sections/fields your real QA plan uses, plus any

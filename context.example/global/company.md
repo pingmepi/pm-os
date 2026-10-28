@@ -5,7 +5,7 @@
 > Replace the prompts below with real content.
 
 ## Who we are
-<!-- TODO: Indegene one-paragraph description — what the company does, the domains
+<!-- TODO: one-paragraph description of your company — what it does, the domains
      it operates in (commercial, medical, clinical, regulatory, etc.). -->
 
 ## Domains & product surfaces

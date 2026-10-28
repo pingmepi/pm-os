@@ -300,9 +300,9 @@ def _stamp(root: Path, stage_id: str) -> str | None:
     return f"{name}@{h[:12]}" if h else name
 
 
-# Approval fields stamped on every exported file (backlog #71): a reader such as
-# APEX can tell which approved revision of which artifact it holds without
-# recomputing a hash.
+# Approval fields stamped on every exported file (backlog #71): a reader such as a
+# build team's agent can tell which approved revision of which artifact it holds
+# without recomputing a hash.
 APPROVAL_KEYS = ("status", "version", "approved_by", "approved_at", "content_hash")
 
 

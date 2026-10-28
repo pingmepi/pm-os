@@ -108,7 +108,7 @@ It is not yet the full PDLC operating system described above: brownfield codebas
 | Area | Status | Source |
 |---|---:|---|
 | Gemini runtime support | Planned | `../plans/pm-os-cross-runtime-plan.md` (Claude + Codex already shipped) |
-| Entry pathways + interview primitive | Pathway 2 (prototype entry) + interview shipped v1.4.3; **standalone `/pm-interview` re-run + known-unknowns surfacing (E3) shipped v1.4.5**; Pathway 3 **E2 shipped v1.5.0 (PR #68): same-project frozen baselines, read-only `00c` inventory/slice/impact cone, decision boundary, multi-surface stages 01–09, the mandatory affected-slice gate on stages 01–09, `.zip` codebase sources, consistency/status, delta-only package/Jira handoff, explicit refresh/completion, and two-cycle provenance** | `../plans/pm-os-entry-pathways-plan.md` E2.0–E2.7; `../archive/pm-os-e2-execution-runbook.md` Loops 0–12 |
+| Entry pathways + interview primitive | Pathway 2 (prototype entry) + interview shipped v1.4.3; **standalone `/pm-interview` re-run + known-unknowns surfacing (E3) shipped v1.4.5**; Pathway 3 **E2 shipped v1.5.0 (PR #68): same-project frozen baselines, read-only `00c` inventory/slice/impact cone, decision boundary, multi-surface stages 01–09, the mandatory affected-slice gate on stages 01–09, `.zip` codebase sources, consistency/status, delta-only package/Jira handoff, explicit refresh/completion, and two-cycle provenance** | `../archive/pm-os-entry-pathways-plan.md` E2.0–E2.7; `../archive/pm-os-e2-execution-runbook.md` Loops 0–12 |
 | Consistency spine (declarative invariant registry / coverage matrix / contract-lint / generation self-check) | A.0 defect cluster shipped (v1.4.1–v1.4.3); A.1–A.4 designed, not built | `../plans/pm-os-consistency-spine-plan.md` |
 | Delivery model (scope tiers + delivery increments) | Planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part B; backlog #28 |
 | Jira/Linear handoff | Jira export shipped (v1.2.0); Linear planned | `../plans/pm-os-modes-delivery-and-handoff-plan.md` Part C |
@@ -555,7 +555,7 @@ Principles:
 
 ## 10. Immediate Next Steps
 
-For fine-grained build sequencing, each plan carries its own phase table (`../plans/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`); caught defects/gaps live in `backlog.md`. (The earlier one-time cross-cutting consolidation is archived at `../archive/development-order.md`.) The coarse phase order below stays for historical continuity.
+For fine-grained build sequencing, each plan carries its own phase table (`../archive/pm-os-entry-pathways-plan.md`, `../plans/pm-os-consistency-spine-plan.md`, `../plans/pm-os-modes-delivery-and-handoff-plan.md`); caught defects/gaps live in `backlog.md`. (The earlier one-time cross-cutting consolidation is archived at `../archive/development-order.md`.) The coarse phase order below stays for historical continuity.
 
 Recommended order:
 

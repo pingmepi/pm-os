@@ -25,7 +25,7 @@ from pathlib import Path
 
 import yaml
 
-from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, downstream_stage_ids, artifact_path, STAGE_NAMES, CORE_STAGE_ORDER
+from project import resolve_project, load_meta, save_meta, get_stage, upstream_stage_ids, artifact_path, STAGE_NAMES, CORE_STAGE_ORDER
 from hashing import stage_content_hash, CompositeHashError
 from frontmatter import update_status, read as fm_read
 from telemetry import log
@@ -205,7 +205,6 @@ def main():
     # A structurally broken/unsafe pack manifest is caught by _upstream_hash
     # (blocks the gate). A pack whose member bodies changed since approval shows
     # up here as a content_hash mismatch and is marked 'edited' like any stage.
-    edited_stages = []
     for uid in upstream_ids:
         stage_meta = get_stage(meta, uid)
         apath = artifact_path(project_root, uid)
