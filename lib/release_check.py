@@ -144,6 +144,16 @@ class _Doc:
         return self.text.splitlines()
 
 
+def _owed_match(ref: str, owed_path: str) -> bool:
+    """True when a link `ref` points at the owed test-input file `owed_path`
+    (both relative). Compared on whole path segments, so a dot-folder keeps its
+    dot and `xinputs/a.csv` does not match `inputs/a.csv`."""
+    import readiness
+
+    ref = readiness.normalize_rel(ref)
+    return ref == owed_path or ref.endswith("/" + owed_path)
+
+
 def _split_frontmatter(text: str) -> tuple[dict, int]:
     if not text.startswith("---\n"):
         return {}, 0
@@ -575,7 +585,7 @@ def _check_referenced_files(folder: Path, docs: list[_Doc], files: list[Path],
             if not relevant:
                 continue
             owed_by = next((item for path, item in (owed or {}).items()
-                            if ref.replace("\\", "/").lstrip("./").endswith(path)), None)
+                            if _owed_match(ref, path)), None)
             if owed_by:
                 findings.append(ReleaseFinding(
                     WARNING, "FILE_PENDING", doc.rel, number,
@@ -915,7 +925,7 @@ def _check_readiness(folder: Path, project_root: Path | None) -> tuple[dict | No
             ERROR, code, label, None,
             f"{item['id']} ({item['summary']}) {state}; it was due by {item['due']}.", fix))
     owed = {
-        str(row["file"]).replace("\\", "/").lstrip("./"): str(row.get("id"))
+        readiness.normalize_rel(row["file"]): str(row.get("id"))
         for row in data.get("test_inputs") or []
         if isinstance(row, dict) and row.get("file") and row.get("status") not in readiness.INPUT_DONE
     }

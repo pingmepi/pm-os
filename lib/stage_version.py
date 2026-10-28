@@ -39,33 +39,39 @@ def bump(stage_meta: dict, content_hash: str | None) -> int:
     return current
 
 
-def approval_hashes(project_root: Path, stage_id: str) -> list[str]:
-    """Approved-body hashes for a stage, oldest first, from telemetry.jsonl.
+def all_approval_hashes(project_root: Path) -> dict[str, list[str]]:
+    """{stage id: approved-body hashes, oldest first} from one read of
+    telemetry.jsonl.
 
     Read leniently: a malformed line is skipped, never fatal. The hash chain is
     `/pm-sync --verify`'s concern, not the migration's.
     """
     path = Path(project_root) / "telemetry.jsonl"
     if not path.exists():
-        return []
-    hashes: list[str] = []
+        return {}
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
-        return []
+        return {}
+    hashes: dict[str, list[str]] = {}
     for line in lines:
         try:
             event = json.loads(line)
         except (json.JSONDecodeError, TypeError):
             continue
-        if not isinstance(event, dict) or str(event.get("stage")) != stage_id:
+        if not isinstance(event, dict):
             continue
         key = APPROVAL_EVENTS.get(event.get("event_type"))
         payload = event.get("payload") or {}
         value = payload.get(key) if key and isinstance(payload, dict) else None
         if value:
-            hashes.append(str(value))
+            hashes.setdefault(str(event.get("stage")), []).append(str(value))
     return hashes
+
+
+def approval_hashes(project_root: Path, stage_id: str) -> list[str]:
+    """Approved-body hashes for one stage, oldest first, from telemetry.jsonl."""
+    return all_approval_hashes(project_root).get(stage_id, [])
 
 
 def count_versions(hashes: list[str]) -> int:
@@ -90,11 +96,13 @@ def backfill(meta: dict, project_root: Path | None) -> bool:
     is left alone.
     """
     changed = False
+    by_stage: dict[str, list[str]] | None = None
     for stage in meta.get("stages") or []:
         if not isinstance(stage, dict) or "version" in stage:
             continue
-        stage_id = str(stage.get("id"))
-        hashes = approval_hashes(project_root, stage_id) if project_root else []
+        if by_stage is None:
+            by_stage = all_approval_hashes(project_root) if project_root else {}
+        hashes = by_stage.get(str(stage.get("id")), [])
         version = count_versions(hashes)
         if not version and stage.get("status") in APPROVED_LIKE:
             version = 1

@@ -270,12 +270,21 @@ def overdue(data: dict) -> list[dict]:
     return found
 
 
+def normalize_rel(path: str) -> str:
+    """A relative path in POSIX form without leading `./` segments. Unlike
+    `lstrip("./")` it keeps a dot-folder (`.fixtures/a.csv`) and `../`."""
+    path = str(path).replace("\\", "/")
+    while path.startswith("./"):
+        path = path[2:]
+    return path
+
+
 def pending_files(data: dict | None) -> set[str]:
     """POSIX paths of test-input files still owed (not yet received)."""
     if not data:
         return set()
     return {
-        str(row["file"]).replace("\\", "/").lstrip("./")
+        normalize_rel(row["file"])
         for row in data.get("test_inputs") or []
         if isinstance(row, dict) and row.get("file") and row.get("status") not in INPUT_DONE
     }

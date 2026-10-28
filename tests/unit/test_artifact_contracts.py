@@ -961,6 +961,20 @@ def test_labeled_field_value_on_the_next_line_still_counts_as_present():
     assert contracts.labeled_field("**Priority:**", "Priority") is None
 
 
+def test_empty_bold_label_does_not_swallow_the_next_labeled_field():
+    """Stack #93 review: an empty bold label followed by a blank line and
+    another bold label used to take that whole next line as its value, so the
+    next field (here Priority) read as missing and the release check blocked."""
+    block = (
+        "### US-001 — Sign in\n"
+        "**Edge cases / alternate paths:**\n"
+        "\n"
+        "**Priority:** Must\n"
+    )
+    assert contracts.block_priority(block) == "Must"
+    assert contracts.labeled_field(block, "Edge cases / alternate paths")
+
+
 def test_bold_priority_reaches_delivery_map_and_traceability_clean(tmp_path):
     """Backlog #70: the clean priority is what the delivery map (and so the
     story frontmatter and `.traceability.yaml`) carries for a PRD written in the

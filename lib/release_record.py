@@ -63,8 +63,17 @@ def releases_dir(project_root: Path | str) -> Path:
     return Path(project_root) / RELEASES_DIR
 
 
+class ReleaseRecordError(Exception):
+    """The newest release record cannot be read as a release."""
+
+
 def latest(project_root: Path | str) -> dict | None:
-    """The most recent recorded release, or None."""
+    """The most recent recorded release, or None when none is recorded.
+
+    An unreadable newest record raises ReleaseRecordError instead of reading as
+    "no release": that would reset the history silently, and `next_id` would
+    still number past the broken file.
+    """
     folder = releases_dir(project_root)
     if not folder.is_dir():
         return None
@@ -74,10 +83,15 @@ def latest(project_root: Path | str) -> dict | None:
     )
     if not numbered:
         return None
+    path = numbered[-1][1]
     try:
-        return yaml.safe_load(numbered[-1][1].read_text(encoding="utf-8")) or None
-    except (OSError, yaml.YAMLError):
-        return None
+        record = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise ReleaseRecordError(f"{path} cannot be read ({exc}). Restore it from git or fix the YAML.") from exc
+    if not isinstance(record, dict):
+        raise ReleaseRecordError(f"{path} is not a release record (expected a YAML mapping). "
+                                 "Restore it from git or fix it.")
+    return record
 
 
 def next_id(project_root: Path | str) -> str:
@@ -101,18 +115,40 @@ def write_record(project_root: Path | str, record: dict) -> Path:
 # Snapshot of what a build ships
 # ---------------------------------------------------------------------------
 
-def stable_id_hashes(project_root: Path | str, provenance: dict[str, dict]) -> dict[str, dict[str, str]]:
-    """{artifact: {stable id: block hash}} for every approved id-bearing source."""
+def not_compared(provenance: dict[str, dict]) -> dict[str, str]:
+    """{artifact: status} for id-bearing sources on disk that are not approved
+    (stale after an upstream re-approval, edited, or a draft). Their ids are
+    not compared in this build."""
+    return {
+        record.get("artifact") or stage_id: str(record.get("status"))
+        for stage_id in ID_SOURCE_STAGES
+        if (record := provenance.get(stage_id)) and record.get("status") != "approved"
+    }
+
+
+def stable_id_hashes(project_root: Path | str, provenance: dict[str, dict],
+                     previous: dict | None = None) -> dict[str, dict[str, str]]:
+    """{artifact: {stable id: block hash}} for every approved id-bearing source.
+
+    A source that is on disk but not approved (see `not_compared`) keeps the
+    ids the previous release recorded for it. Dropping them would list every
+    id as removed now, and as new once the stage is approved again.
+    """
     from enhancement import stable_id_blocks
     from frontmatter import read as fm_read
     from project import artifact_path
 
+    prev_ids = (previous or {}).get("stable_ids") or {}
     out: dict[str, dict[str, str]] = {}
     for stage_id in ID_SOURCE_STAGES:
         record = provenance.get(stage_id)
-        if not record or record.get("status") != "approved":
+        if not record:
             continue
         path = artifact_path(Path(project_root), stage_id)
+        if record.get("status") != "approved":
+            if isinstance(prev_ids.get(path.name), dict):
+                out[path.name] = dict(prev_ids[path.name])
+            continue
         try:
             _fm, body = fm_read(str(path))
         except Exception:
@@ -179,19 +215,14 @@ def _read_order(rel: str) -> int:
 
 
 def _file_frontmatter(path: Path) -> dict:
+    """Frontmatter of a Markdown file, parsed the way the release check reads it."""
+    from release_check import _split_frontmatter
+
     if path.suffix.lower() != ".md":
         return {}
-    text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
-    if not text.startswith("---\n"):
-        return {}
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return {}
-    try:
-        fm = yaml.safe_load(text[4:end]) or {}
-    except yaml.YAMLError:
-        return {}
-    return fm if isinstance(fm, dict) else {}
+    text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+    fm, _end = _split_frontmatter(text)
+    return {} if fm.get("__invalid__") else fm
 
 
 def file_entries(audience_dir: Path) -> list[dict]:
@@ -261,11 +292,12 @@ def diff(previous: dict | None, stable_ids: dict, inputs: dict) -> dict:
     return {"previous": (previous or {}).get("id"), "ids": changes, "inputs": moved}
 
 
-def affected_stories(project_root: Path | str, changed_ids: list[str]) -> dict[str, list[str]]:
-    """{story: [changed ids that touch it]}, resolved through the spine: a
-    story is touched by its own block, its requirements (either direction),
-    its journeys, its epic, and the test cases, screens and tasks that trace to
-    any of those."""
+def story_refs(project_root: Path | str) -> dict[str, list[str]]:
+    """{story: ids that touch it}, resolved through the spine: a story is
+    touched by its own block, its requirements (either direction), its
+    journeys, its epic, and the test cases, screens and tasks that trace to any
+    of those. A release records this map, so the next one can still trace an
+    id that has since been removed to the stories it used to touch."""
     import traceability
     from delivery_map import build_prd_delivery_map
     from frontmatter import read as fm_read
@@ -294,16 +326,31 @@ def affected_stories(project_root: Path | str, changed_ids: list[str]) -> dict[s
             if set(rec.get("implements") or []) & refs:
                 refs.add(tsk)
         touches[story] = refs
+    return {story: sorted(refs) for story, refs in touches.items()}
+
+
+def affected_stories(changed_ids: list[str], current_refs: dict[str, list[str]],
+                     previous_refs: dict | None = None) -> dict[str, list[str]]:
+    """{story: [changed ids that touch it]}, through this build's spine and
+    the previous release's (so removed ids and removed links still count)."""
+    refs: dict[str, set[str]] = {}
+    for mapping in (previous_refs or {}, current_refs):
+        if not isinstance(mapping, dict):
+            continue
+        for story, ids in mapping.items():
+            if isinstance(ids, list):
+                refs.setdefault(story, {story}).update(str(i) for i in ids)
     out: dict[str, list[str]] = {}
-    for story, refs in touches.items():
-        hits = [ident for ident in changed_ids if ident in refs]
+    for story, ids in refs.items():
+        hits = [ident for ident in changed_ids if ident in ids]
         if hits:
             out[story] = hits
     return out
 
 
 def render_changes(*, project_name: str, delta: dict, stories: dict[str, list[str]],
-                   note: str | None, release_id: str | None, generated_at: str) -> str:
+                   note: str | None, release_id: str | None, generated_at: str,
+                   held: dict[str, str] | None = None) -> str:
     """CHANGES.md. Ids are written in `code` so a removed id never reads as a
     citation the release check would expect the package to define."""
     title = f"{release_id}" if release_id else "draft build (not a recorded release)"
@@ -315,6 +362,12 @@ def render_changes(*, project_name: str, delta: dict, stories: dict[str, list[st
     if not release_id:
         lines.append("> This build is a draft. It becomes a release when built with a release note.")
     lines += ["", "## Why", "", note.strip() if note else "_No release note given._", ""]
+    if held:
+        lines += ["## Not compared", ""]
+        lines += [f"- {artifact} is {status}, so its ids were not compared"
+                  + (f"; they stay as recorded in `{previous}`." if previous else ".")
+                  for artifact, status in sorted(held.items())]
+        lines += ["", "Approve it and rebuild to include its changes.", ""]
 
     groups = {"new": "Added", "modified": "Changed", "removed": "Removed"}
     lines += ["## Stable ids", ""]
@@ -338,6 +391,8 @@ def render_changes(*, project_name: str, delta: dict, stories: dict[str, list[st
         if rows:
             lines.append(f"**{label} ({len(rows)}):** " + ", ".join(f"`{c['id']}`" for c in rows))
     lines += ["", "## Stories affected", ""]
+    traced = {i for hits in stories.values() for i in hits}
+    untraced = [c["id"] for c in delta["ids"] if c["id"] not in traced]
     if stories:
         for story, hits in sorted(stories.items()):
             others = [i for i in hits if i != story]
@@ -345,8 +400,13 @@ def render_changes(*, project_name: str, delta: dict, stories: dict[str, list[st
                 (["via " + ", ".join(f"`{i}`" for i in others)] if others else [])
             lines.append(f"- `{story}`: " + "; ".join(parts))
         lines.append("")
+    if untraced:
+        lines.append("Not traced to any story: " + ", ".join(f"`{i}`" for i in untraced)
+                     + ". Check these by hand.")
+        lines.append("")
+    if stories and not untraced:
         lines.append("Re-plan only these stories; the rest are unchanged since the last release.")
-    else:
+    elif not stories and not untraced:
         lines.append("No story is affected.")
     lines += ["", "## Outside inputs", ""]
     if delta["inputs"]:
@@ -367,50 +427,90 @@ def now_iso() -> str:
 # ---------------------------------------------------------------------------
 
 # A folder built before manifests existed has only the marker. Its generated
-# files are recognised by the package layout: these top-level names, plus
-# Markdown/HTML files inside these folders. Anything else is someone's own file.
+# files are these top-level names, files the new build writes again (they would
+# be replaced anyway), and Markdown in the package folders that says PM-OS made
+# it: `generated_from` in its frontmatter, or the projection banner. Anything
+# else, such as a designer's `wireframes/kit-v2.html`, is someone's own file.
 _LEGACY_TOP_LEVEL = {"README.md", "index.html", "00-overview.md", "DESIGNER-WORKFLOW.md",
                      "readiness.yaml", CHANGES_FILE, MANIFEST_FILE, ".pm-os-handoff"}
 _LEGACY_DIRS = {"stories", "requirements", "epics", "reference", "wireframes"}
+_GENERATED_BANNER = "GENERATED — DO NOT EDIT HERE"
 
 
-def _legacy_generated(rel: str) -> bool:
+def _says_generated(path: Path) -> bool:
+    if path.suffix.lower() != ".md":
+        return False
+    try:
+        if "generated_from" in _file_frontmatter(path):
+            return True
+        return _GENERATED_BANNER in path.read_text(encoding="utf-8", errors="replace")[:2000]
+    except OSError:
+        return False
+
+
+def _legacy_generated(audience_dir: Path, rel: str, incoming: set[str]) -> bool:
     parts = rel.split("/")
     if len(parts) == 1:
         return rel in _LEGACY_TOP_LEVEL
-    return parts[0] in _LEGACY_DIRS and Path(rel).suffix.lower() in {".md", ".html"}
+    if parts[0] not in _LEGACY_DIRS:
+        return False
+    return rel in incoming or _says_generated(audience_dir / rel)
 
 
-def generated_files(audience_dir: Path) -> set[str]:
+def generated_files(audience_dir: Path, incoming: set[str] | frozenset[str] = frozenset()) -> set[str]:
     """Paths PM-OS wrote into this folder last time: the previous manifest's
-    list, or the layout rule for a folder built before manifests."""
+    list, or, for a folder built before manifests (or with an unreadable one),
+    the legacy rule above. ``incoming`` is what the new build is about to write."""
     manifest = audience_dir / MANIFEST_FILE
     listed: set[str] | None = None
     if manifest.is_file():
         try:
             data = json.loads(manifest.read_text(encoding="utf-8"))
-            listed = {str(entry["path"]) for entry in data.get("files") or [] if entry.get("path")}
-        except (OSError, ValueError, TypeError, KeyError):
+            files = data.get("files") if isinstance(data, dict) else None
+            if isinstance(files, list) and all(isinstance(e, dict) and e.get("path") for e in files):
+                listed = {str(entry["path"]) for entry in files}
+        except (OSError, ValueError):
             listed = None
     present = {p.relative_to(audience_dir).as_posix() for p in audience_dir.rglob("*") if p.is_file()}
     if listed is None:
-        return {rel for rel in present if _legacy_generated(rel)}
+        return {rel for rel in present if _legacy_generated(audience_dir, rel, set(incoming))}
     return (listed | {MANIFEST_FILE, ".pm-os-handoff"}) & present
 
 
-def clear_generated(audience_dir: Path) -> list[str]:
-    """Delete what PM-OS generated last time and return the files kept.
+def _free_name(audience_dir: Path, rel: str) -> str:
+    """`<stem>.mine<suffix>` next to ``rel`` (numbered if taken)."""
+    path = Path(rel)
+    for n in range(1, 1000):
+        tag = ".mine" if n == 1 else f".mine{n}"
+        candidate = path.with_name(f"{path.stem}{tag}{path.suffix}").as_posix()
+        if not (audience_dir / candidate).exists():
+            return candidate
+    raise FileExistsError(f"no free name for {rel} in {audience_dir}")
+
+
+def clear_generated(audience_dir: Path, incoming: set[str] | frozenset[str] = frozenset()
+                    ) -> tuple[list[str], dict[str, str]]:
+    """Delete what PM-OS generated last time; return (files kept, files moved).
 
     Only files the previous build wrote are removed (#68), so a designer kit or
-    notes saved into handoff/<audience>/ survive a rebuild. Folders left empty
+    notes saved into handoff/<audience>/ survive a rebuild. A kept file at a
+    path the new build writes (``incoming``) is renamed to `<stem>.mine<suffix>`
+    rather than overwritten; `moved` maps old path to new. Folders left empty
     are removed.
     """
     if not audience_dir.is_dir():
-        return []
-    for rel in sorted(generated_files(audience_dir)):
+        return [], {}
+    for rel in sorted(generated_files(audience_dir, incoming)):
         (audience_dir / rel).unlink()
+    moved: dict[str, str] = {}
+    for path in sorted(p for p in audience_dir.rglob("*") if p.is_file()):
+        rel = path.relative_to(audience_dir).as_posix()
+        if rel in incoming:
+            moved[rel] = _free_name(audience_dir, rel)
+            path.rename(audience_dir / moved[rel])
     for folder in sorted((p for p in audience_dir.rglob("*") if p.is_dir()),
                          key=lambda p: len(p.parts), reverse=True):
         if not any(folder.iterdir()):
             folder.rmdir()
-    return sorted(p.relative_to(audience_dir).as_posix() for p in audience_dir.rglob("*") if p.is_file())
+    kept = sorted(p.relative_to(audience_dir).as_posix() for p in audience_dir.rglob("*") if p.is_file())
+    return kept, moved
